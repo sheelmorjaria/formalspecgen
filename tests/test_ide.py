@@ -59,7 +59,8 @@ def test_route_backend_identifies_permutation_and_recursive_reasons():
 
 
 def test_discover_passes_detects_all_reviewed_shapes():
-    code = r"""//@ ensures \sum int i; 0 <= i && i < a.length; a[i] == total;
+    code = r"""//@ public invariant !(north == 2 && east == 2);
+//@ ensures \sum int i; 0 <= i && i < a.length; a[i] == total;
 //@ ensures sorted(a);
 //@ ensures a[0] == \old(a)[0];
 x = left << shift;
@@ -72,4 +73,4 @@ a[i] = z;
     assert {"inject_bitshift_bounds", "inject_overflow_bounds", "inject_sum_helper",
             "inject_sum_invariant", "inject_bidirectional_old", "guard_array_access",
             "strengthen_sorted", "inject_nonlinear_index_assume",
-            "fix_inner_loop_spec_placement"} <= names
+            "fix_inner_loop_spec_placement", "guard_exclusion_invariants"} <= names

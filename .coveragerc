@@ -3,7 +3,6 @@ branch = True
 source =
     pipeline
     formalspec_core
-    server
 
 [report]
 show_missing = True

@@ -1,12 +1,10 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
 
-"""formalspecgen pipeline — natural-language (NL) -> validated JML specification.
+"""FormalSpecGen pipeline — natural language to contracts and verified implementations.
 
-The dual of formalspecDD: DD fills Java method bodies from trusted JML specs and
-verifies them with `openjml -esc`; this project drafts the JML specs from natural
-language and validates them with `openjml -check`. The two compose:
-    NL -> [formalspecgen] -> JML stub -> [formalspecDD] -> verified Java.
+The active native flow drafts JML from natural language, validates it with
+``openjml -check``, synthesizes Java bodies, and verifies them with ``openjml -esc``.
 
 Infrastructure (config/llm/verify/parse_vcs/strategy/schemas) is ported from
 formalspecDD; see SHARED_LINEAGE.md.

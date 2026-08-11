@@ -1,3 +1,5 @@
+review_status: reviewed
+schema_version: 1
 domain_name: TrainRoadCrossing
 module_name: train_crossing
 state_variables:

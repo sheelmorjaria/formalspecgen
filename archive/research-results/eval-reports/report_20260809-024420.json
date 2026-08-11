@@ -1,0 +1,121 @@
+{
+  "cases": [
+    {
+      "id": "bank_account",
+      "nl": "A bank account holds a non-negative integer balance that starts at zero. A withdrawal of a non-negative amount is permitted only if it does not exceed the current balance; the balance is then reduced by the withdrawn amount. The current balance can be queried.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 1.0,
+      "clause_precision": 1.0,
+      "clause_f1": 1.0,
+      "assumptions": [
+        "balance is always non-negative",
+        "withdrawal amount is non-negative",
+        "withdrawal amount cannot exceed current balance"
+      ],
+      "missing_info": [
+        "What should happen if a withdrawal is attempted with an amount greater than the current balance?",
+        "What should happen if a withdrawal is attempted with a negative amount?",
+        "Are there any fees or additional constraints not mentioned in the requirement?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "generated_stub": "public class BankAccount {\n    private /*@ spec_public @*/ int balance;\n\n    //@ public invariant balance >= 0;\n\n    //@ ensures balance == 0;\n    public BankAccount() {}\n\n    //@ requires amount >= 0;\n    //@ requires amount <= balance;\n    //@ assignable balance;\n    //@ ensures balance == \\old(balance) - amount;\n    public void withdraw(int amount) {}\n\n    //@ ensures \\result == balance;\n    public /*@ pure */ int getBalance() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 12.2
+    },
+    {
+      "id": "counter",
+      "nl": "A counter holds a non-negative count that never exceeds 1000. It starts at zero. It can be advanced by a non-negative amount n as long as the result stays within the bound, and it can report its current count.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.98,
+      "clause_precision": 0.98,
+      "clause_f1": 0.98,
+      "assumptions": [
+        "n is a non-negative integer",
+        "advance does nothing when count + n would exceed 1000"
+      ],
+      "missing_info": [
+        "What should happen when advance is called with n that would make count exceed 1000? Should it throw an exception or simply not modify the count?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "generated_stub": "public class Counter {\n    private /*@ spec_public @*/ int count;\n\n    //@ public invariant 0 <= count && count <= 1000;\n\n    //@ ensures count == 0;\n    public Counter() {}\n\n    //@ requires n >= 0;\n    //@ requires count + n <= 1000;\n    //@ assignable count;\n    //@ ensures count == \\old(count) + n;\n    public void advance(int n) {}\n\n    //@ ensures \\result == count;\n    public /*@ pure */ int getCount() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 14.1
+    },
+    {
+      "id": "power",
+      "nl": "Given an integer base b between 0 and 7 and an integer exponent e between 0 and 10, pow returns b raised to the power e, i.e. the product of e copies of b. The function is pure and static.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.857,
+      "clause_precision": 0.514,
+      "clause_f1": 0.643,
+      "assumptions": [
+        "The base b is an integer between 0 and 7 (inclusive)",
+        "The exponent e is an integer between 0 and 10 (inclusive)",
+        "The function is pure (has no side effects)",
+        "The function is static (can be called without an instance)",
+        "pow(0, 0) should return 1 (mathematical convention)",
+        "pow(b, 0) should return 1 for any valid b",
+        "pow(0, e) should return 0 for e > 0"
+      ],
+      "missing_info": [
+        "What should happen if the inputs are outside the specified ranges (b < 0, b > 7, e < 0, e > 10)?",
+        "How should overflow be handled if the result exceeds Integer.MAX_VALUE?",
+        "Is the recursive specification in the ensures clause the intended behavior, or should it be an iterative approach?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "generated_stub": "public class PowerCalculator {\n    //@ public invariant true; // No specific invariant mentioned in the requirement\n\n    //@ requires 0 <= b && b <= 7;\n    //@ requires 0 <= e && e <= 10;\n    //@ ensures \\result == (\\old(e) == 0 ? 1 : \\old(b) * PowerCalculator.pow(\\old(b), \\old(e) - 1));\n    //@ pure\n    public static int pow(int b, int e) { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "The postcondition in the candidate uses a recursive formulation which is not equivalent to the product-based specification in the gold. The gold specifies that the result should be the product of e copies of b, while the candidate uses a recursive definition which is mathematically equivalent but not the same contract."
+      ],
+      "seconds": 18.2
+    },
+    {
+      "id": "thermostat",
+      "nl": "A thermostat holds a temperature between 15 and 30 inclusive, initially 20. The temperature can be set to any value t within range, warmed by a non-negative delta that must not push it above 30, and queried.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.765,
+      "clause_precision": 0.765,
+      "clause_f1": 0.765,
+      "assumptions": [
+        "delta is a non-negative integer",
+        "temperature is always between 15 and 30 inclusive"
+      ],
+      "missing_info": [
+        "What should happen when warm is called with a delta that would push the temperature above 30?",
+        "What should happen when setTemperature is called with a value outside the range [15, 30]?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "generated_stub": "public class Thermostat {\n    private /*@ spec_public @*/ int temperature;\n\n    //@ public invariant 15 <= temperature && temperature <= 30;\n\n    //@ ensures temperature == 20;\n    public Thermostat() {}\n\n    //@ requires 15 <= t && t <= 30;\n    //@ assignable temperature;\n    //@ ensures temperature == t;\n    public void setTemperature(int t) {}\n\n    //@ requires delta >= 0;\n    //@ requires temperature + delta <= 30;\n    //@ assignable temperature;\n    //@ ensures temperature == \\old(temperature) + delta;\n    public void warm(int delta) {}\n\n    //@ ensures \\result == temperature;\n    public /*@ pure */ int getTemperature() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 17.1
+    }
+  ],
+  "aggregate": {
+    "check_pass_rate": 1.0,
+    "mean_clause_f1": 0.847,
+    "mean_judge_score": 0.875,
+    "n": 4,
+    "max_attempts": 1
+  },
+  "ts": "20260809-024420"
+}

@@ -14,6 +14,42 @@ from pipeline.schemas import SpecDraft, VC
 SOURCE = "public class Counter {}"
 
 
+def test_implementation_router_dispatches_by_extension_and_fails_closed(tmp_path):
+    java = tmp_path / "X.java"; java.write_text("public class X {}", encoding="utf-8")
+    rust = tmp_path / "X.rs"; rust.write_text("fn x() {}", encoding="utf-8")
+    cfile = tmp_path / "X.c"; cfile.write_text("int x(void) {}", encoding="utf-8")
+    unknown = tmp_path / "X.txt"; unknown.write_text("x", encoding="utf-8")
+    with patch("pipeline.profile.run_assured_implementation", return_value={"kind": "java"}) as java_run:
+        assert orchestrator.run_implementation_loop(java, provider="ollama")["kind"] == "java"
+        java_run.assert_called_once()
+    with patch("pipeline.implementation.synthesize_implementation",
+               return_value={"final_status": "VERIFIED"}) as method_run:
+        result = orchestrator.run_implementation_loop(
+            java, provider="ollama", method_proof_only=True,
+            clarifications="ignored", abstraction="atomic_operations")
+        assert result["assurance_scope"] == "method_contract_only"
+        assert not result["bounded_architecture_checked"]
+        assert not result["source_refinement_proved"]
+        assert method_run.call_args.kwargs["verification_mode"] == "esc"
+    with patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation",
+               return_value={"kind": "rust"}) as poly:
+        result = orchestrator.run_implementation_loop(
+            rust, provider="ollama", assurance_level="standard",
+            clarifications="ignored", abstraction="atomic_operations")
+        assert result["assurance_level_requested"] == "standard"
+        assert result["assurance_note"]
+        assert poly.call_args.kwargs["language"] == "rust"
+        assert poly.call_args.kwargs["verification_mode"] == "check"
+    with patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation",
+               return_value={"kind": "c"}) as poly:
+        result = orchestrator.run_implementation_loop(cfile, assurance_level="critical")
+        assert result["assurance_level_requested"] == "critical"
+        assert poly.call_args.kwargs["language"] == "c"
+        assert poly.call_args.kwargs["verification_mode"] == "esc"
+    with pytest.raises(ValueError, match="unsupported synthesis"):
+        orchestrator.run_implementation_loop(unknown)
+
+
 def test_usage_slug_and_fallback_helpers():
     assert orchestrator._norm_usage({"prompt_tokens": 2, "completion_tokens": 3}) == {
         "input": 2, "output": 3, "total": 0}
@@ -22,6 +58,16 @@ def test_usage_slug_and_fallback_helpers():
     assert total == {"input": 3, "output": 4, "total": 7}
     assert orchestrator._slug("***") == "spec"
     assert orchestrator._slug("Hello, Formal World!", 12) == "hello-formal"
+    assert orchestrator._reviewed_domain_findings("bounded counter", SOURCE) == []
+    incompatible = "class TrafficLightController { int nsLight; int ewLight; }"
+    findings = orchestrator._reviewed_domain_findings(
+        "Design a traffic-light controller", incompatible)
+    assert findings[0]["code"] == "domain-contract-mismatch"
+    assert "missing reviewed operations" in findings[0]["message"]
+
+    traffic_jml = Path("domains/TrafficLightController.java").read_text(encoding="utf-8")
+    assert orchestrator._reviewed_domain_findings(
+        "Design a traffic light controller", traffic_jml) == []
 
     primary = object()
     fallback = object()

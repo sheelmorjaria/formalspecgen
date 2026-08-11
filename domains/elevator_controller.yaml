@@ -1,0 +1,46 @@
+review_status: reviewed
+schema_version: 1
+domain_name: ElevatorController
+module_name: elevator_controller
+state_variables:
+- name: current_floor
+  type: int
+  bound: [0, 4]
+- name: door_state
+  type: int
+  bound: [0, 1]
+- name: moving_state
+  type: int
+  bound: [0, 2]
+operations:
+- name: startMoveUp
+  guards: [moving_is_stopped, door_is_closed, below_top_floor]
+  effect: set_moving_up
+  frame: [moving_state]
+  ast_pattern: moving_state == 1
+- name: startMoveDown
+  guards: [moving_is_stopped, door_is_closed, above_bottom_floor]
+  effect: set_moving_down
+  frame: [moving_state]
+  ast_pattern: moving_state == 2
+- name: arriveUp
+  guards: [moving_is_up]
+  effect: arrive_up_and_stop
+  frame: [current_floor, moving_state]
+  ast_pattern: current_floor == \old(current_floor) + 1 && moving_state == 0
+- name: arriveDown
+  guards: [moving_is_down]
+  effect: arrive_down_and_stop
+  frame: [current_floor, moving_state]
+  ast_pattern: current_floor == \old(current_floor) - 1 && moving_state == 0
+- name: openDoors
+  guards: [moving_is_stopped, door_is_closed]
+  effect: open_doors
+  frame: [door_state]
+  ast_pattern: door_state == 1
+- name: closeDoors
+  guards: [door_is_open]
+  effect: close_doors
+  frame: [door_state]
+  ast_pattern: door_state == 0
+tlc_invariants: [TypeOK, DoorsClosedWhileMoving]

@@ -6,6 +6,7 @@
 from formalspec_core.postprocess import (  # noqa: F401
     fix_inner_loop_spec_placement,
     guard_array_access,
+    guard_exclusion_invariants,
     inject_bidirectional_old,
     inject_bitshift_bounds,
     inject_nonlinear_index_assume,
@@ -30,6 +31,7 @@ __all__ = [
     "inject_sum_helper",
     "inject_bidirectional_old",
     "guard_array_access",
+    "guard_exclusion_invariants",
     "strengthen_sorted",
     "inject_pure",
     "inject_nonlinear_index_assume",

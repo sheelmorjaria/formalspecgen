@@ -1,9 +1,13 @@
 import unittest
 
-from pipeline.jml_io import normalize_line_clause_continuations, normalize_old_in_requires
+from pipeline.jml_io import extract_jml, normalize_line_clause_continuations, normalize_old_in_requires
 
 
 class JmlContinuationTests(unittest.TestCase):
+    def test_extracts_jml_lines_for_terminal_display(self):
+        self.assertEqual(extract_jml("class X {\n  //@ requires x > 0;\n}"),
+                         ["//@ requires x > 0;"])
+
     def test_promotes_multiline_ensures_comments(self):
         source = """public class BankAccount {
     //@ ensures (source.balance == \\old(source.balance) - amount &&

@@ -43,6 +43,8 @@ def test_chat_prompts_use_local_provider_transport():
         repaired = implementation._chat_repair(STUB, CANDIDATE, "failed VC", "m", "ollama")
     assert "Trusted JML scaffold" in generated[0]
     assert "Previous candidate" in repaired[0] and "failed VC" in repaired[0]
+    assert "InvariantExit" in implementation.REPAIR_SYSTEM
+    assert "field mentioned by the associated invariant" in implementation.REPAIR_SYSTEM
 
 
 def test_native_candidate_verifies_without_external_handoff(tmp_path):
@@ -60,6 +62,28 @@ def test_native_candidate_verifies_without_external_handoff(tmp_path):
     assert Path(result["implementation_path"]).exists()
     assert (tmp_path / "verdict.json").exists()
     assert any(event["type"] == "implementation_attempt" for event in events)
+
+
+def test_nonproof_verification_modes_are_labelled_without_proof(tmp_path):
+    with patch.object(implementation, "_javac", return_value=(0, "compiled")), \
+         patch.object(implementation, "verify", return_value=(0, "checked")) as checked:
+        static = implementation.synthesize_implementation(
+            STUB, candidate=CANDIDATE, out_dir=tmp_path / "check", max_attempts=1,
+            verification_mode="check")
+    assert static["final_status"] == "STATIC_CHECKED"
+    assert static["claim"] == "STATIC_CHECK"
+    assert checked.call_args.kwargs["mode"] == "check"
+
+    with patch.object(implementation, "_javac", return_value=(0, "compiled")), \
+         patch.object(implementation, "verify") as verifier:
+        compiled = implementation.synthesize_implementation(
+            STUB, candidate=CANDIDATE, out_dir=tmp_path / "compile", max_attempts=1,
+            verification_mode="compile")
+    assert compiled["final_status"] == "COMPILED"
+    assert compiled["claim"] == "STATIC_CHECK"
+    verifier.assert_not_called()
+    with pytest.raises(ValueError, match="verification_mode"):
+        implementation.synthesize_implementation(STUB, verification_mode="unknown")
 
 
 def test_contract_modification_is_terminal_before_tools(tmp_path):
@@ -104,8 +128,10 @@ def test_javac_normalizes_timeout_and_missing_tool(tmp_path):
     with patch.object(implementation.subprocess, "run", side_effect=FileNotFoundError):
         assert implementation._javac(source)[0] == 127
     completed = type("Completed", (), {"returncode": 0, "stdout": "ok", "stderr": ""})()
-    with patch.object(implementation.subprocess, "run", return_value=completed):
+    with patch.object(implementation.subprocess, "run", return_value=completed) as run:
         assert implementation._javac(source) == (0, "ok")
+    assert Path(run.call_args.args[0][-1]).is_absolute()
+    assert run.call_args.kwargs["cwd"] == str(source.parent.resolve())
 
 
 def test_generation_repair_empty_and_accepted_pass_paths(tmp_path):
@@ -130,6 +156,7 @@ def test_generation_repair_empty_and_accepted_pass_paths(tmp_path):
     assert result["final_status"] == "VERIFIED"
     assert len(result["attempts"]) == 2 and repair.call_count == 1
     assert passes.call_count == 2
+    assert result["attempts"][-1]["postprocess"]["accepted"] is True
 
 
 def test_native_cli_exit_codes(tmp_path, monkeypatch, capsys):

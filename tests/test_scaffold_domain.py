@@ -53,6 +53,21 @@ class DomainScaffolderTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 scaffold_domain(spec, project_root=root)
 
+    def test_reviewed_canonical_domain_requires_explicit_replacement_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self.prepare(root)
+            canonical = root / "domains/light_switch.yaml"
+            canonical.parent.mkdir()
+            reviewed = {**SPEC, "review_status": "reviewed", "schema_version": 1}
+            import yaml
+            canonical.write_text(yaml.safe_dump(reviewed), encoding="utf-8")
+            with self.assertRaisesRegex(PermissionError, "reviewed domain"):
+                scaffold_domain(spec, project_root=root, force=True)
+            outputs = scaffold_domain(spec, project_root=root, force=True,
+                                      replace_reviewed=True)
+            self.assertEqual(len(outputs), 4)
+
     def test_rejects_undeclared_frames_and_unsafe_module_names(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

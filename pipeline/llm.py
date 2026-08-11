@@ -7,8 +7,8 @@ Transport (_glm_chat, LLMError, strip_fence) is ported from formalspecDD unchang
 generation/repair functions and prompts are rewritten for the NL->JML direction (DD's
 were "fill Java bodies"; ours is "draft JML specs from natural language").
 
-Output contract: the model emits TWO fenced blocks — a ```java block (the JML-annotated
-skeleton stub, which is what we validate and what formalspecDD consumes) and a ```json
+Output contract: the model emits TWO fenced blocks — a ```java block containing the
+JML-annotated skeleton consumed by the native implementation loop, and a ```json
 block ({assumptions, missing_info_questions}). Keeping code OUT of JSON string fields
 avoids the fragile-escaping failure mode called out in the design critique.
 """
@@ -19,7 +19,7 @@ import urllib.request
 
 from . import config
 from .schemas import SpecDraft
-from .limitations import prompt_guardrails
+from .limitations import prompt_guardrails, reviewed_domain_guardrails
 
 # --- NL -> JML system prompt -----------------------------------------------
 SYSTEM = """You are a formal-specification engineer. Given a natural-language requirement, \
@@ -290,7 +290,8 @@ def glm_generate_spec(nl, model=None, temperature=0.2, chat_fn=None):
     else:
         requirement = "Original requirement:\n" + nl
     messages = [
-        {"role": "system", "content": SYSTEM + prompt_guardrails(nl)},
+        {"role": "system", "content": (SYSTEM + prompt_guardrails(nl) +
+                                         reviewed_domain_guardrails(nl))},
         {"role": "user", "content":
          "Draft a JML specification from the requirement and any explicit clarifications below.\n\n" +
          requirement},

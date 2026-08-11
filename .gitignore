@@ -34,25 +34,23 @@ htmlcov/
 
 # Generated runs and native build artifacts
 runs/
+.formalspecgen/
 build/
 dist/
 *.spec.bak
 
-# Node and VS Code extension artifacts
+# Node and archived VS Code extension artifacts
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-vscode-extension/bin/*
-!vscode-extension/bin/formalspecgen-server
-!vscode-extension/bin/formalspecgen-server.exe
-vscode-extension/dist/*
-!vscode-extension/dist/extension.js
-!vscode-extension/dist/languageServer.js
-vscode-extension/*.vsix
-vscode-extension/out/
-vscode-extension/.vscode-test/
+archive/vscode-extension/bin/
+archive/vscode-extension/build/
+archive/vscode-extension/dist/
+archive/vscode-extension/out/
+archive/vscode-extension/*.vsix
+archive/vscode-extension/.vscode-test/
 
 # Editor and operating-system noise
 .DS_Store

@@ -1,0 +1,602 @@
+# Copyright 2026 Sheel Morjaria
+# SPDX-License-Identifier: Apache-2.0
+
+"""Terminal-native FormalSpecGen client over the local Python verification core."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import shlex
+import sys
+import yaml
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Callable
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.table import Table
+
+from . import config
+from .c_support import draft_acsl
+from .canonical_contracts import (
+    CanonicalContractConflict, canonical_contract,
+)
+from .domain_generator import compile_domain_spec, compile_domain_spec_v2, elicit_domain_questions
+from .domain_v2_promotion import candidate_sha256, load_candidate, promote_validated_candidate
+from .domain_v2_tla import render_v2_tla
+from .domain_v2_validation import validate_v2_candidate
+from .elicit import augment_spec, extract_ambiguities
+from .llm import LLMError, _chat_fn
+from .orchestrator import run as draft_contract, run_implementation_loop
+from .rust_support import draft_rust
+from .scaffold_domain import DomainSpec, load_spec, scaffold_domain
+from .tla_backend import generate_and_check
+from .verify import classify, verify
+from .verify_c import verify_c
+from .verify_rust import verify_rust
+from .validate import check_stub
+
+
+SESSION_VERSION = 1
+
+
+class SessionStore:
+    """Persist non-secret interactive progress so clarification work is resumable."""
+
+    def __init__(self, root: Path):
+        self.directory = root / ".formalspecgen"
+        self.path = self.directory / "session.json"
+        self.history_path = self.directory / "history"
+
+    def load(self) -> dict[str, Any]:
+        try:
+            value = json.loads(self.path.read_text(encoding="utf-8"))
+            return value if value.get("version") == SESSION_VERSION else self.empty()
+        except (OSError, ValueError, TypeError):
+            return self.empty()
+
+    @staticmethod
+    def empty() -> dict[str, Any]:
+        return {"version": SESSION_VERSION, "requirement": "", "questions": [],
+                "answers": [], "domain_draft": {}, "last_stub": "", "last_run": ""}
+
+    def save(self, state: dict[str, Any]) -> None:
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    def clear(self) -> None:
+        try:
+            self.path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+class TerminalUI:
+    def __init__(self, console: Console | None = None,
+                 ask: Callable[[str], str] | None = None):
+        self.console = console or Console()
+        self.ask = ask or input
+
+    def event(self, event: dict[str, Any]) -> None:
+        kind = event.get("type")
+        if kind == "progress":
+            self.console.print(f"[cyan]•[/cyan] {event.get('message', event.get('stage', 'Working'))}")
+        elif kind == "spec_warning":
+            self.console.print(f"[yellow]⚠ line {event.get('line', 0)}:[/yellow] {event.get('message', '')}")
+        elif kind == "vc_failure":
+            table = Table(title="Verification condition", show_header=False)
+            table.add_row("Location", f"{event.get('file', '')}:{event.get('line', 0)}")
+            table.add_row("Category", str(event.get("category", "unknown")))
+            table.add_row("Message", str(event.get("message", "")))
+            self.console.print(table)
+            explanation = event.get("explanation") or event.get("advice")
+            if explanation:
+                self.console.print(Panel(str(explanation), title="Explanation", border_style="yellow"))
+        elif kind == "attempt_complete":
+            style = "green" if event.get("status") == "VERIFIED" else "red"
+            self.console.print(f"[{style}]Attempt {event.get('attempt')}: {event.get('status')}[/{style}]")
+
+    def clarify(self, requirement: str, provider: str, model: str | None,
+                state: dict[str, Any], store: SessionStore) -> str:
+        if state.get("requirement") != requirement or not state.get("questions"):
+            questions, _, _ = extract_ambiguities(requirement, _chat_fn(provider), model)
+            state.update(requirement=requirement, questions=questions, answers=[])
+            store.save(state)
+        questions = state.get("questions", [])
+        answers = list(state.get("answers", []))
+        for index, question in enumerate(questions, 1):
+            if any(item.get("id") == question["id"] for item in answers):
+                continue
+            self.console.print(f"[bold]{index}. {question['question']}[/bold] "
+                               f"[dim]({question['category']}{', required' if question['required'] else ', optional'})[/dim]")
+            answer = self.ask("Answer: ").strip()
+            if question["required"] and not answer:
+                raise ValueError(f"required clarification unanswered: {question['question']}")
+            answers.append({"id": question["id"], "answer": answer})
+            state["answers"] = answers
+            store.save(state)
+        return augment_spec(requirement, questions, answers)
+
+
+def _read(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def _write_json(value: Any, destination: str | None, console: Console) -> None:
+    text = json.dumps(value, indent=2, ensure_ascii=False, default=str)
+    if destination:
+        Path(destination).write_text(text + "\n", encoding="utf-8")
+        console.print(f"Evidence written to [path]{destination}[/path]")
+    else:
+        console.print(text)
+
+
+def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
+                  state: dict[str, Any]) -> int:
+    requirement = args.requirement
+    try:
+        enriched = (ui.clarify(requirement, args.provider, args.model, state, store)
+                    if not args.no_clarify else requirement)
+        if args.lang == "rust":
+            result = draft_rust(enriched, provider=args.provider)
+            return _finish_language_draft(result, args, ui, store, state, "rs")
+        if args.lang == "c":
+            result = draft_acsl(enriched, provider=args.provider)
+            return _finish_language_draft(result, args, ui, store, state, "c")
+        if getattr(args, "canonical_domain", None):
+            canonical_domain, code, assumptions = canonical_contract(
+                args.canonical_domain, enriched)
+            checked, errors = check_stub(code)
+            if not checked:
+                raise ValueError("reviewed canonical contract failed OpenJML check: " +
+                                 "\n".join(errors))
+            destination = Path(args.out_file or "TrafficLightController.java")
+            destination.write_text(code, encoding="utf-8")
+            evidence = {
+                "status": "CANONICAL_CONTRACT",
+                "claim": "REVIEWED_TRANSFORMATION",
+                "domain": canonical_domain,
+                "requirement": enriched,
+                "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
+                "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
+                "assumptions": assumptions,
+                "openjml_check": "VERIFIED",
+                "human_acceptance_required": True,
+                "source_refinement_proved": False,
+            }
+            evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
+            evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
+                                     encoding="utf-8")
+            state["last_stub"] = str(destination.resolve())
+            state["last_run"] = str(destination.parent.resolve())
+            store.save(state)
+            ui.console.print(Panel(
+                f"Canonical contract: [path]{destination}[/path]\n"
+                f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
+                title="Reviewed domain contract", border_style="green"))
+            return 0
+        result = draft_contract(enriched, provider=args.provider,
+            fallback_provider=args.fallback_provider, model=args.model, out_dir=args.out,
+            max_attempts=args.max_attempts, on_event=ui.event,
+            resample_budget=args.resample_budget, feedback_budget=args.feedback_budget)
+    except (CanonicalContractConflict, LLMError, ValueError) as exc:
+        ui.console.print(f"[bold red]Draft failed:[/bold red] {exc}")
+        return 2
+    if result.stub_path:
+        state["last_stub"] = result.stub_path
+        state["last_run"] = str(Path(result.stub_path).parent.parent)
+        store.save(state)
+        ui.console.print(f"Contract: [path]{result.stub_path}[/path]")
+    return 0 if result.final_status == "VERIFIED" else 1
+
+
+def _finish_language_draft(result: dict[str, Any], args: argparse.Namespace, ui: TerminalUI,
+                           store: SessionStore, state: dict[str, Any], suffix: str) -> int:
+    status = result.get("status", "UNKNOWN")
+    code = result.get("code", "")
+    if code:
+        destination = Path(args.out_file or f"FormalSpecDraft.{suffix}")
+        destination.write_text(code, encoding="utf-8")
+        state["last_stub"] = str(destination.resolve())
+        store.save(state)
+        ui.console.print(f"Draft: [path]{destination}[/path]")
+    for warning in result.get("warnings", []):
+        ui.console.print(f"[yellow]⚠ line {warning.get('line', 0)}:[/yellow] {warning.get('message', '')}")
+    ui.console.print(f"Status: {status}")
+    return 0 if status in {"DRAFTED", "RUST_CHECKED", "VERIFIED"} else 1
+
+
+def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
+    suffix = Path(args.stub).suffix.lower()
+    if suffix not in {".java", ".jml", ".rs", ".c"}:
+        ui.console.print(f"[bold red]Unsupported implementation source: {suffix or '<none>'}[/bold red]")
+        return 2
+    if suffix == ".c" and args.accept_pass:
+        ui.console.print("[bold red]C synthesis has no reviewed proof-annotation passes yet.[/bold red]")
+        return 2
+    try:
+        result = run_implementation_loop(
+            args.stub, assurance_level=args.assurance_level, provider=args.provider,
+            method_proof_only=args.method_proof_only,
+            model=args.model, out_dir=args.out, max_attempts=args.max_attempts,
+            resample_budget=args.resample_budget, feedback_budget=args.feedback_budget,
+            accepted_passes=args.accept_pass, clarifications=args.clarifications or "",
+            abstraction=args.abstraction, on_event=ui.event)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]Implementation failed:[/bold red] {exc}")
+        return 2
+    _write_json(result, args.json, ui.console)
+    return 0 if result["final_status"] in {
+        "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED"} else 1
+
+
+def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
+    source = Path(args.source)
+    suffix = source.suffix.lower()
+    if suffix in {".java", ".jml"}:
+        exit_code, output = verify(source, mode=args.mode)
+        result = {"status": classify(exit_code), "exit_code": exit_code, "mode": args.mode,
+                  "language": "java", "source": str(source.resolve()), "output": output}
+    elif suffix == ".rs":
+        result = verify_rust(_read(args.source), mode=args.mode, backend=args.backend)
+    elif suffix == ".c":
+        if args.mode != "esc":
+            result = {"status": "UNSUPPORTED_MODE", "exit_code": 2, "claim": "NO_PROOF",
+                      "language": "c", "message": "C/ACSL currently supports --mode esc through Frama-C WP"}
+        else:
+            result = verify_c(_read(args.source), mode=args.mode)
+    else:
+        result = {"status": "UNSUPPORTED_LANGUAGE", "exit_code": 2, "claim": "NO_PROOF",
+                  "message": f"unsupported source extension: {suffix or '<none>'}"}
+    status, exit_code = result.get("status", "UNKNOWN"), int(result.get("exit_code", 1))
+    output = str(result.get("output") or result.get("message") or "")
+    ui.console.print(f"[{'green' if exit_code == 0 else 'red'}]{status}[/]")
+    if output.strip(): ui.console.print(Syntax(output, "text", word_wrap=True))
+    if args.json:
+        _write_json(result, args.json, ui.console)
+    return 0 if exit_code == 0 else 1
+
+
+def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
+    result = generate_and_check(_read(args.stub), clarifications=args.clarifications or "",
+                                abstraction=args.abstraction)
+    status = result.get("status", "UNKNOWN")
+    message = str(result.get("message") or "")
+    ui.console.print(Panel(
+        f"Status: {status}\nClaim: {result.get('claim', 'NO_PROOF')}\n"
+        f"Domain: {result.get('domain', 'none')}\n"
+        "Bounded TLC evidence does not prove Java/JML source refinement."
+        + (f"\n\nReason: {message}" if message else ""),
+        title="Architecture evidence", border_style="green" if status == "VERIFIED" else "red"))
+    if args.emit_tla and result.get("tla"):
+        Path(args.emit_tla).write_text(result["tla"], encoding="utf-8")
+        Path(args.emit_tla).with_suffix(".cfg").write_text(result["cfg"], encoding="utf-8")
+    if args.json:
+        _write_json(result, args.json, ui.console)
+    return 0 if status == "VERIFIED" else 1
+
+
+def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
+                   state: dict[str, Any]) -> int:
+    draft = state.get("domain_draft") or {}
+    idea = args.idea
+    schema_version = int(getattr(args, "schema_version", 1))
+    try:
+        if getattr(args, "restart_clarifications", False):
+            draft = {}
+            state["domain_draft"] = {}
+            store.save(state)
+        if (draft.get("idea") != idea or not draft.get("questions") or
+                int(draft.get("schema_version", 1)) != schema_version):
+            questions, _, _ = elicit_domain_questions(idea, _chat_fn(args.provider), args.model)
+            draft = {"idea": idea, "schema_version": schema_version,
+                     "questions": questions, "answers": []}
+            state["domain_draft"] = draft
+            store.save(state)
+        answers = draft["answers"]
+        for index, question in enumerate(draft["questions"], 1):
+            if any(item.get("id") == question["id"] for item in answers):
+                continue
+            ui.console.print(f"[bold]{index}. {question['question']}[/bold]")
+            answer = ui.ask("Answer: ").strip()
+            if question["required"] and not answer:
+                raise ValueError(f"required clarification unanswered: {question['question']}")
+            answers.append({"id": question["id"], "answer": answer})
+            store.save(state)
+        compiler = compile_domain_spec_v2 if schema_version == 2 else compile_domain_spec
+        spec, yaml_text, _, _ = compiler(
+            idea, draft["questions"], answers, _chat_fn(args.provider), args.model)
+        root = Path(args.project_root).resolve()
+        canonical = (root / "domains" / "v2" / f"{spec.module_name}.json"
+                     if schema_version == 2 else root / "domains" / f"{spec.module_name}.yaml")
+        canonical_reviewed = canonical.exists() and (
+            schema_version == 2 or load_spec(canonical).review_status == "reviewed")
+        if canonical_reviewed and not getattr(args, "replace_reviewed_domain", False):
+            raise PermissionError(
+                f"{spec.module_name!r} is reviewed and locked; generation cannot replace its "
+                "YAML or implementation. Use --replace-reviewed-domain only after explicit review")
+        suffix = ".v2.yaml" if schema_version == 2 else ".generated.yaml"
+        candidate = root / "domains" / "candidates" / f"{spec.module_name}{suffix}"
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        if candidate.exists() and not args.force:
+            raise FileExistsError(f"refusing to overwrite candidate {candidate}; pass --force")
+        candidate.write_text(yaml_text, encoding="utf-8")
+        outputs = ([] if schema_version == 2 else scaffold_domain(
+            candidate, project_root=root, force=args.force,
+            replace_reviewed=getattr(args, "replace_reviewed_domain", False)))
+    except (LLMError, ValueError, OSError) as exc:
+        ui.console.print(f"[bold red]Domain generation failed:[/bold red] {exc}")
+        return 2
+    state["domain_draft"] = {}
+    store.save(state)
+    ui.console.print(
+        f"[green]Generated unreviewed V{schema_version} candidate {spec.module_name}[/green]")
+    ui.console.print(f"  [path]{candidate}[/path]")
+    for output in outputs:
+        ui.console.print(f"  [path]{output}[/path]")
+    if schema_version == 1:
+        ui.console.print("[yellow]Human review is required for extractor and renderer TODOs.[/yellow]")
+    else:
+        ui.console.print("[yellow]Run validate-domain before explicit hash-bound promotion.[/yellow]")
+    return 0
+
+
+def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
+    root = Path(args.project_root).resolve()
+    name = args.name.strip().lower().replace("-", "_")
+    candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
+    validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
+    failure = root / "domains" / "candidates" / f"{name}.v2.validation_failed.json"
+    try:
+        evidence = validate_v2_candidate(
+            candidate, validation, failure_path=failure, tlc_jar=config.TLC_JAR,
+            java=getattr(config, "JAVA_BIN", "java"), timeout=config.TLC_TIMEOUT)
+        if args.emit_tla:
+            tla, cfg = render_v2_tla(load_candidate(candidate))
+            destination = Path(args.emit_tla)
+            destination.write_text(tla, encoding="utf-8")
+            destination.with_suffix(".cfg").write_text(cfg, encoding="utf-8")
+    except (ValueError, RuntimeError, OSError) as exc:
+        ui.console.print(f"[bold red]V2 domain validation failed:[/bold red] {exc}")
+        return 2
+    ui.console.print(Panel(
+        f"Status: VALIDATED\nCandidate SHA-256: {evidence.candidate_sha256}\n"
+        f"Reachable states: {evidence.reachable_state_count}\n"
+        f"Reachable transitions: {evidence.reachable_transition_count}\n"
+        f"Evidence: {validation}", title="V2 bounded evidence", border_style="green"))
+    return 0
+
+
+def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Promote a reviewed candidate without letting generated text assign its own trust."""
+    root = Path(args.project_root).resolve()
+    name = args.name.strip().lower().replace("-", "_")
+    if int(getattr(args, "schema_version", 1)) == 2:
+        candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
+        validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
+        canonical = root / "domains" / "v2" / f"{name}.json"
+        try:
+            if not args.accept_candidate_sha256:
+                raise ValueError("V2 promotion requires --accept-candidate-sha256")
+            if canonical.exists() and not args.replace_reviewed_domain:
+                raise PermissionError(
+                    f"reviewed V2 domain {name!r} already exists; use --replace-reviewed-domain")
+            reviewed = promote_validated_candidate(
+                candidate, validation, canonical,
+                accept_candidate_sha256=args.accept_candidate_sha256)
+        except (ValueError, OSError) as exc:
+            ui.console.print(f"[bold red]V2 domain promotion failed:[/bold red] {exc}")
+            return 2
+        ui.console.print(
+            f"[green]Promoted reviewed V2 domain {name}[/green]\n"
+            f"  [path]{canonical}[/path]\n"
+            f"  accepted candidate: {reviewed.accepted_candidate_sha256}")
+        return 0
+    candidate = root / "domains" / "candidates" / f"{name}.generated.yaml"
+    canonical = root / "domains" / f"{name}.yaml"
+    try:
+        spec = load_spec(candidate)
+        if spec.module_name != name:
+            raise ValueError(f"candidate declares module {spec.module_name!r}, expected {name!r}")
+        if canonical.exists() and load_spec(canonical).review_status == "reviewed" and not (
+                args.replace_reviewed_domain):
+            raise PermissionError(
+                f"reviewed domain {name!r} already exists; use --replace-reviewed-domain")
+        required = [
+            root / "pipeline" / "domains" / f"{name}_extract.py",
+            root / "pipeline" / "domains" / f"{name}_render.py",
+            root / "tests" / f"test_{name}_domain.py",
+        ]
+        missing = [str(path) for path in required if not path.exists()]
+        if missing:
+            raise FileNotFoundError("promotion artifacts are missing: " + ", ".join(missing))
+        forbidden = ("TODO", "plugin is scaffolded", "del code, clarifications, abstraction",
+                     "del model")
+        blocked = [str(path) for path in required[:2]
+                   if any(marker in path.read_text(encoding="utf-8") for marker in forbidden)]
+        if blocked:
+            raise ValueError("adapter/renderer remains an unreviewed fail-closed stub: " +
+                             ", ".join(blocked))
+        reviewed = spec.model_copy(update={"review_status": "reviewed", "schema_version": 1})
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_text(yaml.safe_dump(
+            reviewed.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+            encoding="utf-8")
+    except (ValueError, OSError) as exc:
+        ui.console.print(f"[bold red]Domain promotion failed:[/bold red] {exc}")
+        return 2
+    ui.console.print(f"[green]Promoted reviewed domain {name}[/green]\n  [path]{canonical}[/path]")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="formalspecgen",
+        description="NL → contracts → bounded architecture evidence → verified implementation")
+    parser.add_argument("--version", action="version", version="formalspecgen 0.1.0")
+    sub = parser.add_subparsers(dest="command")
+
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--provider", choices=["glm", "openai", "ollama"], default="ollama")
+    common.add_argument("--model")
+
+    draft = sub.add_parser("draft", parents=[common], help="clarify NL and draft checked JML")
+    draft.add_argument("requirement")
+    draft.add_argument("--no-clarify", action="store_true")
+    draft.add_argument("--lang", choices=["java", "rust", "c"], default="java")
+    draft.add_argument("--out-file", help="contract destination")
+    draft.add_argument("--canonical-domain", metavar="DOMAIN",
+                       help="deterministically render a reviewed domain contract after clarification")
+    draft.add_argument("--fallback-provider", choices=["glm", "openai", "ollama"])
+    draft.add_argument("--out")
+    draft.add_argument("--max-attempts", type=int)
+    draft.add_argument("--resample-budget", type=int)
+    draft.add_argument("--feedback-budget", type=int)
+
+    implement = sub.add_parser("implement", parents=[common],
+                               help="synthesize bodies for trusted Java/JML, Rust/Prusti, or C/ACSL")
+    implement.add_argument("stub")
+    implement.add_argument("--out")
+    implement.add_argument("--json")
+    implement.add_argument("--max-attempts", type=int, default=5)
+    implement.add_argument("--resample-budget", type=int, default=1)
+    implement.add_argument("--feedback-budget", type=int, default=4)
+    implement.add_argument("--accept-pass", action="append", default=[])
+    implement.add_argument("--assurance-level", choices=["critical", "standard", "lightweight"],
+                           default="critical")
+    implement.add_argument("--method-proof-only", action="store_true",
+                           help="run method synthesis and ESC without TLC; does not claim critical assurance")
+    implement.add_argument("--clarifications",
+                           help="authoritative concurrency assumptions used by critical TLC checking")
+    implement.add_argument("--abstraction", choices=["atomic_operations", "lock_protocol"],
+                           default="atomic_operations")
+
+    check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
+    check.add_argument("source")
+    check.add_argument("--mode", choices=["parse", "check", "esc"], default="esc")
+    check.add_argument("--json")
+    check.add_argument("--backend", choices=["prusti", "kani"], default="prusti",
+                       help="Rust verifier; ignored for Java and C")
+
+    architecture = sub.add_parser("architecture", help="render typed IR and run bounded TLC")
+    architecture.add_argument("stub")
+    architecture.add_argument("--clarifications")
+    architecture.add_argument("--abstraction", choices=["atomic_operations", "lock_protocol"],
+                              default="atomic_operations")
+    architecture.add_argument("--emit-tla")
+    architecture.add_argument("--json")
+
+    domain = sub.add_parser("domain", parents=[common], help="elicit and scaffold a domain plugin")
+    domain.add_argument("idea")
+    domain.add_argument("--project-root", default=".")
+    domain.add_argument("--force", action="store_true")
+    domain.add_argument("--replace-reviewed-domain", action="store_true",
+                        help="explicitly authorize replacing reviewed domain artifacts")
+    domain.add_argument("--restart-clarifications", action="store_true",
+                        help="discard saved domain answers and elicit a consistent set again")
+    domain.add_argument("--schema-version", type=int, choices=[1, 2], default=1,
+                        help="candidate schema; V2 is typed and uses validate-domain")
+    validate_domain = sub.add_parser(
+        "validate-domain", help="validate a typed V2 candidate with traversal and TLC")
+    validate_domain.add_argument("name")
+    validate_domain.add_argument("--project-root", default=".")
+    validate_domain.add_argument("--emit-tla")
+    promote = sub.add_parser("promote-domain", help="promote a reviewed candidate domain")
+    promote.add_argument("name")
+    promote.add_argument("--project-root", default=".")
+    promote.add_argument("--replace-reviewed-domain", action="store_true")
+    promote.add_argument("--schema-version", type=int, choices=[1, 2], default=1)
+    promote.add_argument("--accept-candidate-sha256")
+    return parser
+
+
+def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
+             state: dict[str, Any]) -> int:
+    if args.command == "draft": return command_draft(args, ui, store, state)
+    if args.command == "implement": return command_implement(args, ui)
+    if args.command == "verify": return command_verify(args, ui)
+    if args.command == "architecture": return command_architecture(args, ui)
+    if args.command == "domain": return command_domain(args, ui, store, state)
+    if args.command == "validate-domain": return command_validate_domain(args, ui)
+    if args.command == "promote-domain": return command_promote_domain(args, ui)
+    return 2
+
+
+_REPL_COMMANDS = {"draft", "implement", "verify", "architecture", "domain",
+                  "validate-domain", "promote-domain"}
+
+
+def _repl_argv(line: str) -> list[str]:
+    """Accept slash commands, ordinary subcommands, and pasted shell invocations."""
+    text = line[1:].strip() if line.startswith("/") else line
+    values = shlex.split(text)
+    if values and values[0] == "formalspecgen":
+        values = values[1:]
+    if values and values[0] in _REPL_COMMANDS:
+        return values
+    return ["draft", line]
+
+
+def _continued_line(first: str, ask: Callable[[str], str]) -> str:
+    """Join shell-style trailing-backslash continuations before argument parsing."""
+    parts = []
+    current = first
+    while current.rstrip().endswith("\\"):
+        parts.append(current.rstrip()[:-1].rstrip())
+        current = ask("... ")
+    parts.append(current.strip())
+    return " ".join(part for part in parts if part)
+
+
+def repl(parser: argparse.ArgumentParser, ui: TerminalUI, store: SessionStore,
+         state: dict[str, Any]) -> int:
+    store.directory.mkdir(parents=True, exist_ok=True)
+    session = PromptSession(history=FileHistory(str(store.history_path)))
+    ui.console.print(Panel(
+        "Enter a requirement to clarify and draft, or use /help.\n"
+        "The LLM proposes; deterministic compilers transform; formal tools judge.",
+        title="FormalSpecGen CLI", border_style="cyan"))
+    while True:
+        try:
+            line = _continued_line(session.prompt("> ").strip(), session.prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            ui.console.print()
+            return 0
+        if not line: continue
+        if line in {"/quit", "/exit"}: return 0
+        if line == "/help":
+            ui.console.print("/draft TEXT  /implement FILE  /verify FILE  /architecture FILE  "
+                             "/domain TEXT  /validate-domain NAME  /session  /reset  /quit")
+            continue
+        if line == "/session":
+            _write_json(state, None, ui.console); continue
+        if line == "/reset":
+            store.clear(); state.clear(); state.update(store.empty())
+            ui.console.print("Session cleared."); continue
+        argv = _repl_argv(line)
+        try:
+            args = parser.parse_args(argv)
+            dispatch(args, ui, store, state)
+        except SystemExit:
+            continue
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    store = SessionStore(Path.cwd())
+    state = store.load()
+    ui = TerminalUI()
+    code = dispatch(args, ui, store, state) if args.command else repl(parser, ui, store, state)
+    if argv is None:
+        raise SystemExit(code)
+    return code
+
+
+if __name__ == "__main__":
+    main()

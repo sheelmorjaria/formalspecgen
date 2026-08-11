@@ -505,3 +505,33 @@ def inject_nonlinear_index_assume(code: str) -> str:
                 + f'        //@ assume 0 <= {idx} && {idx} < {arr}.length;\n'
                 + code[line_start:])
     return code
+
+
+def guard_exclusion_invariants(code: str) -> str:
+    r"""Strengthen simple update guards to preserve reviewed two-field exclusions.
+
+    Recognized invariant: ``!(A == value && B == value)``. If a simple guarded block
+    assigns ``A = value`` but its condition does not mention ``B``, add ``B != value``;
+    symmetrically for B. The pass never creates an invariant, changes a contract, or
+    rewrites an unguarded or structurally complex assignment.
+    """
+    invariant = re.compile(
+        r'(?m)^\s*//@\s*public\s+invariant\s+!\(\s*'
+        r'(?P<a>[A-Za-z_]\w*)\s*==\s*(?P<value>-?\d+)\s*&&\s*'
+        r'(?P<b>[A-Za-z_]\w*)\s*==\s*(?P=value)\s*\)\s*;')
+    pairs = [(match["a"], match["b"], match["value"])
+             for match in invariant.finditer(code)]
+    for first, second, value in pairs:
+        for target, other in ((first, second), (second, first)):
+            guarded_assignment = re.compile(
+                rf'if\s*\((?P<condition>[^)]+)\)\s*\{{(?P<body>[^{{}}]*?\b'
+                rf'{re.escape(target)}\s*=\s*{re.escape(value)}\s*;[^{{}}]*?)\}}',
+                re.DOTALL)
+            for match in reversed(list(guarded_assignment.finditer(code))):
+                condition = match["condition"].strip()
+                if re.search(rf'\b{re.escape(other)}\b', condition):
+                    continue
+                strengthened = f"({condition}) && {other} != {value}"
+                start, end = match.span("condition")
+                code = code[:start] + strengthened + code[end:]
+    return code

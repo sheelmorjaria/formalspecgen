@@ -17,8 +17,3 @@ else
 fi
 
 .venv-e2e/bin/pytest -c tests_e2e/pytest.ini "${live_args[@]}" tests_e2e
-
-if [[ "${RUN_VSCODE_E2E:-0}" == "1" ]]; then
-  npm --prefix vscode-extension ci
-  npm --prefix vscode-extension run test:e2e
-fi

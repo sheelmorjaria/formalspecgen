@@ -3,10 +3,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import verify
+from pipeline import config, verify
 
 
 class VerifyToolConfigurationTests(unittest.TestCase):
+    def test_missing_env_file_is_ignored(self):
+        config.load_env(Path(tempfile.gettempdir()) / "formalspecgen-no-such-env")
+
     def test_explicit_specs_path_is_passed_to_openjml(self):
         with tempfile.TemporaryDirectory() as root:
             specs = Path(root) / "specs"

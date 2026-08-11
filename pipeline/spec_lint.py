@@ -31,6 +31,7 @@ BLOCKING_CODES = frozenset({
     "missing-array-nonnull", "missing-array-frame", "missing-field-frame",
     "boolean-failure-excluded-by-precondition",
     "unreachable-exceptional-behavior",
+    "domain-contract-mismatch",
 })
 
 

@@ -1,4 +1,0 @@
-{
-  "formalspecgen.manageBackend": false,
-  "formalspecgen.serverUrl": "ws://127.0.0.1:65534/ws/verify"
-}

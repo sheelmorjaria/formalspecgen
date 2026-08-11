@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # Frozen application data is read-only and may be extracted to a temporary directory.
-# Keep generated runs and handoffs in the explicit per-user application directory.
+# Keep generated run evidence in the explicit per-user application directory.
 BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 ROOT = Path(os.environ.get("FORMALSPECGEN_HOME", str(BUNDLE_ROOT))).resolve()
 
@@ -29,7 +29,7 @@ def load_env(path=None):
 
 load_env()
 
-# OpenJML (symlinked dist from ../formalspecDD; runs with no env vars)
+# OpenJML (repository-local distribution by default; runs with no environment overrides)
 OPENJML = os.environ.get("OPENJML_BIN", str(ROOT / "tools/openjml-dist/openjml"))
 CHECK_TIMEOUT = int(os.environ.get("CHECK_TIMEOUT", "60"))   # -parse/-check wall clock
 ESC_TIMEOUT = int(os.environ.get("ESC_TIMEOUT", "180"))      # -esc wall clock (deep check)
@@ -57,6 +57,7 @@ RAC_TIMEOUT = int(os.environ.get("RAC_TIMEOUT", "180"))
 # TLA+/TLC targeted concurrency backend.
 TLC_JAR = os.environ.get("TLC_JAR", str(ROOT / "tools" / "tla2tools.jar"))
 TLC_TIMEOUT = int(os.environ.get("TLC_TIMEOUT", "60"))
+JAVA_BIN = os.environ.get("JAVA_BIN", "java")
 
 # Experimental Prusti lane. The extension installs the verifier and its pinned rustup
 # toolchain into global storage; CLI users may point at an existing prusti-rustc.

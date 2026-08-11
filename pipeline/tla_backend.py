@@ -22,9 +22,16 @@ def generate_and_check(code: str, provider: str = "glm", max_format_attempts: in
     try:
         plugin = select_domain(code, PLUGINS)
     except (UnsupportedDomain, AmbiguousDomain) as exc:
+        details = []
+        if isinstance(exc, UnsupportedDomain):
+            from .domains.traffic_light_controller_extract import diagnose_traffic_light_boundary
+            details = diagnose_traffic_light_boundary(code)
+        message = str(exc) + ". Direct LLM-to-TLA+ generation is disabled."
+        if details:
+            message += " Traffic-light adapter mismatch: " + "; ".join(details) + "."
         return {
             "status": "AMBIGUOUS_DOMAIN" if isinstance(exc, AmbiguousDomain) else "UNSUPPORTED_BOUNDARY",
-            "message": str(exc) + ". Direct LLM-to-TLA+ generation is disabled.",
+            "message": message,
             "counterexample": [],
             "renderer": "none",
         }
@@ -47,6 +54,7 @@ def generate_and_check(code: str, provider: str = "glm", max_format_attempts: in
     result = check_tla(tla, cfg)
     invariant_failed = result.get("status") == "INVARIANT_VIOLATION"
     dumped_ir = ir.model_dump()
+    execution_assumption = getattr(ir, "execution_assumption", None)
     bounded_fields = {name: dumped_ir[name] for name in
                       ("accounts", "actors", "products", "max_balance", "max_stock", "amounts")
                       if name in dumped_ir}
@@ -62,6 +70,7 @@ def generate_and_check(code: str, provider: str = "glm", max_format_attempts: in
                     "-config", "<module>.cfg", "<module>"],
         "bounds": bounded_fields,
         "abstraction": getattr(ir, "abstraction", "atomic_operations"),
+        "execution_assumption": execution_assumption,
         "source_refinement_proved": False,
     }
     provenance["tool_versions"] = {"tlc": provenance["tool_version"]}
@@ -76,7 +85,10 @@ def generate_and_check(code: str, provider: str = "glm", max_format_attempts: in
             "repair_target": "validated_ir" if invariant_failed else None,
             "generated_tla_repair_allowed": False,
             "provenance": provenance,
-            "disclaimer": f"TLC checked a bounded {plugin.name} abstraction, not Java/JML source equivalence."}
+            "disclaimer": (
+                f"TLC checked a bounded {plugin.name} abstraction, not Java/JML source equivalence."
+                + (f" The model assumes {execution_assumption.replace('_', ' ')} execution."
+                   if execution_assumption else ""))}
 
 
 def detect_banking_boundary(code: str) -> bool:

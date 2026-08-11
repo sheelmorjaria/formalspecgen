@@ -1,0 +1,44 @@
+review_status: reviewed
+schema_version: 1
+domain_name: TrafficLightController
+module_name: traffic_light_controller
+state_variables:
+  - name: ns_light
+    type: int
+    bound: [0, 2]
+  - name: ew_light
+    type: int
+    bound: [0, 2]
+operations:
+  - name: turnNsGreen
+    guards: [ew_is_red]
+    effect: set_ns_green
+    frame: [ns_light]
+    ast_pattern: ensures ns_light = 2
+  - name: turnNsYellow
+    guards: [ns_is_green]
+    effect: set_ns_yellow
+    frame: [ns_light]
+    ast_pattern: ensures ns_light = 1
+  - name: turnNsRed
+    guards: [ns_is_yellow]
+    effect: set_ns_red
+    frame: [ns_light]
+    ast_pattern: ensures ns_light = 0
+  - name: turnEwGreen
+    guards: [ns_is_red]
+    effect: set_ew_green
+    frame: [ew_light]
+    ast_pattern: ensures ew_light = 2
+  - name: turnEwYellow
+    guards: [ew_is_green]
+    effect: set_ew_yellow
+    frame: [ew_light]
+    ast_pattern: ensures ew_light = 1
+  - name: turnEwRed
+    guards: [ew_is_yellow]
+    effect: set_ew_red
+    frame: [ew_light]
+    ast_pattern: ensures ew_light = 0
+tlc_invariants:
+  - NoSimultaneousGreenLights

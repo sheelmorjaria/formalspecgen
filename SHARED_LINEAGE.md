@@ -26,7 +26,8 @@ NL ──[formalspecgen]──▶ trusted JML ──[native synthesis + OpenJML 
 - `pipeline/jml_io.py` — class-name + JML extraction for the stub artifact
 - `pipeline/orchestrator.py` — NL → draft → `-check` → bounded repair loop → verdict
 - `pipeline/implementation.py` — trusted JML → Java bodies → `javac` → OpenJML ESC → verdict
-- `server.py`, `static/index.html` — FastAPI service + web UI
+- `pipeline/cli.py` — terminal REPL and CI-facing command entry point
+- `archive/server.py`, `archive/static/index.html` — retired FastAPI and browser interfaces
 
 ## Extracted shared postprocessor
 
@@ -36,8 +37,8 @@ The deterministic transformation library now lives in
 checkout. The sibling project can consume the same package by installing this repository or
 placing it on `PYTHONPATH`; its existing copy remains unchanged until that repository is migrated.
 
-`pipeline/handoff.py`, `/handoff`, and `FORMALSPEC_DD_ROOT` remain as optional compatibility
-facilities. The guided IDE and `/implement` endpoint use the native loop and never invoke them.
+The retired external handoff implementation, its fixtures, and its tests are preserved under
+`archive/formalspecdd-compat/`. They are not packaged or imported by the active CLI.
 
 ## Promotion path (later)
 

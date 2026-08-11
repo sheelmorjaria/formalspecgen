@@ -4,9 +4,8 @@
 """Helpers for the JML-annotated Java stub that is this project's spec artifact.
 
 The stub is a Java skeleton (class + fields + method signatures, empty bodies) with
-`//@`/`/*@*/` JML annotations — i.e. EXACTLY the input format formalspecDD consumes.
-So `NL -> [formalspecgen] -> stub -> [formalspecDD] -> verified Java` is a clean pipeline,
-and we validate against real Java structure (not a meaningless dummy class).
+`//@`/`/*@*/` JML annotations. The native implementation pipeline consumes this artifact,
+and validation uses real Java structure rather than a meaningless dummy class.
 
 This module also owns clause extraction + clause diffing (shared by the eval harness and
 the no-clobber refine flow).

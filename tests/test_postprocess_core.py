@@ -134,3 +134,28 @@ private int helper(int x) { return x; }
     assert "\\result not valid" in result
     assert "x <= 30" in result
     assert "/*@ pure @*/" in result
+
+
+def test_exclusion_invariant_guard_is_narrow_and_idempotent():
+    code = """public class Lights {
+//@ public invariant !(north == 2 && east == 2);
+public boolean northGreen() {
+  if (north != 2) {
+    north = 2;
+    return true;
+  }
+  return false;
+}
+public boolean eastGreen() {
+  if (north == 0) {
+    east = 2;
+    return true;
+  }
+  return false;
+}
+}"""
+    guarded = pp.guard_exclusion_invariants(code)
+    assert "if ((north != 2) && east != 2)" in guarded
+    assert "if (north == 0)" in guarded
+    assert pp.guard_exclusion_invariants(guarded) == guarded
+    assert pp.guard_exclusion_invariants("if (x) { north = 2; }") == "if (x) { north = 2; }"

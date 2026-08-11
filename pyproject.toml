@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "formalspecgen"
+version = "0.1.0"
+description = "Human-in-the-loop neuro-symbolic formal specification and verification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Sheel Morjaria" }]
+dependencies = [
+  "pydantic==2.11.7",
+  "PyYAML==6.0.2",
+  "prompt-toolkit>=3.0.51,<4",
+  "rich>=14.1,<15",
+]
+
+[project.scripts]
+formalspecgen = "pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pipeline*", "formalspec_core*"]

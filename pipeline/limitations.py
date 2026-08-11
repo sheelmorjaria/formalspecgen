@@ -40,3 +40,25 @@ def prompt_guardrails(text: str) -> str:
     lines = ["\n\nRETRIEVED TOOLCHAIN GUARDRAILS (empirical; obey these):"]
     lines.extend(f"- [{item['id']}] {item['warning']}" for item in relevant)
     return "\n".join(lines)
+
+
+def reviewed_domain_guardrails(text: str) -> str:
+    """Inject exact reviewed APIs when a requirement selects a known domain."""
+    lowered = text.lower()
+    if "traffic light" not in lowered and "traffic-light" not in lowered:
+        return ""
+    return r'''
+
+REVIEWED TRAFFIC-LIGHT DOMAIN CONTRACT (mandatory for architecture compatibility):
+- Class: TrafficLightController.
+- State fields: `int ns_light` and `int ew_light`, both `/*@ spec_public @*/`.
+- Constructor ensures `ns_light == 0 && ew_light == 0`.
+- Emit exactly these six public void operations:
+  `turnNsGreen`, `turnNsYellow`, `turnNsRed`, `turnEwGreen`, `turnEwYellow`, `turnEwRed`.
+- `turnNsGreen` requires `ew_light == 0`, assigns only `ns_light`, ensures `ns_light == 2`.
+- `turnNsYellow` requires `ns_light == 2`, assigns only `ns_light`, ensures `ns_light == 1`.
+- `turnNsRed` requires `ns_light == 1`, assigns only `ns_light`, ensures `ns_light == 0`.
+- Apply the symmetric rules to EW: green requires `ns_light == 0`; yellow requires
+  `ew_light == 2`; red requires `ew_light == 1`; each assigns only `ew_light`.
+- Do not rename methods or fields, replace the six actions with reset, or weaken `== 0`
+  to `!= 2`. Unknown variants cannot enter the reviewed TLA+ refinement adapter.'''

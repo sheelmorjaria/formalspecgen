@@ -31,6 +31,44 @@ from .lifecycle import (EvidenceClaim, GateRecord, PipelineState, RunLedger,
 from .workspace_contracts import contract_context
 
 
+def run_implementation_loop(file_path: str | Path, provider: str = "glm",
+                            assurance_level: str = "critical",
+                            method_proof_only: bool = False, **kwargs) -> dict:
+    """Route a trusted source scaffold to its native synthesis and verification loop."""
+    source = Path(file_path)
+    code = source.read_text(encoding="utf-8")
+    suffix = source.suffix.lower()
+    if suffix in {".java", ".jml"}:
+        if method_proof_only:
+            from .implementation import synthesize_implementation
+            kwargs.pop("clarifications", None)
+            kwargs.pop("abstraction", None)
+            result = synthesize_implementation(code, provider=provider,
+                                               verification_mode="esc", **kwargs)
+            result["assurance_level_requested"] = assurance_level
+            result["assurance_scope"] = "method_contract_only"
+            result["bounded_architecture_checked"] = False
+            result["source_refinement_proved"] = False
+            return result
+        from .profile import run_assured_implementation
+        return run_assured_implementation(code, assurance_level=assurance_level,
+                                          provider=provider, **kwargs)
+    if suffix in {".rs", ".c"}:
+        from .polyglot_implementation import synthesize_polyglot_implementation
+        language = "rust" if suffix == ".rs" else "c"
+        mode = "esc" if assurance_level == "critical" else "check"
+        kwargs.pop("clarifications", None)
+        kwargs.pop("abstraction", None)
+        result = synthesize_polyglot_implementation(
+            code, language=language, provider=provider, verification_mode=mode, **kwargs)
+        result["assurance_level_requested"] = assurance_level
+        if assurance_level == "standard":
+            result["assurance_note"] = (
+                "Rust/C runtime evidence is not reviewed; claim capped at STATIC_CHECK.")
+        return result
+    raise ValueError(f"unsupported synthesis target: {suffix or '<none>'}")
+
+
 def _norm_usage(u):
     return {"input": u.get("prompt_tokens", 0), "output": u.get("completion_tokens", 0),
             "total": u.get("total_tokens", 0)}
@@ -45,6 +83,27 @@ def _add(tot, u):
 def _slug(s, n=24):
     s = re.sub(r'[^a-zA-Z0-9]+', '-', s).strip('-').lower()
     return s[:n] or "spec"
+
+
+def _reviewed_domain_findings(nl: str, stub: str) -> list[dict]:
+    if not re.search(r"\btraffic[- ]light\b", nl, re.I):
+        return []
+    from .domains.traffic_light_controller_extract import (
+        diagnose_traffic_light_boundary, recognizes_traffic_light_controller,
+    )
+    if recognizes_traffic_light_controller(stub):
+        return []
+    mismatches = diagnose_traffic_light_boundary(stub)
+    return [{
+        "line": 1,
+        "code": "domain-contract-mismatch",
+        "message": ("Traffic-light draft does not match the reviewed architecture API: "
+                    + "; ".join(mismatches or ["complete six-action API required"])),
+        "advice": ("Use fields ns_light/ew_light and exactly turnNsGreen, "
+                   "turnNsYellow, turnNsRed, turnEwGreen, turnEwYellow, turnEwRed "
+                   "with strict opposing-red green guards."),
+        "severity": "error",
+    }]
 
 
 def _gen(nl, model, provider, fallback):
@@ -199,6 +258,7 @@ def run(nl, provider="glm", fallback_provider=None, out_dir=None, model=None,
             details={"attempt": n, "strategy": dec.action, "candidate_hash": candidate_hash},
             evidence={"source": draft.stub, "model": used_model, "tokens": un})
         lint_warnings = lint_spec(draft.stub)
+        lint_warnings.extend(_reviewed_domain_findings(original_nl, draft.stub))
         for warning in lint_warnings:
             emit("spec_warning", attempt=n, **warning)
         emit("progress", stage="checking", attempt=n,

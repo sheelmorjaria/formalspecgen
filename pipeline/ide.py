@@ -1,10 +1,9 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
 
-"""IDE-facing deterministic transforms and backend recommendations.
+"""Client-facing deterministic transforms and backend recommendations.
 
-Postprocessor passes are statically imported from the bundled ``formalspec_core`` package;
-the optional formalspecDD checkout is used only by the separate implementation handoff.
+Postprocessor passes are statically imported from the bundled ``formalspec_core`` package.
 """
 import difflib
 import re
@@ -25,6 +24,7 @@ PASS_NAMES = (
     "strengthen_sorted",
     "inject_pure",
     "inject_nonlinear_index_assume",
+    "guard_exclusion_invariants",
 )
 
 
@@ -105,6 +105,8 @@ def discover_passes(code: str) -> list[dict]:
         ("strengthen_sorted", r"(?:sorted|\\forall[^;]*(?:<=|<)[^;]*\[)", "sortedness proofs often need pairwise strengthening"),
         ("inject_nonlinear_index_assume", r"\[[^]]*[*/%][^]]*\]", "non-linear array indices need an explicit range fact"),
         ("fix_inner_loop_spec_placement", r"(?:while|for)\s*\([^)]*\)\s*\{\s*//@\s*(?:loop_invariant|decreases)", "JML loop specifications must precede the loop"),
+        ("guard_exclusion_invariants", r"public\s+invariant\s+!\(\s*\w+\s*==\s*-?\d+\s*&&\s*\w+\s*==\s*-?\d+\s*\)",
+         "assignments must preserve the reviewed two-field exclusion invariant"),
     ]
     return [{"name": name, "reason": reason} for name, pattern, reason in rules
             if re.search(pattern, code, re.I)]

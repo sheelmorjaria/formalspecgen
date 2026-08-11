@@ -36,6 +36,16 @@ Hard requirements:
 REPAIR_SYSTEM = IMPLEMENT_SYSTEM + """
 Repair mode: preserve the trusted scaffold exactly and change implementation/proof annotations only.
 Use the OpenJML diagnostics to repair the root cause. Do not suppress or delete obligations.
+
+Diagnostic rules:
+- InvariantExit means the candidate's state update can violate a class invariant. Inspect every
+  field mentioned by the associated invariant and derive a guard that makes the update preserve it.
+  Do not merely repeat a precondition about the field being assigned. For an invariant of the form
+  !(A == value && B == value), assigning A = value requires establishing B != value first, and
+  assigning B = value requires establishing A != value first.
+- Postcondition means implement the promised state transition or returned field directly.
+- ArithmeticOperationRange means use the existing trusted bounds; never add a new assumption.
+- Return a materially changed candidate. Repeating the previous candidate cannot repair a VC.
 """
 
 _METHOD = re.compile(
@@ -89,6 +99,7 @@ def _chat_repair(stub: str, previous: str, diagnostics: str,
 
 
 def _javac(source: Path, timeout: int = 60) -> tuple[int, str]:
+    source = source.resolve()
     try:
         process = subprocess.run([config.JAVAC, "-proc:none", str(source)],
             cwd=str(source.parent), capture_output=True, text=True, encoding="utf-8",
@@ -110,8 +121,11 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
                               out_dir: str | Path | None = None, max_attempts: int = 5,
                               resample_budget: int = 1, feedback_budget: int = 4,
                               accepted_passes: list[str] | None = None,
-                              candidate: str | None = None, on_event=None) -> dict:
+                              candidate: str | None = None, on_event=None,
+                              verification_mode: str = "esc") -> dict:
     """Generate or verify an implementation locally; never delegates to formalspecDD."""
+    if verification_mode not in {"esc", "check", "compile"}:
+        raise ValueError("verification_mode must be esc, check, or compile")
     cname = jml_io.class_name(stub)
     if not cname:
         return {"final_status": "INVALID_STUB", "stop_reason": "no public class",
@@ -126,7 +140,8 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
     stop_reason = ""
 
     while True:
-        verified = bool(attempts) and attempts[-1]["status"] == "VERIFIED"
+        verified = bool(attempts) and attempts[-1]["status"] in {
+            "VERIFIED", "STATIC_CHECKED", "COMPILED"}
         decision = strategy.decide(history, verified, samples, feedback, max_attempts,
                                    resample_budget, feedback_budget)
         if decision.action == "stop":
@@ -177,6 +192,7 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
         pass_report = None
         if accepted_passes:
             pass_report = apply_passes(generated, accepted_passes)
+            pass_report["accepted"] = True
             transformed = pass_report["code"]
         source = attempt_dir / f"{cname}.java"
         source.write_text(transformed, encoding="utf-8")
@@ -185,13 +201,18 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
         if javac_exit:
             vcs = parse_check(javac_text)
             status, exit_code, proof_text = "COMPILE_FAILED", javac_exit, javac_text
+        elif verification_mode == "compile":
+            exit_code, proof_text, status, vcs = 0, javac_text, "COMPILED", []
         else:
-            exit_code, proof_text = verify(source, mode="esc")
-            (attempt_dir / "esc.log").write_text(proof_text, encoding="utf-8")
-            status = classify(exit_code)
-            if status == "VERIFIED" and has_dropped_vc(proof_text):
+            exit_code, proof_text = verify(source, mode=verification_mode)
+            (attempt_dir / f"{verification_mode}.log").write_text(proof_text, encoding="utf-8")
+            classified = classify(exit_code)
+            status = ("STATIC_CHECKED" if verification_mode == "check" and exit_code == 0
+                      else classified)
+            if verification_mode == "esc" and status == "VERIFIED" and has_dropped_vc(proof_text):
                 status = "VACUOUS_VERIFIED"
-            vcs = parse_vcs(proof_text) if exit_code else []
+            vcs = ((parse_vcs(proof_text) if verification_mode == "esc" else parse_check(proof_text))
+                   if exit_code else [])
         rows = [{"file": vc.file, "line": vc.line, "category": vc.category,
                  "method": vc.method, "detail": vc.detail, "raw": vc.raw} for vc in vcs]
         attempt = {"attempt": number, "status": status, "exit_code": exit_code,
@@ -210,9 +231,13 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
               "implementation_code": final_code,
               "implementation_path": str(root / f"{cname}.java") if final_code else "",
               "verifier": "openjml", "verification_backend": "jml",
-              "claim": "DEDUCTIVE_PROOF" if final_status == "VERIFIED" else "NO_PROOF",
+              "claim": ("DEDUCTIVE_PROOF" if final_status == "VERIFIED" and
+                        verification_mode == "esc" else
+                        "STATIC_CHECK" if final_status in {"STATIC_CHECKED", "COMPILED"} else
+                        "NO_PROOF"),
               "trusted_contract_hash": sha256_text("\n".join(_surface(stub)["clauses"])),
-              "native_synthesis": True, "external_handoff_used": False}
+              "native_synthesis": True, "external_handoff_used": False,
+              "verification_mode": verification_mode}
     if final_code:
         (root / f"{cname}.java").write_text(final_code, encoding="utf-8")
     (root / "verdict.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

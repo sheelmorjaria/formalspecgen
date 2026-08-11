@@ -6,6 +6,8 @@ from .banking import BANKING_PLUGIN
 from .inventory_render import INVENTORY_PLUGIN
 from .train_crossing_render import TRAIN_CROSSING_PLUGIN
 # BEGIN SCAFFOLDED IMPORTS
+from .traffic_light_controller_render import TRAFFIC_LIGHT_CONTROLLER_PLUGIN
+from .elevator_controller_render import ELEVATOR_CONTROLLER_PLUGIN
 # END SCAFFOLDED IMPORTS
 
 PLUGINS = [
@@ -13,5 +15,7 @@ PLUGINS = [
     INVENTORY_PLUGIN,
     TRAIN_CROSSING_PLUGIN,
     # BEGIN SCAFFOLDED PLUGINS
+    TRAFFIC_LIGHT_CONTROLLER_PLUGIN,
+    ELEVATOR_CONTROLLER_PLUGIN,
     # END SCAFFOLDED PLUGINS
 ]

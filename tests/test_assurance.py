@@ -12,13 +12,14 @@ def passing(plan):
 def test_profiles_have_explicit_required_and_skipped_gates():
     critical = gate_plan("critical")
     assert {gate.name for gate in critical if gate.required} >= {
-        "javac", "spec_lint", "openjml_check", "tla", "openjml_esc", "boundary_fallback"}
+        "javac", "spec_lint", "openjml_check", "tla", "openjml_esc", "refinement",
+        "boundary_fallback"}
     standard = gate_plan(AssuranceLevel.STANDARD)
     assert {gate.name for gate in standard if gate.required} == {
         "javac", "spec_lint", "openjml_check", "rac_junit"}
     lightweight = gate_plan("lightweight")
     assert {gate.name for gate in lightweight if gate.required} == {
-        "javac", "spec_lint", "rac_junit"}
+        "javac", "spec_lint"}
     assert all(gate.skip_reason for gate in lightweight if not gate.required)
 
 
@@ -32,7 +33,7 @@ def test_unknown_profile_fails_closed():
     [
         ("critical", "VERIFIED", "DEDUCTIVE_PROOF"),
         ("standard", "STATIC_CHECKED_RUNTIME_TESTED", "RUNTIME_SAMPLE"),
-        ("lightweight", "COMPILED_LINTED", "RUNTIME_SAMPLE"),
+        ("lightweight", "COMPILED_LINTED", "STATIC_CHECK"),
     ],
 )
 def test_claim_is_bounded_by_assurance_evidence(level, status, claim):
@@ -57,4 +58,18 @@ def test_missing_required_gate_never_produces_assurance_claim():
 def test_critical_boundary_fallback_may_be_explicitly_not_applicable():
     statuses = passing(gate_plan("critical"))
     statuses["boundary_fallback"] = "NOT_APPLICABLE"
-    assert assurance_verdict("critical", statuses)["final_status"] == "VERIFIED"
+    statuses["refinement"] = "VERIFIED"
+    result = assurance_verdict("critical", statuses)
+    assert result["final_status"] == "VERIFIED"
+    assert result["source_refinement_proved"] is True
+    assert result["warnings"] == []
+
+
+def test_critical_without_refinement_is_incomplete_and_never_overclaims():
+    statuses = passing(gate_plan("critical"))
+    statuses["refinement"] = "FAIL"
+    result = assurance_verdict("critical", statuses)
+    assert result["final_status"] == "ASSURANCE_INCOMPLETE"
+    assert result["source_refinement_proved"] is False
+    assert result["failed_required_gates"] == ["refinement"]
+    assert result["warnings"]

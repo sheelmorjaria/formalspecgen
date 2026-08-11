@@ -1,0 +1,1 @@
+public class H { public static void f() {} }

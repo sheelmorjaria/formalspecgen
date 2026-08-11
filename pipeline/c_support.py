@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import config
 from .llm import LLMError, _chat_fn
+from .parse_framac import parse_framac_vcs
 
 _C_BLOCK = re.compile(r"```c\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
@@ -72,6 +73,35 @@ def draft_acsl(requirement: str, provider: str = "glm") -> dict:
             "usage": usage, "warnings": lint_acsl(code), **metadata}
 
 
+def check_c_syntax(code: str, timeout: int | None = None) -> dict:
+    """Run the strict C11 compile gate without making an ACSL proof claim."""
+    findings = lint_acsl(code)
+    if any(item["severity"] == "error" for item in findings):
+        return {"status": "ACSL_LINT_FAILED", "exit_code": 2, "claim": "NO_PROOF",
+                "warnings": findings}
+    compiler = shutil.which(config.CC_BIN)
+    if not compiler:
+        return {"status": "TOOL_MISSING", "exit_code": 127, "claim": "NO_PROOF",
+                "message": f"C compiler not found: {config.CC_BIN}", "warnings": findings}
+    with tempfile.TemporaryDirectory() as directory:
+        source = Path(directory) / "candidate.c"
+        source.write_text(code, encoding="utf-8")
+        try:
+            process = subprocess.run(
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", str(source)],
+                capture_output=True, text=True, timeout=timeout or config.FRAMAC_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return {"status": "TIMEOUT", "exit_code": 124, "claim": "NO_PROOF",
+                    "warnings": findings}
+        except OSError as exc:
+            return {"status": "TOOL_ERROR", "exit_code": 127, "claim": "NO_PROOF",
+                    "message": str(exc), "warnings": findings}
+    output = ((process.stdout or "") + (process.stderr or "")).strip()
+    return {"status": "C_CHECKED" if process.returncode == 0 else "C_COMPILE_FAILED",
+            "exit_code": process.returncode, "claim": "STATIC_CHECK" if process.returncode == 0 else "NO_PROOF",
+            "output": output[-12000:], "warnings": findings}
+
+
 def verify_framac(code: str, timeout: int | None = None) -> dict:
     findings = lint_acsl(code)
     if any(item["severity"] == "error" for item in findings):
@@ -119,4 +149,5 @@ def verify_framac(code: str, timeout: int | None = None) -> dict:
             "memory_model": "Frama-C WP default typed C memory model",
             "runtime_errors": "PARTIAL" if rte_caveats else "GENERATED",
             "rte_caveats": rte_caveats,
-            "provers": config.FRAMAC_PROVERS.split(",")}
+            "provers": config.FRAMAC_PROVERS.split(","),
+            "vcs": [item.__dict__ for item in parse_framac_vcs(output)]}

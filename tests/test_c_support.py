@@ -72,6 +72,30 @@ def test_framac_gates_and_proof_summary():
     assert result["runtime_errors"] == "PARTIAL" and result["rte_caveats"]
 
 
+def test_strict_c_syntax_gate_all_outcomes():
+    with patch.object(c_support, "lint_acsl", return_value=[{"severity": "error"}]):
+        assert c_support.check_c_syntax(VALID)["status"] == "ACSL_LINT_FAILED"
+    with patch.object(c_support, "lint_acsl", return_value=[]), \
+         patch.object(c_support.shutil, "which", return_value=None):
+        assert c_support.check_c_syntax(VALID)["status"] == "TOOL_MISSING"
+    for returncode, status in ((0, "C_CHECKED"), (1, "C_COMPILE_FAILED")):
+        process = SimpleNamespace(returncode=returncode, stdout="out", stderr="err")
+        with patch.object(c_support, "lint_acsl", return_value=[]), \
+             patch.object(c_support.shutil, "which", return_value="/bin/gcc"), \
+             patch.object(c_support.subprocess, "run", return_value=process) as run:
+            result = c_support.check_c_syntax(VALID, timeout=4)
+        assert result["status"] == status
+        assert run.call_args.kwargs["timeout"] == 4
+    with patch.object(c_support, "lint_acsl", return_value=[]), \
+         patch.object(c_support.shutil, "which", return_value="/bin/gcc"), \
+         patch.object(c_support.subprocess, "run", side_effect=subprocess.TimeoutExpired("gcc", 1)):
+        assert c_support.check_c_syntax(VALID)["status"] == "TIMEOUT"
+    with patch.object(c_support, "lint_acsl", return_value=[]), \
+         patch.object(c_support.shutil, "which", return_value="/bin/gcc"), \
+         patch.object(c_support.subprocess, "run", side_effect=OSError("broken")):
+        assert c_support.check_c_syntax(VALID)["status"] == "TOOL_ERROR"
+
+
 def test_framac_timeouts_and_tool_errors():
     tools = patch.object(c_support.shutil, "which", side_effect=["/bin/frama-c", "/bin/gcc"])
     with tools, patch.object(c_support.subprocess, "run", side_effect=subprocess.TimeoutExpired("gcc", 1)):

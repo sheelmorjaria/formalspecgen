@@ -1,0 +1,8 @@
+{
+  "spec": "public class H { public static void f() {} }",
+  "spec_file": "/home/sheel/formalspecgen/handoff/H.java",
+  "expected_passes": [
+    "inject_overflow_bounds"
+  ],
+  "backend": "JML"
+}

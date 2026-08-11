@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -69,6 +70,8 @@ class OperationSpec(BaseModel):
 
 class DomainSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+    review_status: Literal["unreviewed", "reviewed"] = "unreviewed"
+    schema_version: Literal[1] = 1
     domain_name: str
     module_name: str
     state_variables: list[StateVariableSpec] = Field(min_length=1)
@@ -91,11 +94,61 @@ class DomainSpec(BaseModel):
                 raise ValueError(f"{operation.name} frame must reference declared state variables")
             if not operation.ast_pattern.strip():
                 raise ValueError(f"{operation.name} requires a documented AST pattern")
+            bare_guards = set(operation.guards) & state_set
+            if bare_guards:
+                raise ValueError(
+                    f"{operation.name} guards must be semantic predicates with values, not "
+                    f"bare state names: {', '.join(sorted(bare_guards))}")
+            if (operation.effect in state_set or
+                    operation.effect in {f"set_{name}" for name in state_set}):
+                raise ValueError(
+                    f"{operation.name} effect must identify the concrete transition, not "
+                    f"generic effect {operation.effect!r}")
+            if "+/-" in operation.ast_pattern or re.search(r"\w+'\s*=", operation.ast_pattern):
+                raise ValueError(
+                    f"{operation.name} AST pattern is ambiguous/pseudocode; use exact JML "
+                    "post-state expressions and split direction-dependent transitions")
         if len(set(self.tlc_invariants)) != len(self.tlc_invariants) or any(
                 not re.fullmatch(r"[A-Z][A-Za-z0-9_]*", item)
                 for item in self.tlc_invariants):
             raise ValueError("TLC invariants must be unique safe operator names")
+        self._validate_observable_duration(state_set)
+        self._validate_binary_door_transitions()
         return self
+
+    def _validate_observable_duration(self, state_set: set[str]) -> None:
+        duration_states = {name for name in state_set if re.search(
+            r"(?:^|_)(?:moving|motion|transit|in_flight|in_progress|active)(?:_|$)", name)}
+        if not duration_states:
+            return
+        def words(value: str) -> str:
+            return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
+        entering = [operation for operation in self.operations if (
+            re.search(r"(?:^|_)(?:start|begin)(?:_|$)", words(operation.name)) or
+            re.search(r"(?:set|enter).*(?:moving|motion|transit|active)",
+                      operation.effect.lower())) and
+            bool(set(operation.frame) & duration_states)]
+        leaving = [operation for operation in self.operations if (
+            re.search(r"(?:^|_)(?:arrive|stop|complete|finish)(?:_|$)",
+                      words(operation.name)) or
+            re.search(r"(?:clear|leave|stop).*(?:moving|motion|transit|active)",
+                      operation.effect.lower())) and
+            bool(set(operation.frame) & duration_states)]
+        if not entering or not leaving:
+            raise ValueError(
+                "observable duration state requires separate start/begin and "
+                "arrive/stop/complete operations that frame the duration state; otherwise "
+                "in-transit safety invariants are vacuous")
+
+    def _validate_binary_door_transitions(self) -> None:
+        doors = [item for item in self.state_variables
+                 if "door" in item.name and item.bound == (0, 1)]
+        if not doors:
+            return
+        names = [item.name.lower() for item in self.operations]
+        if not any("open" in name for name in names) or not any("close" in name for name in names):
+            raise ValueError(
+                "observable binary door state requires both open and close transitions")
 
 
 def load_spec(path: Path) -> DomainSpec:
@@ -251,9 +304,17 @@ def registration_lines(spec: DomainSpec) -> dict[str, str]:
 
 
 def scaffold_domain(spec_path: str | Path, *, project_root: str | Path | None = None,
-                    force: bool = False, register: bool = True) -> list[Path]:
+                    force: bool = False, register: bool = True,
+                    replace_reviewed: bool = False) -> list[Path]:
     spec = load_spec(Path(spec_path))
     root = Path(project_root) if project_root else Path(__file__).resolve().parent.parent
+    canonical = root / "domains" / f"{spec.module_name}.yaml"
+    if canonical.exists():
+        existing_spec = load_spec(canonical)
+        if existing_spec.review_status == "reviewed" and not replace_reviewed:
+            raise PermissionError(
+                f"refusing to replace reviewed domain {spec.module_name!r}; "
+                "use --replace-reviewed-domain only after explicit human review")
     domain_dir, tests_dir = root / "pipeline" / "domains", root / "tests"
     domain_dir.mkdir(parents=True, exist_ok=True)
     tests_dir.mkdir(parents=True, exist_ok=True)
@@ -275,9 +336,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("spec")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--replace-reviewed-domain", action="store_true")
     parser.add_argument("--no-register", action="store_true")
     args = parser.parse_args()
-    paths = scaffold_domain(args.spec, force=args.force, register=not args.no_register)
+    paths = scaffold_domain(args.spec, force=args.force, register=not args.no_register,
+                            replace_reviewed=args.replace_reviewed_domain)
     print("Scaffolded:\n" + "\n".join(f"- {path}" for path in paths))
     print("The plugin is registered but fails closed until its AST adapter and renderer TODOs are reviewed.")
 
