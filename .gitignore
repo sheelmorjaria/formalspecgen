@@ -1,0 +1,63 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.key
+
+# Repository-local, re-downloadable formal tool distributions
+tools/openjml-dist/
+tools/frama-c-33.0/
+tools/tla2tools.jar
+
+# Python caches, environments, coverage, and packaging
+*.class
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.venv-*/
+venv/
+env/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+coverage-html/
+htmlcov/
+.pytest_cache/
+*.egg-info/
+.eggs/
+
+# Generated runs and native build artifacts
+runs/
+build/
+dist/
+*.spec.bak
+
+# Node and VS Code extension artifacts
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+vscode-extension/bin/*
+!vscode-extension/bin/formalspecgen-server
+!vscode-extension/bin/formalspecgen-server.exe
+vscode-extension/dist/*
+!vscode-extension/dist/extension.js
+!vscode-extension/dist/languageServer.js
+vscode-extension/*.vsix
+vscode-extension/out/
+vscode-extension/.vscode-test/
+
+# Editor and operating-system noise
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~

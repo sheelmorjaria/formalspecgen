@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>formalspecgen — NL → JML</title>
+<style>
+  :root { --bg:#1e1e1e; --panel:#252526; --edge:#3c3c3c; --txt:#d4d4d4; --acc:#4ec9b0;
+          --warn:#dcdcaa; --err:#f48771; --ok:#6a9955; --dim:#858585; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         background:var(--bg); color:var(--txt); }
+  header { padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--edge);
+           display:flex; align-items:center; gap:14px; }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  header .sub { color:var(--dim); font-size:12px; }
+  button { background:#0e639c; color:#fff; border:0; padding:7px 14px; border-radius:3px;
+           cursor:pointer; font-size:13px; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:#3a3d41; }
+  .main { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--edge); height:calc(100vh - 96px); }
+  .pane { background:var(--bg); display:flex; flex-direction:column; min-height:0; }
+  .pane h2 { font-size:12px; margin:0; padding:8px 12px; background:var(--panel);
+             border-bottom:1px solid var(--edge); color:var(--dim); text-transform:uppercase; letter-spacing:.05em;}
+  textarea { flex:1; width:100%; border:0; resize:none; background:var(--bg); color:var(--txt);
+             font-family:inherit; font-size:13px; padding:12px; outline:none; }
+  .diagnostics { height:96px; overflow:auto; padding:8px 12px; background:var(--panel);
+                 border-top:1px solid var(--edge); font-size:12px; line-height:1.5; }
+  .status { padding:6px 12px; font-size:12px; border-top:1px solid var(--edge); background:var(--panel); min-height:24px;}
+  .badge { padding:1px 7px; border-radius:9px; font-size:11px; }
+  .b-ok { background:#1e3a22; color:var(--ok); } .b-err{background:#3a1414;color:var(--err);}
+  .b-run{background:#2a2a14;color:var(--warn);} .b-api{background:#2a1414;color:var(--err);}
+  ul { margin:4px 0 0; padding-left:18px; } li { margin:2px 0; }
+  .q { color:var(--warn); } .a { color:var(--acc); }
+  .err { color:var(--err); } .dim { color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>formalspecgen</h1>
+  <span class="sub">natural language → JML (validated by OpenJML <span id="ojv">21.0.27</span>)</span>
+  <span style="flex:1"></span>
+  <input id="rinstr" placeholder="refinement instruction, e.g. add a deposit(amount) method" \
+   style="flex:0 1 340px;padding:6px 8px;background:#3a3d41;color:#fff;border:1px solid var(--edge);border-radius:3px;font-size:12px;" />
+  <button id="ref" class="ghost">Refine</button>
+  <button id="gen">Generate</button>
+  <button id="val" class="ghost">Validate</button>
+  <label style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:3px;"><input type="checkbox" id="ddrun" /> run</label>
+  <button id="dd" class="ghost">→ formalspecDD</button>
+</header>
+<div class="main">
+  <div class="pane">
+    <h2>Natural Language</h2>
+    <textarea id="nl" spellcheck="false" placeholder="e.g. The bank account must not allow withdrawals that exceed the current balance."></textarea>
+  </div>
+  <div class="pane">
+    <h2>JML Specification (Java stub)</h2>
+    <textarea id="jml" spellcheck="false" placeholder="// generated JML-annotated Java appears here; editable — use Validate to re-check"></textarea>
+    <div class="status" id="status"><span class="dim">idle</span></div>
+  </div>
+</div>
+<div class="diagnostics" id="diag"><span class="dim">Diagnostics, assumptions and open questions appear here.</span></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let lastStub = "";
+
+async function post(url, body){ const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
+
+function badge(status){
+  const m = {VERIFIED:["b-ok","✓ verified"],COMPILE_FAILED:["b-err","✗ check failed"],
+             VERIFY_FAILED:["b-err","✗ verify failed"],TIMEOUT:["b-err","⏱ timeout"],
+             API_ERROR:["b-api","! api error"],NO_ATTEMPT:["b-err","— no attempt"]}[status] || ["b-run",status];
+  return `<span class="badge ${m[0]}">${m[1]}</span>`;
+}
+
+$("gen").onclick = async () => {
+  const nl = $("nl").value.trim();
+  if(!nl) return;
+  $("gen").disabled = $("val").disabled = true;
+  $("status").innerHTML = `<span class="badge b-run">running…</span> generating + validating (LLM, may take a while)`;
+  $("diag").innerHTML = `<span class="dim">running pipeline…</span>`;
+  try{
+    const d = await post("/generate_spec", {nl});
+    if(d.error){ $("status").innerHTML = `<span class="err">error: ${d.error}</span>`; return; }
+    $("jml").value = d.java_stub || "";
+    lastStub = d.java_stub || "";
+    $("status").innerHTML = `${badge(d.status)} <span class="dim">${d.stop_reason||""} · ${d.attempts.length} attempt(s) · ${d.duration_s}s · ${d.model||""}</span>`;
+    let h = "";
+    if((d.assumptions||[]).length){ h += `<div class="a">Assumptions the analyst made:</div><ul>` + d.assumptions.map(x=>`<li class="a">${x}</li>`).join("") + `</ul>`; }
+    if((d.missing_info||[]).length){ h += `<div class="q">Open questions for you (NL was ambiguous):</div><ul>` + d.missing_info.map(x=>`<li class="q">? ${x}</li>`).join("") + `</ul>`; }
+    h += `<div class="dim">Attempts:</div><ul>` + d.attempts.map(a=>`<li>${badge(a.status)} #${a.n} <span class="dim">[${a.note}]</span>${a.errors&&a.errors.length?` — <span class="err">${a.errors.slice(0,3).join(" · ")}</span>`:""}</li>`).join("") + `</ul>`;
+    $("diag").innerHTML = h || `<span class="dim">no diagnostics</span>`;
+  }catch(e){ $("status").innerHTML = `<span class="err">request failed: ${e}</span>`; }
+  finally{ $("gen").disabled = $("val").disabled = false; }
+};
+
+$("val").onclick = async () => {
+  const java_stub = $("jml").value.trim();
+  if(!java_stub) return;
+  $("val").disabled = true;
+  $("status").innerHTML = `<span class="badge b-run">validating…</span> openjml -check`;
+  try{
+    const d = await post("/validate", {java_stub});
+    if(d.error){ $("status").innerHTML = `<span class="err">error: ${d.error}</span>`; return; }
+    $("status").innerHTML = `${badge(d.status)} <span class="dim">openjml -check (exit ${d.exit_code})</span>`;
+    $("diag").innerHTML = d.errors && d.errors.length
+      ? `<div class="err">Check errors:</div><ul>` + d.errors.map(x=>`<li class="err">${x}</li>`).join("") + `</ul>`
+      : `<span class="dim">clean — no -check errors.</span>`;
+  }catch(e){ $("status").innerHTML = `<span class="err">request failed: ${e}</span>`; }
+  finally{ $("val").disabled = false; }
+};
+
+$("ref").onclick = async () => {
+  const current_stub = $("jml").value.trim();
+  const instruction = $("rinstr").value.trim();
+  if(!current_stub || !instruction){ alert("Refine needs JML in the right pane and an instruction."); return; }
+  $("ref").disabled = true;
+  $("status").innerHTML = `<span class="badge b-run">refining…</span> targeted update (no-clobber)`;
+  try{
+    const d = await post("/refine", {current_stub, instruction, locked_clauses: []});
+    if(d.error){ $("status").innerHTML = `<span class="err">error: ${d.error}</span>`; return; }
+    $("jml").value = d.new_stub || "";
+    $("status").innerHTML = `${d.check_ok?'<span class="badge b-ok">✓ refined</span>':'<span class="badge b-err">✗ check failed</span>'} <span class="dim">${d.conflicts.length?d.conflicts.length+' conflict(s) · ':''}${d.duration_s}s · ${d.model||''}</span>`;
+    let h = "";
+    if(d.conflicts && d.conflicts.length){ h += `<div class="err">⚠ CONFLICT — a locked clause was changed; review before trusting:</div><ul>` + d.conflicts.map(x=>`<li class="err">${x}</li>`).join("") + `</ul>`; }
+    if(d.diff && d.diff.added && d.diff.added.length){ h += `<div class="a">Added clauses:</div><ul>` + d.diff.added.map(x=>`<li class="a">${x}</li>`).join("") + `</ul>`; }
+    if(d.diff && d.diff.removed && d.diff.removed.length){ h += `<div class="err">Removed clauses:</div><ul>` + d.diff.removed.map(x=>`<li class="err">${x}</li>`).join("") + `</ul>`; }
+    if((d.assumptions||[]).length){ h += `<div class="a">Assumptions:</div><ul>` + d.assumptions.map(x=>`<li class="a">${x}</li>`).join("") + `</ul>`; }
+    if((d.missing_info||[]).length){ h += `<div class="q">Open questions:</div><ul>` + d.missing_info.map(x=>`<li class="q">? ${x}</li>`).join("") + `</ul>`; }
+    if(d.check_errors && d.check_errors.length){ h += `<div class="err">Check errors:</div><ul>` + d.check_errors.map(x=>`<li class="err">${x}</li>`).join("") + `</ul>`; }
+    $("diag").innerHTML = h || `<span class="dim">no changes.</span>`;
+  }catch(e){ $("status").innerHTML = `<span class="err">request failed: ${e}</span>`; }
+  finally{ $("ref").disabled = false; }
+};
+
+$("dd").onclick = async () => {
+  const java_stub = $("jml").value.trim();
+  if(!java_stub){ alert("Generate or paste a JML stub first."); return; }
+  $("dd").disabled = true;
+  $("status").innerHTML = `<span class="badge b-run">handing off…</span> ${$("ddrun").checked?'running DD (slow)':'emitting DD file'}`;
+  try{
+    const d = await post("/handoff", {java_stub, run: $("ddrun").checked});
+    if(d.error){ $("status").innerHTML = `<span class="err">${d.error}</span>`; return; }
+    let h = `<div class="dim">Handed <b>${d.class_name}</b> to formalspecDD (deep check: synthesize + ESC-verify bodies).</div>`;
+    h += `<div class="a">DD command (NL→spec→verified Java):</div><pre style="white-space:pre-wrap;color:var(--txt);margin:4px 0">${d.dd_command}</pre>`;
+    if(d.dd_verdict){
+      const v = d.dd_verdict;
+      h += `<div>DD verdict: <span class="badge ${v.final_status==='VERIFIED'?'b-ok':'b-err'}">${v.final_status}</span> <span class="dim">${v.stop_reason||''}</span></div>`;
+      if(v.impl_path) h += `<div class="dim">verified impl: ${v.impl_path}</div>`;
+    } else if($("ddrun").checked) {
+      h += `<div class="dim">(DD run produced no verdict — check the server log.)</div>`;
+    }
+    $("diag").innerHTML = h;
+    $("status").innerHTML = `<span class="badge b-ok">handed off</span> <span class="dim">DD ${d.dd_available?'available':'not found'}</span>`;
+  }catch(e){ $("status").innerHTML = `<span class="err">request failed: ${e}</span>`; }
+  finally{ $("dd").disabled = false; }
+};
+</script>
+</body>
+</html>

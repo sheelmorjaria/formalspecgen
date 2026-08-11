@@ -1,0 +1,49 @@
+domain_name: TrainRoadCrossing
+module_name: train_crossing
+state_variables:
+  - name: train_pos
+    type: int
+    bound: [0, 3]
+  - name: gate_state
+    type: int
+    bound: [0, 1]
+  - name: car_pos
+    type: int
+    bound: [0, 1]
+operations:
+  - name: trainApproaches
+    guards: [train_is_away]
+    effect: move_train_approaching
+    frame: [train_pos]
+    ast_pattern: "train_pos == 1"
+  - name: lowerGate
+    guards: [train_is_approaching, gate_is_up, crossing_is_clear]
+    effect: set_gate_down
+    frame: [gate_state]
+    ast_pattern: "gate_state == 1"
+  - name: trainEnters
+    guards: [train_is_approaching, gate_is_down]
+    effect: move_train_crossing
+    frame: [train_pos]
+    ast_pattern: "train_pos == 2"
+  - name: trainLeaves
+    guards: [train_is_crossing]
+    effect: move_train_past
+    frame: [train_pos]
+    ast_pattern: "train_pos == 3"
+  - name: raiseGate
+    guards: [train_is_past, gate_is_down]
+    effect: set_gate_up
+    frame: [gate_state]
+    ast_pattern: "gate_state == 0"
+  - name: carCrosses
+    guards: [gate_is_up, car_is_waiting]
+    effect: move_car_crossing
+    frame: [car_pos]
+    ast_pattern: "car_pos == 1"
+  - name: carLeaves
+    guards: [car_is_crossing]
+    effect: move_car_waiting
+    frame: [car_pos]
+    ast_pattern: "car_pos == 0"
+tlc_invariants: [TypeOK, SafetyNoCollision]

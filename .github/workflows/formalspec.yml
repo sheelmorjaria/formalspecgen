@@ -1,0 +1,31 @@
+name: Formal specification checks
+
+on:
+  pull_request:
+    paths:
+      - "**/*.java"
+      - "**/*.jml"
+      - "pipeline/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openjml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check changed JML
+        uses: ./.github/actions/formalspec
+        with:
+          base: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+          mode: check
+      - name: Upload structured verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formalspec-report
+          path: formalspec-report.json

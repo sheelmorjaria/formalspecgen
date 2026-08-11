@@ -1,0 +1,195 @@
+# Copyright 2026 Sheel Morjaria
+# SPDX-License-Identifier: Apache-2.0
+
+"""Layered system-design workflow: architecture + TLA, then JML interface scaffolds."""
+import json
+import re
+import tempfile
+from pathlib import Path
+
+from .architecture import parse_architecture, lint_architecture, Architecture
+from .limitations import prompt_guardrails
+from .llm import _chat_fn, LLMError
+from .tla_backend import check_tla
+from .verify import verify_files, classify
+from .parse_check import parse_check
+from .parse_vcs import parse_vcs
+
+DESIGN_SYSTEM = """Design a bounded, verifiable system from the requirement.
+Apply Clean Architecture and SOLID: entities and use cases own policy; outer infrastructure
+depends on inward-owned interfaces. Split reader/writer roles when clients differ. Model concurrent
+state transitions explicitly. Return exactly these sections:
+=== ARCHITECTURE ===
+JSON with name, description, invariants, assumptions, components, and use_cases. Each component has
+id, name, layer (entities|use_cases|adapters|infrastructure), kind (interface|class), responsibilities,
+dependencies [{target,abstraction}], and operations. Each operation has name, parameters
+[{name,type}], returns, requires, ensures, assignable. Each use case has name, requires, ensures,
+and ordered steps [{component,operation}]. Components also declare trust_zone, privilege, and external.
+Add data_flows with source, target, data, classification, entry_operation, sanitizer_operation,
+authenticated, authorized, encrypted, audited, and bounded. Contract facts used between steps must
+use identical text. Sanitizer operations must ensure a fact containing sanitized, validated, or trusted.
+=== TLA ===
+A complete bounded TLA+ module with Init, Next, Spec, and safety invariants.
+=== CFG ===
+The TLC configuration.
+=== END ===
+Do not emit prose outside the sections."""
+
+
+def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3) -> dict:
+    chat = _chat_fn(provider)
+    previous = feedback = ""
+    attempts = []
+    last_candidate = {}
+    for number in range(1, max_attempts + 1):
+        user = f"System requirement:\n{requirement}"
+        if previous:
+            user += f"\n\nPrevious candidate:\n{previous}\n\nVerifier/linter feedback:\n{feedback}\nRepair the architecture and model."
+        try:
+            raw, model, _usage = chat(
+                [{"role": "system", "content": DESIGN_SYSTEM + prompt_guardrails(requirement)},
+                 {"role": "user", "content": user}], None, 0.1)
+        except LLMError as exc:
+            return {"status": "API_ERROR", "message": str(exc), "attempts": attempts}
+        try:
+            architecture, tla, cfg = parse_design(raw)
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            attempts.append({"attempt": number, "status": "PARSE_ERROR", "message": str(exc)})
+            previous, feedback = raw, str(exc)
+            continue
+        lint = lint_architecture(architecture)
+        blocking = [item for item in lint if item["severity"] == "error"]
+        tlc = check_tla(tla, cfg)
+        status = "VERIFIED" if tlc["status"] == "VERIFIED" and not blocking else "DESIGN_FAILED"
+        last_candidate = {"architecture": architecture.to_dict(), "lint": lint,
+                          "tla": tla, "cfg": cfg, "tlc": tlc, "model": model}
+        attempts.append({"attempt": number, "status": status, "tlc_status": tlc["status"],
+                         "blocking_lints": len(blocking)})
+        if status == "VERIFIED":
+            return {"status": status, "architecture": architecture.to_dict(), "lint": lint,
+                    "tla": tla, "cfg": cfg, "tlc": tlc, "attempts": attempts, "model": model}
+        previous = raw
+        feedback = json.dumps({"lint": blocking, "tlc": tlc}, ensure_ascii=False)[:12000]
+    return {"status": "STALLED", "attempts": attempts, "message": "design repair limit reached",
+            **last_candidate}
+
+
+def parse_design(raw: str) -> tuple[Architecture, str, str]:
+    arch = re.search(r"=== ARCHITECTURE ===\s*(.*?)\s*=== TLA ===", raw, re.S)
+    tla = re.search(r"=== TLA ===\s*(.*?)\s*=== CFG ===", raw, re.S)
+    cfg = re.search(r"=== CFG ===\s*(.*?)\s*=== END ===", raw, re.S)
+    if not arch or not tla or not cfg:
+        raise ValueError("missing architecture/TLA/CFG section markers")
+    json_text = arch.group(1).strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", json_text, re.S)
+    if fenced:
+        json_text = fenced.group(1).strip()
+    architecture = parse_architecture(json.loads(json_text))
+    if not architecture.components:
+        raise ValueError("architecture contains no components")
+    return architecture, tla.group(1).strip(), cfg.group(1).strip()
+
+
+def scaffold_interfaces(value: dict | str) -> dict:
+    architecture = parse_architecture(value)
+    files = {}
+    results = []
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        for component in architecture.components:
+            if component.kind != "interface":
+                continue
+            source = _interface_source(component)
+            filename = f"{component.name}.java"
+            files[filename] = source
+        for use_case in architecture.use_cases:
+            filename = f"{_java_name(use_case.name)}Orchestrator.java"
+            files[filename] = _orchestrator_source(architecture, use_case)
+        for filename, source in files.items():
+            (root / filename).write_text(source, encoding="utf-8")
+        paths = [root / filename for filename in files]
+        exit_code, output = verify_files(paths, mode="check")
+        results.append({"file": "<architecture scaffold>", "status": classify(exit_code),
+                        "exit_code": exit_code,
+                        "diagnostics": [item.__dict__ for item in parse_check(output)]})
+        esc_exit = None
+        esc_output = ""
+        if exit_code == 0 and any(name.endswith("Orchestrator.java") for name in files):
+            esc_exit, esc_output = verify_files(paths, mode="esc")
+    status = "VALIDATED" if results and results[0]["status"] == "VERIFIED" else "CHECK_FAILED"
+    return {"status": status, "files": files, "checks": results,
+            "composition_verification": {
+                "status": classify(esc_exit) if esc_exit is not None else "SKIPPED",
+                "exit_code": esc_exit,
+                "diagnostics": [item.__dict__ for item in
+                                (parse_vcs(esc_output) if esc_exit == 6 else parse_check(esc_output))]
+                               if esc_exit not in (None, 0) else []},
+            "composition": [item for item in lint_architecture(architecture)
+                            if item["code"].startswith("composition-") or item["code"] == "missing-operation"]}
+
+
+def _interface_source(component) -> str:
+    lines = [f"public interface {component.name} {{"]
+    for operation in component.operations:
+        lines.append("")
+        lines.extend(f"    //@ requires {clause.rstrip(';')};" for clause in operation.requires)
+        lines.extend(f"    //@ assignable {clause.rstrip(';')};" for clause in operation.assignable)
+        lines.extend(f"    //@ ensures {clause.rstrip(';')};" for clause in operation.ensures)
+        parameters = ", ".join(f"{item.get('type', 'int')} {item['name']}" for item in operation.parameters)
+        lines.append(f"    {operation.returns} {operation.name}({parameters});")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def _orchestrator_source(architecture: Architecture, use_case) -> str:
+    by_id = {component.id: component for component in architecture.components}
+    used_ids = list(dict.fromkeys(step.component for step in use_case.steps))
+    used = [by_id[item] for item in used_ids if item in by_id]
+    class_name = f"{_java_name(use_case.name)}Orchestrator"
+    lines = [f"public final class {class_name} {{"]
+    for component in used:
+        lines.append(f"    private /*@ spec_public @*/ final {component.name} {component.id};")
+    parameters = ", ".join(f"{component.name} {component.id}Arg" for component in used)
+    lines.append("")
+    lines.extend(f"    //@ requires {component.id}Arg != null;" for component in used)
+    if used:
+        lines.append("    //@ assignable \\nothing;")
+    lines.extend(f"    //@ ensures this.{component.id} == {component.id}Arg;" for component in used)
+    lines.append(f"    public {class_name}({parameters}) {{")
+    lines.extend(f"        this.{component.id} = {component.id}Arg;" for component in used)
+    lines.append("    }")
+    operation_map = {(component.id, operation.name): operation
+                     for component in architecture.components for operation in component.operations}
+    method_parameters = {}
+    for step in use_case.steps:
+        operation = operation_map.get((step.component, step.operation))
+        if operation:
+            for parameter in operation.parameters:
+                method_parameters.setdefault(parameter["name"], parameter.get("type", "int"))
+    lines.append("")
+    lines.extend(f"    //@ requires {clause.rstrip(';')};" for clause in use_case.requires)
+    lines.extend(f"    //@ ensures {clause.rstrip(';')};" for clause in use_case.ensures)
+    method_params = ", ".join(f"{kind} {name}" for name, kind in method_parameters.items())
+    last_operation = (operation_map.get((use_case.steps[-1].component, use_case.steps[-1].operation))
+                      if use_case.steps else None)
+    return_type = last_operation.returns if last_operation else "void"
+    lines.append(f"    public {return_type} {_lower_java_name(use_case.name)}({method_params}) {{")
+    for index, step in enumerate(use_case.steps):
+        operation = operation_map.get((step.component, step.operation))
+        if operation:
+            args = ", ".join(parameter["name"] for parameter in operation.parameters)
+            prefix = "return " if index == len(use_case.steps) - 1 and operation.returns != "void" else ""
+            lines.append(f"        {prefix}{step.component}.{operation.name}({args});")
+    lines.append("    }")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def _java_name(value: str) -> str:
+    words = re.findall(r"[A-Za-z0-9]+", value)
+    return "".join(word[:1].upper() + word[1:] for word in words) or "UseCase"
+
+
+def _lower_java_name(value: str) -> str:
+    name = _java_name(value)
+    return name[:1].lower() + name[1:]

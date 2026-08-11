@@ -1,0 +1,94 @@
+name: Release FormalSpecGen
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Validate pinned tool downloads
+        run: node vscode-extension/scripts/validate-release.mjs
+
+  package:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: windows-latest
+            target: win32-x64
+          - os: macos-13
+            target: darwin-x64
+          - os: macos-14
+            target: darwin-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.10' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install backend build dependencies
+        run: python -m pip install --upgrade pip pyinstaller -r requirements.txt
+      - name: Build native backend
+        run: pyinstaller --clean --noconfirm formalspecgen-server.spec
+      - name: Stage native backend
+        shell: python
+        run: |
+          import pathlib, shutil, sys
+          source = pathlib.Path('dist/formalspecgen-server' + ('.exe' if sys.platform == 'win32' else ''))
+          destination = pathlib.Path('vscode-extension/bin') / source.name
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(source, destination)
+      - name: Build extension bundle
+        working-directory: vscode-extension
+        run: npm install
+      - name: Compile extension
+        working-directory: vscode-extension
+        run: npm run compile
+      - name: Package platform VSIX
+        working-directory: vscode-extension
+        run: npx vsce package --no-dependencies --allow-unused-files-pattern --allow-missing-repository --target ${{ matrix.target }} --out formalspecgen-${{ matrix.target }}.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formalspecgen-${{ matrix.target }}
+          path: vscode-extension/formalspecgen-${{ matrix.target }}.vsix
+          if-no-files-found: error
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: formalspecgen-*
+          merge-multiple: true
+          path: release-assets
+      - name: Attach VSIX files to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release-assets/*.vsix --generate-notes --verify-tag
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install Marketplace publisher
+        if: ${{ env.VSCE_PAT != '' }}
+        run: npm install --global @vscode/vsce@3.6.0
+      - name: Publish platform VSIX files to Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        run: vsce publish --packagePath release-assets/*.vsix --pat "$VSCE_PAT" --skip-duplicate

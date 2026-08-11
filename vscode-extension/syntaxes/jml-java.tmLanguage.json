@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "JML Java",
+  "scopeName": "source.java.jml",
+  "patterns": [
+    { "include": "source.java" },
+    {
+      "name": "comment.line.jml.java",
+      "begin": "//@",
+      "end": "$",
+      "patterns": [
+        { "name": "keyword.control.jml", "match": "\\b(requires|ensures|assignable|signals|invariant|loop_invariant|decreases|pure|spec_public)\\b" },
+        { "name": "support.function.jml", "match": "\\\\(old|result|forall|exists|sum|product|min|max)\\b" }
+      ]
+    },
+    { "name": "comment.block.jml.java", "begin": "/\\*@", "end": "@\\*/" }
+  ]
+}

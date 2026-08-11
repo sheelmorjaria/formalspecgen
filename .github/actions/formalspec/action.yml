@@ -1,0 +1,17 @@
+name: FormalSpec JML Check
+description: Validate changed Java/JML files and publish GitHub Checks annotations
+inputs:
+  base:
+    description: Base git ref used to discover changed files
+    required: false
+    default: HEAD^
+  mode:
+    description: OpenJML mode (check or esc)
+    required: false
+    default: check
+runs:
+  using: composite
+  steps:
+    - name: Validate changed formal specifications
+      shell: bash
+      run: python3 -m pipeline.ci --base "${{ inputs.base }}" --mode "${{ inputs.mode }}"

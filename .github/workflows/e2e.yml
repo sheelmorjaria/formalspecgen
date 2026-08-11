@@ -1,0 +1,37 @@
+name: Opt-in end-to-end validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      vscode:
+        description: Run VS Code Electron E2E
+        type: boolean
+        default: true
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  vscode-electron:
+    if: github.event_name == 'schedule' || inputs.vscode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: vscode-extension/package-lock.json }
+      - name: Install extension dependencies
+        run: npm ci
+        working-directory: vscode-extension
+      - name: Run VS Code Electron E2E
+        run: xvfb-run -a npm run test:e2e
+        working-directory: vscode-extension
+
+  real-toolchains:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, linux, x64, formalspec-tools]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real compiler, prover, TLC, and WebSocket E2E
+        run: scripts/run_e2e.sh

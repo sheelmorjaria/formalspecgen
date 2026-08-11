@@ -1,0 +1,352 @@
+{
+  "cases": [
+    {
+      "id": "bank_account",
+      "nl": "A bank account holds a non-negative integer balance that starts at zero. A withdrawal of a non-negative amount is permitted only if it does not exceed the current balance; the balance is then reduced by the withdrawn amount. The current balance can be queried.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 1.0,
+      "clause_precision": 1.0,
+      "clause_f1": 1.0,
+      "assumptions": [
+        "balance is always non-negative",
+        "withdrawal amount is non-negative",
+        "withdrawal amount cannot exceed current balance"
+      ],
+      "missing_info": [
+        "What should happen if a withdrawal is attempted with an amount that exceeds the current balance?",
+        "What should happen if a withdrawal is attempted with a negative amount?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1142,
+      "generated_stub": "public class BankAccount {\n    private /*@ spec_public @*/ int balance;\n\n    //@ public invariant balance >= 0;\n\n    //@ ensures balance == 0;\n    public BankAccount() {}\n\n    //@ requires amount >= 0;\n    //@ requires amount <= balance;\n    //@ assignable balance;\n    //@ ensures balance == \\old(balance) - amount;\n    public void withdraw(int amount) {}\n\n    //@ ensures \\result == balance;\n    public /*@ pure */ int getBalance() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 24.7
+    },
+    {
+      "id": "counter",
+      "nl": "A counter holds a non-negative count that never exceeds 1000. It starts at zero. It can be advanced by a non-negative amount n as long as the result stays within the bound, and it can report its current count.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 1.0,
+      "clause_precision": 1.0,
+      "clause_f1": 1.0,
+      "assumptions": [
+        "n is a non-negative integer",
+        "advance does nothing when the result would exceed 1000"
+      ],
+      "missing_info": [
+        "What should happen if advance is called with a negative n?",
+        "What should happen if advance is called with n=0?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1136,
+      "generated_stub": "public class Counter {\n    private /*@ spec_public @*/ int count;\n\n    //@ public invariant 0 <= count && count <= 1000;\n\n    //@ ensures count == 0;\n    public Counter() {}\n\n    //@ requires n >= 0;\n    //@ requires count + n <= 1000;\n    //@ assignable count;\n    //@ ensures count == \\old(count) + n;\n    public void advance(int n) {}\n\n    //@ ensures \\result == count;\n    public /*@ pure */ int getCount() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 31.0
+    },
+    {
+      "id": "power",
+      "nl": "Given an integer base b between 0 and 7 and an integer exponent e between 0 and 10, pow returns b raised to the power e, i.e. the product of e copies of b. The function is pure and static.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.952,
+      "clause_precision": 0.589,
+      "clause_f1": 0.728,
+      "assumptions": [
+        "base b is between 0 and 7 inclusive",
+        "exponent e is between 0 and 10 inclusive",
+        "pow is a pure function that doesn't modify any state",
+        "pow is a static method that doesn't depend on instance state"
+      ],
+      "missing_info": [
+        "what should pow return when exponent is 0? (mathematically, any number to the power of 0 is 1)",
+        "what should pow return when base is 0 and exponent is 0? (mathematically undefined, but often treated as 1)",
+        "how should overflow be handled? (the maximum value is 7^10 = 282,475,249 which is within int range)"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1309,
+      "generated_stub": "public class PowerCalculator {\n    private /*@ spec_public @*/ int base;\n    private /*@ spec_public @*/ int exponent;\n\n    //@ public invariant 0 <= base && base <= 7;\n    //@ public invariant 0 <= exponent && exponent <= 10;\n\n    //@ ensures base == b && exponent == e;\n    public PowerCalculator(int b, int e) {}\n\n    //@ requires b >= 0 && b <= 7;\n    //@ requires e >= 0 && e <= 10;\n    //@ ensures (\\forall int i; 0 <= i && i < e; \\result == (\\product int j; 0 <= j && j <= i; b));\n    //@ ensures \\result == (\\product int j; 0 <= j && j < e; b);\n    public static /*@ pure @*/ int pow(int b, int e) { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "The candidate adds class invariants and a constructor that are not in the gold specification.",
+        "The candidate's pow method has a more complex postcondition with a forall clause that is not in the gold specification.",
+        "The candidate uses different class and method names (PowerCalculator vs Power)."
+      ],
+      "seconds": 27.1
+    },
+    {
+      "id": "thermostat",
+      "nl": "A thermostat holds a temperature between 15 and 30 inclusive, initially 20. The temperature can be set to any value t within range, warmed by a non-negative delta that must not push it above 30, and queried.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.692,
+      "clause_precision": 0.692,
+      "clause_f1": 0.692,
+      "assumptions": [
+        "delta is a non-negative integer",
+        "temperature is always between 15 and 30 inclusive"
+      ],
+      "missing_info": [
+        "What should happen when warm is called with a delta that would push the temperature above 30?",
+        "What should happen when setTemperature is called with a value outside the range [15, 30]?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1187,
+      "generated_stub": "public class Thermostat {\n    private /*@ spec_public @*/ int temperature;\n\n    //@ public invariant 15 <= temperature && temperature <= 30;\n\n    //@ ensures temperature == 20;\n    public Thermostat() {}\n\n    //@ requires 15 <= t && t <= 30;\n    //@ assignable temperature;\n    //@ ensures temperature == t;\n    public void setTemperature(int t) {}\n\n    //@ requires delta >= 0;\n    //@ requires temperature + delta <= 30;\n    //@ assignable temperature;\n    //@ ensures temperature == \\old(temperature) + delta;\n    public void warm(int delta) {}\n\n    //@ ensures \\result == temperature;\n    public /*@ pure */ int getTemperature() { return 0; }\n}",
+      "judge_score": 1.0,
+      "judge_verdict": "equivalent",
+      "judge_missing": [],
+      "judge_extra": [],
+      "seconds": 96.0
+    },
+    {
+      "id": "max",
+      "nl": "Given two integers a and b, max returns a value that is at least both a and b and is equal to one of them.",
+      "check_pass": false,
+      "check_errors": [
+        "An assignable clause may not contain method formal parameters: a",
+        "An assignable clause may not contain method formal parameters: b"
+      ],
+      "clause_recall": 1.0,
+      "clause_precision": 0.683,
+      "clause_f1": 0.812,
+      "assumptions": [
+        "a and b are integers (as specified in the requirement)",
+        "the method returns either a or b (as specified in the requirement)"
+      ],
+      "missing_info": [
+        "what should happen if a and b are equal? (the specification already covers this case, but it's worth confirming)",
+        "are there any constraints on the range of a and b? (e.g., can they be any integer value?)"
+      ],
+      "attempts": 1,
+      "gen_status": "COMPILE_FAILED",
+      "stop_reason": "max attempts (1) reached",
+      "tokens": 1164,
+      "generated_stub": "public class MaxFinder {\n    private /*@ spec_public @*/ int a;\n    private /*@ spec_public @*/ int b;\n\n    //@ public invariant true; // No specific invariant mentioned in the requirement\n\n    //@ assignable a, b;\n    //@ ensures a == \\old(a) && b == \\old(b);\n    public MaxFinder(int a, int b) {\n        this.a = a;\n        this.b = b;\n    }\n\n    //@ ensures \\result >= a && \\result >= b;\n    //@ ensures \\result == a || \\result == b;\n    public int max() { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "private /*@ spec_public @*/ int a;",
+        "private /*@ spec_public @*/ int b;",
+        "@ public invariant true; // No specific invariant mentioned in the requirement",
+        "@ assignable a, b;",
+        "@ ensures a == \\old(a) && b == \\old(b);",
+        "public MaxFinder(int a, int b) { this.a = a; this.b = b; }"
+      ],
+      "seconds": 30.9
+    },
+    {
+      "id": "abs",
+      "nl": "Given an integer a between -1000000 and 1000000, abs returns its absolute value: always non-negative, equal to a when a is non-negative, and equal to -a when a is negative.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 1.0,
+      "clause_precision": 0.8,
+      "clause_f1": 0.889,
+      "assumptions": [
+        "a is always between -1000000 and 1000000 inclusive",
+        "the absolute value is non-negative",
+        "when a is non-negative, abs returns a",
+        "when a is negative, abs returns -a"
+      ],
+      "missing_info": [
+        "what should happen if the input is outside the range [-1000000, 1000000]?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1155,
+      "generated_stub": "public class AbsoluteValue {\n    private /*@ spec_public @*/ int a;\n\n    //@ public invariant -1000000 <= a && a <= 1000000;\n\n    //@ ensures a == value;\n    public AbsoluteValue(int value) {\n        a = value;\n    }\n\n    //@ requires -1000000 <= a && a <= 1000000;\n    //@ ensures \\result == (a >= 0 ? a : -a);\n    //@ ensures \\result >= 0;\n    public int abs() { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "The candidate has added a class invariant and constructor that are not in the gold specification.",
+        "The candidate has changed the method signature from static to instance method.",
+        "The candidate has changed the class name from 'Abs' to 'AbsoluteValue'."
+      ],
+      "seconds": 15.9
+    },
+    {
+      "id": "array_sum",
+      "nl": "Given a non-null array a of length at most 100 whose elements are all non-negative and whose total sum is at most 1000000, sum returns the sum of all elements.",
+      "check_pass": false,
+      "check_errors": [
+        "Implicit references to 'this' are not permitted in constructor assignable clauses: a",
+        "Implicit references to 'this' are not permitted in constructor assignable clauses: length"
+      ],
+      "clause_recall": 0.792,
+      "clause_precision": 0.688,
+      "clause_f1": 0.736,
+      "assumptions": [
+        "The input array is non-null",
+        "The array length is at most 100",
+        "All elements in the array are non-negative",
+        "The total sum of array elements is at most 1000000"
+      ],
+      "missing_info": [
+        "What should happen if the array length is 0?",
+        "Should the method handle the case where the array is modified after the ArraySum object is created?"
+      ],
+      "attempts": 1,
+      "gen_status": "COMPILE_FAILED",
+      "stop_reason": "max attempts (1) reached",
+      "tokens": 1295,
+      "generated_stub": "public class ArraySum {\n    private /*@ spec_public @*/ int[] a;\n    private /*@ spec_public @*/ int length;\n\n    //@ public invariant a != null;\n    //@ public invariant 0 <= length && length <= 100;\n    //@ public invariant (\\forall int i; 0 <= i && i < length; a[i] >= 0);\n    //@ public invariant (\\sum int i; 0 <= i && i < length; a[i]) <= 1000000;\n\n    //@ requires input != null;\n    //@ requires input.length <= 100;\n    //@ requires (\\forall int i; 0 <= i && i < input.length; input[i] >= 0);\n    //@ requires (\\sum int i; 0 <= i && i < input.length; input[i]) <= 1000000;\n    //@ assignable a, length;\n    //@ ensures a == input;\n    //@ ensures length == input.length;\n    public ArraySum(int[] input) {\n        a = input;\n        length = input.length;\n    }\n\n    //@ ensures \\result == (\\sum int i; 0 <= i && i < length; a[i]);\n    public int sum() { return 0; }\n}",
+      "judge_score": 0.0,
+      "judge_verdict": "wrong",
+      "judge_missing": [
+        "The gold spec is for a static method sum(int[] a), while the candidate implements an instance method with a constructor. The functionality is fundamentally different."
+      ],
+      "judge_extra": [
+        "The candidate adds class invariants and a constructor that are not present in the gold spec.",
+        "The candidate changes the method from static to instance method.",
+        "The candidate introduces additional fields (a, length) not in the gold spec."
+      ],
+      "seconds": 26.9
+    },
+    {
+      "id": "linear_search",
+      "nl": "Given a non-null, non-empty array a of length at most 100 that contains the target value at least once, search returns an index i with a[i] == target and 0 <= i < a.length.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.952,
+      "clause_precision": 0.639,
+      "clause_f1": 0.765,
+      "assumptions": [
+        "the input array a is non-null",
+        "the input array a is non-empty",
+        "the input array a has length at most 100",
+        "the target value appears at least once in the array"
+      ],
+      "missing_info": [
+        "which index should be returned if the target appears multiple times? (first occurrence? last occurrence? any occurrence?)",
+        "what should happen if the input array violates the preconditions? (should the method throw an exception?)"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1242,
+      "generated_stub": "public class ArraySearch {\n    private /*@ spec_public @*/ int[] a;\n    private /*@ spec_public @*/ int target;\n\n    //@ public invariant a != null && a.length > 0 && a.length <= 100;\n    //@ public invariant (\\exists int j; 0 <= j && j < a.length; a[j] == target);\n\n    //@ requires a != null && a.length > 0 && a.length <= 100;\n    //@ requires (\\exists int j; 0 <= j && j < a.length; a[j] == target);\n    //@ assignable \\nothing;\n    //@ ensures (\\exists int i; 0 <= i && i < a.length; a[i] == target) && \\result >= 0 && \\result < a.length;\n    public int search(int[] a, int target) { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "The candidate has class invariants that are not present in the gold spec",
+        "The candidate adds an assignable clause that is not in the gold spec",
+        "The postcondition in the candidate is weaker than the gold spec - it only ensures that some index exists with the target value, not that the returned index specifically has the target value"
+      ],
+      "seconds": 33.3
+    },
+    {
+      "id": "is_sorted",
+      "nl": "Given a non-null array a of length at most 100, isSorted returns true if and only if every adjacent pair is non-decreasing: a[i] <= a[i+1] for all valid i.",
+      "check_pass": true,
+      "check_errors": [],
+      "clause_recall": 0.875,
+      "clause_precision": 0.733,
+      "clause_f1": 0.798,
+      "assumptions": [
+        "array a is non-null",
+        "array a has length at most 100",
+        "adjacent pairs are compared from index 0 to length-2"
+      ],
+      "missing_info": [
+        "what should happen if the array has length 0 or 1? (no adjacent pairs to compare)",
+        "what should happen if the array contains null elements?"
+      ],
+      "attempts": 1,
+      "gen_status": "VERIFIED",
+      "stop_reason": "openjml -check clean",
+      "tokens": 1138,
+      "generated_stub": "public class ArrayChecker {\n    private /*@ spec_public @*/ int[] a;\n\n    //@ public invariant a != null;\n    //@ public invariant a.length <= 100;\n\n    //@ requires a != null;\n    //@ ensures this.a == a;\n    public ArrayChecker(int[] a) {}\n\n    //@ ensures \\result == (\\forall int i; 0 <= i && i < a.length - 1; a[i] <= a[i+1]);\n    public /*@ pure */ boolean isSorted() { return false; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "The candidate adds class invariants and a constructor that are not in the gold specification.",
+        "The candidate changes the method signature from static to instance method.",
+        "The candidate adds a public invariant for a.length <= 100 which should be a precondition in the gold."
+      ],
+      "seconds": 23.0
+    },
+    {
+      "id": "gcd",
+      "nl": "Given a > 0 and b >= 0 (each at most 1000000), gcd returns the greatest common divisor: a positive result that divides both a and b exactly, and that is >= every other positive common divisor of a and b.",
+      "check_pass": false,
+      "check_errors": [
+        "An assignable clause may not contain method formal parameters: a",
+        "An assignable clause may not contain method formal parameters: b"
+      ],
+      "clause_recall": 1.0,
+      "clause_precision": 0.833,
+      "clause_f1": 0.909,
+      "assumptions": [
+        "a is a positive integer (a > 0)",
+        "b is a non-negative integer (b >= 0)",
+        "both a and b are at most 1000000",
+        "the method returns a positive integer that divides both a and b exactly",
+        "the returned value is the greatest among all positive common divisors of a and b"
+      ],
+      "missing_info": [
+        "what should happen if b is 0? (gcd(a, 0) should be a)",
+        "should the method modify the state of the object (fields a and b) or just compute the result?",
+        "are there any constraints on the time complexity of the algorithm?"
+      ],
+      "attempts": 1,
+      "gen_status": "COMPILE_FAILED",
+      "stop_reason": "max attempts (1) reached",
+      "tokens": 1292,
+      "generated_stub": "public class GCD {\n    private /*@ spec_public @*/ int a;\n    private /*@ spec_public @*/ int b;\n\n    //@ public invariant a > 0 && b >= 0;\n    //@ public invariant a <= 1000000 && b <= 1000000;\n\n    //@ requires a > 0 && b >= 0;\n    //@ requires a <= 1000000 && b <= 1000000;\n    //@ assignable a, b;\n    //@ ensures \\result > 0;\n    //@ ensures \\result > 0 && a % \\result == 0 && b % \\result == 0;\n    //@ ensures (\\forall int d; d > 0 && a % d == 0 && b % d == 0; d <= \\result);\n    public int gcd(int a, int b) { return 0; }\n}",
+      "judge_score": 0.5,
+      "judge_verdict": "partial",
+      "judge_missing": [],
+      "judge_extra": [
+        "private /*@ spec_public @*/ int a;",
+        "private /*@ spec_public @*/ int b;",
+        "@ public invariant a > 0 && b >= 0;",
+        "@ public invariant a <= 1000000 && b <= 1000000;",
+        "@ assignable a, b;"
+      ],
+      "seconds": 35.8
+    }
+  ],
+  "aggregate": {
+    "n": 10,
+    "max_attempts": 1,
+    "check_pass_rate": 0.7,
+    "mean_clause_f1": 0.8329000000000001,
+    "mean_judge_score": 0.6,
+    "first_try_rate": 1.0,
+    "total_tokens": 12060,
+    "tokens_per_case": 1206,
+    "judge_verdict_counts": {
+      "equivalent": 3,
+      "partial": 6,
+      "wrong": 1
+    },
+    "gen_status_counts": {
+      "VERIFIED": 7,
+      "COMPILE_FAILED": 3
+    }
+  },
+  "ts": "20260809-154656"
+}

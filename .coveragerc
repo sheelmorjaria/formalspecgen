@@ -1,0 +1,20 @@
+[run]
+branch = True
+source =
+    pipeline
+    formalspec_core
+    server
+
+[report]
+show_missing = True
+skip_covered = False
+precision = 1
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+
+[html]
+directory = coverage-html
+
+[xml]
+output = coverage.xml

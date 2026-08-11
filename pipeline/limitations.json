@@ -1,0 +1,37 @@
+[
+  {
+    "id": "aggregate-sum",
+    "keywords": ["sum", "total", "aggregate", "\\sum", "array"],
+    "warning": "OpenJML ESC may drop \\sum and \\product obligations. Prefer a recursively specified pure helper such as sumOf(a,n), or record that targeted postprocessing is required."
+  },
+  {
+    "id": "permutation-num-of",
+    "keywords": ["permutation", "sort", "sorted", "multiset", "\\num_of"],
+    "warning": "OpenJML ESC does not reliably verify \\num_of permutation contracts. Preserve the intent, but mark the contract for the targeted Dafny native-multiset route."
+  },
+  {
+    "id": "old-array-heap",
+    "keywords": ["reverse", "old array", "pre-state", "snapshot", "\\old"],
+    "warning": "Indexed \\old(array)[k] heap reasoning is an OpenJML/Z3 encoding boundary. Keep the exact reversal intent and mark it for the Dafny ghost-sequence snapshot route."
+  },
+  {
+    "id": "integer-overflow",
+    "keywords": ["multiply", "square", "sqrt", "product", "overflow", "integer"],
+    "warning": "Every Java int multiplication needs sound input or invariant bounds. Do not invent a bound; ask the human when the requirement does not provide one."
+  },
+  {
+    "id": "bitshift",
+    "keywords": ["shift", "bit", "power of two", "log2", "<<", ">>"],
+    "warning": "For 1 << r over positive Java int values, ESC normally needs r <= 30. Add it only when implied by the requirement; otherwise surface a missing-information question."
+  },
+  {
+    "id": "array-frame-null",
+    "keywords": ["array", "list", "elements", "index", "sort", "reverse"],
+    "warning": "Array contracts should state non-nullness before access and include an assignable array frame when elements may change."
+  },
+  {
+    "id": "concurrency-tla",
+    "keywords": ["thread", "concurrent", "synchronized", "lock", "mutex", "atomic", "deadlock"],
+    "warning": "Thread interleavings are a TLA+/TLC design-level boundary. Keep safety and liveness intent explicit and bound all model domains."
+  }
+]

@@ -1,0 +1,1 @@
+public class Tiny { //@ ensures \result == 1; public int m(){return 0;} }

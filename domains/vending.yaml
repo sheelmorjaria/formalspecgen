@@ -1,0 +1,26 @@
+domain_name: VendingMachine
+module_name: vending
+state_variables:
+  - name: credits
+    type: int
+    bound: [0, 10]
+  - name: stock
+    type: dict
+    bound: [0, 5]
+operations:
+  - name: insertCoin
+    guards: [positive_amount]
+    effect: add_credit
+    frame: [credits]
+    ast_pattern: "credits == \\old(credits) + amount"
+  - name: buyItem
+    guards: [enough_credits, item_in_stock]
+    effect: dispense_item
+    frame: [credits, stock]
+    ast_pattern: "stock == \\old(stock) - 1 && credits == \\old(credits) - price"
+  - name: refund
+    guards: []
+    effect: reset_credits
+    frame: [credits]
+    ast_pattern: "credits == 0"
+tlc_invariants: [TypeOK, CreditsNonNegative]
