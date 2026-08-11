@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import difflib
 from pathlib import Path
 
 from . import config
@@ -18,6 +19,7 @@ from .parse_framac import parse_framac_vcs
 _C_BLOCK = re.compile(r"```c\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _PROVED = re.compile(r"Proved goals:\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+C_PASS_NAMES = ("inject_overflow_bounds", "inject_null_checks", "inject_loop_assigns")
 
 ACSL_SYSTEM = r"""Draft one bounded C11 API and implementation with ACSL contracts for Frama-C WP.
 Return exactly one ```c block and one JSON metadata block. Use /*@ requires, assigns, ensures */.
@@ -26,6 +28,122 @@ For loops provide loop invariant, loop assigns, and loop variant. Do not use dyn
 recursion, function pointers, concurrency, volatile, unions, casts that change pointer type, inline
 assembly, compiler extensions, unchecked pointer arithmetic, or unsigned wraparound as policy.
 Do not translate JML syntax. Record assumptions and missing information in JSON."""
+
+
+def apply_c_passes(code: str, selected=None) -> dict:
+    """Apply explicitly accepted, conservative ACSL annotation transformations."""
+    requested = set(C_PASS_NAMES if selected is None else selected)
+    unknown = sorted(requested.difference(C_PASS_NAMES))
+    if unknown:
+        raise ValueError("unknown C postprocessor passes: " + ", ".join(unknown))
+    transforms = {"inject_overflow_bounds": _inject_overflow_bounds,
+                  "inject_null_checks": _inject_null_checks,
+                  "inject_loop_assigns": _promote_loop_assigns_markers}
+    original = current = code; reports = []
+    for name in C_PASS_NAMES:
+        if name not in requested: continue
+        before = current; current = transforms[name](current)
+        report = {"name": name, "changed": current != before}
+        if current != before:
+            report["diff"] = "\n".join(difflib.unified_diff(
+                before.splitlines(), current.splitlines(),
+                fromfile=f"before/{name}", tofile=f"after/{name}", lineterm=""))
+        reports.append(report)
+    changed = current != original
+    return {"original_code": original, "code": current, "changed": changed,
+            "passes": reports, "warnings": lint_acsl(current),
+            "proof_relevant_change": changed, "requires_human_acceptance": changed,
+            "accepted": False, "claim": "TRANSFORMATION"}
+
+
+def _inject_null_checks(code: str) -> str:
+    """Require validity only for pointer parameters directly dereferenced by a function body."""
+    function = re.compile(r"(?m)^(?P<indent>\s*)(?P<ret>[A-Za-z_]\w*(?:\s+\w+)*)\s+"
+                          r"(?P<name>[A-Za-z_]\w*)\s*\((?P<params>[^)]*)\)\s*\{")
+    for match in reversed(list(function.finditer(code))):
+        body_end = _matching_c_brace(code, match.end() - 1)
+        if body_end is None: continue
+        body = code[match.end():body_end]; facts = []
+        for raw in match["params"].split(","):
+            pointer = re.search(
+                r"(?P<const>\bconst\b)?[^,;()]*\*\s*(?P<name>[A-Za-z_]\w*)\s*$", raw.strip())
+            if not pointer: continue
+            name = pointer["name"]
+            if not re.search(rf"(?:\*\s*{re.escape(name)}\b|\b{re.escape(name)}\s*\[)", body):
+                continue
+            facts.append(rf"\{'valid_read' if pointer['const'] else 'valid'}({name})")
+        contract = _attached_contract(code, match.start())
+        if not facts or not contract: continue
+        additions = [fact for fact in facts if fact not in contract["body"]]
+        if additions:
+            point = contract.start("body")
+            insertion = "".join(f" requires {fact};\n" for fact in additions)
+            code = code[:point] + insertion + code[point:]
+    return code
+
+
+def _inject_overflow_bounds(code: str) -> str:
+    """Derive exact INT_MIN/INT_MAX obligations for direct int/constant arithmetic."""
+    code = re.sub(r"(?m)^(?P<indent>\s*)//\s*acsl-requires:\s*(?P<fact>.+?)\s*$",
+                  lambda match: f'{match["indent"]}/*@ requires {match["fact"]}; */', code)
+    function = re.compile(r"(?m)^(?P<indent>\s*)int\s+\w+\s*\((?P<params>[^)]*)\)\s*\{")
+    changed = False
+    for match in reversed(list(function.finditer(code))):
+        end = _matching_c_brace(code, match.end() - 1)
+        if end is None: continue
+        body = code[match.end():end]; facts = []
+        for name in re.findall(r"(?:^|,)\s*int\s+([A-Za-z_]\w*)", match["params"]):
+            for operator, literal in re.findall(
+                    rf"\b{re.escape(name)}\s*([+*\-])\s*(-?\d+)\b", body):
+                constant = int(literal)
+                if operator == "+":
+                    fact = (f"{name} <= INT_MAX - {constant}" if constant >= 0 else
+                            f"{name} >= INT_MIN - ({constant})")
+                elif operator == "-":
+                    fact = (f"{name} >= INT_MIN + {constant}" if constant >= 0 else
+                            f"{name} <= INT_MAX + ({constant})")
+                elif constant == 0:
+                    continue
+                elif constant > 0:
+                    fact = (f"{name} >= INT_MIN / {constant} && "
+                            f"{name} <= INT_MAX / {constant}")
+                else:
+                    fact = (f"{name} >= INT_MAX / {constant} && "
+                            f"{name} <= INT_MIN / {constant}")
+                if fact not in facts: facts.append(fact)
+        contract = _attached_contract(code, match.start())
+        if not contract: continue
+        additions = [fact for fact in facts if fact not in contract["body"]]
+        if additions:
+            point = contract.start("body")
+            code = code[:point] + "".join(f" requires {fact};\n" for fact in additions) + code[point:]
+            changed = True
+    if changed and not re.search(r"(?m)^\s*#\s*include\s*<limits\.h>", code):
+        code = "#include <limits.h>\n" + code
+    return code
+
+
+def _promote_loop_assigns_markers(code: str) -> str:
+    """Promote reviewed markers; never guess pointer alias or loop frame semantics."""
+    return re.sub(r"(?m)^(?P<indent>\s*)//\s*acsl-loop-assigns:\s*(?P<frame>.+?)\s*$",
+                  lambda match: f'{match["indent"]}/*@ loop assigns {match["frame"]}; */', code)
+
+
+def _attached_contract(code: str, function_start: int):
+    contracts = list(re.finditer(r"/\*@(?P<body>[\s\S]*?)\*/", code[:function_start]))
+    if not contracts: return None
+    candidate = contracts[-1]
+    return candidate if not code[candidate.end():function_start].strip() else None
+
+
+def _matching_c_brace(code: str, opening: int) -> int | None:
+    depth = 0
+    for index in range(opening, len(code)):
+        if code[index] == "{": depth += 1
+        elif code[index] == "}":
+            depth -= 1
+            if depth == 0: return index
+    return None
 
 
 def lint_acsl(code: str) -> list[dict]:

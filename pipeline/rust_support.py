@@ -16,7 +16,8 @@ from . import config
 from .llm import LLMError, _chat_fn
 from .parse_prusti import parse_prusti_vcs
 
-RUST_PASS_NAMES = ("inject_overflow_bounds", "inject_sum_helper", "guard_array_access", "inject_pure")
+RUST_PASS_NAMES = ("inject_overflow_bounds", "inject_sum_helper", "guard_array_access",
+                   "inject_pure", "inject_slice_bounds")
 
 RUST_SYSTEM = r"""Draft a Rust contract scaffold for later Prusti verification.
 Return exactly one ```rust block and one ```json block containing assumptions and
@@ -119,7 +120,7 @@ def lint_rust(code: str) -> list[dict]:
 
 def apply_rust_passes(code: str, selected=None) -> dict:
     """Apply conservative Prusti rewrites and return transparent per-pass diffs."""
-    requested = set(selected or RUST_PASS_NAMES)
+    requested = set(RUST_PASS_NAMES if selected is None else selected)
     unknown = sorted(requested.difference(RUST_PASS_NAMES))
     if unknown:
         raise ValueError("unknown Rust postprocessor passes: " + ", ".join(unknown))
@@ -128,6 +129,7 @@ def apply_rust_passes(code: str, selected=None) -> dict:
         "inject_sum_helper": _mark_contract_helpers_pure,
         "guard_array_access": _guard_simple_indexing,
         "inject_pure": _mark_contract_helpers_pure,
+        "inject_slice_bounds": _guard_simple_indexing,
     }
     original = current = code
     reports = []
@@ -150,9 +152,48 @@ def apply_rust_passes(code: str, selected=None) -> dict:
 
 
 def _promote_explicit_bounds(code: str) -> str:
-    """Promote explicit `// prusti-requires: ...` facts; never synthesize numeric policy."""
-    return re.sub(r"(?m)^(?P<indent>\s*)//\s*prusti-requires:\s*(?P<fact>.+?)\s*$",
+    """Promote reviewed facts and derive exact bounds for scalar integer/constant arithmetic."""
+    code = re.sub(r"(?m)^(?P<indent>\s*)//\s*prusti-requires:\s*(?P<fact>.+?)\s*$",
                   lambda match: f'{match["indent"]}#[requires({match["fact"]})]', code)
+    limits = {"i8": (-128, 127), "i16": (-32768, 32767),
+              "i32": (-2147483648, 2147483647),
+              "i64": (-9223372036854775808, 9223372036854775807)}
+    function = re.compile(r"(?m)^(?P<indent>\s*)(?P<vis>pub\s+)?fn\s+\w+\s*\("
+                          r"(?P<params>[^)]*)\)[^\n{;]*\{")
+    for match in reversed(list(function.finditer(code))):
+        end = _matching_brace(code, match.end() - 1)
+        if end is None: continue
+        body = code[match.end():end]; facts = []
+        for name, kind in re.findall(r"\b([A-Za-z_]\w*)\s*:\s*(i8|i16|i32|i64)\b",
+                                     match["params"]):
+            lower, upper = limits[kind]
+            for operator, literal in re.findall(
+                    rf"\b{re.escape(name)}\s*([+*\-])\s*(-?\d+)\b", body):
+                fact = _constant_arithmetic_bound(name, operator, int(literal), lower, upper)
+                if fact and fact not in facts: facts.append(fact)
+        nearby = code[max(0, match.start() - 800):match.start()]
+        additions = [fact for fact in facts if f"#[requires({fact})]" not in nearby]
+        if additions:
+            insertion = "".join(f'{match["indent"]}#[requires({fact})]\n' for fact in additions)
+            code = code[:match.start()] + insertion + code[match.start():]
+    return code
+
+
+def _constant_arithmetic_bound(name: str, operator: str, constant: int,
+                               minimum: int, maximum: int) -> str | None:
+    if operator == "+":
+        return (f"{name} <= {maximum - constant}" if constant >= 0 else
+                f"{name} >= {minimum - constant}")
+    if operator == "-":
+        return (f"{name} >= {minimum + constant}" if constant >= 0 else
+                f"{name} <= {maximum + constant}")
+    if constant == 0: return None
+    ceil_div = lambda left, right: -((-left) // right)
+    if constant > 0:
+        lower, upper = ceil_div(minimum, constant), maximum // constant
+    else:
+        lower, upper = ceil_div(maximum, constant), minimum // constant
+    return f"{name} >= {lower} && {name} <= {upper}"
 
 
 def _mark_contract_helpers_pure(code: str) -> str:

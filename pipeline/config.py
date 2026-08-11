@@ -62,6 +62,7 @@ JAVA_BIN = os.environ.get("JAVA_BIN", "java")
 # Experimental Prusti lane. The extension installs the verifier and its pinned rustup
 # toolchain into global storage; CLI users may point at an existing prusti-rustc.
 PRUSTI_BIN = os.environ.get("PRUSTI_BIN", "prusti-rustc")
+RUSTC_BIN = os.environ.get("RUSTC_BIN", "rustc")
 PRUSTI_TIMEOUT = int(os.environ.get("PRUSTI_TIMEOUT", "180"))
 KANI_BIN = os.environ.get("KANI_BIN", "cargo-kani")
 KANI_TIMEOUT = int(os.environ.get("KANI_TIMEOUT", "180"))

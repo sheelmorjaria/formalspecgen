@@ -109,6 +109,21 @@ fn sum(values: &[i32]) -> i32 { 0 }
     selected = rust.apply_rust_passes(
         "// prusti-requires: amount <= 10\nfn f() {}", ["inject_overflow_bounds"])
     assert [item["name"] for item in selected["passes"]] == ["inject_overflow_bounds"]
+    slice_only = rust.apply_rust_passes(
+        "fn read(values: &[i32], idx: usize) -> i32 { values[idx] }",
+        ["inject_slice_bounds"])
+    assert "#[requires(idx < values.len())]" in slice_only["code"]
+
+    arithmetic = rust.apply_rust_passes(
+        "pub fn increment(value: i32) -> i32 { value + 1 }\n"
+        "pub fn triple(value: i16) -> i16 { value * 3 }", ["inject_overflow_bounds"])
+    assert "#[requires(value <= 2147483646)]" in arithmetic["code"]
+    assert "#[requires(value >= -10922 && value <= 10922)]" in arithmetic["code"]
+    assert rust._constant_arithmetic_bound("x", "*", 0, -10, 10) is None
+    assert rust._constant_arithmetic_bound("x", "-", 2, -10, 10) == "x >= -8"
+    assert rust._constant_arithmetic_bound("x", "*", -2, -10, 10) == "x >= -5 && x <= 5"
+    assert rust._promote_explicit_bounds("fn open(x: i32) -> i32 { x + 1") == \
+        "fn open(x: i32) -> i32 { x + 1"
 
 
 def test_matching_brace_handles_nested_and_unclosed_bodies():

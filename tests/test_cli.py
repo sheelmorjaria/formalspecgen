@@ -140,7 +140,11 @@ class CliTests(unittest.TestCase):
             synthesizer.assert_called_once()
         cfile = self.root / "X.c"; cfile.write_text("int x(void) { return 0; }", encoding="utf-8")
         args.stub = str(cfile); args.accept_pass = ["inject_null_checks"]
-        self.assertEqual(cli.command_implement(args, self.ui), 2)
+        with patch.object(cli, "run_implementation_loop",
+                          return_value={"final_status": "VERIFIED"}) as synthesizer:
+            self.assertEqual(cli.command_implement(args, self.ui), 0)
+            self.assertEqual(synthesizer.call_args.kwargs["accepted_passes"],
+                             ["inject_null_checks"])
         args.stub = str(self.root / "X.txt"); args.accept_pass = []
         self.assertEqual(cli.command_implement(args, self.ui), 2)
         args.stub = str(stub)

@@ -146,6 +146,30 @@ Rust and C verification are normalized by `pipeline/verify_rust.py` and `pipelin
 their diagnostics enter the same bounded resample-first, feedback-second repair strategy and shared
 VC evidence schema as Java.
 
+Before the expensive formal backend, Rust executes generated `#[test]` samples through `rustc
+--test` with overflow checks, while C executes a bounded harness under ASan+UBSan. Concrete failures
+are counterexample evidence for regeneration and skip Prusti/Frama-C for that candidate. Passing
+samples are runtime evidence only. The detailed gate ordering and encoding boundaries are documented
+in [`DESIGN.md`](DESIGN.md).
+
+Rust and C also expose conservative, opt-in proof-support passes:
+
+```bash
+formalspecgen implement Counter.rs --method-proof-only \
+  --accept-pass inject_pure --accept-pass inject_slice_bounds
+formalspecgen implement counter.c --method-proof-only \
+  --accept-pass inject_null_checks --accept-pass inject_loop_assigns
+```
+
+The Rust passes annotate only locally defined contract helpers, direct typed slice/index access,
+and exact signed parameter/constant arithmetic intervals. The C overflow pass derives
+`INT_MIN`/`INT_MAX` obligations for the corresponding restricted `int` arithmetic subset. Neither
+pass invents a generic numeric policy such as `<= 1000`.
+The C null pass handles only directly dereferenced pointer parameters with an existing ACSL
+contract. The C loop-frame pass promotes explicit `// acsl-loop-assigns: ...` review markers; it
+does not infer alias-sensitive frames. Any changed candidate remains proof-relevant and requires
+explicit pass acceptance.
+
 Choose an explicit assurance profile. The complete gate table currently applies to Java/JML:
 
 | Profile | Required gates | Maximum successful claim |
@@ -343,6 +367,25 @@ formalspecgen promote-domain elevator_controller \
 Reviewed V2 artifacts are written to `domains/v2/<module>.json`. They intentionally do not enter
 the V1 `domains/*.yaml` plugin registry, whose schema and source/JML adapter contract are different.
 
+A critical Java/JML implementation can use a reviewed V2 artifact directly:
+
+```bash
+formalspecgen implement Controller.java --assurance-level critical \
+  --v2-reviewed-domain domains/v2/controller.json \
+  --v2-validation-evidence domains/candidates/controller.v2.validation.json
+```
+
+The two paths are required together. The generic refinement gate verifies the envelope and accepted
+hashes, re-renders and hashes the deterministic TLA+, requires one JML method per V2 operation, and
+checks guards, effects, frames, and explicit Boolean failure stuttering. It composes those
+obligations with OpenJML ESC. Its `SOURCE_MODEL_REFINEMENT` claim is restricted to atomic contract
+simulation and does not establish concurrent linearizability.
+
+Typed REST-resource and IoT-sensor reference candidates live under `domains/examples/v2/`. They are
+deliberately `unreviewed`: tests establish schema validity, bounded traversal, and deterministic
+renderability, but only an explicit `validate-domain` and hash-accepted `promote-domain` workflow
+may place adapted semantics in the reviewed V2 registry.
+
 The implemented milestones provide:
 
 - Recursive discriminated expression trees and distinct bounded integer/Boolean state variables.
@@ -350,8 +393,12 @@ The implemented milestones provide:
 - Bounded BFS traversal with state-space limits, bounds checking, and invariant checking.
 - Per-actor `callResult` rendering for Boolean `false_and_stutter` operations, including explicit
   success and failure TLA+ actions.
+- Complete next-state assignment for mixed APIs: when any Boolean operation introduces
+  `callResult`, void actions explicitly preserve it with `UNCHANGED`.
 - Separate deterministic `.tla` and `.cfg` rendering with fail-closed unsupported semantics.
 - Strict TLC version provenance and execution-result capture without silent version fallbacks.
+  TLC 2.19 exposes its version through `-help`, not `-version`; the parser requires a recognized
+  banner and retains the observed help exit status.
 - `PENDING` evidence with unmeasured fields represented as `null`; `VALIDATED` evidence requires
   measured counts, a generated-TLA hash, successful TLC status, and tool provenance.
 - An evidence envelope whose `evidence_sha256` covers only canonical JSON for the inner `evidence`
@@ -395,6 +442,7 @@ OPENJML_HOME=/path/to/openjml-dist
 DAFNY_BIN=/path/to/dafny
 TLC_JAR=/path/to/tla2tools.jar
 PRUSTI_BIN=/path/to/prusti-rustc
+RUSTC_BIN=/path/to/rustc
 KANI_BIN=/path/to/cargo-kani
 FRAMAC_BIN=/path/to/frama-c
 FRAMAC_PROVERS=z3
@@ -480,14 +528,15 @@ archived; implementation synthesis now runs inside this repository.
 
 - JML-to-TLA+ conversion supports reviewed semantic patterns through typed IR and domain plugins;
   it is not a general translation of arbitrary JML or Java.
-- TLC checks a finite architecture abstraction. It does not prove refinement between that model and
-  generated source code.
+- TLC alone checks only a finite architecture abstraction. Source/model refinement is claimed only
+  when a dedicated refinement gate also proves the scoped contract-simulation obligations.
 - RAC/JUnit and Kani results are execution or bounded evidence, not universal deductive proof.
-- Prusti support and Rust/C synthesis remain experimental. Rust/C runtime-evidence profiles are not
-  yet implemented, so non-critical synthesis is capped at `STATIC_CHECK`.
-- Rust has conservative, explicitly accepted proof-support passes. C has no reviewed
-  proof-annotation postprocessor passes yet; `implement` rejects `--accept-pass` for C rather than
-  modifying ACSL assumptions.
+- Prusti support and Rust/C synthesis remain experimental. Standard Rust/C assurance requires a
+  successful native static check plus an instrumented generated runtime sample and is capped at
+  `RUNTIME_SAMPLE`; it is not deductive proof.
+- Rust and C have conservative, explicitly accepted proof-support passes. They cover only
+  signature-derived slice bounds, locally identifiable pure helpers, direct pointer validity, and
+  human-authored loop-frame markers; they do not infer arithmetic policy, aliasing, or loop frames.
 - Deterministic passes that alter proof-relevant annotations require explicit human acceptance.
 - Unknown AST nodes, ambiguous domains, unreviewed renderer mappings, missing tools, and modified
   locked contracts fail closed.
@@ -499,7 +548,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage and enforces a
+The deterministic suite currently reports 99.06% combined statement/branch coverage and enforces a
 minimum of 99%. Real-toolchain and optional live-Ollama checks remain in `tests_e2e/` and can be run
 with:
 
@@ -516,7 +565,8 @@ python3 -m pytest -c tests_e2e/pytest.ini tests_e2e/test_v2_workflow.py -v
 
 These tests validate and promote elevator and vending-machine candidates, exercise mixed
 void/Boolean APIs and the per-actor last-result abstraction, and confirm post-validation candidate
-tampering blocks promotion. TLC may open an internal localhost RMI listener even with one worker;
+tampering blocks promotion. All four cases pass against the repository-local TLC 2.19 distribution.
+TLC may open an internal localhost RMI listener even with one worker;
 locked-down containers must permit that loopback operation or the tool will report
 `java.net.SocketException: Operation not permitted` before model checking.
 

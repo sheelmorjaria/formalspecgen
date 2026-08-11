@@ -22,9 +22,14 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
                                resample_budget: int = 1, feedback_budget: int = 4,
                                accepted_passes: list[str] | None = None,
                                clarifications: str = "", abstraction: str = "atomic_operations",
+                               v2_reviewed_domain: str | Path | None = None,
+                               v2_validation_evidence: str | Path | None = None,
                                candidate: str | None = None, on_event=None) -> dict:
     """Run only the gates required by a profile and derive the claim from their evidence."""
     level = parse_assurance_level(assurance_level)
+    if bool(v2_reviewed_domain) != bool(v2_validation_evidence):
+        raise ValueError(
+            "--v2-reviewed-domain and --v2-validation-evidence must be supplied together")
     statuses: dict[str, str] = {}
     evidence: dict[str, object] = {}
 
@@ -45,8 +50,17 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
             return {**verdict, "implementation": None, "evidence": evidence}
 
     if level is AssuranceLevel.CRITICAL:
-        architecture = generate_and_check(stub, clarifications=clarifications,
-                                          abstraction=abstraction)
+        if v2_reviewed_domain:
+            from .domain_v2_promotion import load_validation_envelope
+            envelope = load_validation_envelope(v2_validation_evidence)
+            architecture = {
+                "status": "VERIFIED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+                "source": "reviewed_v2_validation",
+                "evidence_sha256": envelope.evidence_sha256,
+            }
+        else:
+            architecture = generate_and_check(stub, clarifications=clarifications,
+                                              abstraction=abstraction)
         statuses["tla"] = "VERIFIED" if architecture.get("status") == "VERIFIED" else "FAIL"
         evidence["tla"] = architecture
         if statuses["tla"] != "VERIFIED":
@@ -68,9 +82,16 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
     if level is AssuranceLevel.CRITICAL:
         statuses["openjml_esc"] = "VERIFIED" if final == "VERIFIED" else "FAIL"
         statuses["boundary_fallback"] = "NOT_APPLICABLE"
-        refinement = refinement_gate(
-            stub, implementation.get("implementation_code", ""), architecture,
-            esc_verified=statuses["openjml_esc"] == "VERIFIED")
+        if v2_reviewed_domain:
+            from .generic_refinement_gate import generic_v2_refinement_gate
+            refinement = generic_v2_refinement_gate(
+                v2_reviewed_domain, v2_validation_evidence, stub,
+                implementation.get("implementation_code", ""),
+                esc_verified=statuses["openjml_esc"] == "VERIFIED")
+        else:
+            refinement = refinement_gate(
+                stub, implementation.get("implementation_code", ""), architecture,
+                esc_verified=statuses["openjml_esc"] == "VERIFIED")
         evidence["refinement"] = refinement
         statuses["refinement"] = refinement["status"]
     elif level is AssuranceLevel.STANDARD:

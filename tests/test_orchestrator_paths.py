@@ -40,12 +40,30 @@ def test_implementation_router_dispatches_by_extension_and_fails_closed(tmp_path
         assert result["assurance_note"]
         assert poly.call_args.kwargs["language"] == "rust"
         assert poly.call_args.kwargs["verification_mode"] == "check"
+        assert poly.call_args.kwargs["runtime_gate"] is True
+    with patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation",
+               return_value={"final_status": "STATIC_CHECKED", "claim": "STATIC_CHECK",
+                             "runtime_evidence": {
+                                 "status": "NO_RUNTIME_FAILURE_FOUND",
+                                 "claim": "RUNTIME_SAMPLE"}}):
+        sampled = orchestrator.run_implementation_loop(
+            rust, provider="ollama", assurance_level="standard")
+    assert sampled["final_status"] == "STATIC_CHECKED_RUNTIME_TESTED"
+    assert sampled["claim"] == "RUNTIME_SAMPLE"
     with patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation",
                return_value={"kind": "c"}) as poly:
-        result = orchestrator.run_implementation_loop(cfile, assurance_level="critical")
+        result = orchestrator.run_implementation_loop(
+            cfile, assurance_level="critical", method_proof_only=True)
         assert result["assurance_level_requested"] == "critical"
+        assert result["assurance_scope"] == "method_contract_only"
+        assert not result["bounded_architecture_checked"]
+        assert not result["source_refinement_proved"]
         assert poly.call_args.kwargs["language"] == "c"
         assert poly.call_args.kwargs["verification_mode"] == "esc"
+    with pytest.raises(ValueError, match="Java/JML only"):
+        orchestrator.run_implementation_loop(
+            rust, v2_reviewed_domain="reviewed.json",
+            v2_validation_evidence="validation.json")
     with pytest.raises(ValueError, match="unsupported synthesis"):
         orchestrator.run_implementation_loop(unknown)
 

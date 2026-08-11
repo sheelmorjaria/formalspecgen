@@ -82,6 +82,18 @@ def test_c_verified_and_check_only_candidates(tmp_path):
     assert result["final_status"] == "STATIC_CHECKED"
     assert result["claim"] == "STATIC_CHECK"
 
+    pointer = r"""/*@ assigns \nothing; ensures \result == *p; */
+int read(const int *p) { return *p; }
+"""
+    with patch.object(implementation, "lint_acsl", return_value=[]), \
+         patch.object(implementation, "verify_c",
+                      return_value={"status": "VERIFIED", "exit_code": 0, "vcs": []}):
+        accepted = implementation.synthesize_polyglot_implementation(
+            pointer, "c", out_dir=tmp_path / "c-pass", candidate=pointer, max_attempts=1,
+            accepted_passes=["inject_null_checks"])
+    assert accepted["attempts"][0]["postprocess"]["accepted"] is True
+    assert r"\valid_read(p)" in accepted["implementation_code"]
+
 
 def test_invalid_stub_and_lint_failure_fail_closed(tmp_path):
     result = implementation.synthesize_polyglot_implementation(
@@ -92,6 +104,21 @@ def test_invalid_stub_and_lint_failure_fail_closed(tmp_path):
         result = implementation.synthesize_polyglot_implementation(
             C, "c", out_dir=tmp_path / "lint", candidate=C, max_attempts=1)
     assert result["final_status"] == "ACSL_LINT_FAILED"
+
+
+def test_runtime_counterexample_gate_precedes_formal_verifier(tmp_path):
+    counterexample = {"status": "RUNTIME_FAILURES_FOUND", "exit_code": 1,
+                      "claim": "COUNTEREXAMPLE_EVIDENCE", "log": "input 4 overflow"}
+    with patch.object(implementation, "lint_rust", return_value=[]), \
+         patch.object(implementation, "collect_polyglot_runtime_evidence",
+                      return_value=counterexample), \
+         patch.object(implementation, "verify_rust") as verifier:
+        result = implementation.synthesize_polyglot_implementation(
+            RUST, "rust", out_dir=tmp_path / "cex", candidate=RUST, max_attempts=1,
+            runtime_gate=True)
+    verifier.assert_not_called()
+    assert result["final_status"] == "RUNTIME_FAILURES_FOUND"
+    assert result["runtime_evidence"]["claim"] == "COUNTEREXAMPLE_EVIDENCE"
 
 
 def test_argument_validation_helpers_and_rust_check(tmp_path):

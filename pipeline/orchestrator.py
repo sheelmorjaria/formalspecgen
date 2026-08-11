@@ -33,7 +33,10 @@ from .workspace_contracts import contract_context
 
 def run_implementation_loop(file_path: str | Path, provider: str = "glm",
                             assurance_level: str = "critical",
-                            method_proof_only: bool = False, **kwargs) -> dict:
+                            method_proof_only: bool = False,
+                            v2_reviewed_domain: str | Path | None = None,
+                            v2_validation_evidence: str | Path | None = None,
+                            **kwargs) -> dict:
     """Route a trusted source scaffold to its native synthesis and verification loop."""
     source = Path(file_path)
     code = source.read_text(encoding="utf-8")
@@ -52,19 +55,33 @@ def run_implementation_loop(file_path: str | Path, provider: str = "glm",
             return result
         from .profile import run_assured_implementation
         return run_assured_implementation(code, assurance_level=assurance_level,
-                                          provider=provider, **kwargs)
+            provider=provider, v2_reviewed_domain=v2_reviewed_domain,
+            v2_validation_evidence=v2_validation_evidence, **kwargs)
     if suffix in {".rs", ".c"}:
+        if v2_reviewed_domain or v2_validation_evidence:
+            raise ValueError("generic V2 refinement currently supports Java/JML only")
         from .polyglot_implementation import synthesize_polyglot_implementation
         language = "rust" if suffix == ".rs" else "c"
         mode = "esc" if assurance_level == "critical" else "check"
         kwargs.pop("clarifications", None)
         kwargs.pop("abstraction", None)
         result = synthesize_polyglot_implementation(
-            code, language=language, provider=provider, verification_mode=mode, **kwargs)
+            code, language=language, provider=provider, verification_mode=mode,
+            runtime_gate=assurance_level in {"critical", "standard"}, **kwargs)
         result["assurance_level_requested"] = assurance_level
+        if method_proof_only:
+            result["assurance_scope"] = "method_contract_only"
+            result["bounded_architecture_checked"] = False
+            result["source_refinement_proved"] = False
         if assurance_level == "standard":
-            result["assurance_note"] = (
-                "Rust/C runtime evidence is not reviewed; claim capped at STATIC_CHECK.")
+            runtime = result.get("runtime_evidence") or {}
+            if (result.get("final_status") == "STATIC_CHECKED" and
+                    runtime.get("status") == "NO_RUNTIME_FAILURE_FOUND"):
+                result["final_status"] = "STATIC_CHECKED_RUNTIME_TESTED"
+                result["claim"] = "RUNTIME_SAMPLE"
+            else:
+                result["assurance_note"] = (
+                    "Standard assurance requires a passing instrumented runtime sample.")
         return result
     raise ValueError(f"unsupported synthesis target: {suffix or '<none>'}")
 

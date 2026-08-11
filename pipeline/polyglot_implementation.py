@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Callable
 
 from . import config, strategy
-from .c_support import lint_acsl
+from .c_support import apply_c_passes, lint_acsl
 from .lifecycle import sha256_text
 from .llm import LLMError, _chat_fn
+from .polyglot_runtime import collect_polyglot_runtime_evidence
 from .rust_support import apply_rust_passes, lint_rust
 from .schemas import VC
 from .verify_c import verify_c
@@ -115,7 +116,8 @@ def synthesize_polyglot_implementation(
         resample_budget: int = 1, feedback_budget: int = 4,
         accepted_passes: list[str] | None = None, candidate: str | None = None,
         on_event: Callable[[dict], None] | None = None,
-        verification_mode: str = "esc") -> dict:
+        verification_mode: str = "esc", runtime_gate: bool = False,
+        runtime_test_code: str | None = None) -> dict:
     """Synthesize bodies while treating contracts and APIs as immutable trusted input."""
     if language not in {"rust", "c"}:
         raise ValueError("language must be rust or c")
@@ -184,16 +186,25 @@ def synthesize_polyglot_implementation(
 
         transformed = generated
         postprocess = None
-        if language == "rust" and accepted_passes:
-            postprocess = apply_rust_passes(generated, accepted_passes)
+        if accepted_passes:
+            postprocess = (apply_rust_passes(generated, accepted_passes) if language == "rust"
+                           else apply_c_passes(generated, accepted_passes))
             postprocess["accepted"] = True
             transformed = postprocess["code"]
 
         findings = lint_rust(transformed) if language == "rust" else lint_acsl(transformed)
         blockers = [item for item in findings if item.get("severity") == "error"]
+        runtime = None
+        if not blockers and runtime_gate:
+            runtime = collect_polyglot_runtime_evidence(
+                transformed, language, provider, test_code=runtime_test_code)
         if blockers:
             verification = {"status": "RUST_LINT_FAILED" if language == "rust" else "ACSL_LINT_FAILED",
                             "exit_code": 2, "warnings": findings, "vcs": []}
+        elif runtime and runtime["status"] != "NO_RUNTIME_FAILURE_FOUND":
+            verification = {"status": runtime["status"],
+                            "exit_code": runtime.get("exit_code", 1),
+                            "output": runtime.get("log", ""), "vcs": []}
         elif language == "rust":
             verification = verify_rust(transformed, mode=verification_mode, backend="prusti")
         else:
@@ -213,7 +224,8 @@ def synthesize_polyglot_implementation(
                    "tokens": usage, "candidate_hash": sha256_text(transformed),
                    "contract_hash": sha256_text(json.dumps(surface, sort_keys=True)),
                    "vcs": verification.get("vcs", []), "warnings": findings,
-                   "accepted_passes": accepted_passes or [], "postprocess": postprocess}
+                   "accepted_passes": accepted_passes or [], "postprocess": postprocess,
+                   "runtime_evidence": runtime}
         attempts.append(attempt)
         history.append((transformed, _shared_vcs(verification.get("vcs")), output))
         final_code = transformed
@@ -229,6 +241,8 @@ def synthesize_polyglot_implementation(
               "verification_mode": verification_mode, "claim": claim,
               "trusted_contract_hash": sha256_text(json.dumps(surface, sort_keys=True)),
               "native_synthesis": True, "external_handoff_used": False}
+    if attempts:
+        result["runtime_evidence"] = attempts[-1].get("runtime_evidence")
     if final_code:
         (root / f"implementation{suffix}").write_text(final_code, encoding="utf-8")
     (root / "verdict.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

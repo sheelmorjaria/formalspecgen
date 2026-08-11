@@ -1,0 +1,47 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: RestApiResource
+module_name: rest_api_resource
+actors: 2
+state_variables:
+  - kind: bool
+    name: exists
+    initial: false
+operations:
+  - name: Create
+    return_type: boolean
+    failure_semantics: false_and_stutter
+    guards:
+      - id: resource_absent
+        expression:
+          kind: eq
+          left: {kind: field, name: exists}
+          right: {kind: boolean, value: false}
+    effects:
+      - id: mark_present
+        target: exists
+        value: {kind: boolean, value: true}
+    frame: [exists]
+  - name: Delete
+    return_type: boolean
+    failure_semantics: false_and_stutter
+    guards:
+      - id: resource_present
+        expression:
+          kind: eq
+          left: {kind: field, name: exists}
+          right: {kind: boolean, value: true}
+    effects:
+      - id: mark_absent
+        target: exists
+        value: {kind: boolean, value: false}
+    frame: [exists]
+tlc_invariants:
+  - id: ResourceStateTyped
+    expression:
+      kind: or
+      left: {kind: field, name: exists}
+      right:
+        kind: eq
+        left: {kind: field, name: exists}
+        right: {kind: boolean, value: false}

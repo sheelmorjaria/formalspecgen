@@ -216,9 +216,6 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     if suffix not in {".java", ".jml", ".rs", ".c"}:
         ui.console.print(f"[bold red]Unsupported implementation source: {suffix or '<none>'}[/bold red]")
         return 2
-    if suffix == ".c" and args.accept_pass:
-        ui.console.print("[bold red]C synthesis has no reviewed proof-annotation passes yet.[/bold red]")
-        return 2
     try:
         result = run_implementation_loop(
             args.stub, assurance_level=args.assurance_level, provider=args.provider,
@@ -226,7 +223,10 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
             model=args.model, out_dir=args.out, max_attempts=args.max_attempts,
             resample_budget=args.resample_budget, feedback_budget=args.feedback_budget,
             accepted_passes=args.accept_pass, clarifications=args.clarifications or "",
-            abstraction=args.abstraction, on_event=ui.event)
+            abstraction=args.abstraction,
+            v2_reviewed_domain=getattr(args, "v2_reviewed_domain", None),
+            v2_validation_evidence=getattr(args, "v2_validation_evidence", None),
+            on_event=ui.event)
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]Implementation failed:[/bold red] {exc}")
         return 2
@@ -474,6 +474,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="authoritative concurrency assumptions used by critical TLC checking")
     implement.add_argument("--abstraction", choices=["atomic_operations", "lock_protocol"],
                            default="atomic_operations")
+    implement.add_argument("--v2-reviewed-domain",
+                           help="reviewed V2 JSON used by the generic refinement gate")
+    implement.add_argument("--v2-validation-evidence",
+                           help="hash-bound VALIDATED evidence for --v2-reviewed-domain")
 
     check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
     check.add_argument("source")

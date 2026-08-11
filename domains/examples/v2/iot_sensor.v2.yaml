@@ -1,0 +1,71 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: IotSensor
+module_name: iot_sensor
+actors: 2
+state_variables:
+  - kind: int
+    name: mode
+    bound: [0, 2]
+    initial: 0
+  - kind: int
+    name: reading
+    bound: [0, 100]
+    initial: 0
+operations:
+  - name: Activate
+    return_type: void
+    failure_semantics: unavailable
+    guards:
+      - id: sensor_idle
+        expression:
+          kind: eq
+          left: {kind: field, name: mode}
+          right: {kind: integer, value: 0}
+    effects:
+      - id: set_active
+        target: mode
+        value: {kind: integer, value: 1}
+    frame: [mode]
+  - name: Sleep
+    return_type: void
+    failure_semantics: unavailable
+    guards:
+      - id: sensor_not_idle
+        expression:
+          kind: neq
+          left: {kind: field, name: mode}
+          right: {kind: integer, value: 0}
+    effects:
+      - id: set_idle
+        target: mode
+        value: {kind: integer, value: 0}
+    frame: [mode]
+  - name: Record
+    return_type: boolean
+    failure_semantics: false_and_stutter
+    guards:
+      - id: sensor_active
+        expression:
+          kind: eq
+          left: {kind: field, name: mode}
+          right: {kind: integer, value: 1}
+      - id: reading_below_maximum
+        expression:
+          kind: lt
+          left: {kind: field, name: reading}
+          right: {kind: integer, value: 100}
+    effects:
+      - id: increment_reading
+        target: reading
+        value:
+          kind: add
+          left: {kind: old, expression: {kind: field, name: reading}}
+          right: {kind: integer, value: 1}
+    frame: [reading]
+tlc_invariants:
+  - id: ReadingNonNegative
+    expression:
+      kind: gte
+      left: {kind: field, name: reading}
+      right: {kind: integer, value: 0}

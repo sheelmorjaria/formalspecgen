@@ -1,6 +1,7 @@
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
+import pytest
 
 from pipeline import c_support
 from pipeline.llm import LLMError
@@ -35,6 +36,57 @@ def test_acsl_drafting_success_parse_and_api_errors():
         assert c_support.draft_acsl("x")["missing_info_questions"]
     with patch.object(c_support, "_chat_fn", return_value=lambda *_: (_ for _ in ()).throw(LLMError("NETWORK", "down"))):
         assert c_support.draft_acsl("x")["status"] == "API_ERROR"
+
+
+def test_accepted_c_passes_add_only_reviewable_validity_and_marker_frames():
+    code = r"""/*@ assigns \nothing; ensures \result == *input; */
+int read(const int *input, int *unused) { return *input; }
+int plain(int *p) { return 0; }
+// acsl-loop-assigns: i, output[0 .. n-1]
+while (i < n) { output[i++] = 0; }
+"""
+    result = c_support.apply_c_passes(code, ["inject_null_checks", "inject_loop_assigns"])
+    assert r"requires \valid_read(input);" in result["code"]
+    assert r"\valid(unused)" not in result["code"]
+    assert r"\valid(p)" not in result["code"]
+    assert "/*@ loop assigns i, output[0 .. n-1]; */" in result["code"]
+    assert result["proof_relevant_change"] and result["requires_human_acceptance"]
+    assert not result["accepted"] and any(item.get("diff") for item in result["passes"])
+    assert not c_support.apply_c_passes(code, [])["changed"]
+    with pytest.raises(ValueError, match="unknown C"):
+        c_support.apply_c_passes(code, ["guess_aliases"])
+
+
+def test_c_overflow_pass_derives_exact_int_constant_bounds_and_limits_header():
+    code = r"""/*@ assigns \nothing; ensures \result == value + 1; */
+int increment(int value) { return value + 1; }
+/*@ assigns \nothing; ensures \result == value * 2; */
+int twice(int value) { return value * 2; }
+"""
+    result = c_support.apply_c_passes(code, ["inject_overflow_bounds"])
+    assert result["code"].startswith("#include <limits.h>\n")
+    assert "requires value <= INT_MAX - 1;" in result["code"]
+    assert "requires value >= INT_MIN / 2 && value <= INT_MAX / 2;" in result["code"]
+    assert c_support.apply_c_passes(result["code"], ["inject_overflow_bounds"])["code"] == result["code"]
+
+    variants = r"""/*@ assigns \nothing; */
+int a(int x) { return x + -2; }
+/*@ assigns \nothing; */
+int b(int x) { return x - 2; }
+/*@ assigns \nothing; */
+int c(int x) { return x - -2; }
+/*@ assigns \nothing; */
+int d(int x) { return x * -2; }
+/*@ assigns \nothing; */
+int zero(int x) { return x * 0; }
+"""
+    transformed = c_support.apply_c_passes(variants, ["inject_overflow_bounds"])["code"]
+    assert "x >= INT_MIN - (-2)" in transformed
+    assert "x >= INT_MIN + 2" in transformed
+    assert "x <= INT_MAX + (-2)" in transformed
+    assert "x >= INT_MAX / -2 && x <= INT_MIN / -2" in transformed
+    assert c_support._attached_contract("int f(void) {}", 0) is None
+    assert c_support._matching_c_brace("int f(void) {", 12) is None
 
 
 def test_framac_gates_and_proof_summary():

@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 from pipeline import profile
 
 
@@ -41,6 +43,33 @@ def test_critical_stops_when_architecture_is_unsupported():
     assert result["final_status"] == "ASSURANCE_INCOMPLETE"
     assert "tla" in result["failed_required_gates"]
     synth.assert_not_called()
+
+
+def test_critical_can_compose_reviewed_v2_evidence_with_generic_refinement():
+    implementation_result = implementation("VERIFIED", STUB)
+    envelope = type("Envelope", (), {"evidence_sha256": "a" * 64})()
+    with patch.object(profile, "check_stub", return_value=(True, [])), \
+         patch("pipeline.domain_v2_promotion.load_validation_envelope",
+               return_value=envelope), \
+         patch.object(profile, "synthesize_implementation",
+                      return_value=implementation_result), \
+         patch("pipeline.generic_refinement_gate.generic_v2_refinement_gate",
+               return_value={"status": "VERIFIED",
+                             "source_refinement_proved": True}) as gate, \
+         patch.object(profile, "generate_and_check") as legacy:
+        result = profile.run_assured_implementation(
+            STUB, "critical", v2_reviewed_domain="switch.json",
+            v2_validation_evidence="switch.validation.json")
+    legacy.assert_not_called()
+    gate.assert_called_once()
+    assert result["final_status"] == "VERIFIED"
+    assert result["source_refinement_proved"]
+
+
+def test_v2_refinement_inputs_are_an_atomic_pair():
+    with pytest.raises(ValueError, match="must be supplied together"):
+        profile.run_assured_implementation(
+            STUB, "critical", v2_reviewed_domain="switch.json")
 
 
 def test_standard_requires_checked_candidate_and_nonempty_rac_sample():
