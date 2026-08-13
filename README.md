@@ -608,6 +608,32 @@ proving arbitrary dynamic dispatch. Exit-0 compositions that discharge no obliga
 reported as `VACUOUS_COMPOSITION`, not proof. An unreviewed example artifact lives at
 `domains/examples/composition/secure_entry.composition.json`.
 
+### System decomposition
+
+`formalspecgen system` scales the existing component and composition gates across isolated CLI
+processes. A strict system artifact embeds one `CompositionSpec` and supplies exactly one trusted
+interface file, reviewed V2 domain, and validation-evidence path for every composition binding:
+
+```bash
+formalspecgen system system.json --out-dir runs/system --max-workers 4 \
+  --json runs/system-verdict.json
+```
+
+The command starts at most `--max-workers` independent `formalspecgen implement` processes. Each
+component writes its own verdict under `<out-dir>/<component>/verdict.json`. A missing verdict,
+nonzero exit, `NO_PROOF` claim, process-launch error, duplicate component, incomplete binding set,
+or mismatched system identity produces `SYSTEM_SYNTHESIS_FAILED`; the composition gate is never
+called after a component failure. Only after every isolated component succeeds does the existing
+OpenJML composition verifier run. Its successful result is hash-bound with every component verdict
+into `SYSTEM_COMPOSITION_PROOF` under scope
+`isolated_component_proofs_plus_scoped_composition`.
+
+Parallel subprocess execution is an orchestration optimization, not a verified property of the
+generated system: aggregate evidence records `concurrent_component_execution_proved: false`. The
+claim composes the individual proof scopes already present in component verdicts with the existing
+single-threaded atomic composition scope; it does not establish distributed execution semantics,
+cross-process transactions, message delivery, or concurrent composition linearizability.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the

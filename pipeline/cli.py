@@ -709,6 +709,29 @@ def command_reverify(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if verdict["status"] in {"REVERIFIED", "NOT_IMPACTED"} else 1
 
 
+def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Verify component implementations in isolation before composing the system."""
+    from .system_orchestrator import verify_system
+    try:
+        value = json.loads(Path(args.artifact).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]System artifact unreadable:[/bold red] {escape(str(exc))}")
+        return 2
+    verdict = verify_system(value, out_dir=args.out_dir,
+                            max_workers=args.max_workers,
+                            executable=args.executable)
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
+            encoding="utf-8")
+    style = "green" if verdict["status"] == "SYSTEM_SYNTHESIS_VERIFIED" else "red"
+    ui.console.print(Panel(
+        f"Status: {verdict['status']}\nClaim: {verdict.get('claim', 'NO_PROOF')}\n"
+        f"Components: {len(verdict.get('components') or [])}",
+        title="System verification", border_style=style))
+    return 0 if verdict["status"] == "SYSTEM_SYNTHESIS_VERIFIED" else 1
+
+
 def _domain_candidate_name(value: str) -> str:
     """Accept a module name or displayed candidate filename without allowing paths."""
     raw = value.strip().lower().replace("-", "_")
@@ -822,6 +845,16 @@ def build_parser() -> argparse.ArgumentParser:
                           help="reviewed V2 module whose contract changed")
     reverify.add_argument("--v2-dir", default=None)
     reverify.add_argument("--json")
+    system = sub.add_parser(
+        "system", help="verify isolated components in parallel, then prove composition")
+    system.add_argument("artifact", help="system architecture and component-input JSON path")
+    system.add_argument("--out-dir", required=True,
+                        help="isolated component verdict and evidence directory")
+    system.add_argument("--max-workers", type=int, default=4,
+                        help="maximum concurrent component subprocesses")
+    system.add_argument("--executable", default="formalspecgen",
+                        help=argparse.SUPPRESS)
+    system.add_argument("--json", help="aggregate machine-readable verdict destination")
     return parser
 
 
@@ -836,11 +869,12 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "compose": return command_compose(args, ui)
     if args.command == "reverify": return command_reverify(args, ui)
+    if args.command == "system": return command_system(args, ui)
     return 2
 
 
 _REPL_COMMANDS = {"draft", "implement", "verify", "architecture", "domain",
-                  "validate-domain", "promote-domain", "compose", "reverify"}
+                  "validate-domain", "promote-domain", "compose", "reverify", "system"}
 
 
 def _repl_argv(line: str) -> list[str]:
