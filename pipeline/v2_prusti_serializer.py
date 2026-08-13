@@ -37,27 +37,28 @@ def _rust_type(variable) -> str:
     return "i32" if isinstance(variable, IntStateVariable) else "bool"
 
 
-def render_prusti_expression(node, *, pre_state: bool = False) -> str:
+def render_prusti_expression(node, *, pre_state: bool = False,
+                             receiver: str = "self") -> str:
     """Render a reviewed V2 expression in Prusti macro syntax."""
     if isinstance(node, FieldExpr):
-        base = f"self.{node.name}"
+        base = f"{receiver}.{node.name}"
         return f"old({base})" if pre_state else base
     if isinstance(node, IntegerExpr):
         return str(node.value)
     if isinstance(node, BooleanExpr):
         return "true" if node.value else "false"
     if isinstance(node, OldExpr):
-        return f"old({render_prusti_expression(node.expression)})"
+        return f"old({render_prusti_expression(node.expression, receiver=receiver)})"
     if isinstance(node, NotExpr):
         return "!(" + _unparenthesized(
-            render_prusti_expression(node.expression, pre_state=pre_state)) + ")"
+            render_prusti_expression(node.expression, pre_state=pre_state, receiver=receiver)) + ")"
     if isinstance(node, BinaryExpr):
         operator = _OPS.get(node.kind)
         if operator is None:
             raise UnsupportedPrustiBoundary(
                 f"unsupported V2 expression kind {node.kind!r}")
-        left = render_prusti_expression(node.left, pre_state=pre_state)
-        right = render_prusti_expression(node.right, pre_state=pre_state)
+        left = render_prusti_expression(node.left, pre_state=pre_state, receiver=receiver)
+        right = render_prusti_expression(node.right, pre_state=pre_state, receiver=receiver)
         return f"({left} {operator} {right})"
     raise UnsupportedPrustiBoundary(
         f"unsupported V2 expression node {type(node).__name__}")
@@ -99,7 +100,31 @@ def _effect_ensures(operation) -> str:
         for effect in operation.effects)
 
 
-def _render_operation(operation, variables_by_name: dict) -> list[str]:
+def _bounds_invariant(variable) -> BinaryExpr:
+    lower, upper = variable.bound
+    return BinaryExpr(
+        kind="and",
+        left=BinaryExpr(kind="lte", left=IntegerExpr(value=lower),
+                        right=FieldExpr(name=variable.name)),
+        right=BinaryExpr(kind="lte", left=FieldExpr(name=variable.name),
+                         right=IntegerExpr(value=upper)),
+    )
+
+
+def _invariant_expressions(reviewed) -> list:
+    return ([_bounds_invariant(variable)
+             for variable in reviewed.state_variables
+             if isinstance(variable, IntStateVariable)]
+            + [item.expression for item in reviewed.tlc_invariants])
+
+
+def _invariant_contract(reviewed, *, receiver: str = "self") -> str:
+    return " && ".join(
+        _unparenthesized(render_prusti_expression(expression, receiver=receiver))
+        for expression in _invariant_expressions(reviewed)) or "true"
+
+
+def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]:
     if operation.failure_semantics == "exception":
         raise UnsupportedPrustiBoundary(
             f"operation {operation.name!r} uses exception semantics; the "
@@ -117,12 +142,16 @@ def _render_operation(operation, variables_by_name: dict) -> list[str]:
         f"        self.{effect.target} = " +
         _unparenthesized(_body_expression(effect.value, pre_map)) + ";"
         for effect in operation.effects]
-    lines: list[str] = []
+    invariant = _invariant_contract(reviewed)
+    lines: list[str] = [
+        f"    #[requires({invariant})]",
+    ]
     if operation.return_type == "void":
         lines.extend(
             f"    #[requires({_unparenthesized(render_prusti_expression(guard.expression))})]"
             for guard in operation.guards)
         lines.append(f"    #[ensures({_unparenthesized(_effect_ensures(operation))})]")
+        lines.append(f"    #[ensures({invariant})]")
         lines.append(f"    pub fn {name}(&mut self) {{")
         lines.extend(pre_locals)
         lines.extend(assignments)
@@ -138,6 +167,7 @@ def _render_operation(operation, variables_by_name: dict) -> list[str]:
             f"    #[ensures(result == ({guard_old}))]",
             f"    #[ensures(result ==> ({_effect_ensures(operation)}))]",
             f"    #[ensures(!result ==> ({stutter}))]",
+            f"    #[ensures({invariant})]",
             f"    pub fn {name}(&mut self) -> bool {{",
         ])
         lines.extend(pre_locals)
@@ -154,30 +184,11 @@ def _render_operation(operation, variables_by_name: dict) -> list[str]:
     return lines
 
 
-def _bounds_invariant(variable) -> BinaryExpr:
-    lower, upper = variable.bound
-    return BinaryExpr(
-        kind="and",
-        left=BinaryExpr(kind="lte", left=IntegerExpr(value=lower),
-                        right=FieldExpr(name=variable.name)),
-        right=BinaryExpr(kind="lte", left=FieldExpr(name=variable.name),
-                         right=IntegerExpr(value=upper)),
-    )
-
-
 def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
     """Assemble the complete deterministic Rust/Prusti source file."""
     variables_by_name = {variable.name: variable
                          for variable in reviewed.state_variables}
     lines = ["use prusti_contracts::*;", ""]
-    invariants = [
-        _bounds_invariant(variable)
-        for variable in reviewed.state_variables
-        if isinstance(variable, IntStateVariable)
-    ] + [item.expression for item in reviewed.tlc_invariants]
-    for expression in invariants:
-        lines.append(
-            f"#[invariant({_unparenthesized(render_prusti_expression(expression))})]")
     lines.append(f"pub struct {reviewed.domain_name} {{")
     lines.extend(f"    pub {variable.name}: {_rust_type(variable)},"
                  for variable in reviewed.state_variables)
@@ -187,8 +198,9 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
         (("true" if variable.initial else "false")
          if isinstance(variable, BoolStateVariable) else str(variable.initial))
         for variable in reviewed.state_variables) or "true"
+    constructor_contract = f"{initial} && {_invariant_contract(reviewed, receiver='result')}"
     lines.extend([
-        f"    #[ensures({initial})]",
+        f"    #[ensures({constructor_contract})]",
         "    pub fn new() -> Self {",
         "        Self { " +
         ", ".join(
@@ -209,7 +221,7 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
         ])
     for operation in reviewed.operations:
         lines.append("")
-        lines.extend(_render_operation(operation, variables_by_name))
+        lines.extend(_render_operation(operation, variables_by_name, reviewed))
     lines.extend(["}", ""])
     return "\n".join(lines)
 

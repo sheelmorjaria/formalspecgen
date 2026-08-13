@@ -7,6 +7,7 @@
 # Repository-local, re-downloadable formal tool distributions
 tools/openjml-dist/
 tools/frama-c-33.0/
+tools/prusti/
 tools/tla2tools.jar
 
 # Python caches, environments, coverage, and packaging

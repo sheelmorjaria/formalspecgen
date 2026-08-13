@@ -281,7 +281,8 @@ def verify_prusti(code: str, timeout: int | None = None) -> dict:
         source.write_text(code, encoding="utf-8")
         try:
             process = subprocess.run(
-                [str(binary), "--edition=2021", str(source)], cwd=binary.parent,
+                [str(binary), "--edition=2021", "--crate-type", "lib", str(source)],
+                cwd=binary.parent,
                 capture_output=True, text=True, timeout=timeout or config.PRUSTI_TIMEOUT)
         except subprocess.TimeoutExpired:
             return {"status": "TIMEOUT", "exit_code": 124,

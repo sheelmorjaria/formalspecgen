@@ -388,16 +388,22 @@ deterministic transformation and the accepted candidate/evidence hashes. Unsuppo
 expression semantics fail closed. Generated state fields are `private /*@ spec_public @*/`, keeping
 runtime mutation behind the verified method surface while retaining specification visibility.
 
-The same deterministic lowering is available for Rust/Prusti:
+The same deterministic lowering is available for Rust/Prusti (install a Prusti release
+under `tools/prusti/`; its bundled `rust-toolchain` pin is installed automatically by
+rustup, and `python3 -m zipfile`-based extraction must be followed by `chmod +x` on the
+bundled binaries):
 
 ```bash
 formalspecgen draft "Generate the reviewed bounded counter" --no-clarify \
   --canonical-domain bounded_counter --lang rust --out-file BoundedCounter.rs
 ```
 
-`pipeline/v2_prusti_serializer.py` derives every `#[invariant]`, `#[requires]`, and
-`#[ensures]` clause from the reviewed typed trees and transcribes the reviewed effects into
-method bodies (pre-captured locals preserve simultaneous semantics). The command runs the Rust
+`pipeline/v2_prusti_serializer.py` derives every `#[requires]` and `#[ensures]` clause
+from the reviewed typed trees and transcribes the reviewed effects into method bodies
+(pre-captured locals preserve simultaneous semantics). Because Prusti's struct type
+invariants remain an experimental feature that aborts the released driver, reviewed
+invariants are encoded per-method instead: assumed by `requires` on entry and re-established
+by `ensures` on exit, with the constructor proving them for the initial state. The command runs the Rust
 safety lint and the contract-erased `rustc` gate before writing the file plus its
 `.canonical.json` evidence (`DETERMINISTIC_V2_TO_PRUSTI`), and fails closed on unsupported
 semantics. Prusti itself judges the annotated source when installed; without it the claim
