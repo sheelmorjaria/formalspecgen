@@ -9,7 +9,7 @@ typedef struct {
   requires \valid(counter);
   assigns counter->value;
   ensures counter->value == 0;
-  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  ensures ((0 <= counter->value) && (counter->value <= 5)) && ((counter->value >= 0) && (counter->value <= 5));
 */
 void bounded_counter_init(bounded_counter *counter) {
     counter->value = 0;
@@ -26,11 +26,11 @@ int bounded_counter_get_value(const bounded_counter *counter) {
 
 /*@
   requires \valid(counter);
-  requires (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  requires ((0 <= counter->value) && (counter->value <= 5)) && ((counter->value >= 0) && (counter->value <= 5));
   requires counter->value < 5;
   assigns counter->value;
   ensures counter->value == \old(counter->value) + 1;
-  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  ensures ((0 <= counter->value) && (counter->value <= 5)) && ((counter->value >= 0) && (counter->value <= 5));
 */
 void bounded_counter_increment(bounded_counter *counter) {
     int pre_value = counter->value;
@@ -39,11 +39,11 @@ void bounded_counter_increment(bounded_counter *counter) {
 
 /*@
   requires \valid(counter);
-  requires (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  requires ((0 <= counter->value) && (counter->value <= 5)) && ((counter->value >= 0) && (counter->value <= 5));
   requires counter->value > 0;
   assigns counter->value;
   ensures counter->value == \old(counter->value) - 1;
-  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  ensures ((0 <= counter->value) && (counter->value <= 5)) && ((counter->value >= 0) && (counter->value <= 5));
 */
 void bounded_counter_decrement(bounded_counter *counter) {
     int pre_value = counter->value;

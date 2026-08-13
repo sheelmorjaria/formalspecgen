@@ -119,9 +119,12 @@ def _invariant_expressions(reviewed) -> list:
 
 
 def _invariant_contract(reviewed, *, receiver: str = "self") -> str:
-    return " && ".join(
-        _unparenthesized(render_prusti_expression(expression, receiver=receiver))
-        for expression in _invariant_expressions(reviewed)) or "true"
+    conjuncts = [render_prusti_expression(expression, receiver=receiver)
+                 for expression in _invariant_expressions(reviewed)]
+    # Parenthesize each conjunct: ==> binds looser than && in Prusti
+    # and ACSL, so an unparenthesized implication would swallow the
+    # entire preceding conjunction and silently weaken the invariant.
+    return " && ".join(f"({_unparenthesized(conjunct)})" for conjunct in conjuncts) or "true"
 
 
 def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]:

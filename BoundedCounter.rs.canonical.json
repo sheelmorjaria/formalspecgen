@@ -4,7 +4,7 @@
   "domain": "bounded_counter",
   "requirement": "Generate the reviewed bounded counter",
   "requirement_sha256": "604e780d17fcb29492d13c5ffdd219464527c49e4de4245d91586c2209bc4130",
-  "contract_sha256": "619618d54624d98aaa120e5f9b9ed35972be2483950bf998f6a9bb57a52edc7f",
+  "contract_sha256": "0a125a82c2c83b2d30cb1927bf637fecc0b08d097c63956f4d3233fc4d48914d",
   "assumptions": [
     "Generated deterministically from a hash-bound reviewed V2 domain.",
     "Prusti attributes encode the reviewed contracts; no LLM was involved.",

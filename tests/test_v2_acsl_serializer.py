@@ -117,8 +117,8 @@ def test_m2_struct_and_per_function_invariants():
     assert "} bounded_counter;" in code
     # ACSL has no persistent struct invariants; the reviewed invariants are
     # assumed by requires and re-established by ensures on every mutator.
-    assert "requires (0 <= counter->value) && (counter->value <= 5) && " \
-           "(counter->value >= 0) && (counter->value <= 5);" in code
+    assert "requires ((0 <= counter->value) && (counter->value <= 5)) && " \
+           "((counter->value >= 0) && (counter->value <= 5));" in code
     reviewed, _ = render_reviewed_v2_acsl_file(BOUNDED_COUNTER)
     spec = reviewed.model_dump(mode="json")
     spec["state_variables"].append(

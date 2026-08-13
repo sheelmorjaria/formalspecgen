@@ -4,7 +4,7 @@
   "domain": "bounded_counter",
   "requirement": "Generate the reviewed bounded counter",
   "requirement_sha256": "604e780d17fcb29492d13c5ffdd219464527c49e4de4245d91586c2209bc4130",
-  "contract_sha256": "b64d14394be4599fbd9462f9e50608722f9676d1e757ceedf16325585bc92e83",
+  "contract_sha256": "9ce4df6c68f5318d0ad0019b5d41ea824f3b526d6d7c08b1adfca477becf5137",
   "assumptions": [
     "Generated deterministically from a hash-bound reviewed V2 domain.",
     "ACSL contracts encode the reviewed semantics; no LLM was involved.",

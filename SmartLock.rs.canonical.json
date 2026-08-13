@@ -1,0 +1,20 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "smart_lock",
+  "requirement": "Generate reviewed smart lock",
+  "requirement_sha256": "3ceabf24608345d38b76c28de80065a3fd9753ebea7121d25aec2f113548af85",
+  "contract_sha256": "5019a1f44e8c66cce092675a7d6459a1f25afd4338b0c1ab2f84368f5b864f5b",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Prusti attributes encode the reviewed contracts; no LLM was involved.",
+    "Bodies transcribe reviewed effects; concurrent linearizability is not proved."
+  ],
+  "rust_check": "RUST_CHECKED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/smart_lock.json",
+  "accepted_candidate_sha256": "f6c4bcfd1508473e7e270b6d75822bc3c0fd6550630b55ef763158a39e16e94a",
+  "accepted_evidence_sha256": "673af2eb18c5e366a26087c459ab34e221d27cad4ce43b5367552a13f4466806",
+  "transformation": "DETERMINISTIC_V2_TO_PRUSTI"
+}

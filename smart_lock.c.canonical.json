@@ -1,0 +1,20 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "smart_lock",
+  "requirement": "Generate reviewed smart lock",
+  "requirement_sha256": "3ceabf24608345d38b76c28de80065a3fd9753ebea7121d25aec2f113548af85",
+  "contract_sha256": "25fa3a9a34316d1307dbf77fd425b25e986e56114c303a3839c6fea5af0a8089",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "ACSL contracts encode the reviewed semantics; no LLM was involved.",
+    "Bodies transcribe reviewed effects; concurrent linearizability is not proved."
+  ],
+  "c_check": "C_CHECKED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/smart_lock.json",
+  "accepted_candidate_sha256": "f6c4bcfd1508473e7e270b6d75822bc3c0fd6550630b55ef763158a39e16e94a",
+  "accepted_evidence_sha256": "673af2eb18c5e366a26087c459ab34e221d27cad4ce43b5367552a13f4466806",
+  "transformation": "DETERMINISTIC_V2_TO_ACSL"
+}

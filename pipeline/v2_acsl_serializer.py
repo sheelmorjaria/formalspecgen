@@ -111,12 +111,16 @@ def _bounds_invariant(variable) -> BinaryExpr:
 
 
 def _invariant_contract(reviewed) -> str:
-    expressions = ([_bounds_invariant(variable)
-                    for variable in reviewed.state_variables
-                    if isinstance(variable, IntStateVariable)]
-                   + [item.expression for item in reviewed.tlc_invariants])
-    return " && ".join(_unparenthesized(render_acsl_expression(expression))
-                       for expression in expressions) or "\\true"
+    conjuncts = [render_acsl_expression(expression)
+                 for expression in (
+                     [_bounds_invariant(variable)
+                      for variable in reviewed.state_variables
+                      if isinstance(variable, IntStateVariable)]
+                     + [item.expression for item in reviewed.tlc_invariants])]
+    # Parenthesize each conjunct: ==> binds looser than && in ACSL,
+    # so an unparenthesized implication would swallow the entire
+    # preceding conjunction and silently weaken the invariant.
+    return " && ".join(f"({_unparenthesized(conjunct)})" for conjunct in conjuncts) or "\\true"
 
 
 def _effect_ensures(operation) -> str:
