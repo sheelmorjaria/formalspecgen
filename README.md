@@ -25,8 +25,8 @@ independent solver stacks — no LLM touches the contracts:
 | Lane | Prover | Live evidence |
 | --- | --- | --- |
 | Java/JML | OpenJML ESC + TLC | `DEDUCTIVE_PROOF` with `SOURCE_MODEL_REFINEMENT` |
-| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7; digital_safe: 8/8 plus source/model refinement |
-| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42; bounded_counter: 27/27; digital_safe: 56/56 plus 5/5 refinement obligations |
+| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7; digital_safe: 8/8; Peterson: 12/12 plus 6/6 refinement |
+| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42; bounded_counter: 27/27; digital_safe: 56/56; Peterson: 87/87 plus 6/6 refinement |
 
 ```bash
 formalspecgen draft "..." --canonical-domain <module> --lang {java,rust,c}   # deterministic
@@ -37,6 +37,26 @@ Reproducible artifacts live under `domains/examples/polyglot/`. The deterministi
 also catches translation bugs an LLM draft would silently ship: the smart_lock run exposed
 an `==>`-precedence under-encoding that a green prover had been accepting, now fixed and
 unit-pinned in both serializer suites.
+
+### Peterson mutual-exclusion benchmark
+
+The bounded Peterson evaluation scalar-expands the two processes into six atomic transitions:
+`request0`, `enter0`, `exit0`, and their process-1 counterparts. Explicit program counters make
+critical-section occupancy observable without claiming that the generated sequential structs model
+hardware atomics or weak-memory behavior.
+
+TLC validated mutual exclusion across 10 reachable states and 16 transitions. The first native
+proof attempt then exposed an important distinction: a property can hold over every reachable state
+without its chosen invariant being strong enough for modular induction. Prusti rejected the two
+`enter` methods until the reviewed model recorded four auxiliary protocol facts:
+
+- a waiting process has already raised its flag; and
+- a critical process still satisfies the entry condition that admitted it.
+
+After revalidation and hash-bound promotion, Prusti proved 12/12 items, Frama-C WP proved 87/87
+goals, and both native refinement gates proved all six transition correspondences. The complete
+scope, certificates, artifacts, and the deliberate weak-memory limitation are recorded in
+[`domains/examples/polyglot/peterson/README.md`](domains/examples/polyglot/peterson/README.md).
 
 ### Assurance claim disclaimer
 

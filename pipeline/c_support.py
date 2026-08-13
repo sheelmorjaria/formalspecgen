@@ -159,9 +159,8 @@ def lint_acsl(code: str) -> list[dict]:
             findings.append({"code": f"acsl-{category}", "severity": "error",
                              "line": code.count("\n", 0, match.start()) + 1, "message": message})
     for match in re.finditer(r"(?m)^\s*(?:[\w*]+\s+)+\w+\s*\([^;]*\)\s*\{", code):
-        context = code[max(0, match.start() - 1000):match.start()]
-        contract = re.search(r"/\*@(.+?)\*/\s*$", context, re.DOTALL)
-        if not contract or "assigns" not in contract.group(1):
+        contract = _attached_contract(code, match.start())
+        if not contract or "assigns" not in contract["body"]:
             findings.append({"code": "acsl-missing-assigns", "severity": "error",
                              "line": code.count("\n", 0, match.start()) + 1,
                              "message": "Every defined function needs an explicit ACSL assigns clause."})

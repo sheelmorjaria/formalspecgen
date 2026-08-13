@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "review_status": "unreviewed",
+  "domain_name": "Peterson",
+  "module_name": "peterson",
+  "actors": 2,
+  "state_variables": [
+    {"kind": "int", "name": "flag0", "bound": [0, 1], "initial": 0},
+    {"kind": "int", "name": "flag1", "bound": [0, 1], "initial": 0},
+    {"kind": "int", "name": "turn", "bound": [0, 1], "initial": 0},
+    {"kind": "int", "name": "pc0", "bound": [0, 2], "initial": 0},
+    {"kind": "int", "name": "pc1", "bound": [0, 2], "initial": 0}
+  ],
+  "operations": [
+    {
+      "name": "request0", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [{"id": "process0_idle", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 0}}}],
+      "effects": [
+        {"id": "raise_flag0", "target": "flag0", "value": {"kind": "integer", "value": 1}},
+        {"id": "yield_turn_to_1", "target": "turn", "value": {"kind": "integer", "value": 1}},
+        {"id": "process0_waits", "target": "pc0", "value": {"kind": "integer", "value": 1}}
+      ],
+      "frame": ["flag0", "turn", "pc0"], "exception_type": null, "exception_trigger": null
+    },
+    {
+      "name": "enter0", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [
+        {"id": "process0_waiting", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 1}}},
+        {"id": "process0_may_enter", "expression": {"kind": "or", "left": {"kind": "eq", "left": {"kind": "field", "name": "flag1"}, "right": {"kind": "integer", "value": 0}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "turn"}, "right": {"kind": "integer", "value": 0}}}}
+      ],
+      "effects": [{"id": "process0_enters", "target": "pc0", "value": {"kind": "integer", "value": 2}}],
+      "frame": ["pc0"], "exception_type": null, "exception_trigger": null
+    },
+    {
+      "name": "exit0", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [{"id": "process0_critical", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 2}}}],
+      "effects": [
+        {"id": "lower_flag0", "target": "flag0", "value": {"kind": "integer", "value": 0}},
+        {"id": "process0_idles", "target": "pc0", "value": {"kind": "integer", "value": 0}}
+      ],
+      "frame": ["flag0", "pc0"], "exception_type": null, "exception_trigger": null
+    },
+    {
+      "name": "request1", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [{"id": "process1_idle", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 0}}}],
+      "effects": [
+        {"id": "raise_flag1", "target": "flag1", "value": {"kind": "integer", "value": 1}},
+        {"id": "yield_turn_to_0", "target": "turn", "value": {"kind": "integer", "value": 0}},
+        {"id": "process1_waits", "target": "pc1", "value": {"kind": "integer", "value": 1}}
+      ],
+      "frame": ["flag1", "turn", "pc1"], "exception_type": null, "exception_trigger": null
+    },
+    {
+      "name": "enter1", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [
+        {"id": "process1_waiting", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 1}}},
+        {"id": "process1_may_enter", "expression": {"kind": "or", "left": {"kind": "eq", "left": {"kind": "field", "name": "flag0"}, "right": {"kind": "integer", "value": 0}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "turn"}, "right": {"kind": "integer", "value": 1}}}}
+      ],
+      "effects": [{"id": "process1_enters", "target": "pc1", "value": {"kind": "integer", "value": 2}}],
+      "frame": ["pc1"], "exception_type": null, "exception_trigger": null
+    },
+    {
+      "name": "exit1", "return_type": "void", "failure_semantics": "unavailable",
+      "guards": [{"id": "process1_critical", "expression": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 2}}}],
+      "effects": [
+        {"id": "lower_flag1", "target": "flag1", "value": {"kind": "integer", "value": 0}},
+        {"id": "process1_idles", "target": "pc1", "value": {"kind": "integer", "value": 0}}
+      ],
+      "frame": ["flag1", "pc1"], "exception_type": null, "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {"id": "MutualExclusion", "expression": {"kind": "not", "expression": {"kind": "and", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 2}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 2}}}}},
+    {"id": "Process0CriticalImpliesFlag", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 2}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "flag0"}, "right": {"kind": "integer", "value": 1}}}},
+    {"id": "Process1CriticalImpliesFlag", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 2}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "flag1"}, "right": {"kind": "integer", "value": 1}}}},
+    {"id": "Process0CriticalRetainsEntryCondition", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 2}}, "right": {"kind": "or", "left": {"kind": "eq", "left": {"kind": "field", "name": "flag1"}, "right": {"kind": "integer", "value": 0}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "turn"}, "right": {"kind": "integer", "value": 0}}}}},
+    {"id": "Process1CriticalRetainsEntryCondition", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 2}}, "right": {"kind": "or", "left": {"kind": "eq", "left": {"kind": "field", "name": "flag0"}, "right": {"kind": "integer", "value": 0}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "turn"}, "right": {"kind": "integer", "value": 1}}}}},
+    {"id": "Process0WaitingImpliesFlag", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc0"}, "right": {"kind": "integer", "value": 1}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "flag0"}, "right": {"kind": "integer", "value": 1}}}},
+    {"id": "Process1WaitingImpliesFlag", "expression": {"kind": "implies", "left": {"kind": "eq", "left": {"kind": "field", "name": "pc1"}, "right": {"kind": "integer", "value": 1}}, "right": {"kind": "eq", "left": {"kind": "field", "name": "flag1"}, "right": {"kind": "integer", "value": 1}}}}
+  ]
+}

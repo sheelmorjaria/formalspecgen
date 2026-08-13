@@ -23,6 +23,13 @@ def test_acsl_lint_rejects_unreviewed_c_and_missing_frames():
     assert c_support.lint_acsl(VALID) == []
 
 
+def test_acsl_lint_accepts_long_attached_contract_with_assigns():
+    contract = "/*@\n  requires " + " && ".join(["x == x"] * 150) + ";\n"
+    source = contract + "  assigns \\nothing;\n*/\nint identity(int x) { return x; }\n"
+    assert not [item for item in c_support.lint_acsl(source)
+                if item["code"] == "acsl-missing-assigns"]
+
+
 def test_acsl_drafting_success_parse_and_api_errors():
     raw = f"```c\n{VALID}```\n```json\n{{\"assumptions\":[\"bounded\"]}}\n```"
     chat = lambda *_args: (raw, "model", {"total_tokens": 3})
