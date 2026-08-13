@@ -197,6 +197,9 @@ def _render_operation(operation, variables_by_name: dict, reviewed,
 
 def render_translation_unit(reviewed: ReviewedDomainSpecV2) -> str:
     """Assemble the complete deterministic C/ACSL translation unit."""
+    if reviewed.execution_model == "async_message_passing":
+        raise UnsupportedAcslBoundary(
+            "async_message_passing lowering is currently restricted to the Rust Tokio profile")
     if reviewed.concurrency is not None:
         raise UnsupportedAcslBoundary(
             "lock_protocol C lowering requires a dedicated memory and linearizability model")

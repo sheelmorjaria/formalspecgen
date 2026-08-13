@@ -70,6 +70,12 @@ def test_polyglot_gate_fails_closed_without_proof_or_with_surface_drift():
         assert polyglot_v2_refinement_gate(
             REVIEWED, EVIDENCE, source, source, "c",
             backend_verified=True)["code"] == "unsupported_concurrency_boundary"
+    with patch("pipeline.polyglot_refinement_gate.load_bound_reviewed_domain",
+               return_value=SimpleNamespace(
+                   execution_model="async_message_passing", concurrency=None)):
+        assert polyglot_v2_refinement_gate(
+            REVIEWED, EVIDENCE, source, source, "c",
+            backend_verified=True)["code"] == "unsupported_async_refinement_boundary"
 
 
 def test_polyglot_implementation_composes_c_proof_and_refinement(tmp_path):

@@ -246,6 +246,7 @@ class DomainSpecV2(_StrictModel):
     domain_name: str
     module_name: str
     actors: int = Field(default=1, ge=1, le=16)
+    execution_model: Literal["async_message_passing"] | None = None
     concurrency: LockProtocolMetadata | None = None
     state_variables: list[StateVariable] = Field(min_length=1)
     operations: list[Operation] = Field(min_length=1)
@@ -276,6 +277,11 @@ class DomainSpecV2(_StrictModel):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} must be unique")
         declared = set(groups["state variables"])
+        if self.execution_model == "async_message_passing":
+            if self.actors < 2:
+                raise ValueError("async message passing requires at least two actors")
+            if self.concurrency is not None:
+                raise ValueError("async message passing cannot also claim a lock protocol")
         if self.concurrency is not None:
             if self.concurrency.lock_variable not in declared:
                 raise ValueError("lock protocol variable must be declared state")

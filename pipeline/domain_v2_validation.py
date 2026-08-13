@@ -52,9 +52,13 @@ def validate_v2_candidate(candidate_path: str | Path, validation_path: str | Pat
             candidate_sha256=digest,
             generated_tla_sha256=hashlib.sha256(tla.encode("utf-8")).hexdigest(),
             execution_assumption=(
+                "bounded_async_handler_abstraction"
+                if candidate.execution_model == "async_message_passing" else
                 "bounded_lock_history_abstraction" if candidate.concurrency is not None else
                 "atomic_last_result_abstraction"),
             abstraction_mode=(
+                "async_message_passing"
+                if candidate.execution_model == "async_message_passing" else
                 "lock_protocol" if candidate.concurrency is not None else "atomic_operations"),
             bounds=_bounds(candidate),
             state_space_upper_bound=state_space_upper_bound(candidate),

@@ -50,6 +50,22 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
             # Atomic implementations retain their established downstream routing;
             # that gate owns and reports malformed or missing refinement evidence.
             reviewed = None
+        if (reviewed is not None and
+                getattr(reviewed, "execution_model", None) == "async_message_passing"):
+            if suffix != ".rs":
+                return {"final_status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
+                        "code": "unsupported_async_language",
+                        "source_refinement_proved": False,
+                        "async_linearizability_proved": False}
+            from .v2_async_serializer import async_static_gate, check_tokio_scaffold
+            native_check = check_tokio_scaffold(code)
+            evidence = async_static_gate(
+                reviewed, code, native_checked=native_check["status"] == "TOKIO_CHECKED")
+            if evidence["status"] != "VERIFIED":
+                return {"final_status": "ASYNC_STATIC_CHECK_FAILED",
+                        "native_check": native_check, **evidence}
+            return {"final_status": "ASYNC_STATIC_CHECKED",
+                    "native_check": native_check, **evidence}
         if reviewed is not None and reviewed.concurrency is not None:
             if suffix not in {".java", ".jml", ".rs"}:
                 return {"final_status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",

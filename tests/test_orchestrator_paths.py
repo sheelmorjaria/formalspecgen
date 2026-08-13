@@ -173,6 +173,36 @@ def test_lock_protocol_router_fails_closed_at_each_native_boundary(tmp_path):
     assert java_checked["concurrent_linearizability_proved"] is False
 
 
+def test_async_v2_routes_to_static_tokio_gate_and_refuses_other_languages(tmp_path):
+    rust = tmp_path / "Async.rs"; rust.write_text("canonical", encoding="utf-8")
+    java = tmp_path / "Async.java"; java.write_text("canonical", encoding="utf-8")
+    reviewed = SimpleNamespace(execution_model="async_message_passing", concurrency=None)
+    paths = {"v2_reviewed_domain": "reviewed.json",
+             "v2_validation_evidence": "validation.json"}
+    evidence = {"status": "VERIFIED", "claim": "STATIC_CHECK",
+        "claims": ["BOUNDED_ARCHITECTURE_EVIDENCE", "STATIC_CHECK"],
+        "source_refinement_proved": False, "async_linearizability_proved": False}
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain", return_value=reviewed), \
+         patch("pipeline.v2_async_serializer.check_tokio_scaffold",
+               return_value={"status": "TOKIO_CHECKED"}), \
+         patch("pipeline.v2_async_serializer.async_static_gate",
+               return_value=evidence):
+        result = orchestrator.run_implementation_loop(rust, **paths)
+    assert result["final_status"] == "ASYNC_STATIC_CHECKED"
+    assert not result["source_refinement_proved"]
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain", return_value=reviewed):
+        rejected = orchestrator.run_implementation_loop(java, **paths)
+    assert rejected["code"] == "unsupported_async_language"
+
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain", return_value=reviewed), \
+         patch("pipeline.v2_async_serializer.check_tokio_scaffold",
+               return_value={"status": "TOKIO_CHECK_FAILED"}), \
+         patch("pipeline.v2_async_serializer.async_static_gate",
+               return_value={"status": "FAIL", "claim": "NO_PROOF"}):
+        failed = orchestrator.run_implementation_loop(rust, **paths)
+    assert failed["final_status"] == "ASYNC_STATIC_CHECK_FAILED"
+
+
 def test_usage_slug_and_fallback_helpers():
     assert orchestrator._norm_usage({"prompt_tokens": 2, "completion_tokens": 3}) == {
         "input": 2, "output": 3, "total": 0}

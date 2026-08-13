@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -78,6 +78,7 @@ class _DomainHeaderV2(BaseModel):
     domain_name: str
     module_name: str
     actors: int
+    execution_model: Literal["async_message_passing"] | None = None
     concurrency: LockProtocolMetadata | None = None
     state_variables: list[StateVariable] = Field(min_length=1)
     invariant_plans: list[_InvariantPlanV2] = Field(min_length=1)
@@ -172,9 +173,15 @@ def _compile_domain_spec_v2_staged(request: str, context: list[str], chat_fn: Ca
             fields = set(variable.name for variable in candidate_header.state_variables)
             requires_lock = bool(re.search(
                 r"\block[_ -]?protocol\b", "\n".join(context), re.IGNORECASE))
+            requires_async = bool(re.search(
+                r"\basync[_ -]?message[_ -]?passing\b", "\n".join(context),
+                re.IGNORECASE))
             if requires_lock and candidate_header.concurrency is None:
                 raise ValueError(
                     "authoritative lock_protocol requirement cannot be emitted as concurrency null")
+            if requires_async and candidate_header.execution_model != "async_message_passing":
+                raise ValueError(
+                    "authoritative async_message_passing requirement cannot be omitted")
             for plan in candidate_header.operation_plans:
                 effect_targets = list(plan.effect_values)
                 if not set(effect_targets).issubset(fields):
@@ -448,7 +455,7 @@ Return the candidate object directly. Do not wrap it in a `candidate`, `domain`,
 `result` property.
 
 REQUIRED TOP-LEVEL SHAPE: emit every one of these keys exactly once: schema_version,
-review_status, domain_name, module_name, actors, concurrency, state_variables, operations,
+review_status, domain_name, module_name, actors, execution_model, concurrency, state_variables, operations,
 tlc_invariants.
 `actors` is an integer count, not an array. Use `state_variables`, never `variables` or
 `initial_state`; use `operations`, never `transitions`; and every tlc_invariants item uses `id`,
@@ -462,7 +469,7 @@ fields in frame. Never repair a mismatch by silently dropping an authoritative s
 """
 
 DOMAIN_SPEC_V2_WIRE_FORMAT = r"""Use exactly these top-level keys:
-schema_version, review_status, domain_name, module_name, actors, concurrency, state_variables,
+schema_version, review_status, domain_name, module_name, actors, execution_model, concurrency, state_variables,
 operations, tlc_invariants. Do not use aliases such as name, state, variables, transitions, or
 invariants.
 
@@ -473,6 +480,7 @@ Exact JSON shape (replace all angle-bracket placeholders):
   "domain_name": "<PascalCase identifier>",
   "module_name": "<snake_case identifier>",
   "actors": 1,
+  "execution_model": null,
   "concurrency": null,
   "state_variables": [{"kind":"int","name":"<field>","bound":[0,1],"initial":0}],
   "operations": [{
@@ -494,6 +502,9 @@ For explicit locking, concurrency is instead:
  "linearization_points":{"<operation>":"effect_commit"}}.
 Use one actor lock value/state per actor and one linearization point per operation. Domain
 operations must neither reference nor mutate the protocol lock field.
+For asynchronous transport set "execution_model":"async_message_passing", use at least two
+actors, and keep concurrency null. This metadata models bounded atomic message handlers only; it
+does not assert delivery, fairness, queue semantics, or async source/model refinement.
 Boolean state variables instead use {"kind":"bool","name":"<field>","initial":false} and
 MUST NOT have bound. return_type is exactly "void" or "boolean". failure_semantics is exactly
 "unavailable", "false_and_stutter", or "exception"; Boolean guarded APIs normally use
@@ -688,7 +699,7 @@ def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
                 if isinstance(rejected_value, dict) and isinstance(value, dict):
                     required_keys = {
                         "schema_version", "review_status", "domain_name", "module_name",
-                        "actors", "concurrency", "state_variables", "operations",
+                        "actors", "execution_model", "concurrency", "state_variables", "operations",
                         "tlc_invariants",
                     }
                     if value and not required_keys.issubset(value):

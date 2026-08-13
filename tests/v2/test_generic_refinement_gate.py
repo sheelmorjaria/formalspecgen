@@ -136,6 +136,19 @@ def test_generic_gate_refuses_to_upgrade_lock_metadata_to_linearizability(tmp_pa
     assert not result["source_refinement_proved"]
 
 
+def test_generic_gate_refuses_async_source_refinement(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    reviewed, evidence = _reviewed_files(tmp_path)
+    with patch("pipeline.generic_refinement_gate.load_bound_reviewed_domain",
+               return_value=SimpleNamespace(
+                   execution_model="async_message_passing", concurrency=None)):
+        result = generic_v2_refinement_gate(
+            reviewed, evidence, CONTRACT, CONTRACT, esc_verified=True)
+    assert result["code"] == "unsupported_async_refinement_boundary"
+    assert not result["source_refinement_proved"]
+
+
 def test_generic_gate_fails_closed_at_each_external_binding(tmp_path):
     reviewed, evidence = _reviewed_files(tmp_path)
     assert generic_v2_refinement_gate(

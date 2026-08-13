@@ -152,6 +152,54 @@ class DomainGeneratorTests(unittest.TestCase):
             compile_domain_spec_v2(
                 "A lock_protocol switch", [], [], structured_for({}, "root"))
 
+    def test_v2_staged_manifest_preserves_required_async_execution_model(self):
+        value = self.v2_value()
+        value["actors"] = 2
+        value["execution_model"] = "async_message_passing"
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        invariant = {"id": "EnabledClause", "expression": "enabled == true"}
+        operation = {"name": "enable", "return_type": "void",
+            "failure_semantics": "unavailable", "guards": [],
+            "effects": [{"id": "set", "target": "enabled", "value": "true"}],
+            "frame": ["enabled"], "exception_type": None, "exception_trigger": None}
+
+        def structured_for(_schema, name):
+            def chat(*_args):
+                response = (header if name == "v2_domain_header" else invariant
+                            if name == "v2_domain_invariant_clause" else operation)
+                return json.dumps(response), "ollama", {}
+            chat.structured_for = structured_for
+            return chat
+
+        spec, *_ = compile_domain_spec_v2(
+            "An async_message_passing switch", [], [], structured_for({}, "root"))
+        self.assertEqual(spec.execution_model, "async_message_passing")
+
+    def test_v2_staged_manifest_rejects_required_missing_async_model(self):
+        value = self.v2_value()
+        value["actors"] = 2
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+
+        def structured_for(_schema, _name):
+            def chat(*_args):
+                return json.dumps(header), "ollama", {}
+            chat.structured_for = structured_for
+            return chat
+
+        with self.assertRaisesRegex(LLMError, "cannot be omitted"):
+            compile_domain_spec_v2(
+                "An async_message_passing switch", [], [], structured_for({}, "root"))
+
     def test_v2_staged_generation_rejects_misnamed_operation(self):
         value = self.v2_value()
         header = {key: item for key, item in value.items()

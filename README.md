@@ -662,6 +662,21 @@ The live scalar example at
 is proved by Prusti 0.2.2 (1/1 item); the deterministic wrapper is separately compiled against
 cached `rayon=1.11.0` in offline mode.
 
+### Bounded asynchronous message transport
+
+Phase 4 adds an intentionally narrow Rust/Tokio profile. An Ollama-generated V2 candidate may set
+`execution_model: async_message_passing` with at least two actors. Validation still explores a
+bounded atomic message-handler abstraction with TLC. After review and promotion, Rust drafting
+deterministically emits a typed message enum, a bounded `tokio::sync::mpsc` channel, and panic-free
+async send methods. The exact scaffold is checked offline against pinned `tokio=1.49.0`.
+
+This lane only emits `BOUNDED_ARCHITECTURE_EVIDENCE` plus `STATIC_CHECK`. Its verdict records
+`source_refinement_proved: false`, `async_linearizability_proved: false`, and
+`distributed_delivery_proved: false`. Queue scheduling, message loss or duplication, fairness,
+eventual delivery, handler execution, and correspondence between Tokio traces and atomic TLA+
+steps are outside the claim. Java and C async lowering, noncanonical Rust sources, and attempts to
+mint `SOURCE_MODEL_REFINEMENT` fail closed with `UNSUPPORTED_BOUNDARY`.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the

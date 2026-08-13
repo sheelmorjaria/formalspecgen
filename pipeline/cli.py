@@ -321,7 +321,7 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["final_status"] in {
         "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED",
         "LOCK_DISCIPLINE_VERIFIED", "CONCURRENT_LINEARIZABILITY_VERIFIED",
-        "PARALLEL_PARTITION_VERIFIED"} else 1
+        "PARALLEL_PARTITION_VERIFIED", "ASYNC_STATIC_CHECKED"} else 1
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -588,8 +588,14 @@ def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: Sessi
         raise ValueError("reviewed canonical contract failed Rust safety lint: " +
                          "; ".join(item.get("message", "") for item in findings
                                    if item.get("severity") == "error"))
-    check = check_rust_syntax(code)
-    if check.get("status") != "RUST_CHECKED":
+    if reviewed.execution_model == "async_message_passing":
+        from .v2_async_serializer import check_tokio_scaffold
+        check = check_tokio_scaffold(code)
+        expected_check = "TOKIO_CHECKED"
+    else:
+        check = check_rust_syntax(code)
+        expected_check = "RUST_CHECKED"
+    if check.get("status") != expected_check:
         raise ValueError("Rust check gate failed on the reviewed canonical "
                          f"contract: {check.get('output', '')[-500:]}")
     destination = Path(args.out_file or f"{reviewed.domain_name}.rs")
@@ -602,6 +608,9 @@ def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: Sessi
         "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
         "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
         "assumptions": ([
+            "TLC proves only a bounded atomic message-handler architecture.",
+            "Tokio transport is statically checked; async refinement and delivery are unproved.",
+        ] if reviewed.execution_model == "async_message_passing" else [
             "Generated deterministically from a hash-bound reviewed V2 domain.",
             "All concrete state access is routed through one non-panicking Rust Mutex.",
             "This is structural lock discipline, not Prusti proof or linearizability evidence.",
@@ -616,11 +625,14 @@ def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: Sessi
         "reviewed_v2_domain": str(reviewed_path.resolve()),
         "accepted_candidate_sha256": reviewed.accepted_candidate_sha256,
         "accepted_evidence_sha256": reviewed.accepted_evidence_sha256,
-        "transformation": ("DETERMINISTIC_V2_TO_RUST_MUTEX"
+        "transformation": ("DETERMINISTIC_V2_TO_TOKIO_TRANSPORT"
+                           if reviewed.execution_model == "async_message_passing" else
+                           "DETERMINISTIC_V2_TO_RUST_MUTEX"
                            if reviewed.concurrency is not None else
                            "DETERMINISTIC_V2_TO_PRUSTI"),
         "lock_discipline_proved": reviewed.concurrency is not None,
         "concurrent_linearizability_proved": False,
+        "async_linearizability_proved": False,
     }
     if reviewed.concurrency is not None:
         from .v2_lock_serializer import lock_discipline_gate

@@ -86,6 +86,9 @@ def generic_v2_refinement_gate(reviewed_path: str | Path, validation_path: str |
     if not tlc_verified: return fail("tlc_not_verified", "V2 model has no successful TLC result")
     try:
         reviewed = load_bound_reviewed_domain(reviewed_path, validation_path)
+        if getattr(reviewed, "execution_model", None) == "async_message_passing":
+            return fail("unsupported_async_refinement_boundary",
+                        "Atomic JML refinement does not prove async execution")
         if reviewed.concurrency is not None:
             return fail("unsupported_concurrency_boundary",
                         "Atomic JML refinement does not prove lock linearizability")

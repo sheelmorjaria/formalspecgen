@@ -172,6 +172,9 @@ def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]
 
 def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
     """Assemble the complete deterministic Rust/Prusti source file."""
+    if reviewed.execution_model == "async_message_passing":
+        from .v2_async_serializer import render_tokio_scaffold
+        return render_tokio_scaffold(reviewed)
     if reviewed.concurrency is not None:
         from .v2_lock_serializer import render_rust_mutex
         return render_rust_mutex(reviewed)

@@ -149,6 +149,9 @@ def render_operation(operation: Operation, state_fields: list[str]) -> str:
 
 def render_class(spec: DomainSpecV2) -> str:
     """Assemble a deterministic Java/JML contract from typed V2 semantics."""
+    if spec.execution_model == "async_message_passing":
+        raise UnsupportedJmlSemantics(
+            "async_message_passing lowering is currently restricted to the Rust Tokio profile")
     code = _render_atomic_class(spec)
     if spec.concurrency is None:
         return code
