@@ -11,13 +11,11 @@ from pathlib import Path
 from .domain_v2 import BinaryExpr as V2Binary, DomainSpecV2, FieldExpr as V2Field
 from .domain_v2 import BooleanExpr as V2Boolean, IntegerExpr as V2Integer
 from .domain_v2 import NotExpr as V2Not, OldExpr as V2Old
-from .domain_v2_evidence import verify_evidence_envelope
-from .domain_v2_promotion import ReviewedDomainSpecV2
-from .domain_v2_tla import render_v2_tla
 from .extract_tla_ir import UnsupportedJmlSemantics, extract_method_transition_ir
 from .jml_ast import BinaryExpr, BooleanLiteral, FieldAccess, IntegerLiteral, OldValue, UnaryExpr
 from .implementation import trusted_surface_hash
 from .v2_jml_serializer import canonical_guard_expressions, java_method_name
+from .v2_refinement import RefinementBoundaryError, load_bound_reviewed_domain
 
 
 _FIELD = re.compile(r"(?m)^\s*(?:public|private|protected)?\s*(?:/\*@.*?@\*/\s*)?"
@@ -87,20 +85,7 @@ def generic_v2_refinement_gate(reviewed_path: str | Path, validation_path: str |
     if not esc_verified: return fail("esc_not_verified", "Implementation has no deductive proof")
     if not tlc_verified: return fail("tlc_not_verified", "V2 model has no successful TLC result")
     try:
-        reviewed = ReviewedDomainSpecV2.model_validate_json(Path(reviewed_path).read_text())
-        envelope = json.loads(Path(validation_path).read_text())
-        if not verify_evidence_envelope(envelope):
-            return fail("invalid_evidence_digest", "Validation evidence digest does not match")
-        evidence = envelope["evidence"]
-        if evidence.get("validation_status") != "VALIDATED" or evidence.get("tlc_exit_status") != 0:
-            return fail("evidence_not_validated", "Evidence is not a successful V2 validation")
-        if reviewed.accepted_evidence_sha256 != envelope["evidence_sha256"]:
-            return fail("reviewed_evidence_mismatch", "Reviewed model is not bound to this evidence")
-        if reviewed.accepted_candidate_sha256 != evidence["candidate_sha256"]:
-            return fail("candidate_evidence_mismatch", "Reviewed candidate is not bound to evidence")
-        tla, _ = render_v2_tla(reviewed)
-        if hashlib.sha256(tla.encode()).hexdigest() != evidence["generated_tla_sha256"]:
-            return fail("tla_serialization_mismatch", "Evidence did not validate this deterministic TLA+")
+        reviewed = load_bound_reviewed_domain(reviewed_path, validation_path)
         fields = {item.name for item in reviewed.state_variables}
         contract_encapsulation = _encapsulation_errors(contract_code, reviewed)
         implementation_encapsulation = _encapsulation_errors(implementation_code, reviewed)
@@ -108,6 +93,8 @@ def generic_v2_refinement_gate(reviewed_path: str | Path, validation_path: str |
             return fail("encapsulation_violation", "; ".join(
                 contract_encapsulation + implementation_encapsulation))
         contract = _extract(contract_code, fields); implementation = _extract(implementation_code, fields)
+    except RefinementBoundaryError as exc:
+        return fail(exc.code, str(exc))
     except (OSError, ValueError, KeyError, UnsupportedJmlSemantics) as exc:
         return fail("unsupported_refinement_boundary", str(exc))
     if not contract or not implementation:

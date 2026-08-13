@@ -14,6 +14,7 @@ from pipeline.v2_jml_serializer import (
     render_getter, render_operation,
     render_reviewed_v2_file, render_state_variable,
 )
+from pipeline.v2_invariants import _normalize_comparison
 
 
 def smart_lock_value():
@@ -75,6 +76,18 @@ def test_state_bounds_custom_invariant_and_constructor_serialization():
     assert "this.door_state = 1;" in code
     assert "public /*@ pure @*/ int getDoorState() { return door_state; }" in code
     assert r"//@ ensures \result == lock_state;" in code
+
+
+def test_invariant_comparison_normalization_handles_strict_integer_bounds():
+    field = FieldExpr(name="door_state")
+    lower = _normalize_comparison(BinaryExpr(
+        kind="gt", left=field, right=IntegerExpr(value=0)))
+    upper = _normalize_comparison(BinaryExpr(
+        kind="gt", left=IntegerExpr(value=2), right=field))
+    assert lower == BinaryExpr(
+        kind="lte", left=IntegerExpr(value=1), right=field)
+    assert upper == BinaryExpr(
+        kind="lte", left=field, right=IntegerExpr(value=1))
 
 
 def test_void_and_boolean_operation_contracts_include_frames_and_stutter():

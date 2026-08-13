@@ -40,8 +40,17 @@ def test_collect_rac_reports_generated_test_compile_failure():
                        return_value=("class HiddenTest {}", "model-a", {}))):
         result = rac.collect_rac_evidence(SOURCE)
     assert result["status"] == "TEST_COMPILE_FAILED"
-    assert result["test_code"] == "class HiddenTest {}"
+    assert result["test_code"] == (
+        "import static org.junit.jupiter.api.Assertions.*;\n\nclass HiddenTest {}")
     assert result["model"] == "model-a"
+
+
+def test_junit_assertion_import_is_injected_once_after_package():
+    source = "package example;\n\npublic class GeneratedTest {}"
+    normalized = rac._normalize_junit_source(source)
+    assert normalized.startswith(
+        "package example;\n\nimport static org.junit.jupiter.api.Assertions.*;")
+    assert rac._normalize_junit_source(normalized) == normalized
 
 
 def test_collect_rac_returns_counterexample_evidence_not_proof():

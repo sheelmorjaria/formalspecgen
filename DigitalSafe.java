@@ -2,10 +2,10 @@ public class DigitalSafe {
     private /*@ spec_public @*/ int safe_state;
     private /*@ spec_public @*/ int attempts;
 
-    //@ public invariant 0 <= safe_state && safe_state <= 2;
-    //@ public invariant 0 <= attempts && attempts <= 3;
-    //@ public invariant ((safe_state >= 0) && (safe_state <= 2));
-    //@ public invariant ((attempts >= 0) && (attempts <= 3));
+    //@ public invariant (0 <= safe_state);
+    //@ public invariant (safe_state <= 2);
+    //@ public invariant (0 <= attempts);
+    //@ public invariant (attempts <= 3);
     //@ public invariant ((safe_state == 1) ==> (attempts == 0));
     //@ public invariant ((safe_state == 2) ==> (attempts == 3));
 

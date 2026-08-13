@@ -117,12 +117,16 @@ def synthesize_polyglot_implementation(
         accepted_passes: list[str] | None = None, candidate: str | None = None,
         on_event: Callable[[dict], None] | None = None,
         verification_mode: str = "esc", runtime_gate: bool = False,
-        runtime_test_code: str | None = None) -> dict:
+        runtime_test_code: str | None = None,
+        v2_reviewed_domain: str | Path | None = None,
+        v2_validation_evidence: str | Path | None = None) -> dict:
     """Synthesize bodies while treating contracts and APIs as immutable trusted input."""
     if language not in {"rust", "c"}:
         raise ValueError("language must be rust or c")
     if verification_mode not in {"esc", "check"}:
         raise ValueError("verification_mode must be esc or check")
+    if bool(v2_reviewed_domain) != bool(v2_validation_evidence):
+        raise ValueError("V2 refinement requires both reviewed domain and validation evidence")
     surface = rust_trusted_surface(stub) if language == "rust" else c_trusted_surface(stub)
     if not surface["signatures"] or not surface["contracts"]:
         return {"final_status": "INVALID_STUB", "claim": "NO_PROOF", "attempts": [],
@@ -243,6 +247,18 @@ def synthesize_polyglot_implementation(
               "native_synthesis": True, "external_handoff_used": False}
     if attempts:
         result["runtime_evidence"] = attempts[-1].get("runtime_evidence")
+    if v2_reviewed_domain:
+        from .polyglot_refinement_gate import polyglot_v2_refinement_gate
+        refinement = polyglot_v2_refinement_gate(
+            v2_reviewed_domain, v2_validation_evidence, stub, final_code, language,
+            backend_verified=(final_status == "VERIFIED" and verification_mode == "esc"))
+        result["refinement"] = refinement
+        result["source_refinement_proved"] = refinement["source_refinement_proved"]
+        if refinement["status"] == "VERIFIED":
+            result["claims"] = ["DEDUCTIVE_PROOF", "SOURCE_MODEL_REFINEMENT"]
+            result["claim"] = "SOURCE_MODEL_REFINEMENT"
+        else:
+            result["final_status"] = "REFINEMENT_FAILED"
     if final_code:
         (root / f"implementation{suffix}").write_text(final_code, encoding="utf-8")
     (root / "verdict.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

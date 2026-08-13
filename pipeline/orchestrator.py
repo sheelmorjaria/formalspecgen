@@ -58,8 +58,6 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
             provider=provider, v2_reviewed_domain=v2_reviewed_domain,
             v2_validation_evidence=v2_validation_evidence, **kwargs)
     if suffix in {".rs", ".c"}:
-        if v2_reviewed_domain or v2_validation_evidence:
-            raise ValueError("generic V2 refinement currently supports Java/JML only")
         from .polyglot_implementation import synthesize_polyglot_implementation
         language = "rust" if suffix == ".rs" else "c"
         mode = "esc" if assurance_level == "critical" else "check"
@@ -67,7 +65,9 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
         kwargs.pop("abstraction", None)
         result = synthesize_polyglot_implementation(
             code, language=language, provider=provider, verification_mode=mode,
-            runtime_gate=assurance_level in {"critical", "standard"}, **kwargs)
+            runtime_gate=assurance_level in {"critical", "standard"},
+            v2_reviewed_domain=v2_reviewed_domain,
+            v2_validation_evidence=v2_validation_evidence, **kwargs)
         result["assurance_level_requested"] = assurance_level
         if method_proof_only:
             result["assurance_scope"] = "method_contract_only"

@@ -19,6 +19,7 @@ from .domain_v2 import (
 )
 from .domain_v2_promotion import ReviewedDomainSpecV2
 from .v2_jml_serializer import _OPS
+from .v2_invariants import canonical_invariant_expressions
 
 
 class UnsupportedPrustiBoundary(ValueError):
@@ -100,27 +101,9 @@ def _effect_ensures(operation) -> str:
         for effect in operation.effects)
 
 
-def _bounds_invariant(variable) -> BinaryExpr:
-    lower, upper = variable.bound
-    return BinaryExpr(
-        kind="and",
-        left=BinaryExpr(kind="lte", left=IntegerExpr(value=lower),
-                        right=FieldExpr(name=variable.name)),
-        right=BinaryExpr(kind="lte", left=FieldExpr(name=variable.name),
-                         right=IntegerExpr(value=upper)),
-    )
-
-
-def _invariant_expressions(reviewed) -> list:
-    return ([_bounds_invariant(variable)
-             for variable in reviewed.state_variables
-             if isinstance(variable, IntStateVariable)]
-            + [item.expression for item in reviewed.tlc_invariants])
-
-
 def _invariant_contract(reviewed, *, receiver: str = "self") -> str:
     conjuncts = [render_prusti_expression(expression, receiver=receiver)
-                 for expression in _invariant_expressions(reviewed)]
+                 for expression in canonical_invariant_expressions(reviewed)]
     # Parenthesize each conjunct: ==> binds looser than && in Prusti
     # and ACSL, so an unparenthesized implication would swallow the
     # entire preceding conjunction and silently weaken the invariant.

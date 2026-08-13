@@ -15,6 +15,20 @@ from . import config, jml_io
 from .llm import generate_rac_tests, _chat_fn, LLMError
 
 
+_JUNIT_ASSERTIONS_IMPORT = "import static org.junit.jupiter.api.Assertions.*;"
+
+
+def _normalize_junit_source(test_code: str) -> str:
+    """Inject the assertion API import required by generated JUnit source."""
+    if _JUNIT_ASSERTIONS_IMPORT in test_code:
+        return test_code
+    package = re.match(r"(?s)(\s*package\s+[\w.]+\s*;)", test_code)
+    if package:
+        end = package.end()
+        return test_code[:end] + "\n\n" + _JUNIT_ASSERTIONS_IMPORT + test_code[end:]
+    return _JUNIT_ASSERTIONS_IMPORT + "\n\n" + test_code.lstrip()
+
+
 def collect_rac_evidence(code: str, diagnostics: str = "", provider: str = "glm") -> dict:
     class_name = jml_io.class_name(code)
     if not class_name:
@@ -31,6 +45,7 @@ def collect_rac_evidence(code: str, diagnostics: str = "", provider: str = "glm"
                 code, class_name, diagnostics, chat_fn=_chat_fn(provider))
         except LLMError as exc:
             return {"status": "TESTGEN_ERROR", "inputs": [], "message": str(exc)}
+        test_code = _normalize_junit_source(test_code)
         match = re.search(r"\bpublic\s+class\s+(\w+)", test_code)
         test_class = match.group(1) if match else f"Test{class_name}"
         test_file = root / f"{test_class}.java"
@@ -82,6 +97,7 @@ def collect_integration_evidence(files: dict[str, str], provider: str = "glm") -
                 chat_fn=_chat_fn(provider))
         except LLMError as exc:
             return {"status": "TESTGEN_ERROR", "inputs": [], "message": str(exc)}
+        test_code = _normalize_junit_source(test_code)
         match = re.search(r"\bpublic\s+class\s+(\w+)", test_code)
         test_class = match.group(1) if match else f"Test{target}"
         test_file = root / f"{test_class}.java"

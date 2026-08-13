@@ -60,10 +60,14 @@ def test_implementation_router_dispatches_by_extension_and_fails_closed(tmp_path
         assert not result["source_refinement_proved"]
         assert poly.call_args.kwargs["language"] == "c"
         assert poly.call_args.kwargs["verification_mode"] == "esc"
-    with pytest.raises(ValueError, match="Java/JML only"):
-        orchestrator.run_implementation_loop(
+    with patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation",
+               return_value={"kind": "rust-refinement"}) as poly:
+        routed = orchestrator.run_implementation_loop(
             rust, v2_reviewed_domain="reviewed.json",
             v2_validation_evidence="validation.json")
+    assert routed["kind"] == "rust-refinement"
+    assert poly.call_args.kwargs["v2_reviewed_domain"] == "reviewed.json"
+    assert poly.call_args.kwargs["v2_validation_evidence"] == "validation.json"
     with pytest.raises(ValueError, match="unsupported synthesis"):
         orchestrator.run_implementation_loop(unknown)
 

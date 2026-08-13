@@ -119,8 +119,9 @@ def test_m2_struct_and_invariants():
     # Prusti 0.2.x type invariants are experimental and abort the driver, so the
     # reviewed invariants are encoded per-method instead (assume/preserve).
     assert "#[invariant(" not in code
-    assert "#[requires(((0 <= self.value) && (self.value <= 5)) && ((self.value >= 0) && (self.value <= 5)))]" in code
-    assert "#[ensures(((0 <= self.value) && (self.value <= 5)) && ((self.value >= 0) && (self.value <= 5)))]" in code
+    assert "#[requires((0 <= self.value) && (self.value <= 5))]" in code
+    assert "#[ensures((0 <= self.value) && (self.value <= 5))]" in code
+    assert "self.value >= 0" not in code
     reviewed, _ = render_reviewed_v2_prusti_file(BOUNDED_COUNTER)
     boolean_spec = reviewed.model_dump(mode="json")
     boolean_spec["state_variables"].append(
@@ -132,8 +133,8 @@ def test_m2_struct_and_invariants():
 
 def test_m3_constructor_and_getter():
     _, code = _bounded_counter_struct()
-    assert ("#[ensures(result.value == 0 && ((0 <= result.value) && "
-            "(result.value <= 5)) && ((result.value >= 0) && (result.value <= 5)))]" in code)
+    assert ("#[ensures(result.value == 0 && (0 <= result.value) && "
+            "(result.value <= 5))]" in code)
     assert "    pub fn new() -> Self {" in code
     assert "        Self { value: 0 }" in code
     assert "#[pure]" in code

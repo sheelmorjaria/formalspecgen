@@ -11,6 +11,7 @@ from .domain_v2 import (
 )
 from .domain_v2_promotion import ReviewedDomainSpecV2
 from .extract_tla_ir import UnsupportedJmlSemantics
+from .v2_invariants import canonical_invariant_expressions
 
 _OPS = {
     "eq": "==", "neq": "!=", "lt": "<", "lte": "<=", "gt": ">", "gte": ">=",
@@ -153,12 +154,9 @@ def render_class(spec: DomainSpecV2) -> str:
         rendered = render_state_variable(variable)
         lines.append(rendered[0])
     lines.append("")
-    for variable in spec.state_variables:
-        rendered = render_state_variable(variable)
-        lines.extend(rendered[1:])
     lines.extend(
-        f"    //@ public invariant {render_expression(invariant.expression)};"
-        for invariant in spec.tlc_invariants)
+        f"    //@ public invariant {render_expression(expression)};"
+        for expression in canonical_invariant_expressions(spec))
     initial = _conjunction([
         f"{item.name} == " + (("true" if item.initial else "false")
                               if isinstance(item, BoolStateVariable) else str(item.initial))

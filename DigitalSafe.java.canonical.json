@@ -4,7 +4,7 @@
   "domain": "digital_safe",
   "requirement": "Generate the reviewed digital safe",
   "requirement_sha256": "abf7d824221c384839944e67f58c4b242375b2d3fc5a016517d7cee8c9843708",
-  "contract_sha256": "9fd010fd431869094aa33a0812150d1d014944a54a6928e7a2d34f0b4045345b",
+  "contract_sha256": "f8d84396d934f781bb93aae89e43260873483b9fc23eacad8c3400f950fbbe70",
   "assumptions": [
     "Generated deterministically from a hash-bound reviewed V2 domain.",
     "Operations model atomic method calls; concurrent linearizability is not proved."
