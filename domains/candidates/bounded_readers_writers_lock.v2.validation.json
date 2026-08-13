@@ -1,0 +1,35 @@
+{
+  "evidence": {
+    "schema_version": 2,
+    "candidate_sha256": "32b8ceb1d65e85c24315e3f32add426b105026ae01d474c4d0c81f8f31b8d4f1",
+    "execution_assumption": "atomic_last_result_abstraction",
+    "bounds": {
+      "read_count": [
+        0,
+        2
+      ],
+      "writer_active": 2,
+      "actors": 3
+    },
+    "state_space_upper_bound": 6,
+    "validation_status": "VALIDATED",
+    "generated_tla_sha256": "951aa4331a5f55e27cceb47e6b366a75a3aa8d0bf8139d6cb467d5ad964c6854",
+    "abstraction_mode": "atomic_operations",
+    "reachable_state_count": 4,
+    "reachable_transition_count": 6,
+    "tools": {
+      "tlc": {
+        "version": "2.19 of 08 August 2024",
+        "command": [
+          "java",
+          "-jar",
+          "/home/sheel/formalspecgen/tools/tla2tools.jar",
+          "-help"
+        ],
+        "status": "OK"
+      }
+    },
+    "tlc_exit_status": 0
+  },
+  "evidence_sha256": "477f1ca3516808dbf69d582044060e0199b4ee1b48d16bbec925c149e7829275"
+}

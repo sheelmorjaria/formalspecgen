@@ -1,0 +1,142 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: BoundedReadersWritersLock
+module_name: bounded_readers_writers_lock
+actors: 3
+state_variables:
+- kind: int
+  name: read_count
+  bound:
+  - 0
+  - 2
+  initial: 0
+- kind: bool
+  name: writer_active
+  initial: false
+operations:
+- name: reader_enter
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: no_writer_active
+    expression:
+      kind: not
+      expression:
+        kind: field
+        name: writer_active
+  - id: read_count_less_than_two
+    expression:
+      kind: lt
+      left:
+        kind: field
+        name: read_count
+      right:
+        kind: integer
+        value: 2
+  effects:
+  - id: increment_read_count
+    target: read_count
+    value:
+      kind: add
+      left:
+        kind: field
+        name: read_count
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - read_count
+  exception_type: null
+  exception_trigger: null
+- name: reader_exit
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: read_count_positive
+    expression:
+      kind: gt
+      left:
+        kind: field
+        name: read_count
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: decrement_read_count
+    target: read_count
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: read_count
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - read_count
+  exception_type: null
+  exception_trigger: null
+- name: writer_enter
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: no_writer_active
+    expression:
+      kind: not
+      expression:
+        kind: field
+        name: writer_active
+  - id: no_readers_active
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: read_count
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: activate_writer
+    target: writer_active
+    value:
+      kind: boolean
+      value: true
+  frame:
+  - writer_active
+  exception_type: null
+  exception_trigger: null
+- name: writer_exit
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: writer_active
+    expression:
+      kind: field
+      name: writer_active
+  effects:
+  - id: deactivate_writer
+    target: writer_active
+    value:
+      kind: boolean
+      value: false
+  frame:
+  - writer_active
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: WriterExcludesReaders
+  expression:
+    kind: not
+    expression:
+      kind: and
+      left:
+        kind: field
+        name: writer_active
+      right:
+        kind: gt
+        left:
+          kind: field
+          name: read_count
+        right:
+          kind: integer
+          value: 0
