@@ -768,10 +768,10 @@ records `behavior_equivalence_proved: false` and `refactor_verified: false`. Str
 dependency injection, multi-file moves, arbitrary statement selection, and semantic rewrites remain
 outside this initial action profile.
 
-Factory, State, and Decorator currently remain inspection-only recommendations. Their deterministic
-application would introduce new objects and cross-file calls, changing heap topology and proof
-boundaries. `apply-refactor` therefore does not offer those patterns until a multi-file composition
-gate can prove the generated collaborators and delegation glue rather than merely compiling them.
+State and Decorator currently remain inspection-only recommendations. Their deterministic
+application would introduce new objects and cross-file calls with transition or callback-order
+semantics. `apply-refactor` does not offer those patterns until profile-specific obligations can
+prove the generated collaborators and delegation glue rather than merely compiling them.
 
 ### Cross-file refactoring verification
 
@@ -794,6 +794,60 @@ but does not itself implement those transformations. The claim records
 `behavior_equivalence_proved: false`, `heap_topology_equivalence_proved: false`, and
 `refactor_verified: false`: joint satisfaction of the preserved primary contract is not a
 bisimulation proof of all private behavior, allocation identity, callback order, I/O, or timing.
+
+### Hexagonal external ports and adapter stubs
+
+Composition artifacts may declare a contracted external interface using `kind: "interface"` (or
+the normalized input alias `type: "interface"`), `external: true`, and an optional adapter type:
+
+```json
+{
+  "id": "payments",
+  "name": "PaymentGateway",
+  "type": "interface",
+  "external": true,
+  "adapter": "StripePaymentGateway",
+  "operations": [{
+    "name": "charge",
+    "parameters": [{"name": "amount", "type": "int"}],
+    "returns": "boolean",
+    "requires": ["amount > 0"],
+    "ensures": ["\\result ==> amount > 0"]
+  }]
+}
+```
+
+Every external operation must provide nonempty pre- and postconditions. Composition deterministically
+renders the port interface and an adapter stub with copied JML plus a conspicuous external-boundary
+marker and TODO body. The adapter source is distributed as integration scaffolding but excluded from
+OpenJML check/ESC evidence. Verdicts list it under `unverified_boundaries`, record the skip reason
+`Unverified external boundary`, and set `external_io_safety_proved: false`.
+
+This does not yet inject parameterized port calls into generated orchestrators. That requires an
+explicit argument-binding schema so the composition prover can establish each port precondition;
+the pipeline will not infer call arguments or pretend an adapter's network behavior was proved.
+
+### Restricted Factory Method application
+
+After the cross-file gate, `apply-refactor` admits one narrow Factory Method shape:
+
+```bash
+formalspecgen apply-refactor baseline/Creator.java \
+  --inspection inspection.json --pattern factory-method --method create \
+  --out refactored/ --json factory-refactor-verdict.json
+```
+
+The inspected method must consist solely of one closed `if/else` whose return paths create at least
+two distinct zero-argument concrete products. Its decision expression may reference parameters but
+not instance fields or unqualified helper calls. The deterministic action emits the preserved
+primary class, a product-typed factory interface, and a default implementation containing the exact
+creation body. Existing product types must already be available in the output proof context.
+
+The generated directory is immediately routed through the multi-file gate. Constructor arguments,
+field-dependent decisions, additional statements, overloaded target names, type-name collisions,
+side effects, or stale inspection evidence fail closed. State and Decorator transformations remain
+inspection-only: their transition and callback-order mappings require stronger profile-specific
+obligations than the Factory creation-policy extraction.
 
 ## Providers
 

@@ -371,16 +371,29 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .deterministic_refactor import extract_method_from_inspection
-    from .refactor_gate import verify_contract_preserving_refactor
-    transformed = extract_method_from_inspection(args.source, args.inspection, args.method)
+    from .deterministic_refactor import (
+        extract_factory_from_inspection, extract_method_from_inspection,
+    )
+    from .refactor_gate import (
+        verify_contract_preserving_refactor, verify_multifile_contract_refactor,
+    )
+    transformed = (extract_factory_from_inspection(args.source, args.inspection, args.method)
+                   if args.pattern == "factory-method" else
+                   extract_method_from_inspection(args.source, args.inspection, args.method))
     if transformed["status"] != "TRANSFORMED":
         _write_json(transformed, args.json, ui.console)
         return 1
     destination = Path(args.out)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(transformed.pop("source"), encoding="utf-8")
-    proof = verify_contract_preserving_refactor(args.source, destination)
+    if args.pattern == "factory-method":
+        destination.mkdir(parents=True, exist_ok=True)
+        files = transformed.pop("files")
+        for name, content in files.items():
+            (destination / name).write_text(content, encoding="utf-8")
+        proof = verify_multifile_contract_refactor(args.source, destination)
+    else:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(transformed.pop("source"), encoding="utf-8")
+        proof = verify_contract_preserving_refactor(args.source, destination)
     result = {"status": "VERIFIED" if proof["status"] == "VERIFIED" else "FAIL",
               "claim": proof.get("claim", "NO_PROOF"),
               "transformation": transformed, "verification": proof,
@@ -916,7 +929,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_refactor.add_argument("source", help="baseline Java/JML source")
     apply_refactor.add_argument("--inspection", required=True,
                                 help="hash-bound inspect JSON evidence")
-    apply_refactor.add_argument("--pattern", choices=["extract-method"],
+    apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method"],
                                 default="extract-method")
     apply_refactor.add_argument("--method", required=True, help="inspected long method name")
     apply_refactor.add_argument("--out", required=True, help="same-named refactored Java path")

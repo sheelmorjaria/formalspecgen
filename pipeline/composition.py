@@ -75,7 +75,27 @@ class CompositionSpec(_StrictModel):
 
 def parse_composition(value: dict | str) -> CompositionSpec:
     data = json.loads(value) if isinstance(value, str) else value
-    return CompositionSpec.model_validate(data)
+    # Accept the common architecture spelling while retaining one internal model.
+    data = json.loads(json.dumps(data))
+    for component in data.get("architecture", {}).get("components", []):
+        if "type" in component:
+            if "kind" in component and component["kind"] != component["type"]:
+                raise CompositionError("component type and kind disagree")
+            component["kind"] = component.pop("type")
+    spec = CompositionSpec.model_validate(data)
+    architecture = parse_architecture(spec.architecture)
+    for component in architecture.components:
+        if not component.external:
+            continue
+        if component.kind != "interface":
+            raise CompositionError("external components must be interfaces (Ports)")
+        if not component.operations:
+            raise CompositionError("external interface must declare at least one operation contract")
+        for operation in component.operations:
+            if not operation.requires or not operation.ensures:
+                raise CompositionError(
+                    f"external interface must declare a contract for {component.name}.{operation.name}")
+    return spec
 
 
 def resolve_bindings(spec: CompositionSpec,

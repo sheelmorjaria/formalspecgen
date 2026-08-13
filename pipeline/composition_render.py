@@ -266,7 +266,63 @@ def build_composition_sources(spec, resolved) -> dict[str, str]:
     for use_case in spec.use_cases:
         sources[f"{_pascal(use_case.name)}Orchestrator.java"] = \
             render_orchestrator(use_case, resolved)
+    for component in parse_architecture(spec.architecture).components:
+        if component.external and component.kind == "interface":
+            adapter_name = _external_adapter_name(spec.architecture, component.id,
+                                                  component.name)
+            sources[f"{component.name}.java"] = render_external_port(component)
+            sources[f"{adapter_name}.java"] = render_external_adapter(component, adapter_name)
     return sources
+
+
+def _java_type(value: str) -> str:
+    return {"integer": "int", "bool": "boolean", "string": "String"}.get(value, value)
+
+
+def _operation_parameters(operation) -> str:
+    return ", ".join(f"{_java_type(str(item.get('type', 'Object')))} {item['name']}"
+                     for item in operation.parameters)
+
+
+def _external_adapter_name(architecture_value: dict, component_id: str,
+                           component_name: str) -> str:
+    raw = next(item for item in architecture_value.get("components", [])
+               if str(item.get("id")) == component_id)
+    name = str(raw.get("adapter") or f"{component_name}Adapter")
+    if not re.fullmatch(r"[A-Z][A-Za-z0-9_$]*", name):
+        raise UnsupportedCompositionBoundary("external adapter must be a Java type identifier")
+    return name
+
+
+def render_external_port(component) -> str:
+    lines = ["// Verified abstraction contract for an external boundary.",
+             f"public interface {component.name} {{"]
+    for operation in component.operations:
+        lines.append("")
+        lines.extend(f"    //@ requires {clause};" for clause in operation.requires)
+        lines.extend(f"    //@ ensures {clause};" for clause in operation.ensures)
+        lines.append(f"    public {_java_type(operation.returns)} {operation.name}"
+                     f"({_operation_parameters(operation)});")
+    return "\n".join(lines + ["}", ""])
+
+
+def render_external_adapter(component, adapter_name: str) -> str:
+    lines = ["// UNVERIFIED EXTERNAL BOUNDARY: generated integration stub.",
+             f"public class {adapter_name} implements {component.name} {{"]
+    for operation in component.operations:
+        lines.append("")
+        lines.extend(f"    //@ requires {clause};" for clause in operation.requires)
+        lines.extend(f"    //@ ensures {clause};" for clause in operation.ensures)
+        return_type = _java_type(operation.returns)
+        lines.append(f"    public {return_type} {operation.name}"
+                     f"({_operation_parameters(operation)}) {{")
+        lines.append("        // TODO: Implement external API call; this body is not ESC evidence.")
+        if return_type == "boolean": lines.append("        return false;")
+        elif return_type in {"byte", "short", "int", "long", "float", "double"}:
+            lines.append("        return 0;")
+        elif return_type != "void": lines.append("        return null;")
+        lines.append("    }")
+    return "\n".join(lines + ["}", ""])
 
 
 def _has_operation_obligations(text: str) -> bool:
@@ -298,16 +354,30 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
     if any(item["severity"] == "error" for item in findings):
         return {"status": "COMPOSITION_LINT_FAILED", "claim": "NO_PROOF",
                 "findings": findings}
-    sources = build_composition_sources(spec, resolved)
+    try:
+        sources = build_composition_sources(spec, resolved)
+    except UnsupportedCompositionBoundary as exc:
+        return {"status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
+                "message": str(exc)}
+    architecture = parse_architecture(spec.architecture)
+    unverified_boundaries = sorted(
+        _external_adapter_name(spec.architecture, component.id, component.name)
+        for component in architecture.components if component.external)
+    boundary_files = {f"{name}.java" for name in unverified_boundaries}
     base = {"files": sources, "coupling": coupling, "scope": _SCOPE,
-            "concurrent_linearizability_proved": False, "disclaimer": _DISCLAIMER}
+            "concurrent_linearizability_proved": False,
+            "unverified_boundaries": unverified_boundaries,
+            "verification_skips": {name: "Unverified external boundary"
+                                   for name in unverified_boundaries},
+            "external_io_safety_proved": False, "disclaimer": _DISCLAIMER}
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         paths = []
         for name in sorted(sources):
             path = root / name
             path.write_text(sources[name], encoding="utf-8")
-            paths.append(path)
+            if name not in boundary_files:
+                paths.append(path)
         check_exit, check_output = verify_files(paths, mode="check")
         if check_exit != 0:
             return {**base, "status": "CHECK_FAILED", "claim": "NO_PROOF",
