@@ -20,18 +20,25 @@ from .composition import (
     CompositionError,
     CompositionUseCase,
     UnsupportedCompositionBoundary,
+    _unparenthesized,
     analyze_coupling,
     lint_composition,
     parse_composition,
     render_qualified,
     resolve_bindings,
 )
-from .domain_v2 import BoolStateVariable, IntStateVariable
+from .domain_v2 import (
+    BinaryExpr, BoolStateVariable, FieldExpr, IntStateVariable, IntegerExpr,
+    NotExpr, OldExpr, BooleanExpr, _referenced_fields,
+)
 from .domain_v2_promotion import ReviewedDomainSpecV2
 from .parse_check import parse_check
 from .parse_vcs import parse_vcs
 from .verify import classify, has_dropped_vc, verify_files
-from .v2_jml_serializer import _getter_name, java_method_name, render_class
+from .v2_jml_serializer import (
+    _effect_expression, _getter_name, _OPS, canonical_guard_expressions,
+    java_method_name, render_expression, render_getter, render_state_variable,
+)
 
 _SCOPE = "single_threaded_atomic_contract_composition"
 _DISCLAIMER = (
@@ -124,6 +131,127 @@ def render_orchestrator(use_case: CompositionUseCase,
     return "\n".join(lines)
 
 
+def _variable_type(variable) -> str:
+    return "int" if isinstance(variable, IntStateVariable) else "boolean"
+
+
+def _body_expression(node, field_map: dict[str, str]) -> str:
+    """Render a reviewed expression as a Java body term over the mapped fields.
+
+    ``OldExpr`` collapses to the mapped field: bodies evaluate every effect RHS
+    against the pre-state captured at method entry, matching the reviewed
+    simultaneous-effect semantics of the V2 traverser.
+    """
+    if isinstance(node, FieldExpr):
+        if node.name not in field_map:
+            raise UnsupportedCompositionBoundary(
+                f"reviewed expression references undeclared field {node.name!r}")
+        return field_map[node.name]
+    if isinstance(node, IntegerExpr):
+        return str(node.value)
+    if isinstance(node, BooleanExpr):
+        return "true" if node.value else "false"
+    if isinstance(node, OldExpr):
+        return _body_expression(node.expression, field_map)
+    if isinstance(node, NotExpr):
+        return "!(" + _body_expression(node.expression, field_map) + ")"
+    if isinstance(node, BinaryExpr):
+        operator = _OPS.get(node.kind)
+        if operator is None:
+            raise UnsupportedCompositionBoundary(
+                f"unsupported V2 expression kind {node.kind!r}")
+        left = _body_expression(node.left, field_map)
+        right = _body_expression(node.right, field_map)
+        return f"({left} {operator} {right})"
+    raise UnsupportedCompositionBoundary(
+        f"unsupported V2 expression node {type(node).__name__}")
+
+
+def _operation_with_reviewed_body(operation, variables_by_name: dict) -> list[str]:
+    """Emit a JML method whose body deterministically executes the reviewed effects."""
+    if operation.failure_semantics == "exception":
+        raise UnsupportedCompositionBoundary(
+            f"operation {operation.name!r} uses exception semantics; deterministic "
+            "body synthesis supports void/unavailable and boolean/false_and_stutter only")
+    method = java_method_name(operation.name)
+    frame = ", ".join(operation.frame) if operation.frame else r"\nothing"
+    referenced = sorted(set().union(
+        *(_referenced_fields(effect.value) for effect in operation.effects))
+        if operation.effects else set())
+    pre_map = {name: f"pre_{name}" for name in referenced}
+    decl_map = {name: f"this.{name}" for name in variables_by_name}
+    lines = []
+    if operation.return_type == "void":
+        lines.extend(f"    //@ requires {render_expression(guard)};"
+                     for guard in canonical_guard_expressions(operation))
+        lines.append(f"    //@ assignable {frame};")
+        lines.append(f"    //@ ensures {_effect_expression(operation)};")
+        lines.append(f"    public void {method}() {{")
+    else:
+        guards = " && ".join(
+            _unparenthesized(_body_expression(expression, decl_map))
+            for expression in canonical_guard_expressions(operation)) or "true"
+        lines.extend([
+            f"    //@ assignable {frame};",
+            f"    //@ ensures \\result <==> ({guards});",
+            f"    //@ ensures \\result ==> ({_effect_expression(operation)});",
+        ])
+        lines.append("    public boolean " + method + "() {")
+        lines.append(f"        if (!({guards})) {{")
+        lines.append("            return false;")
+        lines.append("        }")
+    for name in referenced:
+        lines.append(f"        final {_variable_type(variables_by_name[name])} "
+                     f"pre_{name} = this.{name};")
+    for effect in operation.effects:
+        lines.append(f"        this.{effect.target} = "
+                     f"{_body_expression(effect.value, pre_map)};")
+    if operation.return_type != "void":
+        lines.append("        return true;")
+    lines.append("    }")
+    return lines
+
+
+def render_verified_class(reviewed: ReviewedDomainSpecV2) -> str:
+    """Render the reviewed class with bodies transcribed from the reviewed effects.
+
+    Unlike the drafting serializer (whose empty bodies await the implement loop),
+    composition emits deterministic effect-executing bodies so OpenJML ESC has a
+    concrete implementation to prove against the same reviewed contracts.
+    """
+    variables_by_name = {variable.name: variable
+                         for variable in reviewed.state_variables}
+    initial = " && ".join(
+        f"{variable.name} == " +
+        (("true" if variable.initial else "false")
+         if isinstance(variable, BoolStateVariable) else str(variable.initial))
+        for variable in reviewed.state_variables) or "true"
+    lines = [f"public class {reviewed.domain_name} {{"]
+    for variable in reviewed.state_variables:
+        lines.append(render_state_variable(variable)[0])
+    lines.append("")
+    for variable in reviewed.state_variables:
+        lines.extend(render_state_variable(variable)[1:])
+    lines.extend(
+        f"    //@ public invariant {render_expression(invariant.expression)};"
+        for invariant in reviewed.tlc_invariants)
+    lines.extend(["", r"    //@ assignable \nothing;",
+                  f"    //@ ensures {initial};",
+                  f"    public {reviewed.domain_name}() {{"])
+    lines.extend(f"        this.{variable.name} = " +
+                 (("true" if variable.initial else "false")
+                  if isinstance(variable, BoolStateVariable) else str(variable.initial)) + ";"
+                 for variable in reviewed.state_variables)
+    lines.append("    }")
+    for variable in reviewed.state_variables:
+        lines.extend(["", render_getter(variable)])
+    for operation in reviewed.operations:
+        lines.extend([""])
+        lines.extend(_operation_with_reviewed_body(operation, variables_by_name))
+    lines.extend(["}", ""])
+    return "\n".join(lines)
+
+
 def build_composition_sources(spec, resolved) -> dict[str, str]:
     """Assemble every deterministic Java/JML source for the composition."""
     sources: dict[str, str] = {}
@@ -133,7 +261,7 @@ def build_composition_sources(spec, resolved) -> dict[str, str]:
         if reviewed.domain_name in rendered_domains:
             continue
         rendered_domains.add(reviewed.domain_name)
-        sources[f"{reviewed.domain_name}.java"] = render_class(reviewed)
+        sources[f"{reviewed.domain_name}.java"] = render_verified_class(reviewed)
         sources[f"{reviewed.domain_name}API.java"] = render_interface(reviewed)
     for use_case in spec.use_cases:
         sources[f"{_pascal(use_case.name)}Orchestrator.java"] = \

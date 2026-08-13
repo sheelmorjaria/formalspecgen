@@ -36,7 +36,35 @@ def reviewed_spec(domain="Gate", module="gate", *, noop=False):
             "frame": ["door"],
             "exception_type": None,
             "exception_trigger": None,
-        }
+        },
+        {
+            "name": "TryToggle",
+            "return_type": "boolean",
+            "failure_semantics": "false_and_stutter",
+            "guards": [
+                {
+                    "id": "g1",
+                    "expression": {
+                        "kind": "eq",
+                        "left": {"kind": "field", "name": "door"},
+                        "right": {"kind": "integer", "value": 1},
+                    },
+                }
+            ],
+            "effects": [
+                {
+                    "id": "e1",
+                    "target": "door",
+                    "value": {
+                        "kind": "old",
+                        "expression": {"kind": "field", "name": "door"},
+                    },
+                }
+            ],
+            "frame": ["door"],
+            "exception_type": None,
+            "exception_trigger": None,
+        },
     ]
     if noop:
         operations.append(
@@ -289,6 +317,56 @@ def test_build_sources_dedupes_shared_domains(v2_dir):
     assert set(sources) == {"Gate.java", "GateAPI.java",
                             "OpenGateOrchestrator.java",
                             "PanelOpensGateOrchestrator.java"}
+
+
+def test_render_verified_class_synthesizes_reviewed_bodies(v2_dir):
+    resolved = _resolved(v2_dir)
+    source = composition_render.render_verified_class(resolved["gate"])
+    assert "public class Gate {" in source
+    # void op: the reviewed effect becomes the deterministic body
+    assert "public void open() {" in source
+    assert "        this.door = 1;" in source
+    # boolean op: guard check, stutter path, pre-captured simultaneous effect
+    assert "public boolean tryToggle() {" in source
+    assert "if (!(this.door == 1)) {" in source
+    assert "final int pre_door = this.door;" in source
+    assert "this.door = pre_door;" in source
+    assert "return true;" in source and "return false;" in source
+
+
+def test_render_verified_class_fails_closed_on_exception_semantics(v2_dir):
+    resolved = _resolved(v2_dir)
+    spec = resolved["gate"].model_dump(mode="json")
+    spec["operations"].append({
+        "name": "ForceOpen", "return_type": "void",
+        "failure_semantics": "exception",
+        "guards": [], "effects": [], "frame": [],
+        "exception_type": "IllegalState",
+        "exception_trigger": {"kind": "boolean", "value": True}})
+    reviewed = composition_render.ReviewedDomainSpecV2.model_validate(spec)
+    with pytest.raises(composition_render.UnsupportedCompositionBoundary):
+        composition_render.render_verified_class(reviewed)
+
+
+def test_body_expression_full_subset_and_fail_closed():
+    from pipeline.domain_v2 import (
+        BinaryExpr, BooleanExpr, FieldExpr, IntegerExpr, NotExpr, OldExpr)
+    node = BinaryExpr(kind="and",
+                      left=NotExpr(expression=FieldExpr(name="door")),
+                      right=OldExpr(expression=FieldExpr(name="door")))
+    assert composition_render._body_expression(
+        node, {"door": "pre_door"}) == "(!(pre_door) && pre_door)"
+    assert composition_render._body_expression(IntegerExpr(value=3), {}) == "3"
+    assert composition_render._body_expression(
+        BooleanExpr(value=False), {}) == "false"
+    bogus = BinaryExpr.model_construct(
+        kind="xor", left=FieldExpr(name="a"), right=FieldExpr(name="b"))
+    with pytest.raises(composition_render.UnsupportedCompositionBoundary):
+        composition_render._body_expression(bogus, {"a": "x", "b": "y"})
+    with pytest.raises(composition_render.UnsupportedCompositionBoundary):
+        composition_render._body_expression(object(), {})
+    with pytest.raises(composition_render.UnsupportedCompositionBoundary):
+        composition_render._body_expression(FieldExpr(name="ghost"), {})
 
 
 def test_has_operation_obligations_ignores_constructor_clauses():

@@ -136,7 +136,10 @@ operations fail closed. Interfaces are emitted as dependency-inversion surfaces 
 independent JML claims, so no unproven second contract source exists.
 
 OpenJML ESC judges the composition: the orchestrator `requires` clause plus reviewed
-invariants must imply every callee precondition. The maximum claim is
+invariants must imply every callee precondition. Component bodies are transcribed
+deterministically from the reviewed effects (pre-captured locals preserve simultaneous
+assignment semantics), so ESC proves concrete effect-executing implementations rather than
+empty contract stubs; the drafting serializer remains unchanged. The maximum claim is
 `SCOPED_COMPOSITION_PROOF` with scope `single_threaded_atomic_contract_composition`,
 `concurrent_linearizability_proved: false`, and dropped-VC or obligation-free exit-0 runs
 reported as `VACUOUS_COMPOSITION`. `reverify` recomputes reverse-dependency impact over the

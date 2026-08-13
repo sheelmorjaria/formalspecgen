@@ -450,9 +450,16 @@ formalspecgen reverify composition.json --changed-module smart_lock --json rever
 ```
 
 A successful run reports `COMPOSITION_VERIFIED` with claim `SCOPED_COMPOSITION_PROOF` and
-scope `single_threaded_atomic_contract_composition`. After a reviewed module contract
-changes, `reverify` traces reverse dependencies through the architecture edges and re-runs
-composition ESC, reporting `REVERIFIED`, `REVERIFICATION_FAILED`, or `NOT_IMPACTED`.
+scope `single_threaded_atomic_contract_composition`. Because the reviewed V2 effects fully
+determine component behavior, composition transcribes them into deterministic Java method
+bodies (simultaneous semantics via pre-captured locals; boolean `false_and_stutter`
+operations check their guard, stutter on failure, and apply effects on success) — so real
+OpenJML ESC proves concrete implementations, not just contract stubs. The drafting
+serializer's empty-body contract classes are unchanged; only the composition tier emits
+effect-executing bodies. After a reviewed module contract changes, `reverify` traces
+reverse dependencies through the architecture edges and re-runs composition ESC, reporting
+`REVERIFIED`, `REVERIFICATION_FAILED`, or `NOT_IMPACTED`. Real-toolchain E2E coverage lives
+in `tests_e2e/test_composition_e2e.py`.
 
 Composition currently fails closed outside a deliberately narrow boundary: one reviewed
 operation per component per use case, void/unavailable semantics only (boolean
