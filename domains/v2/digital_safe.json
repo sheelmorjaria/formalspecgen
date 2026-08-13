@@ -1,0 +1,401 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "DigitalSafe",
+  "module_name": "digital_safe",
+  "actors": 1,
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "safe_state",
+      "bound": [
+        0,
+        2
+      ],
+      "initial": 0
+    },
+    {
+      "kind": "int",
+      "name": "attempts",
+      "bound": [
+        0,
+        3
+      ],
+      "initial": 0
+    }
+  ],
+  "operations": [
+    {
+      "name": "unlock",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_unlock_1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "safe_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        },
+        {
+          "id": "attempts_is_zero",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "attempts"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_unlock_1",
+          "target": "safe_state",
+          "value": {
+            "kind": "integer",
+            "value": 1
+          }
+        }
+      ],
+      "frame": [
+        "safe_state"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "failAttempt",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_fail_1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "safe_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        },
+        {
+          "id": "guard_fail_2",
+          "expression": {
+            "kind": "lt",
+            "left": {
+              "kind": "field",
+              "name": "attempts"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 2
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_fail_1",
+          "target": "attempts",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "field",
+              "name": "attempts"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "attempts"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "blockSafe",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_block_1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "safe_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        },
+        {
+          "id": "guard_block_2",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "attempts"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 2
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_block_1",
+          "target": "safe_state",
+          "value": {
+            "kind": "integer",
+            "value": 2
+          }
+        },
+        {
+          "id": "effect_block_2",
+          "target": "attempts",
+          "value": {
+            "kind": "integer",
+            "value": 3
+          }
+        }
+      ],
+      "frame": [
+        "safe_state",
+        "attempts"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "lock",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_lock_1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "safe_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_lock_1",
+          "target": "safe_state",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        {
+          "id": "effect_lock_2",
+          "target": "attempts",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        }
+      ],
+      "frame": [
+        "safe_state",
+        "attempts"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "AdminReset",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "safe_state_is_blocked",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "safe_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 2
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "set_safe_state_locked",
+          "target": "safe_state",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        {
+          "id": "set_attempts_zero",
+          "target": "attempts",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        }
+      ],
+      "frame": [
+        "safe_state",
+        "attempts"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "InvariantSafeStateBounds",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "safe_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "safe_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "InvariantAttemptsBounds",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "attempts"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "attempts"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "UnlockedRequiresZeroAttempts",
+      "expression": {
+        "kind": "implies",
+        "left": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "safe_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 1
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "attempts"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "BlockedRequiresMaxAttempts",
+      "expression": {
+        "kind": "implies",
+        "left": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "safe_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 2
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "attempts"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 3
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "52ddb0706cae870e17478990794babec5a4b2f586bb216efa87e3d873148385f",
+  "accepted_evidence_sha256": "3d92ca09331d7669809c8d01bc482f750e80506ce3bc5a08f56146b2ee9706e1"
+}

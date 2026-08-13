@@ -73,3 +73,39 @@ def test_critical_without_refinement_is_incomplete_and_never_overclaims():
     assert result["source_refinement_proved"] is False
     assert result["failed_required_gates"] == ["refinement"]
     assert result["warnings"]
+
+
+def test_failed_required_gate_carries_failure_reason():
+    statuses = {"javac": "PASS", "spec_lint": "PASS", "openjml_check": "PASS",
+                "rac_junit": "FAIL"}
+    result = assurance_verdict("standard", statuses,
+                               fail_reasons={"rac_junit":
+                                             "RAC runtime gate: RUNTIME_FAILURES_FOUND "
+                                             "(0/3 tests passed)"})
+    gate = next(g for g in result["gates"] if g["gate"] == "rac_junit")
+    assert "RUNTIME_FAILURES_FOUND" in gate["reason"] and "0/3" in gate["reason"]
+    assert result["final_status"] == "ASSURANCE_INCOMPLETE"
+
+
+def test_failed_gate_without_reason_stays_empty():
+    statuses = {"javac": "PASS", "spec_lint": "PASS", "openjml_check": "FAIL"}
+    result = assurance_verdict("standard", statuses)
+    gate = next(g for g in result["gates"] if g["gate"] == "openjml_check")
+    assert gate["reason"] == ""
+
+
+def test_profile_gate_fail_reasons_summarize_evidence():
+    from pipeline.profile import _gate_fail_reasons
+    statuses = {"rac_junit": "FAIL", "openjml_check": "FAIL"}
+    evidence = {
+        "rac_junit": {"status": "RUNTIME_FAILURES_FOUND", "passed": 1, "failed": 2,
+                      "log": "x" * 300},
+        "openjml_check": {"errors": ["line 3: bogus clause"]},
+    }
+    reasons = _gate_fail_reasons(statuses, evidence)
+    assert "RUNTIME_FAILURES_FOUND" in reasons["rac_junit"]
+    assert "1 passed / 2 failed" in reasons["rac_junit"]
+    assert "bogus clause" in reasons["openjml_check"]
+    # passing gates and absent evidence produce nothing
+    assert _gate_fail_reasons({"javac": "PASS"}, {}) == {}
+    assert _gate_fail_reasons({"tla": "FAIL"}, {})["tla"]

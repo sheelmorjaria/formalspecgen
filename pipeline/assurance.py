@@ -54,15 +54,17 @@ def gate_plan(value: str | AssuranceLevel | None) -> list[GatePolicy]:
 
 
 def assurance_verdict(value: str | AssuranceLevel | None,
-                      gate_statuses: dict[str, str]) -> dict:
+                      gate_statuses: dict[str, str],
+                      fail_reasons: dict[str, str] | None = None) -> dict:
     """Classify completed evidence without promoting samples into proof claims."""
     level = parse_assurance_level(value)
     plan = gate_plan(level)
+    reasons = fail_reasons or {}
     records = []
     failed = []
     for gate in plan:
         status = gate_statuses.get(gate.name, "NOT_RUN") if gate.required else "SKIPPED"
-        reason = gate.skip_reason if not gate.required else ""
+        reason = gate.skip_reason if not gate.required else reasons.get(gate.name, "")
         records.append({"gate": gate.name, "required": gate.required,
                         "status": status, "reason": reason})
         accepted = {"PASS", "VERIFIED", "TESTS_PASSED"}

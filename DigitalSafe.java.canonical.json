@@ -1,0 +1,19 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "digital_safe",
+  "requirement": "Generate the reviewed digital safe",
+  "requirement_sha256": "abf7d824221c384839944e67f58c4b242375b2d3fc5a016517d7cee8c9843708",
+  "contract_sha256": "9fd010fd431869094aa33a0812150d1d014944a54a6928e7a2d34f0b4045345b",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Operations model atomic method calls; concurrent linearizability is not proved."
+  ],
+  "openjml_check": "VERIFIED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/digital_safe.json",
+  "accepted_candidate_sha256": "52ddb0706cae870e17478990794babec5a4b2f586bb216efa87e3d873148385f",
+  "accepted_evidence_sha256": "3d92ca09331d7669809c8d01bc482f750e80506ce3bc5a08f56146b2ee9706e1",
+  "transformation": "DETERMINISTIC_V2_TO_JML"
+}

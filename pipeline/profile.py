@@ -16,6 +16,39 @@ from .tla_backend import generate_and_check
 from .validate import check_stub
 
 
+def _gate_fail_reasons(statuses: dict, evidence: dict) -> dict:
+    """Summarize why each non-passing required gate failed, from its evidence.
+
+    A failed gate with an empty reason is honest but undebuggable; this digs the
+    concrete failure mode (status, counts, first error, log tail) out of the
+    evidence the gate itself recorded.
+    """
+    reasons = {}
+    accepted = {"PASS", "VERIFIED", "TESTS_PASSED", "NOT_APPLICABLE"}
+    for name, status in statuses.items():
+        if status in accepted:
+            continue
+        detail = evidence.get(name)
+        parts = [f"{name} gate {status}"]
+        if isinstance(detail, dict):
+            inner = detail.get("status")
+            if inner and inner != status:
+                parts.append(f"evidence status: {inner}")
+            if "passed" in detail or "failed" in detail:
+                parts.append(f"{detail.get('passed', 0)} passed / "
+                             f"{detail.get('failed', 0)} failed")
+            message = detail.get("message")
+            if message:
+                parts.append(str(message)[:200])
+            errors = detail.get("errors") or detail.get("violations") or []
+            if errors:
+                parts.append(str(errors[0])[:200])
+            elif detail.get("log"):
+                parts.append(str(detail["log"])[-200:].replace("\n", " ").strip())
+        reasons[name] = "; ".join(parts)
+    return reasons
+
+
 def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
                                provider: str = "glm", model: str | None = None,
                                out_dir: str | Path | None = None, max_attempts: int = 5,
@@ -33,12 +66,16 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
     statuses: dict[str, str] = {}
     evidence: dict[str, object] = {}
 
+    def verdict_with_reasons():
+        return assurance_verdict(level, statuses,
+                                 fail_reasons=_gate_fail_reasons(statuses, evidence))
+
     lint = lint_spec(stub)
     blockers = blocking_findings(lint)
     statuses["spec_lint"] = "PASS" if not blockers else "FAIL"
     evidence["spec_lint"] = {"findings": lint, "blocking": blockers}
     if blockers:
-        verdict = assurance_verdict(level, statuses)
+        verdict = verdict_with_reasons()
         return {**verdict, "implementation": None, "evidence": evidence}
 
     if level is not AssuranceLevel.LIGHTWEIGHT:
@@ -46,7 +83,7 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
         statuses["openjml_check"] = "PASS" if checked else "FAIL"
         evidence["openjml_check"] = {"errors": errors}
         if not checked:
-            verdict = assurance_verdict(level, statuses)
+            verdict = verdict_with_reasons()
             return {**verdict, "implementation": None, "evidence": evidence}
 
     if level is AssuranceLevel.CRITICAL:
@@ -64,7 +101,7 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
         statuses["tla"] = "VERIFIED" if architecture.get("status") == "VERIFIED" else "FAIL"
         evidence["tla"] = architecture
         if statuses["tla"] != "VERIFIED":
-            verdict = assurance_verdict(level, statuses)
+            verdict = verdict_with_reasons()
             return {**verdict, "implementation": None, "evidence": evidence}
 
     mode = {AssuranceLevel.CRITICAL: "esc", AssuranceLevel.STANDARD: "check",
@@ -103,7 +140,7 @@ def run_assured_implementation(stub: str, assurance_level: str = "critical", *,
                 runtime.get("status") == "NO_RUNTIME_FAILURE_FOUND" and runtime.get("passed", 0) > 0
                 else "FAIL")
 
-    verdict = assurance_verdict(level, statuses)
+    verdict = verdict_with_reasons()
     result = {**verdict, "implementation": implementation, "evidence": evidence}
     if out_dir:
         root = Path(out_dir)
