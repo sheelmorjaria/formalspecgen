@@ -9,3 +9,4 @@ The active native flow drafts JML from natural language, validates it with
 Infrastructure (config/llm/verify/parse_vcs/strategy/schemas) is ported from
 formalspecDD; see SHARED_LINEAGE.md.
 """
+__version__ = "1.2.1"

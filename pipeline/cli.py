@@ -23,7 +23,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 
-from . import config
+from . import __version__, config
 from .c_support import draft_acsl
 from .canonical_contracts import (
     CanonicalContractConflict, canonical_contract,
@@ -858,7 +858,7 @@ def _domain_candidate_name(value: str) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="formalspecgen",
         description="NL → contracts → bounded architecture evidence → verified implementation")
-    parser.add_argument("--version", action="version", version="formalspecgen 0.1.0")
+    parser.add_argument("--version", action="version", version=f"formalspecgen {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     common = argparse.ArgumentParser(add_help=False)
