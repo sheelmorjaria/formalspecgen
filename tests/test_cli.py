@@ -273,6 +273,17 @@ class CliTests(unittest.TestCase):
                                provider="ollama", model=None, no_clarify=True)
         self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 2)
 
+    def test_implement_dependencies_routes_external_adapter_only(self):
+        adapter = self.root / "StripePaymentGateway.java"
+        adapter.write_text("// UNVERIFIED EXTERNAL BOUNDARY", encoding="utf-8")
+        args = SimpleNamespace(stub=str(adapter), dependencies="stripe", provider="ollama",
+                               model=None, json=None)
+        with patch("pipeline.dependency_injection.inject_dependency",
+                   return_value={"status": "INJECTED", "claim": "UNVERIFIED_EXTERNAL_ADAPTER"}):
+            self.assertEqual(cli.command_implement(args, self.ui), 0)
+        args.stub = str(self.root / "thing.rs")
+        self.assertEqual(cli.command_implement(args, self.ui), 2)
+
     def test_cpp_canonical_draft_rejects_invalid_domain_and_missing_tool(self):
         args = SimpleNamespace(canonical_domain="bad-name", out_file=None)
         with self.assertRaisesRegex(ValueError, "safe module"):

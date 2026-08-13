@@ -262,9 +262,18 @@ def _finish_language_draft(result: dict[str, Any], args: argparse.Namespace, ui:
 
 def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     suffix = Path(args.stub).suffix.lower()
-    if suffix not in {".java", ".jml", ".rs", ".c"}:
+    if suffix not in {".java", ".jml", ".rs", ".c", ".cpp", ".cc", ".cxx"}:
         ui.console.print(f"[bold red]Unsupported implementation source: {suffix or '<none>'}[/bold red]")
         return 2
+    dependency = getattr(args, "dependencies", None)
+    if dependency:
+        if suffix not in {".java", ".jml"}:
+            ui.console.print("[bold red]Dependencies can only fill Java external adapters[/bold red]")
+            return 2
+        from .dependency_injection import inject_dependency
+        result = inject_dependency(args.stub, dependency, provider=args.provider, model=args.model)
+        _write_json(result, args.json, ui.console)
+        return 0 if result["status"] == "INJECTED" else 1
     try:
         result = run_implementation_loop(
             args.stub, assurance_level=args.assurance_level, provider=args.provider,
@@ -943,6 +952,8 @@ def build_parser() -> argparse.ArgumentParser:
     implement.add_argument("--parallel-kernel", default="process_chunk",
                            help="proved Rust kernel name for --parallel-wrapper")
     implement.add_argument("--parallel-out", help="generated parallel Rust destination")
+    implement.add_argument("--dependencies", choices=["stripe"],
+                           help="fill a generated external adapter using a dependency SDK")
 
     check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
     check.add_argument("source")

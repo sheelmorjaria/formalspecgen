@@ -869,6 +869,19 @@ When that core proof succeeds with external Ports present, composition evidence 
 calls; it does not prove the adapter implementation, remote service, transport, credentials,
 availability, response authenticity, or network side effects.
 
+Generated adapter stubs can receive a provider-backed SDK implementation pass:
+
+```bash
+formalspecgen implement StripePaymentGateway.java --dependencies stripe \
+  --provider ollama --json stripe-injection.json
+```
+
+This pass is restricted to files carrying the `UNVERIFIED EXTERNAL BOUNDARY` marker. It preserves
+the adapter's class/interface and JML surface, changes only method bodies, and records
+`UNVERIFIED_EXTERNAL_ADAPTER` with `external_io_safety_proved: false`. Provider output that removes
+the marker or changes the trusted surface fails closed; the adapter remains excluded from
+composition ESC even after SDK calls are injected.
+
 ### Restricted Factory Method application
 
 After the cross-file gate, `apply-refactor` admits one narrow Factory Method shape:
