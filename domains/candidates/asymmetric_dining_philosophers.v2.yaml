@@ -1,0 +1,616 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: AsymmetricDiningPhilosophers
+module_name: asymmetric_dining_philosophers
+actors: 3
+state_variables:
+- kind: int
+  name: fork0
+  bound:
+  - 0
+  - 3
+  initial: 0
+- kind: int
+  name: fork1
+  bound:
+  - 0
+  - 3
+  initial: 0
+- kind: int
+  name: fork2
+  bound:
+  - 0
+  - 3
+  initial: 0
+- kind: int
+  name: pc0
+  bound:
+  - 0
+  - 3
+  initial: 0
+- kind: int
+  name: pc1
+  bound:
+  - 0
+  - 3
+  initial: 0
+- kind: int
+  name: pc2
+  bound:
+  - 0
+  - 3
+  initial: 0
+operations:
+- name: request_0
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc0
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: effect_1
+    target: pc0
+    value:
+      kind: integer
+      value: 1
+  frame:
+  - pc0
+  exception_type: null
+  exception_trigger: null
+- name: pickup_right_0
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: g1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc0
+      right:
+        kind: integer
+        value: 1
+  - id: g2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: e1
+    target: fork1
+    value:
+      kind: integer
+      value: 1
+  - id: e2
+    target: pc0
+    value:
+      kind: integer
+      value: 2
+  frame:
+  - fork1
+  - pc0
+  exception_type: null
+  exception_trigger: null
+- name: pickup_left_0
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc0
+      right:
+        kind: integer
+        value: 2
+  - id: guard_2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 1
+  - id: guard_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork0
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: fork0
+    target: fork0
+    value:
+      kind: integer
+      value: 1
+  - id: pc0
+    target: pc0
+    value:
+      kind: integer
+      value: 3
+  frame:
+  - fork0
+  - pc0
+  exception_type: null
+  exception_trigger: null
+- name: putdown_0
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc0_eq_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc0
+      right:
+        kind: integer
+        value: 3
+  - id: fork0_eq_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork0
+      right:
+        kind: integer
+        value: 1
+  - id: fork1_eq_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 1
+  effects:
+  - id: fork0_assign_0
+    target: fork0
+    value:
+      kind: integer
+      value: 0
+  - id: fork1_assign_0
+    target: fork1
+    value:
+      kind: integer
+      value: 0
+  - id: pc0_assign_0
+    target: pc0
+    value:
+      kind: integer
+      value: 0
+  frame:
+  - fork0
+  - fork1
+  - pc0
+  exception_type: null
+  exception_trigger: null
+- name: request_1
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc1_eq_0
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc1
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: assign_pc1
+    target: pc1
+    value:
+      kind: integer
+      value: 1
+  frame:
+  - pc1
+  exception_type: null
+  exception_trigger: null
+- name: pickup_left_1
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc1_eq_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc1
+      right:
+        kind: integer
+        value: 1
+  - id: fork1_eq_0
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: fork1_assign_2
+    target: fork1
+    value:
+      kind: integer
+      value: 2
+  - id: pc1_assign_2
+    target: pc1
+    value:
+      kind: integer
+      value: 2
+  frame:
+  - fork1
+  - pc1
+  exception_type: null
+  exception_trigger: null
+- name: pickup_right_1
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc1
+      right:
+        kind: integer
+        value: 2
+  - id: guard_2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 2
+  - id: guard_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork2
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: fork2
+    target: fork2
+    value:
+      kind: integer
+      value: 2
+  - id: pc1
+    target: pc1
+    value:
+      kind: integer
+      value: 3
+  frame:
+  - fork2
+  - pc1
+  exception_type: null
+  exception_trigger: null
+- name: putdown_1
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc1_eq_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc1
+      right:
+        kind: integer
+        value: 3
+  - id: fork1_eq_2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork1
+      right:
+        kind: integer
+        value: 2
+  - id: fork2_eq_2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork2
+      right:
+        kind: integer
+        value: 2
+  effects:
+  - id: fork1_assign_0
+    target: fork1
+    value:
+      kind: integer
+      value: 0
+  - id: fork2_assign_0
+    target: fork2
+    value:
+      kind: integer
+      value: 0
+  - id: pc1_assign_0
+    target: pc1
+    value:
+      kind: integer
+      value: 0
+  frame:
+  - fork1
+  - fork2
+  - pc1
+  exception_type: null
+  exception_trigger: null
+- name: request_2
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc2_eq_0
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc2
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: assign_pc2
+    target: pc2
+    value:
+      kind: integer
+      value: 1
+  frame:
+  - pc2
+  exception_type: null
+  exception_trigger: null
+- name: pickup_left_2
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc2_eq_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc2
+      right:
+        kind: integer
+        value: 1
+  - id: fork2_eq_0
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork2
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: fork2_assigned
+    target: fork2
+    value:
+      kind: integer
+      value: 3
+  - id: pc2_assigned
+    target: pc2
+    value:
+      kind: integer
+      value: 2
+  frame:
+  - fork2
+  - pc2
+  exception_type: null
+  exception_trigger: null
+- name: pickup_right_2
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc2
+      right:
+        kind: integer
+        value: 2
+  - id: guard_2
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork2
+      right:
+        kind: integer
+        value: 3
+  - id: guard_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork0
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: fork0
+    target: fork0
+    value:
+      kind: integer
+      value: 3
+  - id: pc2
+    target: pc2
+    value:
+      kind: integer
+      value: 3
+  frame:
+  - fork0
+  - pc2
+  exception_type: null
+  exception_trigger: null
+- name: putdown_2
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: pc2_eq_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: pc2
+      right:
+        kind: integer
+        value: 3
+  - id: fork2_eq_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork2
+      right:
+        kind: integer
+        value: 3
+  - id: fork0_eq_3
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: fork0
+      right:
+        kind: integer
+        value: 3
+  effects:
+  - id: fork2_assign_0
+    target: fork2
+    value:
+      kind: integer
+      value: 0
+  - id: fork0_assign_0
+    target: fork0
+    value:
+      kind: integer
+      value: 0
+  - id: pc2_assign_0
+    target: pc2
+    value:
+      kind: integer
+      value: 0
+  frame:
+  - fork2
+  - fork0
+  - pc2
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: EatingPhilosopherOwnsAdjacentForks
+  expression:
+    kind: and
+    left:
+      kind: and
+      left:
+        kind: implies
+        left:
+          kind: eq
+          left:
+            kind: field
+            name: pc0
+          right:
+            kind: integer
+            value: 3
+        right:
+          kind: and
+          left:
+            kind: eq
+            left:
+              kind: field
+              name: fork0
+            right:
+              kind: integer
+              value: 1
+          right:
+            kind: eq
+            left:
+              kind: field
+              name: fork1
+            right:
+              kind: integer
+              value: 1
+      right:
+        kind: implies
+        left:
+          kind: eq
+          left:
+            kind: field
+            name: pc1
+          right:
+            kind: integer
+            value: 3
+        right:
+          kind: and
+          left:
+            kind: eq
+            left:
+              kind: field
+              name: fork1
+            right:
+              kind: integer
+              value: 2
+          right:
+            kind: eq
+            left:
+              kind: field
+              name: fork2
+            right:
+              kind: integer
+              value: 2
+    right:
+      kind: implies
+      left:
+        kind: eq
+        left:
+          kind: field
+          name: pc2
+        right:
+          kind: integer
+          value: 3
+      right:
+        kind: and
+        left:
+          kind: eq
+          left:
+            kind: field
+            name: fork2
+          right:
+            kind: integer
+            value: 3
+        right:
+          kind: eq
+          left:
+            kind: field
+            name: fork0
+          right:
+            kind: integer
+            value: 3

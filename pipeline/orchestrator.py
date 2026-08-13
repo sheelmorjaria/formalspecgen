@@ -63,9 +63,15 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
         mode = "esc" if assurance_level == "critical" else "check"
         kwargs.pop("clarifications", None)
         kwargs.pop("abstraction", None)
+        # Reviewed V2 serializers emit complete bodies by deterministically
+        # transcribing the promoted effects. Sending those bodies through an
+        # LLM again would weaken the trust boundary and can delete trusted APIs.
+        # Native verification is the next gate for this path, not synthesis.
+        if v2_reviewed_domain:
+            kwargs["candidate"] = code
         result = synthesize_polyglot_implementation(
             code, language=language, provider=provider, verification_mode=mode,
-            runtime_gate=assurance_level in {"critical", "standard"},
+            runtime_gate=assurance_level == "standard",
             v2_reviewed_domain=v2_reviewed_domain,
             v2_validation_evidence=v2_validation_evidence, **kwargs)
         result["assurance_level_requested"] = assurance_level
