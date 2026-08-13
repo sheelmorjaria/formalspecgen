@@ -152,6 +152,8 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
             result = draft_rust(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "rs")
         if args.lang == "c":
+            if getattr(args, "canonical_domain", None):
+                return _canonical_c_draft(args, ui, store, state, enriched)
             result = draft_acsl(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "c")
         if getattr(args, "canonical_domain", None):
@@ -558,6 +560,64 @@ def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: Sessi
     store.save(state)
     ui.console.print(Panel(
         f"Canonical Rust contract: [path]{destination}[/path]\n"
+        f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
+        title="Reviewed domain contract", border_style="green"))
+    return 0
+
+
+def _canonical_c_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
+                       state: dict[str, Any], enriched: str) -> int:
+    """Deterministically lower a reviewed V2 domain into a C/ACSL contract."""
+    from .c_support import check_c_syntax, lint_acsl
+    from .v2_acsl_serializer import render_reviewed_v2_acsl_file
+    requested_domain = args.canonical_domain.strip().lower()
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested_domain):
+        raise ValueError("canonical domain must be a safe module identifier")
+    reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested_domain}.json"
+    if not reviewed_path.exists():
+        raise ValueError(
+            f"canonical C drafting requires a reviewed V2 domain; "
+            f"{reviewed_path} not found (generate and promote one first)")
+    reviewed, code = render_reviewed_v2_acsl_file(reviewed_path)
+    findings = lint_acsl(code)
+    if any(item.get("severity") == "error" for item in findings):
+        raise ValueError("reviewed canonical contract failed ACSL lint: " +
+                         "; ".join(item.get("message", "") for item in findings
+                                   if item.get("severity") == "error"))
+    check = check_c_syntax(code)
+    if check.get("status") != "C_CHECKED":
+        raise ValueError("C check gate failed on the reviewed canonical "
+                         f"contract: {check.get('output', '')[-500:]}")
+    destination = Path(args.out_file or f"{reviewed.module_name}.c")
+    destination.write_text(code, encoding="utf-8")
+    evidence = {
+        "status": "CANONICAL_CONTRACT",
+        "claim": "REVIEWED_TRANSFORMATION",
+        "domain": reviewed.module_name,
+        "requirement": enriched,
+        "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
+        "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
+        "assumptions": [
+            "Generated deterministically from a hash-bound reviewed V2 domain.",
+            "ACSL contracts encode the reviewed semantics; no LLM was involved.",
+            "Bodies transcribe reviewed effects; concurrent linearizability is not proved.",
+        ],
+        "c_check": check["status"],
+        "human_acceptance_required": True,
+        "source_refinement_proved": False,
+        "reviewed_v2_domain": str(reviewed_path.resolve()),
+        "accepted_candidate_sha256": reviewed.accepted_candidate_sha256,
+        "accepted_evidence_sha256": reviewed.accepted_evidence_sha256,
+        "transformation": "DETERMINISTIC_V2_TO_ACSL",
+    }
+    evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
+    evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
+                             encoding="utf-8")
+    state["last_stub"] = str(destination.resolve())
+    state["last_run"] = str(destination.parent.resolve())
+    store.save(state)
+    ui.console.print(Panel(
+        f"Canonical C contract: [path]{destination}[/path]\n"
         f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
         title="Reviewed domain contract", border_style="green"))
     return 0

@@ -407,8 +407,22 @@ by `ensures` on exit, with the constructor proving them for the initial state. T
 safety lint and the contract-erased `rustc` gate before writing the file plus its
 `.canonical.json` evidence (`DETERMINISTIC_V2_TO_PRUSTI`), and fails closed on unsupported
 semantics. Prusti itself judges the annotated source when installed; without it the claim
-remains `REVIEWED_TRANSFORMATION`, never `DEDUCTIVE_PROOF`. Deterministic ACSL lowering for C
-is not yet implemented; `--lang c --canonical-domain` still routes to the LLM drafting path.
+remains `REVIEWED_TRANSFORMATION`, never `DEDUCTIVE_PROOF`. The same lowering exists for C/ACSL:
+
+```bash
+formalspecgen draft "Generate the reviewed bounded counter" --no-clarify \
+  --canonical-domain bounded_counter --lang c --out-file bounded_counter.c
+```
+
+`pipeline/v2_acsl_serializer.py` emits a typedef struct plus `{module}_{operation}`
+functions whose `requires`/`assigns`/`ensures` clauses derive from the reviewed typed
+trees; bodies transcribe the reviewed effects with pre-captured locals.  ACSL has no
+persistent struct invariants, so reviewed invariants are assumed on entry and
+re-established on exit of every mutator (the same per-function encoding the Rust lane
+uses).  The command runs ACSL lint and a strict C11 gate before writing the file plus
+`.canonical.json` evidence (`DETERMINISTIC_V2_TO_ACSL`).  With Frama-C installed,
+`formalspecgen verify bounded_counter.c --mode esc` runs WP; the deterministic
+bounded_counter contract proves 27/27 goals including generated RTE obligations.
 
 A critical Java/JML implementation can use a reviewed V2 artifact directly:
 

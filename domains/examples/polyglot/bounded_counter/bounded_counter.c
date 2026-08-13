@@ -1,27 +1,51 @@
-#include <stddef.h>
+/* Deterministic contract lowered from the reviewed V2 domain 'bounded_counter'.
+ * Human review of the reviewed artifact is required before trust. */
 
-/*@ 
+typedef struct {
+    int value;
+} bounded_counter;
+
+/*@
   requires \valid(counter);
-  requires \valid_read(max_value);
-  requires *max_value >= 0;
-  requires *counter >= 0;
-  requires *counter <= *max_value;
-  
-  assigns *counter;
-  
-  ensures *counter == (*counter < *max_value) ? *counter + 1 : 0;
-  ensures \result == (*counter < *max_value) ? 1 : 0;
+  assigns counter->value;
+  ensures counter->value == 0;
+  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
 */
-int reviewed_bounded_counter(int* counter, const int* max_value) {
-    if (counter == NULL || max_value == NULL) {
-        return 0;
-    }
-    
-    if (*counter < *max_value) {
-        (*counter)++;
-        return 1;
-    } else {
-        *counter = 0;
-        return 0;
-    }
+void bounded_counter_init(bounded_counter *counter) {
+    counter->value = 0;
+}
+
+/*@
+  requires \valid_read(counter);
+  assigns \nothing;
+  ensures \result == counter->value;
+*/
+int bounded_counter_get_value(const bounded_counter *counter) {
+    return counter->value;
+}
+
+/*@
+  requires \valid(counter);
+  requires (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  requires counter->value < 5;
+  assigns counter->value;
+  ensures counter->value == \old(counter->value) + 1;
+  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+*/
+void bounded_counter_increment(bounded_counter *counter) {
+    int pre_value = counter->value;
+    counter->value = pre_value + 1;
+}
+
+/*@
+  requires \valid(counter);
+  requires (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+  requires counter->value > 0;
+  assigns counter->value;
+  ensures counter->value == \old(counter->value) - 1;
+  ensures (0 <= counter->value) && (counter->value <= 5) && (counter->value >= 0) && (counter->value <= 5);
+*/
+void bounded_counter_decrement(bounded_counter *counter) {
+    int pre_value = counter->value;
+    counter->value = pre_value - 1;
 }
