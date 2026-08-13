@@ -25,8 +25,8 @@ independent solver stacks — no LLM touches the contracts:
 | Lane | Prover | Live evidence |
 | --- | --- | --- |
 | Java/JML | OpenJML ESC + TLC | `DEDUCTIVE_PROOF` with `SOURCE_MODEL_REFINEMENT` |
-| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7; digital_safe: 8/8; Peterson: 12/12 plus 6/6 refinement |
-| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42; bounded_counter: 27/27; digital_safe: 56/56; Peterson: 87/87 plus 6/6 refinement |
+| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | Peterson: 12/12 plus 6/6 refinement; ABP: 11/11 plus 6/6 refinement |
+| C/ACSL | Frama-C WP + Z3 | Peterson: 87/87 plus 6/6 refinement; ABP: 82/82 plus 6/6 refinement |
 
 ```bash
 formalspecgen draft "..." --canonical-domain <module> --lang {java,rust,c}   # deterministic
@@ -57,6 +57,20 @@ After revalidation and hash-bound promotion, Prusti proved 12/12 items, Frama-C 
 goals, and both native refinement gates proved all six transition correspondences. The complete
 scope, certificates, artifacts, and the deliberate weak-memory limitation are recorded in
 [`domains/examples/polyglot/peterson/README.md`](domains/examples/polyglot/peterson/README.md).
+
+### Alternating Bit Protocol benchmark
+
+The bounded ABP evaluation models unreliable single-slot message and acknowledgement channels with
+`-1` as the empty sentinel. Six atomic transitions cover sending, receiving, retransmission, and
+independent loss of data or acknowledgements. Four phase-consistency invariants prevent stale data
+or acknowledgements from advancing the sender or receiver out of order.
+
+TLC validated all 18 reachable states and 36 transitions. Prusti verified 11/11 items, Frama-C WP
+proved 82/82 goals, and both native refinement gates proved all six transition correspondences.
+The benchmark also hardened negative-integer lowering, scalar expression type checking, redundant
+frame canonicalization, and conditional TLA+ `Integers` imports without invalidating existing
+positive-only serialization hashes. Full results and scope are recorded in
+[`domains/examples/polyglot/alternating_bit_protocol/README.md`](domains/examples/polyglot/alternating_bit_protocol/README.md).
 
 ### Assurance claim disclaimer
 

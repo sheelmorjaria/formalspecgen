@@ -100,6 +100,9 @@ def _dsl_expression(source: str, fields: set[str]) -> dict[str, Any]:
             return {"kind": "integer", "value": node.value}
         if isinstance(node, BooleanLiteral):
             return {"kind": "boolean", "value": node.value}
+        if (isinstance(node, UnaryExpr) and node.kind == "neg" and
+                isinstance(node.operand, IntegerLiteral)):
+            return {"kind": "integer", "value": -node.operand.value}
         if isinstance(node, UnaryExpr) and node.kind == "not":
             return {"kind": "not", "expression": lower(node.operand)}
         if isinstance(node, JmlBinaryExpr) and node.kind in {
@@ -162,6 +165,16 @@ def _compile_domain_spec_v2_staged(request: str, context: list[str], chat_fn: Ca
             candidate_header = _DomainHeaderV2.model_validate(_extract_json(header_raw))
             fields = set(variable.name for variable in candidate_header.state_variables)
             for plan in candidate_header.operation_plans:
+                effect_targets = list(plan.effect_values)
+                if not set(effect_targets).issubset(fields):
+                    raise ValueError(
+                        f"staged operation plan {plan.name!r} has invalid frame: "
+                        "effect targets must be declared fields")
+                # The write frame is redundant in the compact manifest: its only
+                # valid value is the unique ordered set of effect-map keys.
+                # Canonicalize it deterministically instead of asking the model
+                # to reproduce the same information twice.
+                plan.frame = effect_targets
                 for expression in plan.guard_expressions:
                     _dsl_expression(expression, fields)
                 for expression in plan.effect_values.values():

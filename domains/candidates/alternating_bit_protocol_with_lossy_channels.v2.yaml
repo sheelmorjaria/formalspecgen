@@ -1,0 +1,310 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: AlternatingBitProtocolWithLossyChannels
+module_name: alternating_bit_protocol_with_lossy_channels
+actors: 1
+state_variables:
+- kind: int
+  name: sender_bit
+  bound:
+  - 0
+  - 1
+  initial: 0
+- kind: int
+  name: receiver_bit
+  bound:
+  - 0
+  - 1
+  initial: 0
+- kind: int
+  name: msg_channel
+  bound:
+  - -1
+  - 1
+  initial: -1
+- kind: int
+  name: ack_channel
+  bound:
+  - -1
+  - 1
+  initial: -1
+operations:
+- name: send_msg
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: msg_channel
+      right:
+        kind: integer
+        value: -1
+  effects:
+  - id: effect_1
+    target: msg_channel
+    value:
+      kind: field
+      name: sender_bit
+  frame:
+  - msg_channel
+  exception_type: null
+  exception_trigger: null
+- name: drop_msg
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: neq
+      left:
+        kind: field
+        name: msg_channel
+      right:
+        kind: integer
+        value: -1
+  effects:
+  - id: effect_1
+    target: msg_channel
+    value:
+      kind: integer
+      value: -1
+  frame:
+  - msg_channel
+  exception_type: null
+  exception_trigger: null
+- name: receive_msg
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: and
+      left:
+        kind: eq
+        left:
+          kind: field
+          name: msg_channel
+        right:
+          kind: field
+          name: receiver_bit
+      right:
+        kind: eq
+        left:
+          kind: field
+          name: ack_channel
+        right:
+          kind: integer
+          value: -1
+  effects:
+  - id: effect_1
+    target: ack_channel
+    value:
+      kind: field
+      name: receiver_bit
+  - id: effect_2
+    target: msg_channel
+    value:
+      kind: integer
+      value: -1
+  - id: effect_3
+    target: receiver_bit
+    value:
+      kind: sub
+      left:
+        kind: integer
+        value: 1
+      right:
+        kind: field
+        name: receiver_bit
+  frame:
+  - ack_channel
+  - msg_channel
+  - receiver_bit
+  exception_type: null
+  exception_trigger: null
+- name: drop_ack
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: neq
+      left:
+        kind: field
+        name: ack_channel
+      right:
+        kind: integer
+        value: -1
+  effects:
+  - id: ack_channel
+    target: ack_channel
+    value:
+      kind: integer
+      value: -1
+  frame:
+  - ack_channel
+  exception_type: null
+  exception_trigger: null
+- name: receive_ack
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: ack_channel
+      right:
+        kind: field
+        name: sender_bit
+  effects:
+  - id: ack_channel
+    target: ack_channel
+    value:
+      kind: integer
+      value: -1
+  - id: sender_bit
+    target: sender_bit
+    value:
+      kind: sub
+      left:
+        kind: integer
+        value: 1
+      right:
+        kind: field
+        name: sender_bit
+  frame:
+  - ack_channel
+  - sender_bit
+  exception_type: null
+  exception_trigger: null
+- name: resend_ack
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: g1
+    expression:
+      kind: and
+      left:
+        kind: and
+        left:
+          kind: neq
+          left:
+            kind: field
+            name: msg_channel
+          right:
+            kind: integer
+            value: -1
+        right:
+          kind: neq
+          left:
+            kind: field
+            name: msg_channel
+          right:
+            kind: field
+            name: receiver_bit
+      right:
+        kind: eq
+        left:
+          kind: field
+          name: ack_channel
+        right:
+          kind: integer
+          value: -1
+  effects:
+  - id: e1
+    target: ack_channel
+    value:
+      kind: field
+      name: msg_channel
+  - id: e2
+    target: msg_channel
+    value:
+      kind: integer
+      value: -1
+  frame:
+  - ack_channel
+  - msg_channel
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: PhaseConsistencyInvariant1
+  expression:
+    kind: implies
+    left:
+      kind: eq
+      left:
+        kind: field
+        name: msg_channel
+      right:
+        kind: field
+        name: receiver_bit
+    right:
+      kind: eq
+      left:
+        kind: field
+        name: sender_bit
+      right:
+        kind: field
+        name: receiver_bit
+- id: PhaseConsistencyInvariant2
+  expression:
+    kind: implies
+    left:
+      kind: eq
+      left:
+        kind: field
+        name: ack_channel
+      right:
+        kind: field
+        name: sender_bit
+    right:
+      kind: neq
+      left:
+        kind: field
+        name: sender_bit
+      right:
+        kind: field
+        name: receiver_bit
+- id: PhaseConsistencyInvariant3
+  expression:
+    kind: implies
+    left:
+      kind: eq
+      left:
+        kind: field
+        name: sender_bit
+      right:
+        kind: field
+        name: receiver_bit
+    right:
+      kind: neq
+      left:
+        kind: field
+        name: ack_channel
+      right:
+        kind: field
+        name: sender_bit
+- id: PhaseConsistencyInvariant4
+  expression:
+    kind: implies
+    left:
+      kind: neq
+      left:
+        kind: field
+        name: sender_bit
+      right:
+        kind: field
+        name: receiver_bit
+    right:
+      kind: neq
+      left:
+        kind: field
+        name: msg_channel
+      right:
+        kind: field
+        name: receiver_bit

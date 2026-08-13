@@ -83,6 +83,70 @@ def test_evaluator_supports_typed_logical_negation():
         expression=BooleanExpr(value=True))), {}) is True
 
 
+def test_schema_rejects_mixed_boolean_integer_expressions_and_effects():
+    variables = [{"kind": "bool", "name": "bit", "initial": False}]
+    mixed_guard = {"name": "step", "return_type": "void",
+        "failure_semantics": "unavailable", "guards": [{"id": "bad", "expression": {
+            "kind": "eq", "left": {"kind": "field", "name": "bit"},
+            "right": {"kind": "integer", "value": -1}}}],
+        "effects": [], "frame": []}
+    with pytest.raises(ValueError, match="same scalar type"):
+        spec_with(mixed_guard, variables=variables,
+                  invariant={"id": "Typed", "expression": {
+                      "kind": "boolean", "value": True}})
+
+    mixed_effect = {"name": "step", "return_type": "void",
+        "failure_semantics": "unavailable", "guards": [],
+        "effects": [{"id": "bad", "target": "bit",
+                     "value": {"kind": "integer", "value": 1}}], "frame": ["bit"]}
+    with pytest.raises(ValueError, match="does not match its target"):
+        spec_with(mixed_effect, variables=variables,
+                  invariant={"id": "Typed", "expression": {
+                      "kind": "boolean", "value": True}})
+
+
+def test_expression_type_checker_rejects_wrong_unary_arithmetic_and_logic_sorts():
+    from pipeline.domain_v2 import (
+        BinaryExpr, BooleanExpr, IntegerExpr, NotExpr, _expression_type,
+    )
+    with pytest.raises(ValueError, match="boolean operand"):
+        _expression_type(NotExpr(expression=IntegerExpr(value=1)), {})
+    with pytest.raises(ValueError, match="integer operands"):
+        _expression_type(BinaryExpr(kind="add", left=BooleanExpr(value=True),
+                                    right=IntegerExpr(value=1)), {})
+    with pytest.raises(ValueError, match="boolean operands"):
+        _expression_type(BinaryExpr(kind="and", left=IntegerExpr(value=1),
+                                    right=BooleanExpr(value=True)), {})
+
+
+def test_schema_requires_boolean_guards_exception_triggers_and_invariants():
+    variables = [{"kind": "int", "name": "x", "bound": [0, 2], "initial": 0}]
+    integer = {"kind": "integer", "value": 1}
+    bad_guard = {"name": "step", "return_type": "void",
+        "failure_semantics": "unavailable",
+        "guards": [{"id": "bad", "expression": integer}],
+        "effects": [], "frame": []}
+    with pytest.raises(ValueError, match="guard bad must be boolean"):
+        spec_with(bad_guard, variables=variables,
+                  invariant={"id": "Typed", "expression": {
+                      "kind": "boolean", "value": True}})
+
+    bad_trigger = {"name": "step", "return_type": "void",
+        "failure_semantics": "exception", "exception_type": "Failure",
+        "exception_trigger": integer, "guards": [], "effects": [], "frame": []}
+    with pytest.raises(ValueError, match="exception trigger must be boolean"):
+        spec_with(bad_trigger, variables=variables,
+                  invariant={"id": "Typed", "expression": {
+                      "kind": "boolean", "value": True}})
+
+    valid = {"name": "step", "return_type": "void",
+             "failure_semantics": "unavailable", "guards": [],
+             "effects": [], "frame": []}
+    with pytest.raises(ValueError, match="invariant Typed must be boolean"):
+        spec_with(valid, variables=variables,
+                  invariant={"id": "Typed", "expression": integer})
+
+
 def test_initial_invariant_failure_is_reported():
     op={"name":"stay","return_type":"void","failure_semantics":"unavailable",
         "guards":[],"effects":[],"frame":[]}

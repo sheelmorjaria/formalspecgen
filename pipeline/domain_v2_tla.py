@@ -28,6 +28,17 @@ def _unchanged(names: list[str]) -> list[str]:
     return [f"    /\\ UNCHANGED <<{', '.join(names)}>>"] if names else []
 
 
+def _contains_negative_integer(value) -> bool:
+    if isinstance(value, dict):
+        if (value.get("kind") == "integer" and isinstance(value.get("value"), int) and
+                value["value"] < 0):
+            return True
+        return any(_contains_negative_integer(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_negative_integer(item) for item in value)
+    return False
+
+
 def render_v2_tla(spec: DomainSpecV2) -> tuple[str, str]:
     domain_vars = [item.name for item in spec.state_variables]
     boolean_ops = [item for item in spec.operations if item.return_type == "boolean"]
@@ -73,7 +84,15 @@ def render_v2_tla(spec: DomainSpecV2) -> tuple[str, str]:
             actions.append(action); next_items.append(f"    \\/ {operation.name}")
     invariants='\n'.join(f"{item.id} == {render_expression(item.expression)}"
                          for item in spec.tlc_invariants)
-    tla=(f"---- MODULE {spec.domain_name} ----\nEXTENDS Naturals\n\n" +
+    # Preserve canonical positive-only serialization while selecting Integers
+    # when bounds, initial values, or expressions use a negative sentinel.
+    needs_integers = any(
+        not isinstance(item, BoolStateVariable) and
+        (item.bound[0] < 0 or item.initial < 0)
+        for item in spec.state_variables) or _contains_negative_integer(
+            spec.model_dump(mode="json"))
+    arithmetic_module = "Integers" if needs_integers else "Naturals"
+    tla=(f"---- MODULE {spec.domain_name} ----\nEXTENDS {arithmetic_module}\n\n" +
          ("CONSTANTS Actors\n\n" if boolean_ops else "") +
          f"VARIABLES {', '.join(variables)}\nvars == <<{', '.join(variables)}>>\n\n" +
          "Init ==\n"+'\n'.join(init)+"\n\nTypeOK ==\n"+'\n'.join(typeok)+"\n\n"+

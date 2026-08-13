@@ -120,6 +120,38 @@ class DomainGeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(LLMError, "staged candidate generation failed closed"):
             compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))
 
+    def test_v2_staged_manifest_canonicalizes_frame_from_effect_targets(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        valid_plan = {"name": "enable", "frame": ["enabled"],
+                      "guard_expressions": [], "effect_values": {"enabled": "true"}}
+        invalid_header = {**header, "operation_plans": [{
+            **valid_plan, "frame": ["enabled", "enabled"]}]}
+        header_responses = [invalid_header]
+        invariant = {"id": "EnabledClause", "expression": "enabled == true"}
+        operation = {
+            "name": "enable", "return_type": "void", "failure_semantics": "none",
+            "guards": [], "effects": [{"id": "set", "target": "enabled",
+                                          "value": "true"}],
+            "frame": ["enabled"], "exception_type": None, "exception_trigger": None}
+
+        def structured_for(_schema, name):
+            def chat(_messages, _model, _temperature):
+                response = (header_responses.pop(0) if name == "v2_domain_header" else
+                            invariant if name == "v2_domain_invariant_clause" else operation)
+                return json.dumps(response), "ollama", {}
+            chat.structured_for = structured_for
+            return chat
+
+        progress = []
+        spec, *_ = compile_domain_spec_v2(
+            "A switch", [], [], structured_for({}, "root"), progress=progress.append)
+        self.assertEqual(spec.operations[0].frame, ["enabled"])
+        self.assertFalse(any("Repairing V2 manifest" in message for message in progress))
+
     def test_compact_v2_expression_parser_is_strict_and_preserves_precedence(self):
         expression = _dsl_expression(
             "pc0 == 3 ==> (fork0 == 1 && fork1 == 1)", {"pc0", "fork0", "fork1"})
@@ -131,6 +163,13 @@ class DomainGeneratorTests(unittest.TestCase):
             _dsl_expression("pc0 * 2", {"pc0"})
         self.assertEqual(_dsl_expression("!(pc0 == 0) || true", {"pc0"})["kind"], "or")
         self.assertEqual(_dsl_expression("pc0 + 1", {"pc0"})["kind"], "add")
+        self.assertEqual(_dsl_expression("msg_channel == -1", {"msg_channel"}), {
+            "kind": "eq",
+            "left": {"kind": "field", "name": "msg_channel"},
+            "right": {"kind": "integer", "value": -1},
+        })
+        with self.assertRaisesRegex(ValueError, "unsupported V2 expression construct"):
+            _dsl_expression("-pc0", {"pc0"})
         with self.assertRaisesRegex(ValueError, "unsupported V2 expression construct"):
             _dsl_expression("other.pc0 == 0", {"pc0"})
 
@@ -261,7 +300,7 @@ class DomainGeneratorTests(unittest.TestCase):
         header["invariant_plans"] = [{"id": "EnabledIsBoolean", "clause_names": ["one"]}]
         header["operation_plans"][0]["frame"] = ["missing"]
         header["operation_plans"][0]["effect_values"] = {"missing": "true"}
-        responses = {"v2_domain_header": [header],
+        responses = {"v2_domain_header": [header, header, header],
             "v2_domain_invariant_clause": [{"id": "one", "expression": "enabled == true"}]}
         with self.assertRaisesRegex(LLMError, "has invalid frame"):
             compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))

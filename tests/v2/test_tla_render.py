@@ -36,6 +36,7 @@ def test_void_action_and_typed_invariant_render_without_actor_state():
     op={"name":"Increment","return_type":"void","failure_semantics":"unavailable",
       "guards":[],"effects":[{"id":"inc","target":"x","value":{"kind":"add","left":{"kind":"old","expression":{"kind":"field","name":"x"}},"right":{"kind":"integer","value":1}}}],"frame":["x"]}
     tla,cfg=render_v2_tla(spec_with(op))
+    assert "EXTENDS Naturals" in tla
     assert "CONSTANTS Actors" not in tla and "callResult" not in tla
     assert "Increment ==\n    /\\ TRUE" in tla
     assert "x' = (x + 1)" in tla
@@ -78,3 +79,17 @@ def test_expression_renderer_emits_tla_negation():
     from pipeline.domain_v2 import BooleanExpr, NotExpr
     from pipeline.domain_v2_tla import render_expression
     assert render_expression(NotExpr(expression=BooleanExpr(value=False))) == "~(FALSE)"
+
+
+def test_renderer_extends_integers_for_negative_bounded_sentinels():
+    op={"name":"Clear","return_type":"void","failure_semantics":"unavailable",
+        "guards":[],"effects":[{"id":"clear","target":"channel",
+        "value":{"kind":"integer","value":-1}}],"frame":["channel"]}
+    variables=[{"kind":"int","name":"channel","bound":[-1,1],"initial":-1}]
+    tla,_=render_v2_tla(spec_with(op,variables=variables))
+    assert "EXTENDS Integers" in tla
+    assert "channel \\in -1..1" in tla
+    assert "channel' = -1" in tla
+
+    from pipeline.domain_v2_tla import _contains_negative_integer
+    assert _contains_negative_integer({"nested": [{"kind": "integer", "value": -2}]})

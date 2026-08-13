@@ -187,6 +187,36 @@ def _referenced_fields(expression: ExpressionIR) -> set[str]:
     return set()
 
 
+def _expression_type(expression: ExpressionIR, fields: dict[str, str]) -> str:
+    """Infer the closed V2 scalar type and reject mixed-sort expressions."""
+    if isinstance(expression, FieldExpr):
+        return fields[expression.name]
+    if isinstance(expression, IntegerExpr):
+        return "int"
+    if isinstance(expression, BooleanExpr):
+        return "bool"
+    if isinstance(expression, OldExpr):
+        return _expression_type(expression.expression, fields)
+    if isinstance(expression, NotExpr):
+        operand = _expression_type(expression.expression, fields)
+        if operand != "bool":
+            raise ValueError("not expression requires a boolean operand")
+        return "bool"
+    left = _expression_type(expression.left, fields)
+    right = _expression_type(expression.right, fields)
+    if expression.kind in {"eq", "neq"}:
+        if left != right:
+            raise ValueError("equality operands must have the same scalar type")
+        return "bool"
+    if expression.kind in {"lt", "lte", "gt", "gte", "add", "sub"}:
+        if left != "int" or right != "int":
+            raise ValueError(f"{expression.kind} requires integer operands")
+        return "int" if expression.kind in {"add", "sub"} else "bool"
+    if left != "bool" or right != "bool":
+        raise ValueError(f"{expression.kind} requires boolean operands")
+    return "bool"
+
+
 class DomainSpecV2(_StrictModel):
     schema_version: Literal[2] = 2
     review_status: Literal["unreviewed", "reviewed"] = "unreviewed"
@@ -222,6 +252,8 @@ class DomainSpecV2(_StrictModel):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} must be unique")
         declared = set(groups["state variables"])
+        field_types = {item.name: ("bool" if isinstance(item, BoolStateVariable) else "int")
+                       for item in self.state_variables}
         reserved = {"Init", "Next", "Spec", "TypeOK", "vars", "Actors", "callResult"}
         if declared & reserved:
             raise ValueError("state variable uses a reserved TLA+ identifier")
@@ -249,10 +281,22 @@ class DomainSpecV2(_StrictModel):
             )
             if (set(operation.frame) | set(targets) | references) - declared:
                 raise ValueError(f"{operation.name} references undeclared state fields")
+            for guard in operation.guards:
+                if _expression_type(guard.expression, field_types) != "bool":
+                    raise ValueError(f"{operation.name} guard {guard.id} must be boolean")
+            for effect in operation.effects:
+                if _expression_type(effect.value, field_types) != field_types[effect.target]:
+                    raise ValueError(
+                        f"{operation.name} effect {effect.id} type does not match its target")
+            if (operation.exception_trigger is not None and
+                    _expression_type(operation.exception_trigger, field_types) != "bool"):
+                raise ValueError(f"{operation.name} exception trigger must be boolean")
         for invariant in self.tlc_invariants:
             if invariant.id in operator_names:
                 raise ValueError(f"invariant {invariant.id} collides with a TLA+ operator")
             operator_names.add(invariant.id)
             if _referenced_fields(invariant.expression) - declared:
                 raise ValueError(f"invariant {invariant.id} references undeclared state fields")
+            if _expression_type(invariant.expression, field_types) != "bool":
+                raise ValueError(f"invariant {invariant.id} must be boolean")
         return self
