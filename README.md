@@ -17,6 +17,27 @@ The governing rule is:
 
 > The LLM proposes; deterministic compilers transform; formal tools judge; humans control trusted assumptions.
 
+### Verified polyglot scorecard
+
+One reviewed V2 domain lowers deterministically into three languages and is proved by three
+independent solver stacks — no LLM touches the contracts:
+
+| Lane | Prover | Live evidence |
+| --- | --- | --- |
+| Java/JML | OpenJML ESC + TLC | `DEDUCTIVE_PROOF` with `SOURCE_MODEL_REFINEMENT` |
+| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7 items verified |
+| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42 goals incl. RTE; bounded_counter: 27/27 |
+
+```bash
+formalspecgen draft "..." --canonical-domain <module> --lang {java,rust,c}   # deterministic
+formalspecgen verify SmartLock.rs --mode esc                                 # native proof
+```
+
+Reproducible artifacts live under `domains/examples/polyglot/`. The deterministic baseline
+also catches translation bugs an LLM draft would silently ship: the smart_lock run exposed
+an `==>`-precedence under-encoding that a green prover had been accepting, now fixed and
+unit-pinned in both serializer suites.
+
 ### Assurance claim disclaimer
 
 FormalSpecGen produces hash-bound, reviewable bounded-model evidence and scoped source/model

@@ -8,6 +8,7 @@
 tools/openjml-dist/
 tools/frama-c-33.0/
 tools/prusti/
+.frama-c/
 tools/tla2tools.jar
 
 # Python caches, environments, coverage, and packaging
