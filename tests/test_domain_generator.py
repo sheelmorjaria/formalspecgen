@@ -96,6 +96,62 @@ class DomainGeneratorTests(unittest.TestCase):
         self.assertTrue(any("Generating operation enable" in item for item in progress))
         self.assertIn("Fragments assembled", progress[-1])
 
+    def test_v2_staged_manifest_preserves_required_complete_lock_protocol(self):
+        value = self.v2_value()
+        value["actors"] = 2
+        value["state_variables"].insert(0, {
+            "kind": "int", "name": "lock_state", "bound": [0, 2], "initial": 0})
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock_state",
+            "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"],
+            "unlocked_value": 0, "actor_lock_values": [1, 2],
+            "linearization_points": {"enable": "effect_commit"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": ["enabled == false"],
+            "effect_values": {"enabled": "true"}}]
+        invariant = {"id": "EnabledClause", "expression": "enabled == true"}
+        operation = {"name": "enable", "return_type": "void",
+            "failure_semantics": "unavailable",
+            "guards": [{"id": "disabled", "expression": "enabled == false"}],
+            "effects": [{"id": "set", "target": "enabled", "value": "true"}],
+            "frame": ["enabled"], "exception_type": None, "exception_trigger": None}
+
+        def structured_for(_schema, name):
+            def chat(*_args):
+                response = (header if name == "v2_domain_header" else invariant
+                            if name == "v2_domain_invariant_clause" else operation)
+                return json.dumps(response), "ollama", {}
+            chat.structured_for = structured_for
+            return chat
+
+        spec, *_ = compile_domain_spec_v2(
+            "A lock_protocol switch", [], [], structured_for({}, "root"))
+        self.assertEqual(spec.concurrency.mode, "lock_protocol")
+        self.assertEqual(spec.concurrency.linearization_points, {"enable": "effect_commit"})
+
+    def test_v2_staged_manifest_rejects_required_null_lock_protocol(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["concurrency"] = None
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+
+        def structured_for(_schema, _name):
+            def chat(*_args):
+                return json.dumps(header), "ollama", {}
+            chat.structured_for = structured_for
+            return chat
+
+        with self.assertRaisesRegex(LLMError, "concurrency null"):
+            compile_domain_spec_v2(
+                "A lock_protocol switch", [], [], structured_for({}, "root"))
+
     def test_v2_staged_generation_rejects_misnamed_operation(self):
         value = self.v2_value()
         header = {key: item for key, item in value.items()

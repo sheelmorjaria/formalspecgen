@@ -1,0 +1,33 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "LOCK_DISCIPLINE_VERIFIED",
+  "domain": "concurrent_bank_account",
+  "requirement": "Concurrent bank account",
+  "requirement_sha256": "7cd6200dc1ff7bc7cff548f72317ae130345010c7a1dcc4b8dce9a92228968f6",
+  "contract_sha256": "f9174f75f2005bfc6d2bf93673d756a1ad199d8f54bee7e32189cbac29154242",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "All concrete state access is routed through one non-panicking Rust Mutex.",
+    "This is structural lock discipline, not Prusti proof or linearizability evidence."
+  ],
+  "rust_check": "RUST_CHECKED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/concurrent_bank_account.json",
+  "accepted_candidate_sha256": "c85b6de03aaf673e6288e63da82caf4089a0ce6d9ea851bb98a4cbd0ba869949",
+  "accepted_evidence_sha256": "76201dbf074fc0f284ae0dbbeb899a1db98e6b895d81c80ab9788495fe3acef3",
+  "transformation": "DETERMINISTIC_V2_TO_RUST_MUTEX",
+  "lock_discipline_proved": true,
+  "concurrent_linearizability_proved": false,
+  "lock_discipline": {
+    "status": "VERIFIED",
+    "claim": "LOCK_DISCIPLINE_VERIFIED",
+    "scope": "canonical_single_mutex_state_access",
+    "lock_discipline_proved": true,
+    "source_model_refinement_proved": false,
+    "source_refinement_proved": false,
+    "concurrent_linearizability_proved": false,
+    "source_sha256": "f9174f75f2005bfc6d2bf93673d756a1ad199d8f54bee7e32189cbac29154242",
+    "disclaimer": "Structural lock discipline is not a history refinement proof."
+  }
+}

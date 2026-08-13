@@ -1,0 +1,109 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: ConcurrentBankAccount
+module_name: concurrent_bank_account
+actors: 2
+concurrency:
+  mode: lock_protocol
+  lock_variable: account_lock
+  lock_states:
+  - UNLOCKED
+  - LOCKED_ACTOR_1
+  - LOCKED_ACTOR_2
+  unlocked_value: 0
+  actor_lock_values:
+  - 1
+  - 2
+  linearization_points:
+    Deposit: effect_commit
+    Withdraw: effect_commit
+state_variables:
+- kind: int
+  name: account_lock
+  bound:
+  - 0
+  - 2
+  initial: 0
+- kind: int
+  name: balance
+  bound:
+  - 0
+  - 2
+  initial: 1
+operations:
+- name: Deposit
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: lt
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 2
+  effects:
+  - id: effect_1
+    target: balance
+    value:
+      kind: add
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - balance
+  exception_type: null
+  exception_trigger: null
+- name: Withdraw
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_1
+    expression:
+      kind: gt
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: effect_1
+    target: balance
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - balance
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: BalanceBoundsInvariant
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 0
+    right:
+      kind: lte
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 2

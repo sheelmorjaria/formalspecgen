@@ -20,7 +20,9 @@ from .llm import LLMError
 from .jml_ast import (BinaryExpr as JmlBinaryExpr, BooleanLiteral, FieldAccess,
                       IntegerLiteral, UnaryExpr, parse_jml_expression)
 from .scaffold_domain import DomainSpec
-from .domain_v2 import DomainSpecV2, Invariant, Operation, StateVariable
+from .domain_v2 import (
+    DomainSpecV2, Invariant, LockProtocolMetadata, Operation, StateVariable,
+)
 
 
 class _InvariantPlanV2(BaseModel):
@@ -76,6 +78,7 @@ class _DomainHeaderV2(BaseModel):
     domain_name: str
     module_name: str
     actors: int
+    concurrency: LockProtocolMetadata | None = None
     state_variables: list[StateVariable] = Field(min_length=1)
     invariant_plans: list[_InvariantPlanV2] = Field(min_length=1)
     operation_plans: list[_OperationPlanV2] = Field(min_length=1)
@@ -153,7 +156,10 @@ def _compile_domain_spec_v2_staged(request: str, context: list[str], chat_fn: Ca
         "never use constructors like eq(...), field(...), or integer(...). Use one clause name "
         "per indivisible semantic safety statement; do not emit invariant expressions or "
         "operation bodies. A scalar owner field already represents exactly one owner: do not "
-        "invent a cross-field invariant for 'single owner by construction'.")
+        "invent a cross-field invariant for 'single owner by construction'. If the "
+        "authoritative requirements specify lock_protocol, concurrency MUST contain the "
+        "complete lock metadata, including unlocked_value, actor_lock_values, and one "
+        "effect_commit linearization point for every operation; never return null.")
     header = None
     usage: dict[str, Any] = {}
     for attempt in range(3):
@@ -164,6 +170,11 @@ def _compile_domain_spec_v2_staged(request: str, context: list[str], chat_fn: Ca
         try:
             candidate_header = _DomainHeaderV2.model_validate(_extract_json(header_raw))
             fields = set(variable.name for variable in candidate_header.state_variables)
+            requires_lock = bool(re.search(
+                r"\block[_ -]?protocol\b", "\n".join(context), re.IGNORECASE))
+            if requires_lock and candidate_header.concurrency is None:
+                raise ValueError(
+                    "authoritative lock_protocol requirement cannot be emitted as concurrency null")
             for plan in candidate_header.operation_plans:
                 effect_targets = list(plan.effect_values)
                 if not set(effect_targets).issubset(fields):
@@ -437,7 +448,8 @@ Return the candidate object directly. Do not wrap it in a `candidate`, `domain`,
 `result` property.
 
 REQUIRED TOP-LEVEL SHAPE: emit every one of these keys exactly once: schema_version,
-review_status, domain_name, module_name, actors, state_variables, operations, tlc_invariants.
+review_status, domain_name, module_name, actors, concurrency, state_variables, operations,
+tlc_invariants.
 `actors` is an integer count, not an array. Use `state_variables`, never `variables` or
 `initial_state`; use `operations`, never `transitions`; and every tlc_invariants item uses `id`,
 never `name`. A repair must return the complete candidate, including fields that were already
@@ -450,8 +462,9 @@ fields in frame. Never repair a mismatch by silently dropping an authoritative s
 """
 
 DOMAIN_SPEC_V2_WIRE_FORMAT = r"""Use exactly these top-level keys:
-schema_version, review_status, domain_name, module_name, actors, state_variables, operations,
-tlc_invariants. Do not use aliases such as name, state, variables, transitions, or invariants.
+schema_version, review_status, domain_name, module_name, actors, concurrency, state_variables,
+operations, tlc_invariants. Do not use aliases such as name, state, variables, transitions, or
+invariants.
 
 Exact JSON shape (replace all angle-bracket placeholders):
 {
@@ -460,6 +473,7 @@ Exact JSON shape (replace all angle-bracket placeholders):
   "domain_name": "<PascalCase identifier>",
   "module_name": "<snake_case identifier>",
   "actors": 1,
+  "concurrency": null,
   "state_variables": [{"kind":"int","name":"<field>","bound":[0,1],"initial":0}],
   "operations": [{
     "name":"<operation>",
@@ -473,6 +487,13 @@ Exact JSON shape (replace all angle-bracket placeholders):
   }],
   "tlc_invariants":[{"id":"<InvariantName>","expression":<EXPRESSION>}]
 }
+For explicit locking, concurrency is instead:
+{"mode":"lock_protocol","lock_variable":"<bounded integer field>",
+ "lock_states":["UNLOCKED","LOCKED_ACTOR_1","LOCKED_ACTOR_2"],
+ "unlocked_value":0,"actor_lock_values":[1,2],
+ "linearization_points":{"<operation>":"effect_commit"}}.
+Use one actor lock value/state per actor and one linearization point per operation. Domain
+operations must neither reference nor mutate the protocol lock field.
 Boolean state variables instead use {"kind":"bool","name":"<field>","initial":false} and
 MUST NOT have bound. return_type is exactly "void" or "boolean". failure_semantics is exactly
 "unavailable", "false_and_stutter", or "exception"; Boolean guarded APIs normally use
@@ -667,7 +688,8 @@ def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
                 if isinstance(rejected_value, dict) and isinstance(value, dict):
                     required_keys = {
                         "schema_version", "review_status", "domain_name", "module_name",
-                        "actors", "state_variables", "operations", "tlc_invariants",
+                        "actors", "concurrency", "state_variables", "operations",
+                        "tlc_invariants",
                     }
                     if value and not required_keys.issubset(value):
                         supplied = set(value)

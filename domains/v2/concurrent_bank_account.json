@@ -1,0 +1,165 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "ConcurrentBankAccount",
+  "module_name": "concurrent_bank_account",
+  "actors": 2,
+  "concurrency": {
+    "mode": "lock_protocol",
+    "lock_variable": "account_lock",
+    "lock_states": [
+      "UNLOCKED",
+      "LOCKED_ACTOR_1",
+      "LOCKED_ACTOR_2"
+    ],
+    "unlocked_value": 0,
+    "actor_lock_values": [
+      1,
+      2
+    ],
+    "linearization_points": {
+      "Deposit": "effect_commit",
+      "Withdraw": "effect_commit"
+    }
+  },
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "account_lock",
+      "bound": [
+        0,
+        2
+      ],
+      "initial": 0
+    },
+    {
+      "kind": "int",
+      "name": "balance",
+      "bound": [
+        0,
+        2
+      ],
+      "initial": 1
+    }
+  ],
+  "operations": [
+    {
+      "name": "Deposit",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "lt",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 2
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "balance",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "balance"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "Withdraw",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "gt",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "balance",
+          "value": {
+            "kind": "sub",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "balance"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "BalanceBoundsInvariant",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "balance"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "balance"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 2
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "c85b6de03aaf673e6288e63da82caf4089a0ce6d9ea851bb98a4cbd0ba869949",
+  "accepted_evidence_sha256": "76201dbf074fc0f284ae0dbbeb899a1db98e6b895d81c80ab9788495fe3acef3"
+}
