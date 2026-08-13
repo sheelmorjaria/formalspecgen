@@ -18,6 +18,9 @@ Explicit lock protocol → bounded invocation histories → canonical Rust Mutex
 Legacy Java → javalang AST inspection → hash-bound deterministic refactoring
                                       └─ baseline + refactored OpenJML ESC
                                            └─ REFACTOR_CONTRACT_PRESERVED
+
+Hexagonal composition → contracted Port + explicit argument bindings → core OpenJML ESC
+                      └─ generated Adapter → UNVERIFIED EXTERNAL BOUNDARY
 ```
 
 The governing rule is:
@@ -32,12 +35,15 @@ FormalSpecGen now covers three connected workflows:
 | --- | --- | --- |
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
+| Hexagonal integration | `compose` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use; `external_io_safety_proved: false` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
 
 These evidence classes are intentionally not interchangeable. In particular,
 `REFACTOR_CONTRACT_PRESERVED` proves that both revisions discharge the same normalized JML/API
 surface; it does not claim relational behavioral equivalence. Async Tokio generation similarly
 stops at bounded architecture evidence plus static checking rather than claiming atomic refinement.
+Hexagonal evidence likewise proves that core call sites establish Port preconditions while excluding
+generated external adapters and remote I/O behavior from ESC.
 
 ### Verified polyglot scorecard
 
