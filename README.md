@@ -388,6 +388,22 @@ deterministic transformation and the accepted candidate/evidence hashes. Unsuppo
 expression semantics fail closed. Generated state fields are `private /*@ spec_public @*/`, keeping
 runtime mutation behind the verified method surface while retaining specification visibility.
 
+The same deterministic lowering is available for Rust/Prusti:
+
+```bash
+formalspecgen draft "Generate the reviewed bounded counter" --no-clarify \
+  --canonical-domain bounded_counter --lang rust --out-file BoundedCounter.rs
+```
+
+`pipeline/v2_prusti_serializer.py` derives every `#[invariant]`, `#[requires]`, and
+`#[ensures]` clause from the reviewed typed trees and transcribes the reviewed effects into
+method bodies (pre-captured locals preserve simultaneous semantics). The command runs the Rust
+safety lint and the contract-erased `rustc` gate before writing the file plus its
+`.canonical.json` evidence (`DETERMINISTIC_V2_TO_PRUSTI`), and fails closed on unsupported
+semantics. Prusti itself judges the annotated source when installed; without it the claim
+remains `REVIEWED_TRANSFORMATION`, never `DEDUCTIVE_PROOF`. Deterministic ACSL lowering for C
+is not yet implemented; `--lang c --canonical-domain` still routes to the LLM drafting path.
+
 A critical Java/JML implementation can use a reviewed V2 artifact directly:
 
 ```bash

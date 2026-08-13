@@ -33,7 +33,7 @@ remove the need for pre-state values. Record every interpretation and ambiguity.
 _RUST_BLOCK = re.compile(r"```rust\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _PRUSTI_ATTRIBUTE = re.compile(
-    r"(?m)^[ \t]*#\[(?:requires|ensures|after_expiry|assert_on_expiry|pure|trusted|predicate)"
+    r"(?m)^[ \t]*#\[(?:requires|ensures|after_expiry|assert_on_expiry|pure|trusted|predicate|invariant)"
     r"(?:\([^\n]*\))?\][ \t]*(?:\r?\n)?"
 )
 # A source must declare at least one proof obligation before a Prusti exit 0 can
