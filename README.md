@@ -677,6 +677,27 @@ eventual delivery, handler execution, and correspondence between Tokio traces an
 steps are outside the claim. Java and C async lowering, noncanonical Rust sources, and attempts to
 mint `SOURCE_MODEL_REFINEMENT` fail closed with `UNSUPPORTED_BOUNDARY`.
 
+### Contract-preserving Java refactoring
+
+The initial modernization profile compares two independently verified Java/JML revisions:
+
+```bash
+formalspecgen verify-refactor baseline/Account.java refactored/Account.java \
+  --json refactor-verdict.json
+```
+
+Both revisions must retain the same public class identity, matching filenames, normalized JML
+clauses, and public/protected method declarations. OpenJML `check` and `esc` must succeed for each
+revision without dropped verification conditions. A successful run hash-binds both sources and the
+shared surfaces in `REFACTOR_CONTRACT_PRESERVED` evidence.
+
+This is deliberately not a relational equivalence proof. The verdict records
+`behavior_equivalence_proved: false` and `refactor_verified: false`: two implementations can satisfy
+the same incomplete contract while behaving differently. Contract inference from unverified legacy
+code, automatic design-pattern rewrites, private behavior, reflection, concurrency, I/O, and heap
+topology equivalence remain outside this first profile. Any changed contract/API surface or failed
+baseline/refactored proof produces `NO_PROOF`.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the

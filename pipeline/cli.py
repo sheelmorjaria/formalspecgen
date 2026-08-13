@@ -351,6 +351,14 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if exit_code == 0 else 1
 
 
+def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .refactor_gate import verify_contract_preserving_refactor
+    ui.console.print("[cyan]Checking baseline and refactored contract surfaces…[/cyan]")
+    result = verify_contract_preserving_refactor(args.baseline, args.refactored)
+    _write_json(result, args.json, ui.console)
+    return 0 if result["status"] == "VERIFIED" else 1
+
+
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
     result = generate_and_check(_read(args.stub), clarifications=args.clarifications or "",
                                 abstraction=args.abstraction)
@@ -859,6 +867,12 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--backend", choices=["prusti", "kani"], default="prusti",
                        help="Rust verifier; ignored for Java and C")
 
+    verify_refactor = sub.add_parser(
+        "verify-refactor", help="prove a narrow Java/JML contract-preserving refactor")
+    verify_refactor.add_argument("baseline", help="previously trusted Java/JML revision")
+    verify_refactor.add_argument("refactored", help="refactored Java/JML revision")
+    verify_refactor.add_argument("--json", help="machine-readable evidence destination")
+
     architecture = sub.add_parser("architecture", help="render typed IR and run bounded TLC")
     architecture.add_argument("stub")
     architecture.add_argument("--clarifications")
@@ -923,6 +937,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "draft": return command_draft(args, ui, store, state)
     if args.command == "implement": return command_implement(args, ui)
     if args.command == "verify": return command_verify(args, ui)
+    if args.command == "verify-refactor": return command_verify_refactor(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
@@ -933,7 +948,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     return 2
 
 
-_REPL_COMMANDS = {"draft", "implement", "verify", "architecture", "domain",
+_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "architecture", "domain",
                   "validate-domain", "promote-domain", "compose", "reverify", "system"}
 
 
