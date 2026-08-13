@@ -25,8 +25,8 @@ independent solver stacks — no LLM touches the contracts:
 | Lane | Prover | Live evidence |
 | --- | --- | --- |
 | Java/JML | OpenJML ESC + TLC | `DEDUCTIVE_PROOF` with `SOURCE_MODEL_REFINEMENT` |
-| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7 items verified |
-| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42 goals incl. RTE; bounded_counter: 27/27 |
+| Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | smart_lock: 7/7; digital_safe: 8/8 plus source/model refinement |
+| C/ACSL | Frama-C WP + Z3 | smart_lock: 42/42; bounded_counter: 27/27; digital_safe: 56/56 plus 5/5 refinement obligations |
 
 ```bash
 formalspecgen draft "..." --canonical-domain <module> --lang {java,rust,c}   # deterministic

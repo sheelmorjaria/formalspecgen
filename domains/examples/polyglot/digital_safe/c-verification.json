@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "domain": "digital_safe",
+  "language": "c",
+  "source": "digital_safe.c",
+  "source_sha256": "4fe56055b597d3cd24f76ffcab656ad0d20506d904c790e1bbfa192514fad94d",
+  "reviewed_v2": "domains/v2/digital_safe.json",
+  "reviewed_v2_sha256": "8d386f6d4a62c88ea315e8052258cb1e74eabc7ff4308cca28af5e417ef59f60",
+  "validation_evidence": "domains/candidates/digital_safe.v2.validation.json",
+  "validation_evidence_sha256": "f02002ba02e8c070fa65e4abb05d3b13a27fef5f1daeb1aae767d784ec756b7a",
+  "deductive_proof": {
+    "status": "VERIFIED",
+    "claim": "DEDUCTIVE_PROOF",
+    "backend": "Frama-C WP 33.0 (Arsenic)",
+    "prover": "Z3 4.8.12",
+    "proved_goals": 56,
+    "total_goals": 56,
+    "qed_goals": 26,
+    "z3_goals": 14,
+    "terminating_goals": 8,
+    "unreachable_goals": 8,
+    "proof_output_sha256": "25663deb0385dc120eb28547f4684f831f23a2344152b55830dbbaa1ee0dda50",
+    "runtime_errors": "PARTIAL",
+    "rte_caveats": [
+      "unaligned pointers (\\aligned not supported)",
+      "invalid function pointer calls (\\valid_function not supported)"
+    ]
+  },
+  "refinement": {
+    "status": "VERIFIED",
+    "claim": "SOURCE_MODEL_REFINEMENT",
+    "scope": "v2_atomic_contract_refinement",
+    "proved_operations": 5,
+    "total_operations": 5,
+    "concurrent_linearizability_proved": false,
+    "certificate_sha256": "1aa64adf97284426f89b147de61f6013f219fe9ceca1e58ed6885db6c56fd57e"
+  }
+}
