@@ -434,6 +434,37 @@ V2 promotion provides deterministic artifact integrity and TOCTOU detection. It 
 authenticate the reviewer, provide non-repudiation, prove unbounded correctness, or establish
 regulatory certification. GPG/Sigstore reviewer signatures and key policy remain future work.
 
+### Multi-tier compositional verification
+
+Complex architectures are not verified as one giant model. A composition artifact
+(`pipeline/composition.py`) binds SOLID-linted architecture components to *promoted* V2
+domains, and the deterministic renderer (`pipeline/composition_render.py`) emits one reviewed
+class plus one dependency-inversion interface per component and one orchestrator per use
+case. Every orchestrator `requires`/`ensures`/`assignable` clause is derived from the
+reviewed typed expression trees — never from LLM-drafted clause text. OpenJML ESC then proves
+the orchestrator satisfies each callee precondition:
+
+```bash
+formalspecgen compose composition.json --out-dir out/ --json verdict.json
+formalspecgen reverify composition.json --changed-module smart_lock --json reverify.json
+```
+
+A successful run reports `COMPOSITION_VERIFIED` with claim `SCOPED_COMPOSITION_PROOF` and
+scope `single_threaded_atomic_contract_composition`. After a reviewed module contract
+changes, `reverify` traces reverse dependencies through the architecture edges and re-runs
+composition ESC, reporting `REVERIFIED`, `REVERIFICATION_FAILED`, or `NOT_IMPACTED`.
+
+Composition currently fails closed outside a deliberately narrow boundary: one reviewed
+operation per component per use case, void/unavailable semantics only (boolean
+failure-and-stutter operations cannot yet be sequentially composed), and orchestrator
+effects interpreted with `\old` at method entry. The claim establishes neither concurrent
+linearizability (a `lock_protocol` abstraction and a separate linearizability proof would be
+required) nor distributed asynchrony (message queues, duplication, and eventual consistency
+are not modeled), and it binds the single reviewed implementation per component rather than
+proving arbitrary dynamic dispatch. Exit-0 compositions that discharge no obligation are
+reported as `VACUOUS_COMPOSITION`, not proof. An unreviewed example artifact lives at
+`domains/examples/composition/secure_entry.composition.json`.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the

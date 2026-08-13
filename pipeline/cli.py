@@ -503,6 +503,60 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0
 
 
+def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Compose reviewed V2 domains into orchestrators and let OpenJML ESC judge the glue."""
+    from . import composition_render
+    try:
+        value = json.loads(Path(args.artifact).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]Composition artifact unreadable:[/bold red] {escape(str(exc))}")
+        return 2
+    verdict = composition_render.verify_composition(
+        value, args.v2_dir, run_esc=not args.no_esc)
+    if args.out_dir and verdict.get("files"):
+        destination = Path(args.out_dir)
+        destination.mkdir(parents=True, exist_ok=True)
+        for name, source in verdict["files"].items():
+            (destination / name).write_text(source, encoding="utf-8")
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(verdict, indent=2, ensure_ascii=False, default=str),
+            encoding="utf-8")
+    style = "green" if verdict["status"] in {
+        "COMPOSITION_VERIFIED", "COMPOSITION_CHECKED"} else "yellow"
+    ui.console.print(Panel(
+        f"Status: {verdict['status']}\nClaim: {verdict.get('claim', 'NO_PROOF')}\n"
+        f"Scope: {verdict.get('scope', 'n/a')}",
+        title="Composition verification", border_style=style))
+    if verdict.get("disclaimer"):
+        ui.console.print(verdict["disclaimer"], style="dim")
+    return 0 if verdict["status"] in {
+        "COMPOSITION_VERIFIED", "COMPOSITION_CHECKED"} else 1
+
+
+def command_reverify(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Re-prove composition after a reviewed module contract changed."""
+    from . import composition_render
+    try:
+        value = json.loads(Path(args.artifact).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]Composition artifact unreadable:[/bold red] {escape(str(exc))}")
+        return 2
+    verdict = composition_render.reverify_composition(
+        value, args.changed_module, args.v2_dir)
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(verdict, indent=2, ensure_ascii=False, default=str),
+            encoding="utf-8")
+    style = "green" if verdict["status"] in {"REVERIFIED", "NOT_IMPACTED"} else "yellow"
+    ui.console.print(Panel(
+        f"Status: {verdict['status']}\nChanged module: {verdict.get('changed_module')}\n"
+        f"Impacted components: {', '.join(verdict.get('impacted_components') or [])}\n"
+        f"Impacted use cases: {', '.join(verdict.get('impacted_use_cases') or [])}",
+        title="Composition re-verification", border_style=style))
+    return 0 if verdict["status"] in {"REVERIFIED", "NOT_IMPACTED"} else 1
+
+
 def _domain_candidate_name(value: str) -> str:
     """Accept a module name or displayed candidate filename without allowing paths."""
     raw = value.strip().lower().replace("-", "_")
@@ -600,6 +654,22 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--schema-version", type=int, choices=[1, 2], default=None,
                          help="candidate schema; inferred from validated V2 evidence when omitted")
     promote.add_argument("--accept-candidate-sha256")
+    compose = sub.add_parser(
+        "compose", help="compose reviewed V2 domains and prove the glue with OpenJML ESC")
+    compose.add_argument("artifact", help="composition artifact JSON path")
+    compose.add_argument("--v2-dir", default=None,
+                         help="reviewed V2 artifact directory (default domains/v2)")
+    compose.add_argument("--out-dir", help="write the deterministic Java/JML sources here")
+    compose.add_argument("--json", help="machine-readable verdict destination")
+    compose.add_argument("--no-esc", action="store_true",
+                         help="stop after the check gate; claims only STATIC_CHECK")
+    reverify = sub.add_parser(
+        "reverify", help="re-prove composition after a reviewed module changed")
+    reverify.add_argument("artifact")
+    reverify.add_argument("--changed-module", required=True,
+                          help="reviewed V2 module whose contract changed")
+    reverify.add_argument("--v2-dir", default=None)
+    reverify.add_argument("--json")
     return parser
 
 
@@ -612,11 +682,13 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
     if args.command == "promote-domain": return command_promote_domain(args, ui)
+    if args.command == "compose": return command_compose(args, ui)
+    if args.command == "reverify": return command_reverify(args, ui)
     return 2
 
 
 _REPL_COMMANDS = {"draft", "implement", "verify", "architecture", "domain",
-                  "validate-domain", "promote-domain"}
+                  "validate-domain", "promote-domain", "compose", "reverify"}
 
 
 def _repl_argv(line: str) -> list[str]:

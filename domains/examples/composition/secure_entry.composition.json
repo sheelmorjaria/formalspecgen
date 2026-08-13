@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "system_name": "SecureEntry",
+  "architecture": {
+    "name": "SecureEntry",
+    "description": "unreviewed example: an access panel coordinating a reviewed smart lock",
+    "components": [
+      {
+        "id": "lock",
+        "name": "SmartLock",
+        "layer": "entities",
+        "kind": "class",
+        "operations": [],
+        "dependencies": []
+      },
+      {
+        "id": "access_panel",
+        "name": "AccessPanel",
+        "layer": "use_cases",
+        "kind": "class",
+        "operations": [],
+        "dependencies": [{"target": "lock", "abstraction": true}]
+      }
+    ],
+    "use_cases": []
+  },
+  "bindings": [
+    {"component": "lock", "module_name": "smart_lock"},
+    {"component": "access_panel", "module_name": "smart_lock"}
+  ],
+  "use_cases": [
+    {"name": "SecureCloseAndLock", "steps": [
+      {"component": "lock", "operation": "CloseDoor"}
+    ]},
+    {"name": "PanelSecuresEntry", "steps": [
+      {"component": "access_panel", "operation": "LockDoor"}
+    ]}
+  ]
+}

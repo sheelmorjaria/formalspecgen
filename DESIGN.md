@@ -123,3 +123,22 @@ method proof into full critical architectural assurance.
 
 Rust and C remain restricted subsets. Missing tools, unsupported language constructs, test-gate
 failures, unknown deterministic passes, and formal verification failures all fail closed.
+
+## 18. Multi-tier compositional verification
+
+A composition artifact binds architecture components (SOLID/STRIDE-linted through the shared
+`architecture` module) to promoted V2 domains. The renderer derives every orchestrator
+contract clause deterministically from the reviewed typed expression trees: step guards
+become caller preconditions qualified by component receiver, effects become `\old`-anchored
+ensures, and frames become qualified `assignable` targets. One reviewed operation per
+component per use case keeps `\old` interpretation sound; boolean failure-and-stutter
+operations fail closed. Interfaces are emitted as dependency-inversion surfaces without
+independent JML claims, so no unproven second contract source exists.
+
+OpenJML ESC judges the composition: the orchestrator `requires` clause plus reviewed
+invariants must imply every callee precondition. The maximum claim is
+`SCOPED_COMPOSITION_PROOF` with scope `single_threaded_atomic_contract_composition`,
+`concurrent_linearizability_proved: false`, and dropped-VC or obligation-free exit-0 runs
+reported as `VACUOUS_COMPOSITION`. `reverify` recomputes reverse-dependency impact over the
+architecture edges and re-runs the same proof, reporting `REVERIFIED` or
+`REVERIFICATION_FAILED`; it never reuses stale evidence for an impacted use case.
