@@ -76,6 +76,13 @@ def test_evaluator_fails_closed_on_unknown_fields_and_nodes():
         evaluate_expression(object(), {})
 
 
+def test_evaluator_supports_typed_logical_negation():
+    from pipeline.domain_v2 import NotExpr, BooleanExpr
+    assert evaluate_expression(NotExpr(expression=BooleanExpr(value=False)), {}) is True
+    assert evaluate_expression(NotExpr(expression=NotExpr(
+        expression=BooleanExpr(value=True))), {}) is True
+
+
 def test_initial_invariant_failure_is_reported():
     op={"name":"stay","return_type":"void","failure_semantics":"unavailable",
         "guards":[],"effects":[],"frame":[]}
@@ -97,5 +104,5 @@ def test_boolean_success_records_true_and_disabled_void_action_is_unavailable():
     disabled={"name":"disabled","return_type":"void","failure_semantics":"unavailable",
       "guards":[{"id":"never","expression":{"kind":"boolean","value":False}}],
       "effects":[],"frame":[]}
-    assert validate_transitions_and_invariants(
-        spec_with(disabled,variables=variables)) == (1,0)
+    with pytest.raises(V2ValidationError, match="initial state has no enabled transition"):
+        validate_transitions_and_invariants(spec_with(disabled,variables=variables))

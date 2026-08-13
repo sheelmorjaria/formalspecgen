@@ -1,0 +1,51 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: BankAccount
+module_name: account_module
+actors: 1
+state_variables:
+- kind: int
+  name: balance
+  bound:
+  - 0
+  - 10000
+  initial: 1000
+operations:
+- name: withdraw
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: g1
+    expression:
+      kind: gt
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: e1
+    target: balance
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: balance
+      right:
+        kind: integer
+        value: 100
+  frame:
+  - balance
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: inv1
+  expression:
+    kind: gte
+    left:
+      kind: field
+      name: balance
+    right:
+      kind: integer
+      value: 0

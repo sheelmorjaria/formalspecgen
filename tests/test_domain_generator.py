@@ -1,9 +1,15 @@
+import json
 import unittest
 
 from pipeline.domain_generator import (
-    compile_domain_spec, compile_domain_spec_v2, elicit_domain_questions,
+    _canonical_integer_guard_tree, _complete_literal_bound_guards,
+    _frame_effect_repair_obligations, _normalize_v2_syntax,
+    _reject_initial_values_outside_answered_bounds,
+    compile_domain_spec, compile_domain_spec_v2,
+    elicit_domain_questions,
 )
 from pipeline.llm import LLMError
+from pipeline.domain_v2 import DomainSpecV2
 from pipeline.scaffold_domain import DomainSpec, scaffold_sources
 
 
@@ -51,6 +57,267 @@ class DomainGeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "required domain clarification"):
             compile_domain_spec_v2("A switch", question, [], chat)
 
+    def test_v2_generation_repairs_semantically_unrelated_domain(self):
+        import json
+        unrelated = {**self.v2_value(), "domain_name": "BankAccount",
+                     "module_name": "account_module"}
+        smart_lock = self.v2_value()
+        smart_lock["domain_name"] = "SmartLock"
+        smart_lock["module_name"] = "smart_lock"
+        responses = iter((unrelated, smart_lock))
+        captured = []
+        def chat(messages, _model, _temperature):
+            captured.append(messages)
+            return json.dumps(next(responses)), "model", {}
+
+        spec, _, _, usage = compile_domain_spec_v2(
+            "A smart lock that locks only when the door is closed", [], [], chat)
+        self.assertEqual(spec.module_name, "smart_lock")
+        self.assertEqual(usage["domain_spec_repair_attempts"], 1)
+        self.assertIn("not anchored to the authoritative idea", captured[1][1]["content"])
+        self.assertIn('"required_identity_tokens": ["closed", "door", "lock",',
+                      captured[1][1]["content"])
+
+    def test_v2_generation_repairs_ambiguous_multiple_json_fences(self):
+        import json
+        malformed = ('```json\n{"questions":[]}\n```\n'
+                     '```json\n{"also":"wrong candidate shape"}\n```')
+        responses = iter((malformed, json.dumps(self.v2_value())))
+        captured = []
+        def chat(messages, _model, _temperature):
+            captured.append(messages)
+            return next(responses), "model", {}
+
+        spec, _, _, usage = compile_domain_spec_v2("A switch", [], [], chat)
+        self.assertEqual(spec.module_name, "switch")
+        self.assertEqual(usage["domain_spec_repair_attempts"], 1)
+        self.assertIn("multiple JSON fences", captured[1][1]["content"])
+
+    def test_v2_generation_exhausts_malformed_candidate_json_as_domain_error(self):
+        calls = 0
+        def chat(_messages, _model, _temperature):
+            nonlocal calls
+            calls += 1
+            return "not JSON", "model", {}
+        with self.assertRaises(LLMError) as raised:
+            compile_domain_spec_v2("A switch", [], [], chat)
+        self.assertEqual(raised.exception.code, "INVALID_DOMAIN_SPEC_V2")
+        self.assertIn("schema-aware repair was rejected", str(raised.exception))
+        self.assertEqual(calls, 3)
+
+    def test_v2_generation_normalizes_only_safe_representation_drift(self):
+        import json
+        value = self.v2_value()
+        value["module_name"] = "Smart-LockController"
+        value["operations"][0]["effects"][0]["target"] = {
+            "kind": "field", "name": "enabled"}
+        calls = 0
+        def chat(_messages, _model, _temperature):
+            nonlocal calls
+            calls += 1
+            return json.dumps(value), "model", {}
+        spec, _, _, usage = compile_domain_spec_v2("A smart lock", [], [], chat)
+        self.assertEqual(calls, 1)
+        self.assertEqual(spec.module_name, "smart_lock_controller")
+        self.assertEqual(spec.operations[0].effects[0].target, "enabled")
+        self.assertEqual(len(usage["domain_spec_normalizations"]), 2)
+
+        ambiguous = {"kind": "field", "name": "enabled", "receiver": "other"}
+        normalized, changes = _normalize_v2_syntax({
+            "operations": [{"effects": [{"target": ambiguous}]}]})
+        self.assertEqual(normalized["operations"][0]["effects"][0]["target"], ambiguous)
+        self.assertEqual(changes, [])
+        self.assertEqual(_normalize_v2_syntax([]), ([], []))
+        malformed = {"operations": [None, {"effects": [None]}]}
+        self.assertEqual(_normalize_v2_syntax(malformed), (malformed, []))
+
+        wrapped, changes = _normalize_v2_syntax({"candidate": self.v2_value()})
+        self.assertEqual(wrapped["domain_name"], "Switch")
+        self.assertEqual(changes, [
+            {"path": "$", "from": "candidate wrapper", "to": "candidate object"}])
+        ambiguous_wrapper = {"candidate": self.v2_value(), "confidence": 1}
+        self.assertEqual(_normalize_v2_syntax(ambiguous_wrapper),
+                         (ambiguous_wrapper, []))
+
+    def test_v2_generation_accepts_exact_candidate_wrapper_without_repair(self):
+        import json
+        calls = 0
+        def chat(_messages, _model, _temperature):
+            nonlocal calls
+            calls += 1
+            return json.dumps({"candidate": self.v2_value()}), "model", {}
+        spec, _, _, usage = compile_domain_spec_v2("A switch", [], [], chat)
+        self.assertEqual(calls, 1)
+        self.assertEqual(spec.module_name, "switch")
+        self.assertEqual(usage["domain_spec_normalizations"][0]["from"],
+                         "candidate wrapper")
+
+    def test_v2_generation_normalizes_exact_top_level_aliases(self):
+        import json
+        value = self.v2_value()
+        value["name"] = value.pop("domain_name")
+        value["state"] = value.pop("state_variables")
+        value["invariants"] = value.pop("tlc_invariants")
+        value.pop("module_name")
+        calls = 0
+        def chat(_messages, _model, _temperature):
+            nonlocal calls
+            calls += 1
+            return json.dumps(value), "model", {}
+        spec, _, _, usage = compile_domain_spec_v2("A switch", [], [], chat)
+        self.assertEqual(calls, 1)
+        self.assertEqual(spec.domain_name, "Switch")
+        self.assertEqual(spec.module_name, "switch")
+        paths = {change["path"] for change in usage["domain_spec_normalizations"]}
+        self.assertEqual(paths, {"name", "state", "invariants", "module_name"})
+
+        collision = {"name": "Wrong", "domain_name": "Right"}
+        normalized, changes = _normalize_v2_syntax(collision)
+        self.assertEqual(normalized["name"], "Wrong")
+        self.assertEqual(normalized["domain_name"], "Right")
+        self.assertEqual(normalized["module_name"], "right")
+        self.assertNotIn("name", {change["path"] for change in changes})
+        invalid_name, changes = _normalize_v2_syntax({"domain_name": "!!!"})
+        self.assertNotIn("module_name", invalid_name)
+        self.assertEqual(changes, [])
+
+    def test_v2_normalizes_pascal_name_state_type_and_safety_invariant_alias(self):
+        value = self.v2_value()
+        value["domain_name"] = "atm_controller"
+        value["state_variables"][0]["type"] = value["state_variables"][0].pop("kind")
+        value["safety_invariants"] = value.pop("tlc_invariants")
+        value.pop("module_name")
+        normalized, changes = _normalize_v2_syntax(value)
+        self.assertEqual(normalized["domain_name"], "AtmController")
+        self.assertEqual(normalized["module_name"], "atm_controller")
+        self.assertEqual(normalized["state_variables"][0]["kind"], "bool")
+        self.assertIn("tlc_invariants", normalized)
+        self.assertNotIn("safety_invariants", normalized)
+        paths = {change["path"] for change in changes}
+        self.assertTrue({"domain_name", "module_name", "state_variables.0.type",
+                         "safety_invariants"}.issubset(paths))
+
+        unknown = {"state_variables": [{"type": "integer", "name": "cash"}]}
+        self.assertEqual(_normalize_v2_syntax(unknown), (unknown, []))
+        conflicting = {"state_variables": [{"kind": "bool", "type": "int",
+                                               "name": "enabled"}]}
+        self.assertEqual(_normalize_v2_syntax(conflicting), (conflicting, []))
+
+    def test_authoritative_explicit_range_accepts_contained_initial_value(self):
+        questions = [
+            {"id": "initial", "category": "state",
+             "question": "What is the initial value?", "required": True},
+            {"id": "bounds", "category": "bounds",
+             "question": "What is the finite bound?", "required": True},
+        ]
+        _reject_initial_values_outside_answered_bounds(questions, {
+            "initial": "account_balance = 4",
+            "bounds": "account_balance is bounded in [0, 5]",
+        })
+
+    def test_frame_effect_repair_obligations_are_diagnostic_not_transformative(self):
+        malformed = {"operations": [{
+            "name": "deposit", "frame": ["account_balance", "atm_cash"],
+            "effects": [{"id": "credit", "target": "account_balance",
+                         "value": {"kind": "integer", "value": 1}}],
+        }]}
+        before = json.dumps(malformed, sort_keys=True)
+        obligations = _frame_effect_repair_obligations(malformed)
+        self.assertEqual(obligations[0]["operation"], "deposit")
+        self.assertEqual(obligations[0]["current_effect_targets"], ["account_balance"])
+        self.assertEqual(json.dumps(malformed, sort_keys=True), before)
+        self.assertEqual(_frame_effect_repair_obligations([]), [])
+        self.assertEqual(_frame_effect_repair_obligations({"operations": [None]}), [])
+
+    def test_v2_wire_format_teaches_simultaneous_multi_field_effects(self):
+        from pipeline.domain_generator import DOMAIN_SPEC_V2_WIRE_FORMAT
+        self.assertIn('"target":"first_field"', DOMAIN_SPEC_V2_WIRE_FORMAT)
+        self.assertIn('"target":"second_field"', DOMAIN_SPEC_V2_WIRE_FORMAT)
+        self.assertIn('"frame":["first_field","second_field"]',
+                      DOMAIN_SPEC_V2_WIRE_FORMAT)
+
+    def test_literal_arithmetic_effects_gain_deterministic_bound_guards(self):
+        value = self.v2_value()
+        value["state_variables"] = [{
+            "kind": "int", "name": "balance", "bound": [0, 5], "initial": 2}]
+        value["operations"] = [{
+            "name": "Deposit", "return_type": "void", "failure_semantics": "unavailable",
+            "guards": [], "effects": [{"id": "increment", "target": "balance",
+                "value": {"kind": "add", "left": {"kind": "field", "name": "balance"},
+                          "right": {"kind": "integer", "value": 1}}}],
+            "frame": ["balance"], "exception_type": None, "exception_trigger": None}]
+        value["tlc_invariants"] = [{"id": "NonNegative", "expression": {
+            "kind": "gte", "left": {"kind": "field", "name": "balance"},
+            "right": {"kind": "integer", "value": 0}}}]
+        completed, changes = _complete_literal_bound_guards(DomainSpecV2.model_validate(value))
+        guard = completed.operations[0].guards[0]
+        self.assertEqual(guard.id, "balance_within_upper_bound")
+        self.assertEqual(guard.expression.kind, "lte")
+        self.assertEqual(guard.expression.right.value, 4)
+        self.assertEqual(len(changes), 1)
+        unchanged, second_changes = _complete_literal_bound_guards(completed)
+        self.assertEqual(unchanged, completed)
+        self.assertEqual(second_changes, [])
+
+        decrement = value.copy()
+        decrement = json.loads(json.dumps(value))
+        decrement["operations"][0]["name"] = "Withdraw"
+        decrement["operations"][0]["effects"][0]["value"]["kind"] = "sub"
+        decrement["operations"][0]["effects"][0]["id"] = "balance_within_lower_bound"
+        lowered, lower_changes = _complete_literal_bound_guards(
+            DomainSpecV2.model_validate(decrement))
+        lower_guard = lowered.operations[0].guards[0]
+        self.assertEqual(lower_guard.id, "balance_within_lower_bound_2")
+        self.assertEqual(lower_guard.expression.kind, "gte")
+        self.assertEqual(lower_guard.expression.right.value, 1)
+        self.assertEqual(len(lower_changes), 1)
+
+        unrelated = json.loads(json.dumps(value))
+        unrelated["operations"][0]["effects"][0]["value"] = {
+            "kind": "integer", "value": 3}
+        untouched, no_changes = _complete_literal_bound_guards(
+            DomainSpecV2.model_validate(unrelated))
+        self.assertFalse(untouched.operations[0].guards)
+        self.assertEqual(no_changes, [])
+
+        equivalent = json.loads(json.dumps(value))
+        equivalent["operations"][0]["guards"] = [{"id": "room", "expression": {
+            "kind": "lt", "left": {"kind": "field", "name": "balance"},
+            "right": {"kind": "integer", "value": 5}}}]
+        preserved, no_changes = _complete_literal_bound_guards(
+            DomainSpecV2.model_validate(equivalent))
+        self.assertEqual(len(preserved.operations[0].guards), 1)
+        self.assertEqual(no_changes, [])
+        self.assertEqual(
+            _canonical_integer_guard_tree(equivalent["operations"][0]["guards"][0]["expression"]),
+            _canonical_integer_guard_tree({"kind": "lte",
+                "left": {"kind": "field", "name": "balance"},
+                "right": {"kind": "integer", "value": 4}}))
+        nonlinear = json.loads(json.dumps(value))
+        nonlinear["operations"][0]["effects"][0]["value"]["left"] = {
+            "kind": "integer", "value": 1}
+        untouched, no_changes = _complete_literal_bound_guards(
+            DomainSpecV2.model_validate(nonlinear))
+        self.assertFalse(untouched.operations[0].guards)
+        self.assertEqual(no_changes, [])
+
+    def test_exhausted_frame_effect_repair_reports_exact_surface(self):
+        value = self.v2_value()
+        value["state_variables"].append({
+            "kind": "bool", "name": "secondary", "initial": False})
+        value["operations"][0]["frame"] = ["enabled", "secondary"]
+        def chat(_messages, _model, _temperature):
+            return json.dumps(value), "model", {}
+        with self.assertRaises(LLMError) as raised:
+            compile_domain_spec_v2("A switch", [], [], chat)
+        message = str(raised.exception)
+        self.assertIn("frame/effect details", message)
+        self.assertIn('"current_frame":["enabled","secondary"]', message)
+        self.assertIn('"current_effect_targets":["enabled"]', message)
+
+        incomplete = {"operations": [{"name": "x", "frame": "enabled", "effects": []}]}
+        self.assertEqual(_frame_effect_repair_obligations(incomplete), [])
+
     def test_v2_generation_exhausts_both_validation_and_self_review_repairs(self):
         import json
         invalid_calls = 0
@@ -93,6 +360,22 @@ class DomainGeneratorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "conflicting elevator floor bounds"):
             compile_domain_spec_v2("An elevator", elevator_questions, answers, chat)
 
+        atm_questions = [
+            {"id": "initial", "category": "state",
+             "question": "What are the initial account and ATM cash values?", "required": True},
+            {"id": "bounds", "category": "bounds",
+             "question": "What are the upper bounds?", "required": True},
+        ]
+        atm_answers = [
+            {"id": "initial", "answer": "account_balance = 1000, atm_cash = 500"},
+            {"id": "bounds", "answer": (
+                "upper bound for account_balance is 5, and upper bound for atm_cash is 5")},
+        ]
+        with self.assertRaisesRegex(
+                ValueError, "account_balance initial 1000 is outside 0..5"):
+            compile_domain_spec_v2("An ATM", atm_questions, atm_answers, chat)
+        self.assertEqual(len(captured), 2, "contradiction must fail before another LLM call")
+
     def test_elicitation_preserves_domain_categories(self):
         captured = []
         def chat(_messages, _model, _temperature):
@@ -103,6 +386,19 @@ class DomainGeneratorTests(unittest.TestCase):
         self.assertEqual(questions[0]["category"], "invariant")
         self.assertIn("STATE OBSERVABILITY", captured[0]["content"])
         self.assertIn("arrive/stop/complete", captured[0]["content"])
+        self.assertIn("initial value of every state variable", captured[0]["content"])
+        self.assertIn("environment-controlled physical state", captured[0]["content"])
+
+    def test_domain_elicitation_repairs_empty_json_response(self):
+        responses = iter(("", '{"questions":[]}'))
+        calls = []
+        def chat(messages, _model, _temperature):
+            calls.append(messages)
+            return next(responses), "model", {}
+        questions, _, usage = elicit_domain_questions("A smart lock", chat)
+        self.assertEqual(questions, [])
+        self.assertEqual(usage["elicitation_json_repair_attempts"], 1)
+        self.assertEqual(len(calls), 2)
 
     def test_valid_json_is_deterministically_serialized_and_scaffolded(self):
         response = {

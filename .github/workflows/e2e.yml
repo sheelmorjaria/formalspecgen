@@ -8,11 +8,27 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: e2e-real-toolchains
+  cancel-in-progress: false
+
 jobs:
   real-toolchains:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, linux, x64, formalspec-tools]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
       - name: Run real compiler, prover, TLC, and CLI-core E2E
         run: scripts/run_e2e.sh
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-toolchain-evidence-${{ github.run_id }}
+          path: |
+            runs/**/verdict.json
+            domains/candidates/*.validation.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,174 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: RobotVacuumController
+module_name: robot_vacuum_controller
+actors: 1
+state_variables:
+- kind: int
+  name: battery_level
+  bound:
+  - 0
+  - 5
+  initial: 5
+- kind: int
+  name: vacuum_mode
+  bound:
+  - 0
+  - 1
+  initial: 0
+operations:
+- name: startCleaning
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_start_cleaning
+    expression:
+      kind: gt
+      left:
+        kind: field
+        name: battery_level
+      right:
+        kind: integer
+        value: 0
+  - id: guard_mode_docked
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: vacuum_mode
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: set_cleaning_mode
+    target: vacuum_mode
+    value:
+      kind: integer
+      value: 1
+  frame:
+  - vacuum_mode
+  exception_type: null
+  exception_trigger: null
+- name: stopCleaning
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: guard_cleaning_mode
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: vacuum_mode
+      right:
+        kind: integer
+        value: 1
+  - id: battery_level_within_lower_bound
+    expression:
+      kind: gte
+      left:
+        kind: field
+        name: battery_level
+      right:
+        kind: integer
+        value: 1
+  effects:
+  - id: decrease_battery
+    target: battery_level
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: battery_level
+      right:
+        kind: integer
+        value: 1
+  - id: set_docked_mode
+    target: vacuum_mode
+    value:
+      kind: integer
+      value: 0
+  frame:
+  - battery_level
+  - vacuum_mode
+  exception_type: null
+  exception_trigger: null
+- name: dock
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards: []
+  effects:
+  - id: recharge_battery
+    target: battery_level
+    value:
+      kind: integer
+      value: 5
+  - id: set_docked_mode
+    target: vacuum_mode
+    value:
+      kind: integer
+      value: 0
+  frame:
+  - battery_level
+  - vacuum_mode
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: BatteryLevelBounds
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left:
+        kind: field
+        name: battery_level
+      right:
+        kind: integer
+        value: 0
+    right:
+      kind: lte
+      left:
+        kind: field
+        name: battery_level
+      right:
+        kind: integer
+        value: 5
+- id: ModeBounds
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left:
+        kind: field
+        name: vacuum_mode
+      right:
+        kind: integer
+        value: 0
+    right:
+      kind: lte
+      left:
+        kind: field
+        name: vacuum_mode
+      right:
+        kind: integer
+        value: 1
+- id: NoCleaningWithDeadBattery
+  expression:
+    kind: not
+    expression:
+      kind: and
+      left:
+        kind: eq
+        left:
+          kind: field
+          name: vacuum_mode
+        right:
+          kind: integer
+          value: 1
+      right:
+        kind: eq
+        left:
+          kind: field
+          name: battery_level
+        right:
+          kind: integer
+          value: 0

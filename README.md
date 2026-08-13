@@ -352,6 +352,11 @@ traverser and the configured real TLC installation:
 formalspecgen validate-domain elevator_controller --emit-tla ElevatorController.tla
 ```
 
+`validate-domain` accepts either the bare module name or a displayed V2 basename such as
+`elevator_controller.v2.yaml`. A `.generated.yaml` file is a V1 plugin scaffold and cannot be
+validated as typed V2 input; regenerate it with `domain --schema-version 2` rather than renaming or
+implicitly converting the schema.
+
 Successful validation writes `domains/candidates/elevator_controller.v2.validation.json` and
 prints the exact canonical candidate digest. A failure instead writes
 `elevator_controller.v2.validation_failed.json` and does not overwrite successful evidence.
@@ -367,12 +372,28 @@ formalspecgen promote-domain elevator_controller \
 Reviewed V2 artifacts are written to `domains/v2/<module>.json`. They intentionally do not enter
 the V1 `domains/*.yaml` plugin registry, whose schema and source/JML adapter contract are different.
 
+Generate the trusted Java/JML contract deterministically from the reviewed V2 artifact:
+
+```bash
+formalspecgen draft "Generate the reviewed smart-lock contract" \
+  --no-clarify \
+  --canonical-domain smart_lock \
+  --out-file SmartLock.java
+```
+
+This step makes no LLM call. The typed V2 expression tree is serialized into JML guards,
+pre-state-aware effects, frames, class invariants, and constructor initialization. The public Java
+class and output filename must match. A sibling `SmartLock.java.canonical.json` records the
+deterministic transformation and the accepted candidate/evidence hashes. Unsupported operation or
+expression semantics fail closed. Generated state fields are `private /*@ spec_public @*/`, keeping
+runtime mutation behind the verified method surface while retaining specification visibility.
+
 A critical Java/JML implementation can use a reviewed V2 artifact directly:
 
 ```bash
-formalspecgen implement Controller.java --assurance-level critical \
-  --v2-reviewed-domain domains/v2/controller.json \
-  --v2-validation-evidence domains/candidates/controller.v2.validation.json
+formalspecgen implement SmartLock.java --assurance-level critical \
+  --v2-reviewed-domain domains/v2/smart_lock.json \
+  --v2-validation-evidence domains/candidates/smart_lock.v2.validation.json
 ```
 
 The two paths are required together. The generic refinement gate verifies the envelope and accepted

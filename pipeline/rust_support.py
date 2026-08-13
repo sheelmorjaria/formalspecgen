@@ -36,6 +36,10 @@ _PRUSTI_ATTRIBUTE = re.compile(
     r"(?m)^[ \t]*#\[(?:requires|ensures|after_expiry|assert_on_expiry|pure|trusted|predicate)"
     r"(?:\([^\n]*\))?\][ \t]*(?:\r?\n)?"
 )
+# A source must declare at least one proof obligation before a Prusti exit 0 can
+# be reported as verification; #[pure] alone creates no obligation.
+_PRUSTI_OBLIGATION = re.compile(
+    r"#\[\s*(?:requires|ensures|after_expiry|assert_on_expiry)|body_invariant!|prusti_assert!")
 
 
 def draft_rust(requirement: str, provider: str = "glm") -> dict:
@@ -286,9 +290,17 @@ def verify_prusti(code: str, timeout: int | None = None) -> dict:
             return {"status": "TOOL_ERROR", "exit_code": 127, "message": str(exc)}
     output = ((process.stdout or "") + (process.stderr or "")).strip()
     vcs = parse_prusti_vcs(output)
-    return {"status": "VERIFIED" if process.returncode == 0 else "VERIFY_FAILED",
-            "exit_code": process.returncode, "output": output[-12000:],
-            "vcs": [item.__dict__ for item in vcs]}
+    result = {"status": "VERIFIED" if process.returncode == 0 else "VERIFY_FAILED",
+              "exit_code": process.returncode, "output": output[-12000:],
+              "vcs": [item.__dict__ for item in vcs]}
+    if result["status"] == "VERIFIED" and not _PRUSTI_OBLIGATION.search(code):
+        # Mirror the OpenJML vacuity guard: exit 0 over a source with no contract
+        # discharges no proof obligation and must not be claimed as proof.
+        result["status"] = "VACUOUS_VERIFIED"
+        result["vacuity_note"] = (
+            "Prusti exited 0 but the source declares no #[requires]/#[ensures]/expiry "
+            "contract and no body_invariant!/prusti_assert!; no obligation was discharged")
+    return result
 
 
 def _prusti_binary() -> Path | None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from .domain_v2 import (
     BinaryExpr, BooleanExpr, BoolStateVariable, DomainSpecV2, FieldExpr,
-    IntegerExpr, OldExpr,
+    IntegerExpr, NotExpr, OldExpr,
 )
 from .domain_v2_model import UnsupportedV2Boundary
 
@@ -18,6 +18,7 @@ def render_expression(node) -> str:
     if isinstance(node, IntegerExpr): return str(node.value)
     if isinstance(node, BooleanExpr): return "TRUE" if node.value else "FALSE"
     if isinstance(node, OldExpr): return render_expression(node.expression)
+    if isinstance(node, NotExpr): return f"~({render_expression(node.expression)})"
     if isinstance(node, BinaryExpr):
         return f"({render_expression(node.left)} {_OPS[node.kind]} {render_expression(node.right)})"
     raise UnsupportedV2Boundary(f"unsupported expression node {type(node).__name__}")

@@ -179,7 +179,9 @@ def test_verify_prusti_all_outcomes_and_diagnostics(tmp_path):
           patch.object(rust.subprocess, "run", return_value=SimpleNamespace(
               returncode=0, stdout="verified", stderr="")),
           patch.object(rust, "parse_prusti_vcs", return_value=[])):
-        assert rust.verify_prusti("fn f() {}")["status"] == "VERIFIED"
+        assert rust.verify_prusti("#[requires(x >= 0)]\nfn f(x: i64) {}")["status"] == "VERIFIED"
+        vacuous = rust.verify_prusti("fn f() {}")
+    assert vacuous["status"] == "VACUOUS_VERIFIED" and "vacuity_note" in vacuous
     with (patch.object(rust, "_prusti_binary", return_value=binary),
           patch.object(rust.subprocess, "run", side_effect=subprocess.TimeoutExpired("p", 1))):
         assert rust.verify_prusti("fn f() {}", timeout=3)["status"] == "TIMEOUT"

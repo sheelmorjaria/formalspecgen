@@ -120,6 +120,43 @@ class CliTests(unittest.TestCase):
             self.assertEqual(cli.command_draft(
                 args, self.ui, self.store, self.state), 2)
 
+    def test_reviewed_v2_canonical_domain_deterministically_writes_jml(self):
+        reviewed_dir = self.root / "domains/v2"
+        reviewed_dir.mkdir(parents=True)
+        reviewed = {
+            "schema_version": 2, "review_status": "reviewed",
+            "domain_name": "SmartLock", "module_name": "smart_lock", "actors": 1,
+            "state_variables": [
+                {"kind": "int", "name": "door_state", "bound": [0, 1], "initial": 1}],
+            "operations": [{"name": "OpenDoor", "return_type": "void",
+                "failure_semantics": "unavailable", "guards": [],
+                "effects": [{"id": "open", "target": "door_state",
+                             "value": {"kind": "integer", "value": 0}}],
+                "frame": ["door_state"]}],
+            "tlc_invariants": [{"id": "DoorTyped", "expression": {
+                "kind": "gte", "left": {"kind": "field", "name": "door_state"},
+                "right": {"kind": "integer", "value": 0}}}],
+            "accepted_candidate_sha256": "a" * 64,
+            "accepted_evidence_sha256": "b" * 64,
+        }
+        (reviewed_dir / "smart_lock.json").write_text(json.dumps(reviewed))
+        destination = self.root / "SmartLock.java"
+        args = SimpleNamespace(requirement="A smart lock", provider="ollama", model=None,
+            no_clarify=True, lang="java", canonical_domain="smart_lock",
+            out_file=str(destination), fallback_provider=None, out=None,
+            max_attempts=None, resample_budget=None, feedback_budget=None)
+        with patch.object(cli, "check_stub", return_value=(True, [])):
+            self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 0)
+        self.assertIn("public class SmartLock", destination.read_text())
+        self.assertIn("private /*@ spec_public @*/ int door_state;", destination.read_text())
+        evidence = json.loads(destination.with_suffix(".java.canonical.json").read_text())
+        self.assertEqual(evidence["transformation"], "DETERMINISTIC_V2_TO_JML")
+        self.assertEqual(evidence["accepted_candidate_sha256"], "a" * 64)
+        args.out_file = str(self.root / "WrongName.java")
+        with patch.object(cli, "check_stub", return_value=(True, [])):
+            self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 2)
+        self.assertFalse(Path(args.out_file).exists())
+
     def test_implement_success_and_failure(self):
         stub = self.root / "X.java"; stub.write_text("class X {}", encoding="utf-8")
         args = SimpleNamespace(stub=str(stub), provider="ollama", model=None, out=None,
@@ -286,13 +323,44 @@ class CliTests(unittest.TestCase):
         args = SimpleNamespace(idea="switch", provider="ollama", model=None,
             project_root=str(self.root), force=False, schema_version=2,
             restart_clarifications=False, replace_reviewed_domain=False)
+        evidence = SimpleNamespace(candidate_sha256="a" * 64,
+                                   reachable_state_count=2,
+                                   reachable_transition_count=1)
         with patch.object(cli, "elicit_domain_questions", return_value=(question, "m", {})), \
              patch.object(cli, "compile_domain_spec_v2", return_value=(spec, "typed yaml", "m", {})), \
+             patch.object(cli, "validate_v2_candidate", return_value=evidence) as validate, \
              patch.object(cli, "scaffold_domain") as scaffold:
             self.assertEqual(cli.command_domain(args, self.ui, self.store, self.state), 0)
         scaffold.assert_not_called()
+        self.assertEqual(validate.call_args.args[0].name, "switch.v2.yaml")
+        self.assertEqual(validate.call_args.args[1].name, "switch.v2.validation.json")
+        self.assertEqual(validate.call_args.kwargs["failure_path"].name,
+                         "switch.v2.validation_failed.json")
         self.assertEqual((self.root / "domains/candidates/switch.v2.yaml").read_text(),
                          "typed yaml")
+
+    def test_v2_domain_generation_fails_closed_when_validation_fails(self):
+        value = {"schema_version": 2, "review_status": "unreviewed",
+            "domain_name": "Switch", "module_name": "switch", "actors": 1,
+            "state_variables": [{"kind": "bool", "name": "enabled", "initial": False}],
+            "operations": [{"name": "Enable", "return_type": "void",
+                "failure_semantics": "unavailable", "guards": [],
+                "effects": [{"id": "set", "target": "enabled",
+                             "value": {"kind": "boolean", "value": True}}],
+                "frame": ["enabled"]}],
+            "tlc_invariants": [{"id": "Safe", "expression": {"kind": "or",
+                "left": {"kind": "field", "name": "enabled"},
+                "right": {"kind": "eq", "left": {"kind": "field", "name": "enabled"},
+                          "right": {"kind": "boolean", "value": False}}}}]}
+        spec = DomainSpecV2.model_validate(value)
+        args = SimpleNamespace(idea="switch", provider="ollama", model=None,
+            project_root=str(self.root), force=True, schema_version=2,
+            restart_clarifications=False, replace_reviewed_domain=False)
+        with patch.object(cli, "elicit_domain_questions", return_value=([], "m", {})), \
+             patch.object(cli, "compile_domain_spec_v2", return_value=(spec, "typed yaml", "m", {})), \
+             patch.object(cli, "validate_v2_candidate", side_effect=RuntimeError("TLC failed")):
+            self.assertEqual(cli.command_domain(args, self.ui, self.store, self.state), 2)
+        self.assertEqual(self.state["domain_draft"]["idea"], "switch")
 
     def test_validate_domain_cli_success_failure_and_tla_emission(self):
         evidence = SimpleNamespace(candidate_sha256="a" * 64, reachable_state_count=2,
@@ -310,6 +378,30 @@ class CliTests(unittest.TestCase):
         with patch.object(cli, "validate_v2_candidate", side_effect=RuntimeError("failed")):
             self.assertEqual(cli.command_validate_domain(args, self.ui), 2)
 
+    def test_validate_domain_accepts_candidate_basenames_and_explains_v1_mismatch(self):
+        assert cli._domain_candidate_name("smart-lock.v2.yaml") == "smart_lock"
+        assert cli._domain_candidate_name("smart_lock.generated") == "smart_lock"
+        assert cli._domain_candidate_name("smart_lock.generated.yaml") == "smart_lock"
+        with self.assertRaisesRegex(ValueError, "not a path"):
+            cli._domain_candidate_name("../smart_lock.v2.yaml")
+        with self.assertRaisesRegex(ValueError, "safe lower-case"):
+            cli._domain_candidate_name("bad.name.json")
+        invalid = SimpleNamespace(name="../escape", project_root=str(self.root), emit_tla=None)
+        self.assertEqual(cli.command_validate_domain(invalid, self.ui), 2)
+        invalid.schema_version = 2
+        invalid.accept_candidate_sha256 = "a" * 64
+        invalid.replace_reviewed_domain = False
+        self.assertEqual(cli.command_promote_domain(invalid, self.ui), 2)
+
+        candidate = self.root / "domains/candidates/smart_lock.generated.yaml"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_text("schema_version: 1\n", encoding="utf-8")
+        args = SimpleNamespace(name="smart_lock.generated", project_root=str(self.root),
+                               emit_tla=None)
+        with patch.object(cli, "validate_v2_candidate") as validate:
+            self.assertEqual(cli.command_validate_domain(args, self.ui), 2)
+        validate.assert_not_called()
+
     def test_v2_promotion_cli_requires_hash_and_publishes_separate_registry(self):
         args = SimpleNamespace(name="switch", project_root=str(self.root), schema_version=2,
             accept_candidate_sha256=None, replace_reviewed_domain=False)
@@ -323,6 +415,21 @@ class CliTests(unittest.TestCase):
         canonical.parent.mkdir(parents=True); canonical.write_text("reviewed")
         with patch.object(cli, "promote_validated_candidate"):
             self.assertEqual(cli.command_promote_domain(args, self.ui), 2)
+
+    def test_promotion_prefers_validated_v2_when_schema_is_omitted(self):
+        candidate_dir = self.root / "domains/candidates"
+        candidate_dir.mkdir(parents=True)
+        (candidate_dir / "smart_lock.v2.validation.json").write_text("{}")
+        args = SimpleNamespace(name="smart_lock", project_root=str(self.root),
+            schema_version=None, accept_candidate_sha256="a" * 64,
+            replace_reviewed_domain=False)
+        reviewed = SimpleNamespace(accepted_candidate_sha256=args.accept_candidate_sha256)
+        with patch.object(cli, "promote_validated_candidate", return_value=reviewed) as promote:
+            self.assertEqual(cli.command_promote_domain(args, self.ui), 0)
+        self.assertEqual(promote.call_args.args[0],
+                         candidate_dir / "smart_lock.v2.yaml")
+        self.assertEqual(promote.call_args.args[2],
+                         self.root / "domains/v2/smart_lock.json")
 
     def test_promote_domain_requires_reviewed_implementation_and_locks_result(self):
         value = {"review_status": "unreviewed", "schema_version": 1,

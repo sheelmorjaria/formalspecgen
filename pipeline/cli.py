@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import sys
 import yaml
@@ -17,6 +18,7 @@ from typing import Any, Callable
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -31,6 +33,7 @@ from .domain_v2_promotion import candidate_sha256, load_candidate, promote_valid
 from .domain_v2_tla import render_v2_tla
 from .domain_v2_validation import validate_v2_candidate
 from .elicit import augment_spec, extract_ambiguities
+from .jml_io import class_name as java_class_name
 from .llm import LLMError, _chat_fn
 from .orchestrator import run as draft_contract, run_implementation_loop
 from .rust_support import draft_rust
@@ -40,6 +43,7 @@ from .verify import classify, verify
 from .verify_c import verify_c
 from .verify_rust import verify_rust
 from .validate import check_stub
+from .v2_jml_serializer import render_reviewed_v2_file
 
 
 SESSION_VERSION = 1
@@ -149,13 +153,33 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
             result = draft_acsl(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "c")
         if getattr(args, "canonical_domain", None):
-            canonical_domain, code, assumptions = canonical_contract(
-                args.canonical_domain, enriched)
+            requested_domain = args.canonical_domain.strip().lower()
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested_domain):
+                raise ValueError("canonical domain must be a safe module identifier")
+            reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested_domain}.json"
+            reviewed_v2 = None
+            if reviewed_path.exists():
+                reviewed_v2, code = render_reviewed_v2_file(reviewed_path)
+                canonical_domain = reviewed_v2.module_name
+                assumptions = [
+                    "Generated deterministically from a hash-bound reviewed V2 domain.",
+                    "Operations model atomic method calls; concurrent linearizability is not proved.",
+                ]
+                default_destination = f"{reviewed_v2.domain_name}.java"
+            else:
+                canonical_domain, code, assumptions = canonical_contract(
+                    args.canonical_domain, enriched)
+                default_destination = "TrafficLightController.java"
             checked, errors = check_stub(code)
             if not checked:
                 raise ValueError("reviewed canonical contract failed OpenJML check: " +
                                  "\n".join(errors))
-            destination = Path(args.out_file or "TrafficLightController.java")
+            destination = Path(args.out_file or default_destination)
+            generated_class = java_class_name(code)
+            if generated_class is None or destination.name != f"{generated_class}.java":
+                raise ValueError(
+                    f"canonical public class {generated_class or '<unknown>'} must be written "
+                    f"to {generated_class or '<ClassName>'}.java")
             destination.write_text(code, encoding="utf-8")
             evidence = {
                 "status": "CANONICAL_CONTRACT",
@@ -169,6 +193,13 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                 "human_acceptance_required": True,
                 "source_refinement_proved": False,
             }
+            if reviewed_v2 is not None:
+                evidence.update({
+                    "reviewed_v2_domain": str(reviewed_path.resolve()),
+                    "accepted_candidate_sha256": reviewed_v2.accepted_candidate_sha256,
+                    "accepted_evidence_sha256": reviewed_v2.accepted_evidence_sha256,
+                    "transformation": "DETERMINISTIC_V2_TO_JML",
+                })
             evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
             evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
                                      encoding="utf-8")
@@ -184,8 +215,8 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
             fallback_provider=args.fallback_provider, model=args.model, out_dir=args.out,
             max_attempts=args.max_attempts, on_event=ui.event,
             resample_budget=args.resample_budget, feedback_budget=args.feedback_budget)
-    except (CanonicalContractConflict, LLMError, ValueError) as exc:
-        ui.console.print(f"[bold red]Draft failed:[/bold red] {exc}")
+    except (CanonicalContractConflict, LLMError, OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]Draft failed:[/bold red] {escape(str(exc))}")
         return 2
     if result.stub_path:
         state["last_stub"] = result.stub_path
@@ -228,7 +259,7 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
             v2_validation_evidence=getattr(args, "v2_validation_evidence", None),
             on_event=ui.event)
     except (OSError, ValueError) as exc:
-        ui.console.print(f"[bold red]Implementation failed:[/bold red] {exc}")
+        ui.console.print(f"[bold red]Implementation failed:[/bold red] {escape(str(exc))}")
         return 2
     _write_json(result, args.json, ui.console)
     return 0 if result["final_status"] in {
@@ -286,6 +317,8 @@ def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore
     draft = state.get("domain_draft") or {}
     idea = args.idea
     schema_version = int(getattr(args, "schema_version", 1))
+    validation_evidence = None
+    validation_path = None
     try:
         if getattr(args, "restart_clarifications", False):
             draft = {}
@@ -329,8 +362,17 @@ def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore
         outputs = ([] if schema_version == 2 else scaffold_domain(
             candidate, project_root=root, force=args.force,
             replace_reviewed=getattr(args, "replace_reviewed_domain", False)))
-    except (LLMError, ValueError, OSError) as exc:
-        ui.console.print(f"[bold red]Domain generation failed:[/bold red] {exc}")
+        if schema_version == 2:
+            validation_path = candidate.with_name(
+                f"{spec.module_name}.v2.validation.json")
+            failure_path = candidate.with_name(
+                f"{spec.module_name}.v2.validation_failed.json")
+            validation_evidence = validate_v2_candidate(
+                candidate, validation_path, failure_path=failure_path,
+                tlc_jar=config.TLC_JAR, java=getattr(config, "JAVA_BIN", "java"),
+                timeout=config.TLC_TIMEOUT)
+    except (LLMError, ValueError, RuntimeError, OSError) as exc:
+        ui.console.print(f"[bold red]Domain generation failed:[/bold red] {escape(str(exc))}")
         return 2
     state["domain_draft"] = {}
     store.save(state)
@@ -342,17 +384,36 @@ def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore
     if schema_version == 1:
         ui.console.print("[yellow]Human review is required for extractor and renderer TODOs.[/yellow]")
     else:
-        ui.console.print("[yellow]Run validate-domain before explicit hash-bound promotion.[/yellow]")
+        ui.console.print(Panel(
+            f"Status: VALIDATED\n"
+            f"Candidate SHA-256: {validation_evidence.candidate_sha256}\n"
+            f"Reachable states: {validation_evidence.reachable_state_count}\n"
+            f"Reachable transitions: {validation_evidence.reachable_transition_count}\n"
+            f"Evidence: {validation_path}",
+            title="V2 bounded evidence", border_style="green"))
+        ui.console.print(
+            "[yellow]Human review and explicit hash-bound promotion are still required.[/yellow]")
     return 0
 
 
 def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     root = Path(args.project_root).resolve()
-    name = args.name.strip().lower().replace("-", "_")
+    try:
+        name = _domain_candidate_name(args.name)
+    except ValueError as exc:
+        ui.console.print(f"[bold red]V2 domain validation failed:[/bold red] {escape(str(exc))}")
+        return 2
     candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
     validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
     failure = root / "domains" / "candidates" / f"{name}.v2.validation_failed.json"
     try:
+        if not candidate.exists():
+            v1_candidate = root / "domains" / "candidates" / f"{name}.generated.yaml"
+            if v1_candidate.exists():
+                raise ValueError(
+                    f"{v1_candidate.name} is a V1 plugin scaffold, not a typed V2 candidate. "
+                    "V1 requires human review of its generated extractor and renderer. "
+                    "Regenerate the domain with --schema-version 2 before using validate-domain.")
         evidence = validate_v2_candidate(
             candidate, validation, failure_path=failure, tlc_jar=config.TLC_JAR,
             java=getattr(config, "JAVA_BIN", "java"), timeout=config.TLC_TIMEOUT)
@@ -362,7 +423,7 @@ def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
             destination.write_text(tla, encoding="utf-8")
             destination.with_suffix(".cfg").write_text(cfg, encoding="utf-8")
     except (ValueError, RuntimeError, OSError) as exc:
-        ui.console.print(f"[bold red]V2 domain validation failed:[/bold red] {exc}")
+        ui.console.print(f"[bold red]V2 domain validation failed:[/bold red] {escape(str(exc))}")
         return 2
     ui.console.print(Panel(
         f"Status: VALIDATED\nCandidate SHA-256: {evidence.candidate_sha256}\n"
@@ -375,8 +436,16 @@ def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
-    name = args.name.strip().lower().replace("-", "_")
-    if int(getattr(args, "schema_version", 1)) == 2:
+    try:
+        name = _domain_candidate_name(args.name)
+    except ValueError as exc:
+        ui.console.print(f"[bold red]Domain promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    requested_schema = getattr(args, "schema_version", None)
+    if requested_schema is None:
+        v2_validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
+        requested_schema = 2 if v2_validation.exists() else 1
+    if int(requested_schema) == 2:
         candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
         validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
         canonical = root / "domains" / "v2" / f"{name}.json"
@@ -390,7 +459,7 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
                 candidate, validation, canonical,
                 accept_candidate_sha256=args.accept_candidate_sha256)
         except (ValueError, OSError) as exc:
-            ui.console.print(f"[bold red]V2 domain promotion failed:[/bold red] {exc}")
+            ui.console.print(f"[bold red]V2 domain promotion failed:[/bold red] {escape(str(exc))}")
             return 2
         ui.console.print(
             f"[green]Promoted reviewed V2 domain {name}[/green]\n"
@@ -428,10 +497,25 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
             reviewed.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
             encoding="utf-8")
     except (ValueError, OSError) as exc:
-        ui.console.print(f"[bold red]Domain promotion failed:[/bold red] {exc}")
+        ui.console.print(f"[bold red]Domain promotion failed:[/bold red] {escape(str(exc))}")
         return 2
     ui.console.print(f"[green]Promoted reviewed domain {name}[/green]\n  [path]{canonical}[/path]")
     return 0
+
+
+def _domain_candidate_name(value: str) -> str:
+    """Accept a module name or displayed candidate filename without allowing paths."""
+    raw = value.strip().lower().replace("-", "_")
+    if Path(raw).name != raw:
+        raise ValueError("domain candidate must be a module name or basename, not a path")
+    for suffix in (".v2.validation.json", ".v2.yaml", ".generated.yaml",
+                   ".generated", ".v2", ".yaml"):
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)]
+            break
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", raw):
+        raise ValueError("domain candidate name must be a safe lower-case identifier")
+    return raw
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -513,7 +597,8 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("name")
     promote.add_argument("--project-root", default=".")
     promote.add_argument("--replace-reviewed-domain", action="store_true")
-    promote.add_argument("--schema-version", type=int, choices=[1, 2], default=1)
+    promote.add_argument("--schema-version", type=int, choices=[1, 2], default=None,
+                         help="candidate schema; inferred from validated V2 evidence when omitted")
     promote.add_argument("--accept-candidate-sha256")
     return parser
 

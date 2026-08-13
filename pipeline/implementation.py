@@ -49,7 +49,8 @@ Diagnostic rules:
 """
 
 _METHOD = re.compile(
-    r"(?m)^\s*(?:public|protected|private)\s+(?:static\s+)?(?:final\s+)?"
+    r"(?m)^\s*(?:public|protected|private)\s+(?:/\*@.*?@\*/\s+)?"
+    r"(?:static\s+)?(?:final\s+)?"
     r"[\w<>\[\], ?]+\s+\w+\s*\([^;{}]*\)\s*(?:throws\s+[^{]+)?\{")
 _FIELD = re.compile(
     r"(?m)^\s*(?:public|protected|private)\s+(?:static\s+)?(?:final\s+)?"
@@ -77,6 +78,12 @@ def trusted_surface_matches(stub: str, candidate: str) -> tuple[bool, dict]:
     differences = {key: {"expected": expected[key], "actual": actual[key]}
                    for key in expected if expected[key] != actual[key]}
     return not differences, differences
+
+
+def trusted_surface_hash(code: str) -> str:
+    """Hash the complete normalized API/JML surface, excluding method bodies."""
+    return sha256_text(json.dumps(
+        _surface(code), sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
 def _chat_generate(stub: str, model: str | None, provider: str):
@@ -217,7 +224,7 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
                  "method": vc.method, "detail": vc.detail, "raw": vc.raw} for vc in vcs]
         attempt = {"attempt": number, "status": status, "exit_code": exit_code,
                    "model": used_model, "tokens": usage, "candidate_hash": sha256_text(transformed),
-                   "contract_hash": sha256_text("\n".join(_surface(stub)["clauses"])),
+                   "contract_hash": trusted_surface_hash(stub),
                    "vcs": rows, "accepted_passes": accepted_passes or [],
                    "postprocess": pass_report}
         attempts.append(attempt)
@@ -235,7 +242,7 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
                         verification_mode == "esc" else
                         "STATIC_CHECK" if final_status in {"STATIC_CHECKED", "COMPILED"} else
                         "NO_PROOF"),
-              "trusted_contract_hash": sha256_text("\n".join(_surface(stub)["clauses"])),
+              "trusted_contract_hash": trusted_surface_hash(stub),
               "native_synthesis": True, "external_handoff_used": False,
               "verification_mode": verification_mode}
     if final_code:
@@ -248,7 +255,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Native trusted-JML to verified-Java implementation synthesis")
     parser.add_argument("stub", help="JML-annotated Java scaffold")
-    parser.add_argument("--provider", default="glm", choices=["glm", "openai", "ollama"])
+    parser.add_argument("--provider", default="ollama", choices=["glm", "openai", "ollama"])
     parser.add_argument("--model")
     parser.add_argument("--out")
     parser.add_argument("--max-attempts", type=int, default=5)

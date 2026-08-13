@@ -1,0 +1,47 @@
+review_status: unreviewed
+schema_version: 1
+domain_name: SmartLock
+module_name: smart_lock
+state_variables:
+- name: door_state
+  type: int
+  bound:
+  - 0
+  - 1
+- name: lock_state
+  type: int
+  bound:
+  - 0
+  - 1
+operations:
+- name: CloseDoor
+  guards:
+  - door_is_open
+  effect: set_door_state_closed
+  frame:
+  - door_state
+  ast_pattern: door_state == 1
+- name: OpenDoor
+  guards:
+  - door_is_closed
+  effect: set_door_state_open
+  frame:
+  - door_state
+  ast_pattern: door_state == 0
+- name: LockDoor
+  guards:
+  - door_is_closed
+  - lock_is_unlocked
+  effect: set_lock_state_locked
+  frame:
+  - lock_state
+  ast_pattern: lock_state == 1
+- name: UnlockDoor
+  guards:
+  - lock_is_locked
+  effect: set_lock_state_unlocked
+  frame:
+  - lock_state
+  ast_pattern: lock_state == 0
+tlc_invariants:
+- DoorOpenImpliesLockUnlocked

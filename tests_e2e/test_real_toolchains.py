@@ -8,6 +8,8 @@ from pipeline.implementation import synthesize_implementation
 from pipeline.jml_to_dafny import translate_and_verify
 from pipeline.tla_backend import generate_and_check
 from pipeline.verify import classify, has_dropped_vc, verify
+from pipeline.domain_v2 import DomainSpecV2
+from pipeline.v2_jml_serializer import render_class
 
 from fixtures import ACSL, BANKING, COUNTER, LINKED, TRUSTED_COUNTER_STUB
 
@@ -57,3 +59,23 @@ def test_framac_wp_is_really_verified_with_scoped_rte_claim(framac_tools):
     assert result["claim"] == "DEDUCTIVE_PROOF"
     assert result["proved_goals"] == result["total_goals"] > 0
     assert result["runtime_errors"] in {"GENERATED", "PARTIAL"}
+
+
+def test_v2_jml_serializer_output_is_really_openjml_checked(openjml_tool, tmp_path):
+    value = {
+        "schema_version": 2, "domain_name": "Switch", "module_name": "switch",
+        "state_variables": [{"kind": "bool", "name": "enabled", "initial": False}],
+        "operations": [{"name": "Enable", "return_type": "void",
+            "failure_semantics": "unavailable", "guards": [],
+            "effects": [{"id": "set_enabled", "target": "enabled",
+                         "value": {"kind": "boolean", "value": True}}],
+            "frame": ["enabled"]}],
+        "tlc_invariants": [{"id": "EnabledTyped", "expression": {
+            "kind": "or", "left": {"kind": "field", "name": "enabled"},
+            "right": {"kind": "eq", "left": {"kind": "field", "name": "enabled"},
+                      "right": {"kind": "boolean", "value": False}}}}],
+    }
+    source = tmp_path / "Switch.java"
+    source.write_text(render_class(DomainSpecV2.model_validate(value)), encoding="utf-8")
+    exit_code, output = verify(source, mode="check")
+    assert classify(exit_code) == "VERIFIED", output

@@ -8,7 +8,7 @@ from typing import Any
 
 from .domain_v2 import (
     BinaryExpr, BooleanExpr, BoolStateVariable, DomainSpecV2, FieldExpr,
-    IntegerExpr, OldExpr, Operation,
+    IntegerExpr, NotExpr, OldExpr, Operation,
 )
 
 MAX_STATE_SPACE = 100_000
@@ -31,6 +31,8 @@ def evaluate_expression(node, state: dict[str, Any]) -> Any:
         return node.value
     if isinstance(node, OldExpr):
         return evaluate_expression(node.expression, state)
+    if isinstance(node, NotExpr):
+        return not bool(evaluate_expression(node.expression, state))
     if isinstance(node, BinaryExpr):
         left, right = evaluate_expression(node.left, state), evaluate_expression(node.right, state)
         functions = {
@@ -129,4 +131,8 @@ def validate_transitions_and_invariants(
                     results = list(state["callResult"]); results[actor] = "false"
                     post["callResult"] = tuple(results)
                     transitions += 1; queue.append(post)
+    if transitions == 0:
+        raise V2ValidationError(
+            "initial state has no enabled transition; add the missing environment/controller "
+            "operations or explicitly redesign the initial state (deadlock checking remains on)")
     return len(visited), transitions

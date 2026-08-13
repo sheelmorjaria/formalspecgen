@@ -58,15 +58,15 @@ CONTRACT = """public class Switch {
     private /*@ spec_public @*/ boolean enabled;
     //@ assignable enabled;
     //@ ensures enabled == true;
-    public void Enable() {}
+    public void enable() {}
 }
 """
 
 
 def test_generic_gate_proves_restricted_reviewed_v2_contract_simulation(tmp_path):
     reviewed, evidence = _reviewed_files(tmp_path)
-    implementation = CONTRACT.replace("public void Enable() {}",
-                                      "public void Enable() { enabled = true; }")
+    implementation = CONTRACT.replace("public void enable() {}",
+                                      "public void enable() { enabled = true; }")
     result = generic_v2_refinement_gate(
         reviewed, evidence, CONTRACT, implementation, esc_verified=True)
     assert result["status"] == "VERIFIED"
@@ -74,6 +74,30 @@ def test_generic_gate_proves_restricted_reviewed_v2_contract_simulation(tmp_path
     assert result["source_refinement_proved"]
     assert not result["concurrent_linearizability_proved"]
     assert result["obligations"][0]["status"] == "PROVED"
+    assert result["obligations"][0]["method"] == "enable"
+    assert result["obligations"][0]["action"] == "Enable"
+    assert len(result["trusted_contract_sha256"]) == 64
+    assert result["implementation_sha256"] == hashlib.sha256(
+        implementation.encode("utf-8")).hexdigest()
+
+
+def test_generic_gate_binds_exact_sources_and_rejects_public_state(tmp_path):
+    reviewed, evidence = _reviewed_files(tmp_path)
+    implementation = CONTRACT.replace("public void enable() {}",
+                                      "public void enable() { enabled = true; }")
+    first = generic_v2_refinement_gate(
+        reviewed, evidence, CONTRACT, implementation, esc_verified=True)
+    changed_body = implementation.replace("enabled = true;", "this.enabled = true;")
+    second = generic_v2_refinement_gate(
+        reviewed, evidence, CONTRACT, changed_body, esc_verified=True)
+    assert first["implementation_sha256"] != second["implementation_sha256"]
+    assert first["certificate_sha256"] != second["certificate_sha256"]
+
+    public = CONTRACT.replace(
+        "private /*@ spec_public @*/ boolean enabled", "public boolean enabled")
+    rejected = generic_v2_refinement_gate(
+        reviewed, evidence, public, public, esc_verified=True)
+    assert rejected["code"] == "encapsulation_violation"
 
 
 def test_generic_gate_fails_closed_for_contract_drift_and_evidence_rebinding(tmp_path):
@@ -158,7 +182,10 @@ def test_generic_gate_rejects_reviewed_model_bound_to_another_evidence_envelope(
 
 def test_generic_gate_rejects_empty_and_non_bijective_transition_surfaces(tmp_path):
     reviewed, evidence = _reviewed_files(tmp_path)
-    no_method = "public class Switch { private boolean enabled; }"
+    no_method = """public class Switch {
+    private /*@ spec_public @*/ boolean enabled;
+}
+"""
     assert generic_v2_refinement_gate(
         reviewed, evidence, no_method, no_method,
         esc_verified=True)["code"] == "empty_transition_surface"
@@ -198,6 +225,11 @@ def test_expression_equivalence_and_conjunction_flattening_are_structural():
     assert _flatten_v2_and(field) == [field]
     assert not _equivalent(object(), IntegerLiteral(value=1))
 
+    from pipeline.domain_v2 import NotExpr as V2Not
+    from pipeline.jml_ast import UnaryExpr
+    assert _equivalent(V2Not(expression=field), UnaryExpr(kind="not", operand=FieldAccess(field="x")))
+    assert not _equivalent(V2Not(expression=field), FieldAccess(field="x"))
+
 
 def test_generic_boolean_gate_checks_combined_guard_and_explicit_failure_stutter(tmp_path):
     value = _candidate().model_dump(mode="json")
@@ -217,7 +249,7 @@ def test_generic_boolean_gate_checks_combined_guard_and_explicit_failure_stutter
     //@ ensures \result <==> \old(enabled) == false && \old(enabled) != true;
     //@ ensures \result ==> enabled == true;
     //@ ensures !\result ==> enabled == \old(enabled);
-    public boolean Enable() { return false; }
+    public boolean enable() { return false; }
 }
 """
     result = generic_v2_refinement_gate(
@@ -247,7 +279,7 @@ def test_generic_gate_rejects_unmodeled_failure_effects(tmp_path):
     //@ ensures \result <==> \old(enabled) == false;
     //@ ensures \result ==> enabled == true;
     //@ ensures !\result ==> enabled == \old(enabled);
-    public boolean Enable() { return false; }
+    public boolean enable() { return false; }
 }
 """
     result = generic_v2_refinement_gate(

@@ -1,0 +1,215 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: AtmController
+module_name: atm_controller
+actors: 1
+state_variables:
+- kind: int
+  name: account_balance
+  bound:
+  - 0
+  - 5
+  initial: 4
+- kind: int
+  name: atm_cash
+  bound:
+  - 0
+  - 5
+  initial: 2
+- kind: bool
+  name: session_active
+  initial: false
+operations:
+- name: startSession
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_start_session
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: session_active
+      right:
+        kind: boolean
+        value: false
+  effects:
+  - id: update_session_active
+    target: session_active
+    value:
+      kind: boolean
+      value: true
+  frame:
+  - session_active
+  exception_type: null
+  exception_trigger: null
+- name: endSession
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_end_session
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: session_active
+      right:
+        kind: boolean
+        value: true
+  effects:
+  - id: update_session_inactive
+    target: session_active
+    value:
+      kind: boolean
+      value: false
+  frame:
+  - session_active
+  exception_type: null
+  exception_trigger: null
+- name: deposit
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_deposit_session
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: session_active
+      right:
+        kind: boolean
+        value: true
+  - id: guard_deposit_account_balance
+    expression:
+      kind: lt
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: integer
+        value: 5
+  - id: guard_deposit_atm_cash
+    expression:
+      kind: lt
+      left:
+        kind: field
+        name: atm_cash
+      right:
+        kind: integer
+        value: 5
+  - id: account_balance_within_upper_bound
+    expression:
+      kind: lte
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: integer
+        value: 4
+  - id: atm_cash_within_upper_bound
+    expression:
+      kind: lte
+      left:
+        kind: field
+        name: atm_cash
+      right:
+        kind: integer
+        value: 4
+  effects:
+  - id: update_account_balance_deposit
+    target: account_balance
+    value:
+      kind: add
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: integer
+        value: 1
+  - id: update_atm_cash_deposit
+    target: atm_cash
+    value:
+      kind: add
+      left:
+        kind: field
+        name: atm_cash
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - account_balance
+  - atm_cash
+  exception_type: null
+  exception_trigger: null
+- name: withdraw
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: guard_withdraw_session
+    expression:
+      kind: eq
+      left:
+        kind: field
+        name: session_active
+      right:
+        kind: boolean
+        value: true
+  - id: guard_withdraw_account_balance
+    expression:
+      kind: gte
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: integer
+        value: 1
+  - id: guard_withdraw_atm_cash
+    expression:
+      kind: gte
+      left:
+        kind: field
+        name: atm_cash
+      right:
+        kind: integer
+        value: 1
+  effects:
+  - id: update_account_balance_withdraw
+    target: account_balance
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: integer
+        value: 1
+  - id: update_atm_cash_withdraw
+    target: atm_cash
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: atm_cash
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - account_balance
+  - atm_cash
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: balance_cash_invariant
+  expression:
+    kind: eq
+    left:
+      kind: sub
+      left:
+        kind: field
+        name: account_balance
+      right:
+        kind: field
+        name: atm_cash
+    right:
+      kind: integer
+      value: 2

@@ -8,29 +8,40 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test-and-package:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12', cache: pip }
       - name: Install test and build dependencies
-        run: python -m pip install --upgrade pip build -r requirements-dev.txt
+        run: python -m pip install --upgrade pip build twine -r requirements-dev.txt
       - name: Run deterministic test suite
-        run: python -m pytest -c pytest.ini
+        run: python -m pytest
       - name: Build wheel and source distribution
         run: python -m build
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*
+      - name: Record distribution checksums
+        run: sha256sum dist/* > dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: formalspecgen-python
           path: dist/*
           if-no-files-found: error
+          retention-days: 30
 
   publish-release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test-and-package
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:

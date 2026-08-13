@@ -5,19 +5,68 @@ on:
     paths:
       - "**/*.java"
       - "**/*.jml"
+      - "domains/**"
       - "pipeline/**"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - ".github/actions/formalspec/action.yml"
+      - ".github/workflows/formalspec.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: formalspec-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENJML_VERSION: "21.0.27"
+  OPENJML_SHA256: "325b93e0133736053cadb536d4dc6c9c6523e104691724135e4e03457188b06d"
+  OPENJML_BIN: ${{ github.workspace }}/tools/openjml-dist/openjml
+  OPENJML_HOME: ${{ github.workspace }}/tools/openjml-dist
+
 jobs:
   openjml:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install FormalSpecGen
+        run: python -m pip install --upgrade pip -e .
+      - name: Restore OpenJML
+        id: openjml-cache
+        uses: actions/cache@v4
+        with:
+          path: tools/openjml-dist
+          key: openjml-linux-x64-${{ env.OPENJML_VERSION }}-${{ env.OPENJML_SHA256 }}
+      - name: Download pinned OpenJML distribution
+        if: steps.openjml-cache.outputs.cache-hit != 'true'
+        env:
+          OPENJML_URL: https://github.com/OpenJML/OpenJML/releases/download/21.0.27/openjml-ubuntu-24.04-21.0.27.zip
+        run: |
+          set -euo pipefail
+          archive="$(mktemp)"
+          curl --fail --location --retry 3 --output "$archive" "$OPENJML_URL"
+          echo "$OPENJML_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p tools/openjml-dist
+          unzip -q "$archive" -d tools/openjml-dist
+          chmod +x tools/openjml-dist/openjml tools/openjml-dist/openjml-java
+      - name: Confirm OpenJML installation
+        run: test -x "$OPENJML_BIN" && "$OPENJML_BIN" --version
       - name: Check changed JML
         uses: ./.github/actions/formalspec
         with:
@@ -29,3 +78,5 @@ jobs:
         with:
           name: formalspec-report
           path: formalspec-report.json
+          if-no-files-found: error
+          retention-days: 30

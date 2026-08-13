@@ -9,9 +9,18 @@ inputs:
     description: OpenJML mode (check or esc)
     required: false
     default: check
+  report:
+    description: Path for the structured JSON verification report
+    required: false
+    default: formalspec-report.json
 runs:
   using: composite
   steps:
     - name: Validate changed formal specifications
       shell: bash
-      run: python3 -m pipeline.ci --base "${{ inputs.base }}" --mode "${{ inputs.mode }}"
+      run: |
+        set -euo pipefail
+        python3 -m pipeline.ci \
+          --base "${{ inputs.base }}" \
+          --mode "${{ inputs.mode }}" \
+          --report "${{ inputs.report }}"

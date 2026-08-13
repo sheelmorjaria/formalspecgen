@@ -31,7 +31,7 @@ from .lifecycle import (EvidenceClaim, GateRecord, PipelineState, RunLedger,
 from .workspace_contracts import contract_context
 
 
-def run_implementation_loop(file_path: str | Path, provider: str = "glm",
+def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
                             assurance_level: str = "critical",
                             method_proof_only: bool = False,
                             v2_reviewed_domain: str | Path | None = None,
@@ -191,7 +191,7 @@ def _check_attempt(attempt_dir, stub, fallback_name):
     return code_exit, text, vcs, p
 
 
-def run(nl, provider="glm", fallback_provider=None, out_dir=None, model=None,
+def run(nl, provider="ollama", fallback_provider=None, out_dir=None, model=None,
         max_attempts=None, on_event=None, resample_budget=None, feedback_budget=None,
         workspace_files=None):
     """Run the synchronous drafting pipeline.
@@ -423,8 +423,8 @@ def main():
                     help=f"fresh-generation budget (default {strategy.RESAMPLE_BUDGET})")
     ap.add_argument("--feedback-budget", type=int, default=None,
                     help=f"diagnostic-feedback budget (default {strategy.FEEDBACK_BUDGET})")
-    ap.add_argument("--provider", default="glm", choices=["glm", "openai", "ollama"],
-                    help="primary LLM provider (default glm)")
+    ap.add_argument("--provider", default="ollama", choices=["glm", "openai", "ollama"],
+                    help="primary LLM provider (default ollama)")
     ap.add_argument("--fallback-provider", default=None, choices=["glm", "openai", "ollama"],
                     help="retry on this provider if the primary fails (e.g. --fallback-provider openai)")
     ap.add_argument("--out", default=None, help="output dir (default runs/<slug>/<timestamp>)")

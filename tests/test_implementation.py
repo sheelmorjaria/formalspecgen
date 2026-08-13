@@ -36,6 +36,25 @@ def test_trusted_surface_allows_body_changes_only():
     assert implementation.trusted_surface_matches(STUB, with_invariant)[0]
 
 
+def test_complete_contract_hash_binds_encapsulation_and_api_surface():
+    original = implementation.trusted_surface_hash(STUB)
+    assert original == implementation.trusted_surface_hash(CANDIDATE)
+    assert original != implementation.trusted_surface_hash(
+        STUB.replace("private /*@ spec_public @*/ int value", "public int value"))
+    assert original != implementation.trusted_surface_hash(
+        STUB.replace("add(int amount)", "add(long amount)"))
+    with_getter = STUB.replace("\n}\n", """
+    //@ ensures \\result == value;
+    public /*@ pure @*/ int getValue() { return value; }
+}
+""")
+    assert implementation.trusted_surface_hash(with_getter) != original
+    trusted, differences = implementation.trusted_surface_matches(
+        with_getter, with_getter.replace(
+            "public /*@ pure @*/ int getValue() { return value; }", ""))
+    assert not trusted and "methods" in differences
+
+
 def test_chat_prompts_use_local_provider_transport():
     chat = lambda messages, model, temperature: (messages[-1]["content"], model, {})
     with patch.object(implementation, "_chat_fn", return_value=chat):

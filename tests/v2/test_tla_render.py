@@ -72,3 +72,9 @@ def test_expression_renderer_rejects_objects_outside_typed_union():
     from pipeline.domain_v2_tla import render_expression
     with pytest.raises(UnsupportedV2Boundary, match="unsupported expression"):
         render_expression(object())
+
+
+def test_expression_renderer_emits_tla_negation():
+    from pipeline.domain_v2 import BooleanExpr, NotExpr
+    from pipeline.domain_v2_tla import render_expression
+    assert render_expression(NotExpr(expression=BooleanExpr(value=False))) == "~(FALSE)"

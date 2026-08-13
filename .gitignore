@@ -23,6 +23,9 @@ env/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
+.cache/
+.dmypy.json
+.pyre/
 .coverage
 .coverage.*
 coverage.xml
@@ -31,6 +34,7 @@ htmlcov/
 .pytest_cache/
 *.egg-info/
 .eggs/
+pip-wheel-metadata/
 
 # Generated runs and native build artifacts
 runs/
@@ -38,6 +42,26 @@ runs/
 build/
 dist/
 *.spec.bak
+*.log
+*.tmp
+*.temp
+
+# CLI-generated root artifacts and transient formal evidence
+# Reviewed domain sources and successful validation envelopes under domains/
+# remain trackable because they are part of the assurance chain.
+/*.java
+/*.jml
+/*.tla
+/*.cfg
+*.canonical.json
+*.validation_failed.json
+
+# Local model-checker and prover working directories
+states/
+MC.out
+*.dot
+*.trace
+.tlacache/
 
 # Node and archived VS Code extension artifacts
 node_modules/
@@ -45,6 +69,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.npm/
+.yarn/cache/
+.pnpm-store/
 archive/vscode-extension/bin/
 archive/vscode-extension/build/
 archive/vscode-extension/dist/

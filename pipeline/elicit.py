@@ -34,18 +34,44 @@ answer. If the requirement is sufficiently precise, return {"questions":[]}.
 _CATEGORIES = {"bounds", "failure", "state", "frame", "nullability", "concurrency",
                "ordering", "environment", "type", "other"}
 
+QUESTION_JSON_REPAIR_SYSTEM = """Repair the rejected requirements-elicitation response.
+Return exactly one JSON object with a questions array and no prose, Markdown, or code fences:
+{"questions":[{"id":"q1","category":"other","question":"...","required":true}]}
+Use an empty questions array when nothing needs clarification. Preserve the original request;
+do not draft a specification or implementation."""
+
 
 def _extract_json(text: str) -> Any:
-    """Parse a JSON object/array, tolerating one markdown JSON fence."""
+    """Extract exactly one JSON value while tolerating a fence or surrounding prose."""
     value = text.strip()
-    fenced = re.search(r"```(?:json)?\s*(.*?)```", value, re.DOTALL | re.IGNORECASE)
+    fenced = re.findall(r"```(?:json)?\s*(.*?)```", value, re.DOTALL | re.IGNORECASE)
+    if len(fenced) > 1:
+        raise LLMError("INVALID_ELICITATION_JSON",
+                       "ambiguity analysis returned multiple JSON fences")
     if fenced:
-        value = fenced.group(1).strip()
+        value = fenced[0].strip()
     try:
         return json.loads(value)
     except json.JSONDecodeError as exc:
-        raise LLMError("INVALID_ELICITATION_JSON",
-                       f"ambiguity analysis did not return valid JSON: {exc.msg}") from exc
+        decoder = json.JSONDecoder()
+        opening = re.search(r"[\[{]", value)
+        if opening:
+            try:
+                item, end = decoder.raw_decode(value, opening.start())
+            except json.JSONDecodeError:
+                item = None
+            if item is not None:
+                trailing = value[end:]
+                for next_opening in re.finditer(r"[\[{]", trailing):
+                    try:
+                        decoder.raw_decode(trailing, next_opening.start())
+                    except json.JSONDecodeError:
+                        continue
+                    raise LLMError("INVALID_ELICITATION_JSON",
+                                   "ambiguity analysis returned multiple JSON values") from exc
+                return item
+        reason = f"ambiguity analysis did not return valid JSON: {exc.msg}"
+        raise LLMError("INVALID_ELICITATION_JSON", reason) from exc
 
 
 def normalize_questions(value: Any, categories: set[str] | None = None) -> list[dict[str, Any]]:
@@ -79,6 +105,35 @@ def normalize_questions(value: Any, categories: set[str] | None = None) -> list[
     return questions
 
 
+def request_questions(messages: list[dict[str, str]], chat_fn: Callable,
+                      model: str | None = None,
+                      categories: set[str] | None = None):
+    """Request question JSON with bounded syntax-only repair retries."""
+    last_error: LLMError | None = None
+    rejected = ""
+    for attempt in range(3):
+        request_messages = messages
+        if attempt:
+            request_messages = [
+                {"role": "system", "content": QUESTION_JSON_REPAIR_SYSTEM},
+                {"role": "user", "content": (
+                    "Original request:\n" + messages[-1]["content"] +
+                    "\n\nRejected response:\n" + rejected[:4000] +
+                    "\n\nReturn the corrected JSON object only.")},
+            ]
+        content, used, usage = chat_fn(request_messages, model, 0.0)
+        rejected = content if isinstance(content, str) else str(content)
+        try:
+            questions = normalize_questions(_extract_json(rejected), categories)
+            if attempt:
+                usage = {**usage, "elicitation_json_repair_attempts": attempt}
+            return questions, used, usage
+        except LLMError as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
+
+
 def extract_ambiguities(nl_text: str, chat_fn: Callable, model: str | None = None):
     """Return ``(questions, model_used, usage)`` for one natural-language requirement."""
     requirement = nl_text.strip()
@@ -86,8 +141,7 @@ def extract_ambiguities(nl_text: str, chat_fn: Callable, model: str | None = Non
         raise ValueError("nl_text is required")
     messages = [{"role": "system", "content": ELICIT_SYSTEM},
                 {"role": "user", "content": "Requirement:\n" + requirement}]
-    content, used, usage = chat_fn(messages, model, 0.0)
-    return normalize_questions(_extract_json(content)), used, usage
+    return request_questions(messages, chat_fn, model)
 
 
 def augment_spec(original_nl: str, questions: Iterable[dict[str, Any]],

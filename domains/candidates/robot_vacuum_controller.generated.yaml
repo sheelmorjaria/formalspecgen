@@ -1,0 +1,44 @@
+review_status: unreviewed
+schema_version: 1
+domain_name: RobotVacuumController
+module_name: robot_vacuum_controller
+state_variables:
+- name: battery_level
+  type: int
+  bound:
+  - 0
+  - 5
+- name: vacuum_mode
+  type: int
+  bound:
+  - 0
+  - 1
+operations:
+- name: startCleaning
+  guards:
+  - battery_level_is_positive
+  effect: set_vacuum_mode_cleaning
+  frame:
+  - battery_level
+  - vacuum_mode
+  ast_pattern: vacuum_mode == 1 && battery_level > 0
+- name: stopCleaning
+  guards:
+  - vacuum_mode_is_cleaning
+  effect: set_battery_level_decrease
+  frame:
+  - battery_level
+  - vacuum_mode
+  ast_pattern: vacuum_mode == 0 && battery_level >= 1
+- name: dock
+  guards:
+  - vacuum_mode_is_docked
+  effect: set_battery_level_recharge
+  frame:
+  - battery_level
+  - vacuum_mode
+  ast_pattern: vacuum_mode == 0 && battery_level == 5
+tlc_invariants:
+- BatteryLevelBounds
+- VacuumModeBounds
+- NoCleaningWithDeadBattery

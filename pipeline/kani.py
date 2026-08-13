@@ -14,6 +14,8 @@ from . import config
 
 _HARNESS = re.compile(r"#\s*\[\s*kani::proof\s*\]\s*(?:pub\s+)?fn\s+(\w+)")
 _PRUSTI = re.compile(r"(?m)^\s*#\[(?:requires|ensures|pure|predicate)(?:\([^\n]*\))?\]\s*$")
+_VERIFIED_SUMMARY = re.compile(r"successfully verified (\d+) of (\d+) properties", re.I)
+_SUCCESS_CHECK = re.compile(r"(?m)^\s*Check \d+:.*Status: SUCCESS\s*$")
 
 
 def kani_harnesses(code: str) -> list[str]:
@@ -28,6 +30,15 @@ def parse_kani_diagnostics(output: str) -> list[dict]:
         findings.append({"category": "KaniLocation", "file": match.group(1),
                          "line": int(match.group(2)), "detail": match.group(0).strip()})
     return findings
+
+
+def verified_property_count(output: str) -> int | None:
+    """Count properties Kani actually checked; None when the output carries no evidence."""
+    summary = _VERIFIED_SUMMARY.search(output)
+    if summary:
+        return int(summary.group(1))
+    successes = _SUCCESS_CHECK.findall(output)
+    return len(successes) if successes else None
 
 
 def verify_kani(code: str, timeout: int | None = None) -> dict:
@@ -66,8 +77,19 @@ def verify_kani(code: str, timeout: int | None = None) -> dict:
                     "claim": "NO_PROOF", "bounded": True, "message": str(exc)}
     output = ((process.stdout or "") + (process.stderr or "")).strip()
     status = "VERIFIED" if process.returncode == 0 else "VERIFY_FAILED"
-    return {"status": status, "exit_code": process.returncode, "harnesses": harnesses,
-            "claim": "BOUNDED_RUST_EVIDENCE" if status == "VERIFIED" else "NO_PROOF",
-            "bounded": True, "command": command, "diagnostics": parse_kani_diagnostics(output),
-            "output": output[-12000:],
-            "disclaimer": "Kani explored the reviewed harness within configured bounds; this is not deductive Prusti proof."}
+    checked = verified_property_count(output) if process.returncode == 0 else None
+    claim = "BOUNDED_RUST_EVIDENCE" if status == "VERIFIED" else "NO_PROOF"
+    result = {"status": status, "exit_code": process.returncode, "harnesses": harnesses,
+              "claim": claim, "bounded": True, "verified_properties": checked,
+              "command": command, "diagnostics": parse_kani_diagnostics(output),
+              "output": output[-12000:],
+              "disclaimer": "Kani explored the reviewed harness within configured bounds; this is not deductive Prusti proof."}
+    if status == "VERIFIED" and not checked:
+        # Exit 0 alone is not bounded evidence: mirror Frama-C's proved-goals guard
+        # and require at least one property Kani actually checked.
+        result["status"] = "VACUOUS_VERIFIED"
+        result["claim"] = "NO_PROOF"
+        result["vacuity_note"] = (
+            "Kani exited 0 but reported no successfully checked property; "
+            "no bounded obligation was exercised")
+    return result

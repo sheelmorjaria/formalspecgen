@@ -66,6 +66,17 @@ def test_rejects_stringly_typed_expression_and_parses_recursive_ast():
     assert expression.left.expression.kind == "field"
 
 
+def test_parses_recursive_not_and_validates_its_field_references():
+    value = minimal_domain()
+    value["tlc_invariants"][0]["expression"] = {
+        "kind": "not", "expression": {"kind": "boolean", "value": False}}
+    assert DomainSpecV2.model_validate(value).tlc_invariants[0].expression.kind == "not"
+    value["tlc_invariants"][0]["expression"] = {
+        "kind": "not", "expression": {"kind": "field", "name": "missing"}}
+    with pytest.raises(ValidationError, match="invariant.*undeclared"):
+        DomainSpecV2.model_validate(value)
+
+
 def test_boolean_state_rejects_integer_bounds():
     value = minimal_domain()
     value["state_variables"][1]["bound"] = [0, 1]

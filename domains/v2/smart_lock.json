@@ -1,0 +1,247 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "SmartLock",
+  "module_name": "smart_lock",
+  "actors": 1,
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "door_state",
+      "bound": [
+        0,
+        1
+      ],
+      "initial": 1
+    },
+    {
+      "kind": "int",
+      "name": "lock_state",
+      "bound": [
+        0,
+        1
+      ],
+      "initial": 0
+    }
+  ],
+  "operations": [
+    {
+      "name": "CloseDoor",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "g1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "door_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        },
+        {
+          "id": "g2",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "lock_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "e1",
+          "target": "door_state",
+          "value": {
+            "kind": "integer",
+            "value": 1
+          }
+        }
+      ],
+      "frame": [
+        "door_state"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "OpenDoor",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "g1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "door_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "g2",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "lock_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "e1",
+          "target": "door_state",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        }
+      ],
+      "frame": [
+        "door_state"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "LockDoor",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "g1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "door_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "g2",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "lock_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "e1",
+          "target": "lock_state",
+          "value": {
+            "kind": "integer",
+            "value": 1
+          }
+        }
+      ],
+      "frame": [
+        "lock_state"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "UnlockDoor",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "g1",
+          "expression": {
+            "kind": "eq",
+            "left": {
+              "kind": "field",
+              "name": "lock_state"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "e1",
+          "target": "lock_state",
+          "value": {
+            "kind": "integer",
+            "value": 0
+          }
+        }
+      ],
+      "frame": [
+        "lock_state"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "LockOnlyWhenClosed",
+      "expression": {
+        "kind": "implies",
+        "left": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "lock_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 1
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "left": {
+            "kind": "field",
+            "name": "door_state"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 1
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "f6c4bcfd1508473e7e270b6d75822bc3c0fd6550630b55ef763158a39e16e94a",
+  "accepted_evidence_sha256": "673af2eb18c5e366a26087c459ab34e221d27cad4ce43b5367552a13f4466806"
+}

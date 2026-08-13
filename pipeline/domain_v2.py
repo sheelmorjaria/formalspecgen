@@ -49,6 +49,11 @@ class OldExpr(_StrictModel):
     expression: "ExpressionIR"
 
 
+class NotExpr(_StrictModel):
+    kind: Literal["not"] = "not"
+    expression: "ExpressionIR"
+
+
 class BinaryExpr(_StrictModel):
     kind: Literal[
         "eq", "neq", "lt", "lte", "gt", "gte", "add", "sub",
@@ -59,11 +64,12 @@ class BinaryExpr(_StrictModel):
 
 
 ExpressionIR = Annotated[
-    Union[FieldExpr, IntegerExpr, BooleanExpr, OldExpr, BinaryExpr],
+    Union[FieldExpr, IntegerExpr, BooleanExpr, OldExpr, NotExpr, BinaryExpr],
     Field(discriminator="kind"),
 ]
 _EXPRESSION_NAMESPACE = {"ExpressionIR": ExpressionIR}
 OldExpr.model_rebuild(_types_namespace=_EXPRESSION_NAMESPACE)
+NotExpr.model_rebuild(_types_namespace=_EXPRESSION_NAMESPACE)
 BinaryExpr.model_rebuild(_types_namespace=_EXPRESSION_NAMESPACE)
 
 
@@ -174,7 +180,7 @@ class Invariant(_StrictModel):
 def _referenced_fields(expression: ExpressionIR) -> set[str]:
     if isinstance(expression, FieldExpr):
         return {expression.name}
-    if isinstance(expression, OldExpr):
+    if isinstance(expression, (OldExpr, NotExpr)):
         return _referenced_fields(expression.expression)
     if isinstance(expression, BinaryExpr):
         return _referenced_fields(expression.left) | _referenced_fields(expression.right)
