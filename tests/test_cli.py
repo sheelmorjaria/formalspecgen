@@ -229,6 +229,12 @@ class CliTests(unittest.TestCase):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
         verify_args.mode = "check"
         self.assertEqual(cli.command_verify(verify_args, self.ui), 1)
+        cpp = self.root / "counter.cpp"; cpp.write_text("int main() {}", encoding="utf-8")
+        verify_args.source = str(cpp); verify_args.mode = "esc"
+        with patch("pipeline.verify_cpp.verify_cpp",
+                   return_value={"status": "VERIFIED", "exit_code": 0,
+                                 "claim": "BOUNDED_CPP_PROOF"}):
+            self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
         unknown = self.root / "x.txt"; unknown.write_text("x", encoding="utf-8")
         verify_args.source = str(unknown); verify_args.mode = "esc"
         self.assertEqual(cli.command_verify(verify_args, self.ui), 1)
@@ -243,6 +249,47 @@ class CliTests(unittest.TestCase):
         self.assertEqual(cli._finish_language_draft(
             {"status": "PARSE_ERROR", "warnings": [{"line": 1, "message": "bad"}]},
             draft_args, self.ui, self.store, self.state, "rs"), 1)
+
+    def test_cpp_canonical_draft_writes_bounded_evidence(self):
+        reviewed_path = self.root / "domains" / "v2" / "counter.json"
+        reviewed_path.parent.mkdir(parents=True)
+        reviewed_path.write_text("{}", encoding="utf-8")
+        destination = self.root / "Counter.cpp"
+        args = SimpleNamespace(canonical_domain="counter", out_file=str(destination))
+        reviewed = SimpleNamespace(module_name="counter", accepted_candidate_sha256="a" * 64,
+                                   accepted_evidence_sha256="b" * 64)
+        with patch("pipeline.v2_cpp_serializer.render_reviewed_v2_cpp_file",
+                   return_value=(reviewed, "class Counter {};")), \
+             patch("pipeline.cpp_support.check_cpp_syntax",
+                   return_value={"status": "CPP_CHECKED"}):
+            self.assertEqual(cli._canonical_cpp_draft(args, self.ui, self.store,
+                                                       self.state, "counter"), 0)
+        assert destination.read_text() == "class Counter {};"
+        evidence = json.loads(destination.with_suffix(".cpp.canonical.json").read_text())
+        assert evidence["claim"] == "BOUNDED_CPP_EVIDENCE"
+
+    def test_cpp_draft_requires_canonical_domain(self):
+        args = SimpleNamespace(lang="cpp", canonical_domain=None, requirement="counter",
+                               provider="ollama", model=None, no_clarify=True)
+        self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 2)
+
+    def test_cpp_canonical_draft_rejects_invalid_domain_and_missing_tool(self):
+        args = SimpleNamespace(canonical_domain="bad-name", out_file=None)
+        with self.assertRaisesRegex(ValueError, "safe module"):
+            cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
+        args.canonical_domain = "missing"
+        with self.assertRaisesRegex(ValueError, "reviewed V2 domain"):
+            cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
+        domain = self.root / "domains" / "v2" / "counter.json"
+        domain.parent.mkdir(parents=True); domain.write_text("{}", encoding="utf-8")
+        args.canonical_domain = "counter"
+        reviewed = SimpleNamespace(module_name="counter")
+        with patch("pipeline.v2_cpp_serializer.render_reviewed_v2_cpp_file",
+                   return_value=(reviewed, "bad")), \
+             patch("pipeline.cpp_support.check_cpp_syntax",
+                   return_value={"status": "CPP_CHECK_FAILED", "output": "syntax"}):
+            with self.assertRaisesRegex(ValueError, "syntax gate"):
+                cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
 
     def test_architecture_success_failure_and_artifacts(self):
         stub = self.root / "X.java"; stub.write_text("class X {}", encoding="utf-8")

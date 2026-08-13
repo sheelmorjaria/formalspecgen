@@ -152,6 +152,10 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                 return _canonical_rust_draft(args, ui, store, state, enriched)
             result = draft_rust(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "rs")
+        if args.lang == "cpp":
+            if getattr(args, "canonical_domain", None):
+                return _canonical_cpp_draft(args, ui, store, state, enriched)
+            raise ValueError("C++ drafting currently requires --canonical-domain")
         if args.lang == "c":
             if getattr(args, "canonical_domain", None):
                 return _canonical_c_draft(args, ui, store, state, enriched)
@@ -339,6 +343,13 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
                       "language": "c", "message": "C/ACSL currently supports --mode esc through Frama-C WP"}
         else:
             result = verify_c(_read(args.source), mode=args.mode)
+    elif suffix in {".cc", ".cpp", ".cxx"}:
+        if args.mode != "esc":
+            result = {"status": "UNSUPPORTED_MODE", "exit_code": 2, "claim": "NO_PROOF",
+                      "language": "cpp", "message": "C++ supports bounded ESBMC verification through --mode esc"}
+        else:
+            from .verify_cpp import verify_cpp
+            result = verify_cpp(source)
     else:
         result = {"status": "UNSUPPORTED_LANGUAGE", "exit_code": 2, "claim": "NO_PROOF",
                   "message": f"unsupported source extension: {suffix or '<none>'}"}
@@ -763,6 +774,34 @@ def _canonical_c_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionS
     return 0
 
 
+def _canonical_cpp_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
+                         state: dict[str, Any], enriched: str) -> int:
+    """Deterministically lower a reviewed V2 domain into bounded C++ evidence."""
+    from .v2_cpp_serializer import render_reviewed_v2_cpp_file
+    from .cpp_support import check_cpp_syntax
+    requested = args.canonical_domain.strip().lower()
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested):
+        raise ValueError("canonical domain must be a safe module identifier")
+    reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested}.json"
+    if not reviewed_path.exists():
+        raise ValueError(f"canonical C++ drafting requires a reviewed V2 domain; {reviewed_path} not found")
+    reviewed, code = render_reviewed_v2_cpp_file(reviewed_path)
+    check = check_cpp_syntax(code)
+    if check.get("status") != "CPP_CHECKED":
+        raise ValueError("C++ syntax gate failed: " + check.get("output", "")[-500:])
+    destination = Path(args.out_file or f"{reviewed.domain_name}.cpp")
+    destination.write_text(code, encoding="utf-8")
+    evidence = {"status": "CANONICAL_CONTRACT", "claim": "BOUNDED_CPP_EVIDENCE",
+                "domain": reviewed.module_name, "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
+                "cpp_check": check, "unbounded_loop_proved": False,
+                "source_refinement_proved": False, "human_acceptance_required": True}
+    evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
+    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    ui.console.print(Panel(f"Canonical C++ contract: [path]{destination}[/path]",
+                           title="Reviewed domain contract", border_style="green"))
+    return 0
+
+
 def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Compose reviewed V2 domains into orchestrators and let OpenJML ESC judge the glue."""
     from . import composition_render
@@ -868,7 +907,7 @@ def build_parser() -> argparse.ArgumentParser:
     draft = sub.add_parser("draft", parents=[common], help="clarify NL and draft checked JML")
     draft.add_argument("requirement")
     draft.add_argument("--no-clarify", action="store_true")
-    draft.add_argument("--lang", choices=["java", "rust", "c"], default="java")
+    draft.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java")
     draft.add_argument("--out-file", help="contract destination")
     draft.add_argument("--canonical-domain", metavar="DOMAIN",
                        help="deterministically render a reviewed domain contract after clarification")

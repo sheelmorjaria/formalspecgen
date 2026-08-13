@@ -702,6 +702,23 @@ eventual delivery, handler execution, and correspondence between Tokio traces an
 steps are outside the claim. Java and C async lowering, noncanonical Rust sources, and attempts to
 mint `SOURCE_MODEL_REFINEMENT` fail closed with `UNSUPPORTED_BOUNDARY`.
 
+### Bounded C++ / ESBMC lane
+
+Reviewed V2 domains can also be lowered deterministically to a standalone C++17 class:
+
+```bash
+formalspecgen draft "bounded counter" --canonical-domain bounded_counter \
+  --lang cpp --out-file BoundedCounter.cpp
+formalspecgen verify BoundedCounter.cpp --mode esc --json cpp-verdict.json
+```
+
+The serializer emits private state, a checked constructor, public operation methods, and
+assertion-based invariant/guard checks. A local `g++ -std=c++17 -fsyntax-only` gate runs before
+ESBMC. When ESBMC is installed, its bounded (`--unwind 5`) Z3 run may mint `BOUNDED_CPP_PROOF`;
+otherwise the lane fails closed. Evidence always records `unbounded_loop_proved: false` and does
+not mint source/model refinement or concurrency claims. Async Tokio metadata, lock protocols,
+exception semantics, and unsupported expression forms are rejected rather than approximated.
+
 ### Contract-preserving Java refactoring
 
 The initial modernization profile compares two independently verified Java/JML revisions:

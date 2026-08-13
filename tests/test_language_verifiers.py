@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from pipeline import verify_c as c_adapter
 from pipeline import verify_rust as rust_adapter
+from pipeline import verify_cpp as cpp_adapter
 
 
 def test_rust_adapter_lint_compile_prusti_and_kani_routes():
@@ -34,3 +35,11 @@ def test_c_adapter_routes_proof_and_compile():
     with patch.object(c_adapter, "check_c_syntax", return_value={"status": "C_CHECKED"}) as check:
         assert c_adapter.verify_c("int f(void){}", "check")["status"] == "C_CHECKED"
         check.assert_called_once()
+
+
+def test_cpp_adapter_routes_bounded_esbmc():
+    with patch.object(cpp_adapter, "subprocess") as process:
+        process.run.return_value = type("Result", (), {
+            "returncode": 0, "stdout": "Verification successful", "stderr": ""})()
+        result = cpp_adapter.verify_cpp("Safe.cpp")
+    assert result["claim"] == "BOUNDED_CPP_PROOF"
