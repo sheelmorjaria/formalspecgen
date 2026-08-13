@@ -11,6 +11,9 @@ Natural language → clarification → checked language contract
                                            ├─ Java/JML → OpenJML ESC
                                            ├─ Rust/Prusti → Prusti
                                            └─ C/ACSL → Frama-C WP
+
+Explicit lock protocol → bounded invocation histories → canonical Rust Mutex object
+                                                       └─ restricted history refinement
 ```
 
 The governing rule is:
@@ -27,6 +30,7 @@ independent solver stacks — no LLM touches the contracts:
 | Java/JML | OpenJML ESC + TLC | `DEDUCTIVE_PROOF` with `SOURCE_MODEL_REFINEMENT` |
 | Rust/Prusti | Prusti 0.2.2 (Viper/Silicon + Z3) | Peterson: 12/12 plus 6/6 refinement; ABP: 11/11 plus 6/6 refinement |
 | C/ACSL | Frama-C WP + Z3 | Peterson: 87/87 plus 6/6 refinement; ABP: 82/82 plus 6/6 refinement |
+| Concurrent Rust | TLC 2.19 + rustc + exact-source history gate | Bank account: 173 states / 356 transitions; `CONCURRENT_LINEARIZABILITY` |
 
 ```bash
 formalspecgen draft "..." --canonical-domain <module> --lang {java,rust,c}   # deterministic
@@ -71,6 +75,38 @@ The benchmark also hardened negative-integer lowering, scalar expression type ch
 frame canonicalization, and conditional TLA+ `Integers` imports without invalidating existing
 positive-only serialization hashes. Full results and scope are recorded in
 [`domains/examples/polyglot/alternating_bit_protocol/README.md`](domains/examples/polyglot/alternating_bit_protocol/README.md).
+
+### Concurrent bank-account linearizability benchmark
+
+The concurrent bank-account benchmark was generated through the interactive V2/Ollama lifecycle,
+not written directly as YAML. Human review caught the first generated candidate weakening the
+request to `concurrency: null`: TLC correctly validated that smaller atomic model (3 states / 4
+transitions), but the candidate was not promoted because it omitted the requested lock history.
+The staged generator now fails closed whenever authoritative `lock_protocol` requirements produce
+null or incomplete concurrency metadata.
+
+After regeneration and hash-bound promotion, the model contains two actors, explicit
+invoke/acquire/linearize-or-reject/release/respond phases, and reviewed `effect_commit`
+linearization points for `Deposit` and `Withdraw`. TLC 2.19 validated 173 reachable states and 356
+transitions. The deterministic Rust lowering places all concrete state behind one
+`std::sync::Mutex`, handles poisoning without `unwrap` or `expect`, and returns
+`LockError::Unavailable` on a false domain guard. An explicit TLA+ `Reject` transition mirrors that
+observable failure path without changing domain state.
+
+The implementation route minted `CONCURRENT_LINEARIZABILITY` with certificate
+`1c43281d492e5e620138c57225d0b6c02b0156a6c697a4821937688d3ed2bd16`. Its scope is deliberately
+restricted to `bounded_single_mutex_history_refinement`: successful lock acquisition serializes
+the complete protected state, reviewed effects execute while the guard is live, `effect_commit`
+is the successful-call linearization point, and guard release precedes response. Exact canonical
+source matching excludes alternate control flow.
+
+This benchmark did **not** use Prusti to prove mutex contracts. The native gate was `rustc`, and
+its evidence explicitly records that Prusti annotations were erased and no contract was proved.
+Java remains capped at `LOCK_DISCIPLINE_VERIFIED` because its canonical artifact is still a JML
+contract scaffold; C lock-protocol lowering remains unsupported. Reproducible inputs are
+[`domains/candidates/concurrent_bank_account.v2.yaml`](domains/candidates/concurrent_bank_account.v2.yaml),
+[`domains/v2/concurrent_bank_account.json`](domains/v2/concurrent_bank_account.json), and
+[`ConcurrentBankAccount.rs`](ConcurrentBankAccount.rs).
 
 ### Assurance claim disclaimer
 
@@ -520,6 +556,15 @@ The implemented milestones provide:
 - Hash-bound promotion that verifies the candidate hash, evidence-envelope digest, and
   evidence-to-candidate binding before atomically publishing a reviewed artifact. Both accepted
   candidate and evidence hashes are retained, while the original candidate remains unchanged.
+- Complete `lock_protocol` metadata with per-actor ownership values and reviewed operation
+  linearization points. Domain operations cannot read or mutate the abstract protocol lock.
+- Bounded invocation histories with separate invoke, acquire, successful `effect_commit`, false
+  guard rejection, release, and response transitions.
+- Deterministic non-panicking Rust `Mutex<State>` lowering plus exact structural lock-discipline
+  evidence. Java `synchronized` lowering receives only the weaker structural claim.
+- A restricted Rust history-refinement certificate that upgrades
+  `concurrent_linearizability_proved` only after successful TLC evidence, native Rust compilation,
+  complete reviewed lock metadata, and byte-exact canonical-source binding.
 
 V2 promotion provides deterministic artifact integrity and TOCTOU detection. It does **not**
 authenticate the reviewer, provide non-repudiation, prove unbounded correctness, or establish
