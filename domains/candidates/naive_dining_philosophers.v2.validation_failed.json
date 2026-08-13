@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "validation_status": "VALIDATION_FAILED",
+  "candidate_sha256": "4a7604aaa35d98abd1248a8360a7fdffae3ec5d14308df26476b4fb16b4654d6",
+  "failed_gate": "tlc",
+  "diagnostic": "TLC did not verify candidate: TLC_FAILED\nTLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)\nWarning: Please run the Java VM which executes TLC with a throughput optimized garbage collector by passing the \"-XX:+UseParallelGC\" property.\n(Use the -nowarning option to disable this warning.)\nRunning breadth-first search Model-Checking with fp 102 and seed 2523105667298376830 with 1 worker on 32 cores with 14064MB heap and 64MB offheap memory [pid: 4136602] (Linux 6.18.33.1-microsoft-standard-WSL2 amd64, Ubuntu 21.0.11 x86_64, MSBDiskFPSet, DiskStateQueue).\nParsing file /tmp/formalspecgen-v2-tlc-bqylj2ro/NaiveDiningPhilosophers.tla\nParsing file /tmp/Naturals.tla\nSemantic processing of module Naturals\nSemantic processing of module NaiveDiningPhilosophers\nStarting... (2026-08-13 18:28:08)\nComputing initial states...\nFinished computing initial states: 1 distinct state generated at 2026-08-13 18:28:08.\nError: Deadlock reached.\nError: The behavior up to this point is:\nState 1: <Initial predicate>\n/\\ fork0 = 0\n/\\ fork1 = 0\n/\\ fork2 = 0\n/\\ pc0 = 0\n/\\ pc1 = 0\n/\\ pc2 = 0\n\nState 2: <request_0 line 24, col 5 to line 26, col 50 of module NaiveDiningPhilosophers>\n/\\ fork0 = 0\n/\\ fork1 = 0\n/\\ fork2 = 0\n/\\ pc0 = 1\n/\\ pc1 = 0\n/\\ pc2 = 0\n\nState 3: <pickup_left_0 line 29, col 5 to line 32, col 43 of module NaiveDiningPhilosophers>\n/\\ fork0 = 1\n/\\ fork1 = 0\n/\\ fork2 = 0\n/\\ pc0 = 2\n/\\ pc1 = 0\n/\\ pc2 = 0\n\nState 4: <request_1 line 48, col 5 to line 50, col 50 of module NaiveDiningPhilosophers>\n/\\ fork0 = 1\n/\\ fork1 = 0\n/\\ fork2 = 0\n/\\ pc0 = 2\n/\\ pc1 = 1\n/\\ pc2 = 0\n\nState 5: <pickup_left_1 line 53, col 5 to line 56, col 43 of module NaiveDiningPhilosophers>\n/\\ fork0 = 1\n/\\ fork1 = 2\n/\\ fork2 = 0\n/\\ pc0 = 2\n/\\ pc1 = 2\n/\\ pc2 = 0\n\nState 6: <request_2 line 72, col 5 to line 74, col 50 of module NaiveDiningPhilosophers>\n/\\ fork0 = 1\n/\\ fork1 = 2\n/\\ fork2 = 0\n/\\ pc0 = 2\n/\\ pc1 = 2\n/\\ pc2 = 1\n\nState 7: <pickup_left_2 line 77, col 5 to line 80, col 43 of module NaiveDiningPhilosophers>\n/\\ fork0 = 1\n/\\ fork1 = 2\n/\\ fork2 = 3\n/\\ pc0 = 2\n/\\ pc1 = 2\n/\\ pc2 = 2\n\n111 states generated, 45 distinct states found, 1 states left on queue.\nThe depth of the complete state graph search is 7.\nThe average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 3).\nFinished in 00s at (2026-08-13 18:28:08)",
+  "tool_provenance": {
+    "version": "2.19 of 08 August 2024",
+    "command": [
+      "java",
+      "-jar",
+      "/home/sheel/formalspecgen/tools/tla2tools.jar",
+      "-help"
+    ],
+    "status": "OK",
+    "exit_status": 1
+  }
+}

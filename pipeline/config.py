@@ -34,6 +34,7 @@ OPENJML = os.environ.get("OPENJML_BIN", str(ROOT / "tools/openjml-dist/openjml")
 CHECK_TIMEOUT = int(os.environ.get("CHECK_TIMEOUT", "60"))   # -parse/-check wall clock
 ESC_TIMEOUT = int(os.environ.get("ESC_TIMEOUT", "180"))      # -esc wall clock (deep check)
 LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "240"))      # reasoning models can be slow
+LLM_MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "8192"))  # structured output ceiling
 
 # Dafny boundary backend. The user-space tool needs its colocated .NET runtime exposed.
 DAFNY_BIN = os.environ.get("DAFNY_BIN", str(Path.home() / ".dotnet" / "tools" / "dafny"))
@@ -90,3 +91,5 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1").rstrip("/")
 OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3-coder:30b")
+OLLAMA_STRUCTURED_THINKING = os.environ.get(
+    "OLLAMA_STRUCTURED_THINKING", "disabled").strip().lower()

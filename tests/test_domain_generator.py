@@ -1,9 +1,11 @@
 import json
 import unittest
 
+import pipeline.domain_generator as domain_generator
+
 from pipeline.domain_generator import (
     _canonical_integer_guard_tree, _complete_literal_bound_guards,
-    _frame_effect_repair_obligations, _normalize_v2_syntax,
+    _dsl_expression, _frame_effect_repair_obligations, _normalize_v2_syntax,
     _reject_initial_values_outside_answered_bounds,
     compile_domain_spec, compile_domain_spec_v2,
     elicit_domain_questions,
@@ -43,6 +45,282 @@ class DomainGeneratorTests(unittest.TestCase):
         self.assertIn("Required JSON Schema", captured[1]["content"])
         self.assertIn("typed trees", captured[0]["content"])
 
+    def test_v2_staged_generation_assembles_exact_operation_fragments(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": ["enabled == false"],
+            "effect_values": {"enabled": "true"}}]
+        calls = []
+        compact_invariant = {"id": "EnabledClause",
+                             "expression": "enabled == true"}
+        compact_operation = {
+            "name": "enable", "return_type": "void",
+            "failure_semantics": "none",
+            "guards": [{"id": "enabled == false", "expression": "enabled == false"}],
+            "effects": [{"id": "enabled := true", "target": "enabled", "value": "true"}],
+            "frame": ["enabled"], "exception_type": None, "exception_trigger": None}
+
+        def structured_for(_schema, name):
+            def chat(_messages, _model, _temperature):
+                calls.append(name)
+                response = (header if name == "v2_domain_header" else
+                            compact_invariant
+                            if name == "v2_domain_invariant_clause" else
+                            compact_operation)
+                return json.dumps(response), "ollama", {"total_tokens": 2}
+            chat.structured_for = structured_for
+            return chat
+
+        root_chat = structured_for({}, "root")
+        progress = []
+        spec, _, used, usage = compile_domain_spec_v2(
+            "A switch", [], [], root_chat, progress=progress.append)
+
+        self.assertEqual(spec.operations[0].name, "enable")
+        self.assertEqual(spec.operations[0].failure_semantics, "unavailable")
+        self.assertEqual(spec.operations[0].guards[0].id, "guard_1")
+        self.assertEqual(spec.operations[0].effects[0].id, "effect_1")
+        self.assertEqual(calls, ["v2_domain_header", "v2_domain_invariant_clause",
+                                 "v2_domain_operation"])
+        self.assertEqual(used, "ollama")
+        self.assertEqual(usage["total_tokens"], 6)
+        self.assertEqual(usage["domain_spec_staged_invariants"], 1)
+        self.assertEqual(usage["domain_spec_staged_operations"], 1)
+        self.assertIn("Generating V2 manifest", progress[0])
+        self.assertTrue(any("Generating invariant clause EnabledIsBoolean.EnabledClause" in item
+                            for item in progress))
+        self.assertTrue(any("Generating operation enable" in item for item in progress))
+        self.assertIn("Fragments assembled", progress[-1])
+
+    def test_v2_staged_generation_rejects_misnamed_operation(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        wrong = {**value["operations"][0], "name": "disable"}
+        wrong["effects"][0]["value"] = "true"
+        compact_invariant = {"id": "EnabledClause", "expression": "enabled == true"}
+
+        def structured_for(_schema, name):
+            def chat(_messages, _model, _temperature):
+                response = (header if name == "v2_domain_header" else
+                            compact_invariant
+                            if name == "v2_domain_invariant_clause" else wrong)
+                return json.dumps(response), "m", {}
+            chat.structured_for = structured_for
+            return chat
+
+        with self.assertRaisesRegex(LLMError, "staged candidate generation failed closed"):
+            compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))
+
+    def test_compact_v2_expression_parser_is_strict_and_preserves_precedence(self):
+        expression = _dsl_expression(
+            "pc0 == 3 ==> (fork0 == 1 && fork1 == 1)", {"pc0", "fork0", "fork1"})
+        self.assertEqual(expression["kind"], "implies")
+        self.assertEqual(expression["right"]["kind"], "and")
+        with self.assertRaisesRegex(ValueError, "unknown identifier"):
+            _dsl_expression("missing == 1", {"pc0"})
+        with self.assertRaisesRegex(ValueError, "unsupported V2 expression construct"):
+            _dsl_expression("pc0 * 2", {"pc0"})
+        self.assertEqual(_dsl_expression("!(pc0 == 0) || true", {"pc0"})["kind"], "or")
+        self.assertEqual(_dsl_expression("pc0 + 1", {"pc0"})["kind"], "add")
+        with self.assertRaisesRegex(ValueError, "unsupported V2 expression construct"):
+            _dsl_expression("other.pc0 == 0", {"pc0"})
+
+    def test_staged_helpers_cover_usage_and_exception_trigger(self):
+        self.assertEqual(domain_generator._merge_usage(
+            {"total_tokens": 2, "model": "old"},
+            {"total_tokens": 3, "model": "new"}),
+            {"total_tokens": 5, "model": "new"})
+        operation = domain_generator._OperationDsl.model_validate({
+            "name": "fail", "return_type": "void", "failure_semantics": "exception",
+            "guards": [], "effects": [{
+                "id": "set_enabled", "target": "enabled", "value": "true"}],
+            "frame": ["enabled"], "exception_type": "IllegalStateException",
+            "exception_trigger": "enabled == true"})
+        lowered = domain_generator._operation_from_dsl(operation, {"enabled"})
+        self.assertEqual(lowered.exception_trigger.kind, "eq")
+
+    def test_staged_manifest_repairs_bad_dsl_before_fragments(self):
+        value = self.v2_value()
+        good = {key: item for key, item in value.items()
+                if key not in {"operations", "tlc_invariants"}}
+        good["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        good["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        bad = json.loads(json.dumps(good))
+        bad["operation_plans"][0]["effect_values"]["enabled"] = "integer(value=1)"
+        responses = {
+            "v2_domain_header": [bad, good],
+            "v2_domain_invariant_clause": [{
+                "id": "EnabledClause", "expression": "enabled == true"}],
+            "v2_domain_operation": [{
+                "name": "enable", "return_type": "void", "failure_semantics": "unavailable",
+                "guards": [], "effects": [{
+                    "id": "set", "target": "enabled", "value": "true"}],
+                "frame": ["enabled"], "exception_type": None, "exception_trigger": None}],
+        }
+        progress = []
+        def structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(responses[name].pop(0)), "m", {}
+            chat.structured_for = structured_for
+            return chat
+        spec, *_ = compile_domain_spec_v2(
+            "A switch", [], [], structured_for({}, "root"), progress=progress.append)
+        self.assertEqual(spec.operations[0].name, "enable")
+        self.assertTrue(any("Repairing V2 manifest" in item for item in progress))
+
+    def test_staged_operation_local_repair_succeeds(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        wrong = {"name": "enable", "return_type": "void",
+            "failure_semantics": "unavailable", "guards": [],
+            "effects": [{"id": "set", "target": "enabled", "value": "false"}],
+            "frame": ["enabled"], "exception_type": None, "exception_trigger": None}
+        right = {**wrong, "effects": [{
+            "id": "set", "target": "enabled", "value": "true"}]}
+        responses = {"v2_domain_header": [header],
+            "v2_domain_invariant_clause": [{
+                "id": "x", "expression": "enabled == true"}],
+            "v2_domain_operation": [wrong, right]}
+        progress = []
+        def structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(responses[name].pop(0)), "m", {}
+            chat.structured_for = structured_for
+            return chat
+        spec, *_ = compile_domain_spec_v2(
+            "A switch", [], [], structured_for({}, "root"), progress=progress.append)
+        self.assertTrue(spec.operations[0].effects[0].value.value)
+        self.assertTrue(any("Repairing operation enable" in item for item in progress))
+
+    def test_staged_manifest_repair_exhaustion_and_duplicate_plan_reject(self):
+        def broken_structured_for(_schema, _name):
+            def chat(*_args):
+                return "{}", "m", {}
+            chat.structured_for = broken_structured_for
+            return chat
+        with self.assertRaisesRegex(LLMError, "manifest failed local repair"):
+            compile_domain_spec_v2("A switch", [], [], broken_structured_for({}, "root"))
+
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        plan = {"name": "enable", "frame": ["enabled"],
+                "guard_expressions": [], "effect_values": {"enabled": "true"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["a", "a"]}]
+        header["operation_plans"] = [plan]
+        def duplicate_structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(header), "m", {}
+            chat.structured_for = duplicate_structured_for
+            return chat
+        with self.assertRaisesRegex(LLMError, "invalid version, review status"):
+            compile_domain_spec_v2("A switch", [], [], duplicate_structured_for({}, "root"))
+
+    def test_staged_multi_clause_assembly_and_invalid_plan_frame(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["one", "two"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        responses = {"v2_domain_header": [header],
+            "v2_domain_invariant_clause": [
+                {"id": "one", "expression": "enabled == true"},
+                {"id": "two", "expression": "enabled == false"}],
+            "v2_domain_operation": [{
+                "name": "enable", "return_type": "void", "failure_semantics": "unavailable",
+                "guards": [], "effects": [{
+                    "id": "set", "target": "enabled", "value": "true"}],
+                "frame": ["enabled"], "exception_type": None, "exception_trigger": None}]}
+        def structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(responses[name].pop(0)), "m", {}
+            chat.structured_for = structured_for
+            return chat
+        spec, *_ = compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))
+        self.assertEqual(spec.tlc_invariants[0].expression.kind, "and")
+
+        header["invariant_plans"] = [{"id": "EnabledIsBoolean", "clause_names": ["one"]}]
+        header["operation_plans"][0]["frame"] = ["missing"]
+        header["operation_plans"][0]["effect_values"] = {"missing": "true"}
+        responses = {"v2_domain_header": [header],
+            "v2_domain_invariant_clause": [{"id": "one", "expression": "enabled == true"}]}
+        with self.assertRaisesRegex(LLMError, "has invalid frame"):
+            compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))
+
+    def test_staged_void_skip_failure_alias_is_canonicalized(self):
+        value = self.v2_value()
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        responses = {
+            "v2_domain_header": header,
+            "v2_domain_invariant_clause": {
+                "id": "EnabledClause", "expression": "enabled == true"},
+            "v2_domain_operation": {
+                "name": "enable", "return_type": "void", "failure_semantics": "skip",
+                "guards": [], "effects": [{
+                    "id": "set_enabled", "target": "enabled", "value": "true"}],
+                "frame": ["enabled"], "exception_type": None, "exception_trigger": None},
+        }
+        def structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(responses[name]), "m", {}
+            chat.structured_for = structured_for
+            return chat
+        spec, *_ = compile_domain_spec_v2(
+            "A switch", [], [], structured_for({}, "root"))
+        self.assertEqual(spec.operations[0].failure_semantics, "unavailable")
+
+    def test_staged_operation_frame_must_match_manifest_plan(self):
+        value = self.v2_value()
+        value["state_variables"].append({
+            "kind": "bool", "name": "secondary", "initial": False})
+        header = {key: item for key, item in value.items()
+                  if key not in {"operations", "tlc_invariants"}}
+        header["invariant_plans"] = [{
+            "id": "EnabledIsBoolean", "clause_names": ["EnabledClause"]}]
+        header["operation_plans"] = [{"name": "enable", "frame": ["enabled"],
+            "guard_expressions": [], "effect_values": {"enabled": "true"}}]
+        responses = {
+            "v2_domain_header": header,
+            "v2_domain_invariant_clause": {
+                "id": "EnabledClause", "expression": "enabled == true"},
+            "v2_domain_operation": {
+                "name": "enable", "return_type": "void",
+                "failure_semantics": "unavailable", "guards": [],
+                "effects": [{"id": "wrong", "target": "secondary", "value": "true"}],
+                "frame": ["secondary"], "exception_type": None, "exception_trigger": None},
+        }
+        def structured_for(_schema, name):
+            def chat(*_args):
+                return json.dumps(responses[name]), "m", {}
+            chat.structured_for = structured_for
+            return chat
+        with self.assertRaisesRegex(LLMError, "does not match required exact frame"):
+            compile_domain_spec_v2("A switch", [], [], structured_for({}, "root"))
+
     def test_v2_generation_repairs_attempted_self_review_and_enforces_answers(self):
         import json
         reviewed = {**self.v2_value(), "review_status": "reviewed"}
@@ -56,6 +334,23 @@ class DomainGeneratorTests(unittest.TestCase):
                      "required": True}]
         with self.assertRaisesRegex(ValueError, "required domain clarification"):
             compile_domain_spec_v2("A switch", question, [], chat)
+
+    def test_v2_generation_overlays_partial_repair_fragment(self):
+        rejected = self.v2_value()
+        rejected.pop("tlc_invariants")
+        invariant = self.v2_value()["tlc_invariants"]
+        responses = iter((rejected, {"tlc_invariants": invariant}))
+
+        def chat(_messages, _model, _temperature):
+            return json.dumps(next(responses)), "model", {}
+
+        spec, _, _, usage = compile_domain_spec_v2("A switch", [], [], chat)
+
+        self.assertEqual(spec.domain_name, "Switch")
+        self.assertEqual(spec.tlc_invariants[0].id, "EnabledIsBoolean")
+        self.assertEqual(usage["domain_spec_repair_attempts"], 1)
+        self.assertIn("partial repair fragment", {
+            change["from"] for change in usage["domain_spec_normalizations"]})
 
     def test_v2_generation_repairs_semantically_unrelated_domain(self):
         import json
@@ -202,6 +497,59 @@ class DomainGeneratorTests(unittest.TestCase):
         conflicting = {"state_variables": [{"kind": "bool", "type": "int",
                                                "name": "enabled"}]}
         self.assertEqual(_normalize_v2_syntax(conflicting), (conflicting, []))
+
+    def test_v2_normalizes_unambiguous_legacy_collection_shape(self):
+        value = self.v2_value()
+        value["variables"] = value.pop("state_variables")
+        value["transitions"] = value.pop("operations")
+        value["actors"] = ["reader_0", "reader_1", "writer"]
+        value["initial_state"] = {"enabled": False}
+        value["tlc_invariants"][0]["name"] = value["tlc_invariants"][0].pop("id")
+
+        normalized, changes = _normalize_v2_syntax(value)
+
+        self.assertEqual(normalized["actors"], 3)
+        self.assertIn("state_variables", normalized)
+        self.assertIn("operations", normalized)
+        self.assertNotIn("initial_state", normalized)
+        self.assertEqual(normalized["tlc_invariants"][0]["id"], "EnabledIsBoolean")
+        paths = {change["path"] for change in changes}
+        self.assertTrue({"variables", "transitions", "actors", "initial_state",
+                         "tlc_invariants.0.name"}.issubset(paths))
+
+    def test_v2_does_not_normalize_ambiguous_legacy_values(self):
+        value = self.v2_value()
+        value["actors"] = ["same", "same"]
+        value["initial_state"] = {"enabled": True}
+        value["tlc_invariants"][0]["name"] = "ConflictingName"
+
+        normalized, changes = _normalize_v2_syntax(value)
+
+        self.assertEqual(normalized["actors"], ["same", "same"])
+        self.assertEqual(normalized["initial_state"], {"enabled": True})
+        self.assertEqual(normalized["tlc_invariants"][0]["id"], "EnabledIsBoolean")
+        self.assertEqual(normalized["tlc_invariants"][0]["name"], "ConflictingName")
+        self.assertNotIn("actors", {change["path"] for change in changes})
+        self.assertNotIn("initial_state", {change["path"] for change in changes})
+
+    def test_v2_normalizes_unambiguous_actor_counts_and_partial_initial_map(self):
+        for actors in ("3", {"count": 3}):
+            value = self.v2_value()
+            value["actors"] = actors
+            value["state_variables"].append({
+                "kind": "int", "name": "phase", "bound": [0, 2], "initial": 0})
+            value["initial_state"] = {"enabled": False}
+
+            normalized, changes = _normalize_v2_syntax(value)
+
+            self.assertEqual(normalized["actors"], 3)
+            self.assertNotIn("initial_state", normalized)
+            self.assertIn("actors", {change["path"] for change in changes})
+
+        unknown = self.v2_value()
+        unknown["initial_state"] = {"missing": False}
+        normalized, _ = _normalize_v2_syntax(unknown)
+        self.assertIn("initial_state", normalized)
 
     def test_authoritative_explicit_range_accepts_contained_initial_value(self):
         questions = [

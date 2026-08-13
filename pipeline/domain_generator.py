@@ -13,12 +13,305 @@ import re
 from typing import Any, Callable
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .elicit import _extract_json, normalize_questions, request_questions
 from .llm import LLMError
+from .jml_ast import (BinaryExpr as JmlBinaryExpr, BooleanLiteral, FieldAccess,
+                      IntegerLiteral, UnaryExpr, parse_jml_expression)
 from .scaffold_domain import DomainSpec
-from .domain_v2 import DomainSpecV2
+from .domain_v2 import DomainSpecV2, Invariant, Operation, StateVariable
+
+
+class _InvariantPlanV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    clause_names: list[str] = Field(min_length=1)
+
+
+class _OperationPlanV2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    frame: list[str] = Field(min_length=1)
+    guard_expressions: list[str]
+    effect_values: dict[str, str]
+
+
+class _InvariantClauseDsl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    expression: str
+
+
+class _GuardDsl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    expression: str
+
+
+class _EffectDsl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    target: str
+    value: str
+
+
+class _OperationDsl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    return_type: str
+    failure_semantics: str
+    guards: list[_GuardDsl]
+    effects: list[_EffectDsl]
+    frame: list[str]
+    exception_type: str | None = None
+    exception_trigger: str | None = None
+
+
+class _DomainHeaderV2(BaseModel):
+    """Small structured-output stage; final DomainSpecV2 remains the trust boundary."""
+    model_config = ConfigDict(extra="forbid")
+    schema_version: int
+    review_status: str
+    domain_name: str
+    module_name: str
+    actors: int
+    state_variables: list[StateVariable] = Field(min_length=1)
+    invariant_plans: list[_InvariantPlanV2] = Field(min_length=1)
+    operation_plans: list[_OperationPlanV2] = Field(min_length=1)
+
+
+def _merge_usage(total: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(total)
+    for key, value in current.items():
+        if isinstance(value, int) and isinstance(merged.get(key, 0), int):
+            merged[key] = merged.get(key, 0) + value
+        else:
+            merged[key] = value
+    return merged
+
+
+def _dsl_expression(source: str, fields: set[str]) -> dict[str, Any]:
+    """Parse compact model output and lower the accepted subset into strict V2 nodes."""
+    def lower(node: Any) -> dict[str, Any]:
+        if isinstance(node, FieldAccess) and node.receiver == "this":
+            return {"kind": "field", "name": node.field}
+        if isinstance(node, IntegerLiteral):
+            return {"kind": "integer", "value": node.value}
+        if isinstance(node, BooleanLiteral):
+            return {"kind": "boolean", "value": node.value}
+        if isinstance(node, UnaryExpr) and node.kind == "not":
+            return {"kind": "not", "expression": lower(node.operand)}
+        if isinstance(node, JmlBinaryExpr) and node.kind in {
+                "eq", "neq", "lt", "lte", "gt", "gte", "add", "sub",
+                "implies", "and", "or"}:
+            return {"kind": node.kind, "left": lower(node.left), "right": lower(node.right)}
+        raise ValueError(f"unsupported V2 expression construct: {node.kind}")
+    return lower(parse_jml_expression(source, fields=fields))
+
+
+def _operation_from_dsl(operation_dsl: _OperationDsl, fields: set[str]) -> Operation:
+    value = operation_dsl.model_dump(mode="json")
+    if (value["failure_semantics"] in {"none", "skip"} and
+            value["return_type"] == "void" and value["exception_type"] is None and
+            value["exception_trigger"] is None):
+        value["failure_semantics"] = "unavailable"
+    value["guards"] = [
+        {"id": (guard.id if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", guard.id)
+                else f"guard_{index + 1}"),
+         "expression": _dsl_expression(guard.expression, fields)}
+        for index, guard in enumerate(operation_dsl.guards)]
+    value["effects"] = [
+        {"id": (effect.id if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", effect.id)
+                else f"effect_{index + 1}"), "target": effect.target,
+         "value": _dsl_expression(effect.value, fields)}
+        for index, effect in enumerate(operation_dsl.effects)]
+    if operation_dsl.exception_trigger is not None:
+        value["exception_trigger"] = _dsl_expression(
+            operation_dsl.exception_trigger, fields)
+    return Operation.model_validate(value)
+
+
+def _compile_domain_spec_v2_staged(request: str, context: list[str], chat_fn: Callable,
+                                   model: str | None,
+                                   progress: Callable[[str], None] | None = None
+                                   ) -> tuple[Any, str, dict[str, Any]]:
+    """Generate bounded fragments with exact schemas, then assemble without inventing values."""
+    report = progress or (lambda _message: None)
+    structured_for = getattr(chat_fn, "structured_for")
+    header_chat = structured_for(_DomainHeaderV2.model_json_schema(), "v2_domain_header")
+    report("[1/?] Generating V2 manifest via Ollama…")
+    header_request = request + (
+        "\n\nSTAGED OUTPUT: Return metadata, state_variables, the exact ordered "
+        "invariant_plans (each top-level invariant id plus ordered atomic clause_names), and "
+        "the exact ordered operation_plans. Each operation plan contains its name, exact write "
+        "frame, every guard_expressions item as compact infix JML, and effect_values mapping "
+        "each framed target to compact infix JML. Use syntax like `pc0 == 0` and `pc0 + 1`; "
+        "never use constructors like eq(...), field(...), or integer(...). Use one clause name "
+        "per indivisible semantic safety statement; do not emit invariant expressions or "
+        "operation bodies. A scalar owner field already represents exactly one owner: do not "
+        "invent a cross-field invariant for 'single owner by construction'.")
+    header = None
+    usage: dict[str, Any] = {}
+    for attempt in range(3):
+        header_raw, used, current_usage = header_chat(
+            [{"role": "system", "content": DOMAIN_SPEC_V2_SYSTEM},
+             {"role": "user", "content": header_request}], model, 0.0)
+        usage = _merge_usage(usage, current_usage)
+        try:
+            candidate_header = _DomainHeaderV2.model_validate(_extract_json(header_raw))
+            fields = set(variable.name for variable in candidate_header.state_variables)
+            for plan in candidate_header.operation_plans:
+                for expression in plan.guard_expressions:
+                    _dsl_expression(expression, fields)
+                for expression in plan.effect_values.values():
+                    _dsl_expression(expression, fields)
+            header = candidate_header
+            break
+        except (ValidationError, ValueError, LLMError) as exc:
+            if attempt >= 2:
+                raise ValueError(f"staged V2 manifest failed local repair: {exc}") from exc
+            report(f"[1/?] Repairing V2 manifest: {exc}")
+            header_request += (
+                "\n\nREPAIR DIAGNOSTIC: " + str(exc) +
+                "\nReturn the complete manifest again. All guard/effect strings must use "
+                "compact infix JML syntax only.")
+    assert header is not None
+    if (header.schema_version != 2 or header.review_status != "unreviewed" or
+            len([plan.name for plan in header.operation_plans]) !=
+            len(set(plan.name for plan in header.operation_plans)) or
+            len([plan.id for plan in header.invariant_plans]) !=
+            len(set(plan.id for plan in header.invariant_plans)) or
+            any(len(plan.clause_names) != len(set(plan.clause_names))
+                for plan in header.invariant_plans)):
+        raise ValueError(
+            "staged V2 header has invalid version, review status, or fragment names")
+    clause_count = sum(len(plan.clause_names) for plan in header.invariant_plans)
+    total_stages = 2 + clause_count + len(header.operation_plans)
+    report(f"[1/{total_stages}] Manifest complete: {len(header.invariant_plans)} invariant(s) "
+           f"across {clause_count} atomic clause(s), "
+           f"{len(header.operation_plans)} operation(s).")
+    invariants: list[dict[str, Any]] = []
+    invariant_chat = structured_for(
+        _InvariantClauseDsl.model_json_schema(), "v2_domain_invariant_clause")
+    header_context = header.model_dump(
+        mode="json", exclude={"operation_plans", "invariant_plans"})
+    total_usage = usage
+    completed_clauses = 0
+    for invariant_index, plan in enumerate(header.invariant_plans):
+        expressions: list[dict[str, Any]] = []
+        for clause_index, clause_name in enumerate(plan.clause_names):
+            stage = 2 + completed_clauses
+            report(f"[{stage}/{total_stages}] Generating invariant clause "
+                   f"{plan.id}.{clause_name}…")
+            invariant_request = {
+                "authoritative_requirement": "\n".join(context),
+                "validated_header": header_context,
+                "top_level_invariant_id": plan.id,
+                "required_clause_name": clause_name,
+                "instruction": (
+                    "Return exactly one compact invariant clause. Its id must equal "
+                    "required_clause_name. expression is a parenthesized JML-style string using "
+                    "only declared fields, integer/boolean literals, !, ==, !=, <, <=, >, >=, "
+                    "+, -, &&, ||, and ==>. Do not combine sibling clauses."),
+            }
+            raw, used, fragment_usage = invariant_chat(
+                [{"role": "system", "content": DOMAIN_SPEC_V2_REPAIR_SYSTEM},
+                 {"role": "user", "content": json.dumps(
+                     invariant_request, ensure_ascii=False)}], model, 0.0)
+            clause = _InvariantClauseDsl.model_validate(_extract_json(raw))
+            expressions.append(_dsl_expression(clause.expression, set(
+                variable.name for variable in header.state_variables)))
+            total_usage = _merge_usage(total_usage, fragment_usage)
+            report(f"[{stage}/{total_stages}] Invariant clause "
+                   f"{plan.id}.{clause_name} complete.")
+            completed_clauses += 1
+        expression = expressions[0]
+        for sibling in expressions[1:]:
+            expression = {"kind": "and", "left": expression, "right": sibling}
+        invariants.append({"id": plan.id, "expression": expression})
+    operations: list[dict[str, Any]] = []
+    operation_chat = structured_for(_OperationDsl.model_json_schema(), "v2_domain_operation")
+    declared_fields = set(variable.name for variable in header.state_variables)
+    for index, operation_plan in enumerate(header.operation_plans):
+        operation_name = operation_plan.name
+        if (len(operation_plan.frame) != len(set(operation_plan.frame)) or
+                not set(operation_plan.frame).issubset(declared_fields) or
+                set(operation_plan.effect_values) != set(operation_plan.frame)):
+            raise ValueError(f"staged operation plan {operation_name!r} has invalid frame")
+        stage = 2 + clause_count + index
+        report(f"[{stage}/{total_stages}] Generating operation {operation_name}…")
+        operation_request = {
+            "authoritative_requirement": "\n".join(context),
+            "validated_header": header_context,
+            "required_operation_name": operation_name,
+            "required_exact_frame": operation_plan.frame,
+            "required_exact_guards": operation_plan.guard_expressions,
+            "required_exact_effect_values": operation_plan.effect_values,
+            "instruction": (
+                "Return exactly one compact V2 operation. Guard expression and effect value "
+                "fields are parenthesized JML-style strings using only declared fields, "
+                "integer/boolean literals, !, ==, !=, <, <=, >, >=, +, -, &&, ||, and ==>. "
+                "Preserve every authoritative guard, effect, and frame. frame must equal the "
+                "unique effect-target set. Do not return any other operation."),
+        }
+        operation = None
+        fragment_usage: dict[str, Any] = {}
+        for attempt in range(3):
+            raw, used, current_usage = operation_chat(
+                [{"role": "system", "content": DOMAIN_SPEC_V2_REPAIR_SYSTEM},
+                 {"role": "user", "content": json.dumps(
+                     operation_request, ensure_ascii=False)}], model, 0.0)
+            fragment_usage = _merge_usage(fragment_usage, current_usage)
+            try:
+                operation_dsl = _OperationDsl.model_validate(_extract_json(raw))
+                if operation_dsl.name != operation_name:
+                    raise ValueError(
+                        f"returned name {operation_dsl.name!r}, expected {operation_name!r}")
+                operation = _operation_from_dsl(operation_dsl, declared_fields)
+                if set(operation.frame) != set(operation_plan.frame):
+                    raise ValueError(
+                        f"frame {operation.frame!r} does not match required exact frame "
+                        f"{operation_plan.frame!r}")
+                planned_guards = [
+                    _dsl_expression(expression, declared_fields)
+                    for expression in operation_plan.guard_expressions]
+                actual_guards = [guard.expression.model_dump(mode="json")
+                                 for guard in operation.guards]
+                if actual_guards != planned_guards:
+                    raise ValueError("guards do not match required exact guard plan")
+                planned_effects = {
+                    target: _dsl_expression(expression, declared_fields)
+                    for target, expression in operation_plan.effect_values.items()}
+                actual_effects = {
+                    effect.target: effect.value.model_dump(mode="json")
+                    for effect in operation.effects}
+                if actual_effects != planned_effects:
+                    raise ValueError("effects do not match required exact effect plan")
+                break
+            except (ValidationError, ValueError, LLMError) as exc:
+                if attempt >= 2:
+                    raise ValueError(
+                        f"staged operation {operation_name!r} failed local repair: {exc}") from exc
+                report(f"[{stage}/{total_stages}] Repairing operation {operation_name}: {exc}")
+                operation_request["rejected_fragment"] = raw
+                operation_request["repair_diagnostic"] = str(exc)
+                operation_request["instruction"] += (
+                    " Repair only this operation and obey required_exact_frame exactly.")
+        assert operation is not None
+        operations.append(operation.model_dump(mode="json"))
+        total_usage = _merge_usage(total_usage, fragment_usage)
+        report(f"[{stage}/{total_stages}] Operation {operation_name} complete.")
+    value = header.model_dump(mode="json", exclude={"operation_plans", "invariant_plans"})
+    value["tlc_invariants"] = invariants
+    value["operations"] = operations
+    total_usage = {
+        **total_usage,
+        "domain_spec_staged_invariants": len(invariants),
+        "domain_spec_staged_operations": len(operations),
+    }
+    report(f"[{total_stages}/{total_stages}] Fragments assembled; validating complete V2 model…")
+    return value, used, total_usage
 
 
 DOMAIN_QUESTIONS_SYSTEM = """You are eliciting a bounded domain model for deterministic TLA+ plugin scaffolding.
@@ -129,6 +422,13 @@ field-expression object. The authoritative domain requirements at the end of the
 the rejected candidate and every learned example. Never recycle an unrelated example domain.
 Return the candidate object directly. Do not wrap it in a `candidate`, `domain`, `spec`, or
 `result` property.
+
+REQUIRED TOP-LEVEL SHAPE: emit every one of these keys exactly once: schema_version,
+review_status, domain_name, module_name, actors, state_variables, operations, tlc_invariants.
+`actors` is an integer count, not an array. Use `state_variables`, never `variables` or
+`initial_state`; use `operations`, never `transitions`; and every tlc_invariants item uses `id`,
+never `name`. A repair must return the complete candidate, including fields that were already
+valid. Never return only the repaired fragment.
 
 FRAME/EFFECT BIJECTION IS MANDATORY: for each operation, the frame array must equal the set of
 effect target strings exactly, and every target occurs once. When authoritative answers say an
@@ -249,7 +549,9 @@ def compile_domain_spec(idea: str, questions: list[dict[str, Any]],
 
 def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
                            answers: list[dict[str, Any]], chat_fn: Callable,
-                           model: str | None = None) -> tuple[DomainSpecV2, str, str, dict]:
+                           model: str | None = None,
+                           progress: Callable[[str], None] | None = None
+                           ) -> tuple[DomainSpecV2, str, str, dict]:
     """Compile authoritative clarifications into an unreviewed typed V2 candidate."""
     normalized = normalize_questions(questions, _DOMAIN_CATEGORIES)
     answer_map = {str(item.get("id", "")): str(item.get("answer", "")).strip()
@@ -277,17 +579,25 @@ def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
         "\n".join(context) + identity_rule +
         "\nDiscard any unrelated example-domain vocabulary. Return this domain only."
     )
-    content, used, usage = chat_fn(
-        [{"role": "system", "content": DOMAIN_SPEC_V2_SYSTEM},
-         {"role": "user", "content": request}], model, 0.0)
     value: Any = None
     parse_error: LLMError | None = None
     normalizations: list[dict[str, str]] = []
-    try:
-        value, syntax_changes = _normalize_v2_syntax(_extract_json(content))
-        normalizations.extend(syntax_changes)
-    except LLMError as exc:
-        parse_error = exc
+    if hasattr(chat_fn, "structured_for"):
+        try:
+            value, used, usage = _compile_domain_spec_v2_staged(
+                request, context, chat_fn, model, progress)
+        except (ValidationError, ValueError, LLMError) as exc:
+            raise LLMError("INVALID_DOMAIN_SPEC_V2_STAGE",
+                           f"staged candidate generation failed closed: {exc}") from exc
+    else:
+        content, used, usage = chat_fn(
+            [{"role": "system", "content": DOMAIN_SPEC_V2_SYSTEM},
+             {"role": "user", "content": request}], model, 0.0)
+        try:
+            value, syntax_changes = _normalize_v2_syntax(_extract_json(content))
+            normalizations.extend(syntax_changes)
+        except LLMError as exc:
+            parse_error = exc
     repair_attempts = 0
     while True:
         try:
@@ -332,6 +642,7 @@ def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
                     "authoritative requirement and preserve its identity tokens."),
                 "frame_effect_obligations": _frame_effect_repair_obligations(value),
             }
+            rejected_value = value
             repaired, used, usage = chat_fn(
                 [{"role": "system", "content": DOMAIN_SPEC_V2_REPAIR_SYSTEM},
                  {"role": "user", "content": json.dumps(
@@ -340,6 +651,18 @@ def compile_domain_spec_v2(idea: str, questions: list[dict[str, Any]],
             try:
                 value, syntax_changes = _normalize_v2_syntax(_extract_json(repaired))
                 normalizations.extend(syntax_changes)
+                if isinstance(rejected_value, dict) and isinstance(value, dict):
+                    required_keys = {
+                        "schema_version", "review_status", "domain_name", "module_name",
+                        "actors", "state_variables", "operations", "tlc_invariants",
+                    }
+                    if value and not required_keys.issubset(value):
+                        supplied = set(value)
+                        value = {**rejected_value, **value}
+                        normalizations.append({
+                            "path": "$", "from": "partial repair fragment",
+                            "to": "overlay keys: " + ", ".join(sorted(supplied)),
+                        })
             except LLMError as exc:
                 value = None
                 parse_error = exc
@@ -367,6 +690,8 @@ def _normalize_v2_syntax(value: Any) -> tuple[Any, list[dict[str, str]]]:
     aliases = {
         "name": "domain_name",
         "state": "state_variables",
+        "variables": "state_variables",
+        "transitions": "operations",
         "invariants": "tlc_invariants",
         "safety_invariants": "tlc_invariants",
     }
@@ -394,6 +719,45 @@ def _normalize_v2_syntax(value: Any) -> tuple[Any, list[dict[str, str]]]:
                     "path": f"state_variables.{index}.type",
                     "from": "type", "to": "kind",
                 })
+    actors = normalized.get("actors")
+    if isinstance(actors, str) and actors.isdigit() and int(actors) >= 1:
+        normalized["actors"] = int(actors)
+        changes.append({"path": "actors", "from": "numeric string",
+                        "to": actors})
+    elif (isinstance(actors, dict) and set(actors) == {"count"} and
+          isinstance(actors.get("count"), int) and actors["count"] >= 1):
+        normalized["actors"] = actors["count"]
+        changes.append({"path": "actors", "from": "actor count object",
+                        "to": str(actors["count"])})
+    elif (isinstance(actors, list) and actors and
+            all(isinstance(actor, str) and actor for actor in actors) and
+            len(actors) == len(set(actors))):
+        normalized["actors"] = len(actors)
+        changes.append({"path": "actors", "from": "actor identifier list",
+                        "to": str(len(actors))})
+    invariants = normalized.get("tlc_invariants")
+    if isinstance(invariants, list):
+        for index, invariant in enumerate(invariants):
+            if (isinstance(invariant, dict) and "id" not in invariant and
+                    isinstance(invariant.get("name"), str)):
+                invariant["id"] = invariant.pop("name")
+                changes.append({
+                    "path": f"tlc_invariants.{index}.name", "from": "name", "to": "id",
+                })
+    initial_state = normalized.get("initial_state")
+    if isinstance(initial_state, dict) and isinstance(state_variables, list):
+        declared_initials = {
+            variable.get("name"): variable.get("initial")
+            for variable in state_variables
+            if isinstance(variable, dict) and isinstance(variable.get("name"), str) and
+            "initial" in variable
+        }
+        if (initial_state and set(initial_state).issubset(declared_initials) and
+                all(declared_initials[name] == initial
+                    for name, initial in initial_state.items())):
+            normalized.pop("initial_state")
+            changes.append({"path": "initial_state", "from": "duplicate initial map subset",
+                            "to": "state_variables.*.initial"})
     if ("module_name" not in normalized and
             isinstance(normalized.get("domain_name"), str)):
         domain_name = normalized["domain_name"]

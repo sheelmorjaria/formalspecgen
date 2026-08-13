@@ -29,6 +29,7 @@ from .canonical_contracts import (
     CanonicalContractConflict, canonical_contract,
 )
 from .domain_generator import compile_domain_spec, compile_domain_spec_v2, elicit_domain_questions
+from .domain_v2 import DomainSpecV2
 from .domain_v2_promotion import candidate_sha256, load_candidate, promote_validated_candidate
 from .domain_v2_tla import render_v2_tla
 from .domain_v2_validation import validate_v2_candidate
@@ -346,8 +347,15 @@ def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore
             answers.append({"id": question["id"], "answer": answer})
             store.save(state)
         compiler = compile_domain_spec_v2 if schema_version == 2 else compile_domain_spec
+        compiler_chat = _chat_fn(
+            args.provider,
+            json_schema=DomainSpecV2.model_json_schema() if schema_version == 2 else None)
+        compiler_kwargs = ({"progress": lambda message: ui.console.print(
+            f"[bold cyan]{escape(message)}[/bold cyan]")}
+            if schema_version == 2 else {})
         spec, yaml_text, _, _ = compiler(
-            idea, draft["questions"], answers, _chat_fn(args.provider), args.model)
+            idea, draft["questions"], answers, compiler_chat, args.model,
+            **compiler_kwargs)
         root = Path(args.project_root).resolve()
         canonical = (root / "domains" / "v2" / f"{spec.module_name}.json"
                      if schema_version == 2 else root / "domains" / f"{spec.module_name}.yaml")
@@ -367,6 +375,7 @@ def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore
             candidate, project_root=root, force=args.force,
             replace_reviewed=getattr(args, "replace_reviewed_domain", False)))
         if schema_version == 2:
+            ui.console.print("[bold magenta]Running deterministic schema and TLC validation…[/bold magenta]")
             validation_path = candidate.with_name(
                 f"{spec.module_name}.v2.validation.json")
             failure_path = candidate.with_name(

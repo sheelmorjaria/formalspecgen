@@ -36,7 +36,7 @@ class LlmTransportTests(unittest.TestCase):
         request = opened.call_args.args[0]
         body = json.loads(request.data)
         self.assertEqual(request.full_url, "https://provider/v1/chat/completions")
-        self.assertEqual(body["max_tokens"], 8192)
+        self.assertEqual(body["max_tokens"], llm.config.LLM_MAX_TOKENS)
         self.assertEqual(body["thinking"], {"type": "disabled"})
         self.assertEqual(request.headers["Authorization"], "Bearer secret")
         self.assertEqual(opened.call_args.kwargs["timeout"], 17)
@@ -107,6 +107,22 @@ class LlmTransportTests(unittest.TestCase):
         self.assertIs(llm._chat_fn("openai"), llm._openai_chat)
         self.assertIs(llm._chat_fn("ollama"), llm._ollama_chat)
         self.assertIs(llm._chat_fn("unknown"), llm._glm_chat)
+
+    def test_ollama_structured_router_sends_json_schema(self):
+        schema = {"type": "object", "required": ["schema_version"]}
+        chat = llm._chat_fn("ollama", json_schema=schema)
+        with patch.object(llm, "_post_chat", return_value=("{}", "m", {})) as post:
+            self.assertEqual(chat([], None, 0), ("{}", "m", {}))
+        extra = post.call_args.args[-1]
+        self.assertEqual(extra["response_format"]["type"], "json_schema")
+        self.assertTrue(extra["response_format"]["json_schema"]["strict"])
+        self.assertEqual(extra["response_format"]["json_schema"]["schema"], schema)
+        self.assertFalse(extra["think"])
+        nested = chat.structured_for({"type": "string"}, "fragment")
+        with patch.object(llm, "_post_chat", return_value=("x", "m", {})) as post:
+            nested([], None, 0)
+        self.assertEqual(
+            post.call_args.args[-1]["response_format"]["json_schema"]["name"], "fragment")
 
 
 class LlmAdapterTests(unittest.TestCase):

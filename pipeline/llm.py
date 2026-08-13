@@ -212,7 +212,8 @@ def _post_chat(base_url, api_key, messages, model, temperature, timeout, extra_b
     never become a fake VERIFIED. Structure ported from formalspecDD's _post_chat; Gen keeps
     its thinking-disabled (GLM) + EMPTY_CONTENT guard.
     """
-    body = {"model": model, "temperature": temperature, "max_tokens": 8192, "messages": messages}
+    body = {"model": model, "temperature": temperature,
+            "max_tokens": config.LLM_MAX_TOKENS, "messages": messages}
     if extra_body:
         body.update(extra_body)
     req = urllib.request.Request(
@@ -266,8 +267,22 @@ def _ollama_chat(messages, model, temperature):
                       model or config.OLLAMA_MODEL, temperature, config.LLM_TIMEOUT)
 
 
-def _chat_fn(provider):
+def _chat_fn(provider, json_schema=None):
     """Return the chat function for a provider (glm | openai | ollama). Default glm."""
+    if provider == "ollama" and json_schema is not None:
+        def structured_for(schema, schema_name="formal_spec_gen_json"):
+            def ollama_structured(messages, model, temperature):
+                response_format = {"type": "json_schema", "json_schema": {
+                    "name": schema_name, "strict": True, "schema": schema,
+                }}
+                return _post_chat(
+                    config.OLLAMA_BASE_URL, config.OLLAMA_API_KEY, messages,
+                    model or config.OLLAMA_MODEL, temperature, config.LLM_TIMEOUT,
+                    {"response_format": response_format,
+                     "think": config.OLLAMA_STRUCTURED_THINKING != "disabled"})
+            ollama_structured.structured_for = structured_for
+            return ollama_structured
+        return structured_for(json_schema, "formal_spec_gen_v2_domain")
     if provider == "openai":
         return _openai_chat
     if provider == "ollama":
