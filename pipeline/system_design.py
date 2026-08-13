@@ -36,7 +36,8 @@ The TLC configuration.
 Do not emit prose outside the sections."""
 
 
-def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3) -> dict:
+def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3,
+                  timeout: int | None = None) -> dict:
     chat = _chat_fn(provider)
     previous = feedback = ""
     attempts = []
@@ -59,7 +60,7 @@ def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3
             continue
         lint = lint_architecture(architecture)
         blocking = [item for item in lint if item["severity"] == "error"]
-        tlc = check_tla(tla, cfg)
+        tlc = check_tla(tla, cfg, timeout=timeout)
         status = "VERIFIED" if tlc["status"] == "VERIFIED" and not blocking else "DESIGN_FAILED"
         last_candidate = {"architecture": architecture.to_dict(), "lint": lint,
                           "tla": tla, "cfg": cfg, "tlc": tlc, "model": model}

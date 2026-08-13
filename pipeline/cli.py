@@ -39,6 +39,7 @@ from .llm import LLMError, _chat_fn
 from .orchestrator import run as draft_contract, run_implementation_loop
 from .rust_support import draft_rust
 from .scaffold_domain import DomainSpec, load_spec, scaffold_domain
+from .system_design import design_system
 from .tla_backend import generate_and_check
 from .verify import classify, verify
 from .verify_c import verify_c
@@ -441,6 +442,34 @@ def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
     if args.json:
         _write_json(result, args.json, ui.console)
     return 0 if status == "VERIFIED" else 1
+
+
+def command_design_system(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Generate a bounded architecture artifact from natural language."""
+    ui.console.print(f"[bold cyan]Designing architecture via {args.provider}…[/bold cyan]")
+    try:
+        result = design_system(args.requirement, provider=args.provider,
+                               max_attempts=args.max_attempts, timeout=args.timeout)
+    except Exception as exc:  # fail closed at the CLI boundary
+        ui.console.print(f"[bold red]Architecture generation failed:[/bold red] {escape(str(exc))}")
+        return 1
+    if result.get("status") != "VERIFIED" or not result.get("architecture"):
+        if args.json:
+            _write_json(result, args.json, ui.console)
+        ui.console.print(
+            f"[bold red]Architecture generation failed:[/bold red] "
+            f"{escape(str(result.get('message', result.get('status', 'UNKNOWN'))))}")
+        return 1
+    destination = Path(args.out_file)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(result["architecture"], indent=2) + "\n",
+                            encoding="utf-8")
+    evidence = {key: value for key, value in result.items() if key != "architecture"}
+    if args.json:
+        _write_json({"status": "VERIFIED", "architecture": result["architecture"],
+                     "evidence": evidence}, args.json, ui.console)
+    ui.console.print(f"[green]Architecture artifact written to {destination}[/green]")
+    return 0
 
 
 def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
@@ -992,6 +1021,15 @@ def build_parser() -> argparse.ArgumentParser:
                               default="atomic_operations")
     architecture.add_argument("--emit-tla")
     architecture.add_argument("--json")
+    design = sub.add_parser("design-system",
+                            help="generate a bounded architecture artifact from natural language")
+    design.add_argument("requirement")
+    design.add_argument("--provider", choices=["glm", "openai", "ollama"], default="ollama")
+    design.add_argument("--out-file", default="architecture.json")
+    design.add_argument("--json", help="machine-readable design evidence destination")
+    design.add_argument("--timeout", type=int, default=120,
+                        help="TLC timeout in seconds; bounds unbounded model attempts")
+    design.add_argument("--max-attempts", type=int, default=3)
 
     domain = sub.add_parser("domain", parents=[common], help="elicit and scaffold a domain plugin")
     domain.add_argument("idea")
@@ -1053,6 +1091,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)
+    if args.command == "design-system": return command_design_system(args, ui)
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
     if args.command == "promote-domain": return command_promote_domain(args, ui)
@@ -1063,7 +1102,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 
 
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "inspect",
-                  "apply-refactor", "architecture", "domain",
+                  "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "compose", "reverify", "system"}
 
 

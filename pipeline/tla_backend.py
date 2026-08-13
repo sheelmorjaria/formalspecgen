@@ -244,7 +244,7 @@ def lint_tla_model(tla: str) -> list[str]:
     return findings
 
 
-def check_tla(tla: str, cfg: str) -> dict:
+def check_tla(tla: str, cfg: str, timeout: int | None = None) -> dict:
     model_findings = lint_tla_model(tla)
     if model_findings:
         return {"status": "MODEL_LINT_FAILED", "exit_code": 2, "counterexample": [],
@@ -264,7 +264,8 @@ def check_tla(tla: str, cfg: str) -> dict:
             command.extend(["-config", f"{name}.cfg", name])
             process = subprocess.run(
                 command,
-                cwd=root, capture_output=True, text=True, timeout=config.TLC_TIMEOUT)
+                cwd=root, capture_output=True, text=True,
+                timeout=config.TLC_TIMEOUT if timeout is None else timeout)
             output = (process.stdout or "") + (process.stderr or "")
         except subprocess.TimeoutExpired:
             return {"status": "TIMEOUT", "exit_code": 124, "counterexample": []}

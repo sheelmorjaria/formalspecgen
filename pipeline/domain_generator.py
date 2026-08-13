@@ -441,6 +441,19 @@ Every integer initial value must lie within its declared bound. Do not shrink a 
 authoritative initial value. A conservation invariant must include every source and sink named by
 the operation effects; do not claim account_balance + atm_cash is constant when both terms change
 in the same direction unless another modeled term changes oppositely.
+
+CONCURRENCY IS AUTHORITATIVE: If the requirement or human answers mention lock_protocol,
+multiple actors sharing state, mutex, or linearization points, concurrency MUST be a complete
+object, never null. Use this exact shape (adapting only names, actor count, and operations):
+{"mode":"lock_protocol","lock_variable":"account_lock",
+ "lock_states":["UNLOCKED","LOCKED_ACTOR_1","LOCKED_ACTOR_2"],
+ "unlocked_value":0,"actor_lock_values":[1,2],
+ "linearization_points":{"Deposit":"effect_commit","Withdraw":"effect_commit"}}
+The lock variable must be a declared bounded integer state field; actor_lock_values must have
+one distinct value per actor; linearization_points must cover every operation exactly once.
+Never emit concurrency:null when lock_protocol is authoritative. Do not invent invariant
+identifiers for operation frames or actor phases: those phases belong to the lock metadata and
+TLC history model, not to free-form state expressions.
 """
 
 DOMAIN_SPEC_V2_REPAIR_SYSTEM = """Repair a rejected V2 domain candidate using the supplied JSON
@@ -466,6 +479,12 @@ FRAME/EFFECT BIJECTION IS MANDATORY: for each operation, the frame array must eq
 effect target strings exactly, and every target occurs once. When authoritative answers say an
 operation changes multiple fields, emit one effect for every such field and include exactly those
 fields in frame. Never repair a mismatch by silently dropping an authoritative state update.
+
+LOCK REPAIR RULE: when authoritative requirements mention lock_protocol, concurrency cannot be
+null. Emit complete lock metadata with lock_variable, one unlocked value, one actor value per
+actor, lock_states, and a linearization_points entry for every operation. Never replace a
+lock_protocol model with atomic-only metadata and never invent identifiers outside declared
+state fields in invariant expressions.
 """
 
 DOMAIN_SPEC_V2_WIRE_FORMAT = r"""Use exactly these top-level keys:
