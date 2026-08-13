@@ -275,10 +275,53 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]Implementation failed:[/bold red] {escape(str(exc))}")
         return 2
+    parallel_wrapper = getattr(args, "parallel_wrapper", None)
+    if parallel_wrapper is not None:
+        if suffix != ".rs" or parallel_wrapper != "rayon":
+            result = {**result, "final_status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
+                      "code": "unsupported_parallel_wrapper"}
+        else:
+            from .parallel_wrapper import (
+                check_rayon_syntax, parallel_partition_gate, render_rayon_wrapper,
+            )
+            kernel_code = result.get("implementation_code") or ""
+            kernel_name = getattr(args, "parallel_kernel", None) or "process_chunk"
+            try:
+                wrapped = render_rayon_wrapper(kernel_code, kernel_name)
+            except ValueError as exc:
+                partition = {"status": "FAIL", "claim": "NO_PROOF",
+                             "code": "unsupported_kernel_boundary", "message": str(exc)}
+            else:
+                wrapper_check = check_rayon_syntax(wrapped)
+                partition = parallel_partition_gate(
+                    kernel_code, wrapped, kernel_name,
+                    kernel_deductive_proof=(result.get("final_status") == "VERIFIED" and
+                                             result.get("claim") in {
+                                                 "DEDUCTIVE_PROOF",
+                                                 "SOURCE_MODEL_REFINEMENT"}),
+                    wrapper_compiled=wrapper_check["status"] == "RAYON_CHECKED")
+                partition["native_wrapper_check"] = wrapper_check
+            result["parallel_partition"] = partition
+            if partition["status"] == "VERIFIED":
+                destination = Path(getattr(args, "parallel_out", None) or
+                                   Path(args.stub).with_name(
+                                       Path(args.stub).stem + "_parallel.rs"))
+                destination.write_text(wrapped, encoding="utf-8")
+                result.update({"final_status": "PARALLEL_PARTITION_VERIFIED",
+                               "claim": "PARALLEL_PARTITION_VERIFIED",
+                               "parallel_implementation_path": str(destination.resolve()),
+                               "parallel_implementation_code": wrapped,
+                               "partition_safety_proved": True,
+                               "parallel_scheduler_proved": False})
+            else:
+                result.update({"final_status": "PARALLEL_PARTITION_FAILED",
+                               "claim": "NO_PROOF", "partition_safety_proved": False,
+                               "parallel_scheduler_proved": False})
     _write_json(result, args.json, ui.console)
     return 0 if result["final_status"] in {
         "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED",
-        "LOCK_DISCIPLINE_VERIFIED", "CONCURRENT_LINEARIZABILITY_VERIFIED"} else 1
+        "LOCK_DISCIPLINE_VERIFIED", "CONCURRENT_LINEARIZABILITY_VERIFIED",
+        "PARALLEL_PARTITION_VERIFIED"} else 1
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -791,6 +834,11 @@ def build_parser() -> argparse.ArgumentParser:
                            help="reviewed V2 JSON used by the generic refinement gate")
     implement.add_argument("--v2-validation-evidence",
                            help="hash-bound VALIDATED evidence for --v2-reviewed-domain")
+    implement.add_argument("--parallel-wrapper", choices=["rayon"],
+                           help="wrap a proved immutable scalar Rust kernel deterministically")
+    implement.add_argument("--parallel-kernel", default="process_chunk",
+                           help="proved Rust kernel name for --parallel-wrapper")
+    implement.add_argument("--parallel-out", help="generated parallel Rust destination")
 
     check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
     check.add_argument("source")

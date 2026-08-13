@@ -634,6 +634,34 @@ claim composes the individual proof scopes already present in component verdicts
 single-threaded atomic composition scope; it does not establish distributed execution semantics,
 cross-process transactions, message delivery, or concurrent composition linearizability.
 
+### Immutable data-parallel kernels
+
+Phase 3 supports one deliberately narrow Rayon profile: a sequential Rust kernel with exact
+signature `pub fn process_chunk(value: i32) -> i32` must first receive a native deductive-proof
+claim. The implementation command can then append and check a deterministic immutable wrapper:
+
+```bash
+formalspecgen implement Kernel.rs --assurance-level critical \
+  --parallel-wrapper rayon --parallel-kernel process_chunk \
+  --parallel-out Kernel_parallel.rs --json parallel-verdict.json
+```
+
+The wrapper accepts `&[i32]`, partitions it through `par_iter()`, copies each scalar into the
+unchanged proved kernel, and collects a fresh `Vec<i32>`. FormalSpecGen compiles the combined source
+with offline `rayon=1.11.0` and warnings denied. Exact canonical-source matching plus the prior
+kernel proof mints `PARALLEL_PARTITION_VERIFIED` under scope
+`immutable_elementwise_rayon_partition`.
+
+The claim establishes the shared-input/fresh-output alias boundary and proves that the verified
+kernel source was not modified. It explicitly records `parallel_scheduler_proved: false` and
+`parallel_functional_equivalence_proved: false`: Rayon scheduling, performance, panic behavior in
+arbitrary kernels, effect ordering, mutable chunk partitioning, reductions, SIMD, and GPU execution
+remain outside this profile. Static checking alone cannot authorize the wrapper.
+The live scalar example at
+[`domains/examples/parallel/IncrementKernel.rs`](domains/examples/parallel/IncrementKernel.rs)
+is proved by Prusti 0.2.2 (1/1 item); the deterministic wrapper is separately compiled against
+cached `rayon=1.11.0` in offline mode.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the
