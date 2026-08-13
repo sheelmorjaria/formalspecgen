@@ -14,11 +14,30 @@ Natural language → clarification → checked language contract
 
 Explicit lock protocol → bounded invocation histories → canonical Rust Mutex object
                                                        └─ restricted history refinement
+
+Legacy Java → javalang AST inspection → hash-bound deterministic refactoring
+                                      └─ baseline + refactored OpenJML ESC
+                                           └─ REFACTOR_CONTRACT_PRESERVED
 ```
 
 The governing rule is:
 
 > The LLM proposes; deterministic compilers transform; formal tools judge; humans control trusted assumptions.
+
+### Full-lifecycle capability map
+
+FormalSpecGen now covers three connected workflows:
+
+| Workflow | Entry point | Strongest scoped evidence |
+| --- | --- | --- |
+| Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
+| Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
+| Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
+
+These evidence classes are intentionally not interchangeable. In particular,
+`REFACTOR_CONTRACT_PRESERVED` proves that both revisions discharge the same normalized JML/API
+surface; it does not claim relational behavioral equivalence. Async Tokio generation similarly
+stops at bounded architecture evidence plus static checking rather than claiming atomic refinement.
 
 ### Verified polyglot scorecard
 
