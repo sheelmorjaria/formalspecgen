@@ -773,6 +773,28 @@ application would introduce new objects and cross-file calls, changing heap topo
 boundaries. `apply-refactor` therefore does not offer those patterns until a multi-file composition
 gate can prove the generated collaborators and delegation glue rather than merely compiling them.
 
+### Cross-file refactoring verification
+
+`verify-refactor` also accepts a refactored source directory whose primary file retains the baseline
+filename:
+
+```bash
+formalspecgen verify-refactor baseline/Service.java refactored/ \
+  --json multifile-refactor-verdict.json
+```
+
+The primary class must preserve the baseline public/protected declarations and normalized JML
+surface. The baseline is proved independently; every immediate Java/JML file in the refactored
+directory is then checked and proved together so extracted interfaces, implementations, and
+delegation glue share one OpenJML context. Evidence hash-binds a sorted per-file manifest and can
+mint `MULTIFILE_REFACTOR_CONTRACT_PRESERVED`.
+
+This closes the proof boundary needed before future Factory/State/Decorator actions can be admitted,
+but does not itself implement those transformations. The claim records
+`behavior_equivalence_proved: false`, `heap_topology_equivalence_proved: false`, and
+`refactor_verified: false`: joint satisfaction of the preserved primary contract is not a
+bisimulation proof of all private behavior, allocation identity, callback order, I/O, or timing.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the

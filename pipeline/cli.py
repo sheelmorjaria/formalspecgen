@@ -352,9 +352,13 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .refactor_gate import verify_contract_preserving_refactor
+    from .refactor_gate import (
+        verify_contract_preserving_refactor, verify_multifile_contract_refactor,
+    )
     ui.console.print("[cyan]Checking baseline and refactored contract surfaces…[/cyan]")
-    result = verify_contract_preserving_refactor(args.baseline, args.refactored)
+    result = (verify_multifile_contract_refactor(args.baseline, args.refactored)
+              if Path(args.refactored).is_dir() else
+              verify_contract_preserving_refactor(args.baseline, args.refactored))
     _write_json(result, args.json, ui.console)
     return 0 if result["status"] == "VERIFIED" else 1
 
@@ -898,7 +902,8 @@ def build_parser() -> argparse.ArgumentParser:
     verify_refactor = sub.add_parser(
         "verify-refactor", help="prove a narrow Java/JML contract-preserving refactor")
     verify_refactor.add_argument("baseline", help="previously trusted Java/JML revision")
-    verify_refactor.add_argument("refactored", help="refactored Java/JML revision")
+    verify_refactor.add_argument(
+        "refactored", help="refactored Java/JML revision or multi-file source directory")
     verify_refactor.add_argument("--json", help="machine-readable evidence destination")
 
     inspect = sub.add_parser(
