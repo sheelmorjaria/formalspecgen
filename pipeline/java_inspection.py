@@ -220,8 +220,83 @@ class AdapterDetector(PatternDetector):
             "Adapter", "Document the target contract and verify argument/result translation explicitly.")]
 
 
+class FactoryMethodDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        findings = []
+        for method in self.declaration.methods:
+            returned = _type_name(method.return_type)
+            if not returned or returned in {"void", "boolean", "byte", "short", "int",
+                                            "long", "float", "double", "char"}:
+                continue
+            decisions = ([node for _, node in method.filter(javalang.tree.IfStatement)] +
+                         [node for _, node in method.filter(javalang.tree.SwitchStatement)])
+            if not decisions:
+                continue
+            concrete = {_type_name(node.type) for decision in decisions
+                        for _, node in decision.filter(javalang.tree.ClassCreator)
+                        if _type_name(node.type) and _type_name(node.type) != returned}
+            if len(concrete) < 2:
+                continue
+            findings.append(_finding(_line(method), "conditional-object-creation", "warning",
+                f"Method {method.name} conditionally creates concrete types: " +
+                ", ".join(sorted(concrete)) + ".", "Factory Method",
+                "Move creation policy behind a factory contract; preserve failure and constructor side effects."))
+            findings[-1]["method"] = method.name
+        return findings
+
+
+class StatePatternDetector(PatternDetector):
+    _STATE_NAMES = {"state", "status", "mode"}
+
+    def detect(self) -> list[dict]:
+        candidates = {declarator.name for field in self.declaration.fields
+                      if _type_name(field.type) in {"int", "Integer", "String"}
+                      for declarator in field.declarators
+                      if declarator.name.lower() in self._STATE_NAMES}
+        for field_name in sorted(candidates):
+            affected = [method for method in self.declaration.methods
+                        if _method_branches_on(method, field_name)]
+            if len(affected) >= 2:
+                finding = _finding(_line(affected[0]), "repeated-state-dispatch", "warning",
+                    f"Field {field_name} controls branching in {len(affected)} methods.",
+                    "State", "Model legal transitions first, then isolate state-dependent behavior behind explicit state contracts.")
+                finding.update({"field": field_name,
+                                "methods": sorted(method.name for method in affected)})
+                return [finding]
+        return []
+
+
+class DecoratorDetector(PatternDetector):
+    _CROSS_CUTTING = {"log", "info", "debug", "warn", "error", "trace", "increment",
+                      "record", "timer", "count", "metric"}
+
+    def detect(self) -> list[dict]:
+        interfaces = {_type_name(item) for item in self.declaration.implements or []}
+        if not interfaces:
+            return []
+        fields = {declarator.name: _type_name(field.type) for field in self.declaration.fields
+                  for declarator in field.declarators}
+        wrapped = {name for name, type_name in fields.items() if type_name in interfaces}
+        if not wrapped or not any(_constructor_accepts_and_assigns(
+                constructor, interfaces, wrapped) for constructor in self.declaration.constructors):
+            return []
+        public_methods = [method for method in self.declaration.methods
+                          if "public" in method.modifiers and method.body]
+        decorated = [method for method in public_methods
+                     if _contains_delegation(method, wrapped) and _has_cross_cutting_call(
+                         method, wrapped, self._CROSS_CUTTING)]
+        if not decorated or len(decorated) * 2 < len(public_methods):
+            return []
+        finding = _finding(_line(decorated[0]), "cross-cutting-delegation", "warning",
+            f"{len(decorated)}/{len(public_methods)} public methods combine cross-cutting calls with wrapped-interface delegation.",
+            "Decorator", "Move logging/metrics to a decorator while preserving callback order and exception behavior.")
+        finding["methods"] = sorted(method.name for method in decorated)
+        return [finding]
+
+
 DETECTOR_REGISTRY = (CoreStructureDetector, SingletonDetector, ObserverDetector,
-                     BuilderOpportunityDetector, RepositoryDetector, AdapterDetector)
+                     BuilderOpportunityDetector, RepositoryDetector, AdapterDetector,
+                     FactoryMethodDetector, StatePatternDetector, DecoratorDetector)
 
 
 def _type_name(node) -> str:
@@ -239,6 +314,11 @@ def _delegates_to(method, field_names: set[str]) -> bool:
             expression.qualifier in field_names)
 
 
+def _contains_delegation(method, field_names: set[str]) -> bool:
+    return any(node.qualifier in field_names for _, node in method.filter(
+        javalang.tree.MethodInvocation))
+
+
 def _assigns_field(constructor, field_names: set[str]) -> bool:
     for _, assignment in constructor.filter(javalang.tree.Assignment):
         target = assignment.expressionl
@@ -249,6 +329,31 @@ def _assigns_field(constructor, field_names: set[str]) -> bool:
                     selector.member in field_names for selector in target.selectors or [])):
             return True
     return False
+
+
+def _method_branches_on(method, field_name: str) -> bool:
+    decisions = ([node for _, node in method.filter(javalang.tree.IfStatement)] +
+                 [node for _, node in method.filter(javalang.tree.SwitchStatement)])
+    for decision in decisions:
+        expression = decision.condition if isinstance(
+            decision, javalang.tree.IfStatement) else decision.expression
+        nodes = [expression] + ([node for _, node in expression]
+                                if isinstance(expression, javalang.ast.Node) else [])
+        if any(isinstance(node, javalang.tree.MemberReference) and
+               node.member == field_name for node in nodes):
+            return True
+    return False
+
+
+def _constructor_accepts_and_assigns(constructor, interfaces: set[str],
+                                     wrapped_fields: set[str]) -> bool:
+    accepts = any(_type_name(parameter.type) in interfaces for parameter in constructor.parameters)
+    return accepts and _assigns_field(constructor, wrapped_fields)
+
+
+def _has_cross_cutting_call(method, wrapped: set[str], names: set[str]) -> bool:
+    return any(node.qualifier not in wrapped and node.member.lower() in names
+               for _, node in method.filter(javalang.tree.MethodInvocation))
 
 
 def _callable_lines(source: str, method) -> int:

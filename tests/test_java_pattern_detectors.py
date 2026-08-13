@@ -8,7 +8,7 @@ def _inspect(tmp_path, source):
 
 
 def test_detector_registry_is_explicit_and_base_is_abstract_by_contract():
-    assert len(DETECTOR_REGISTRY) == 6
+    assert len(DETECTOR_REGISTRY) == 9
     try:
         PatternDetector("", None).detect()
     except NotImplementedError:
@@ -95,3 +95,68 @@ def test_adapter_near_miss_thresholds_and_unqualified_assignment(tmp_path):
         public void two() { int local = 1; vendor.run(); }
     }''')
     assert not any(item["code"] == "delegation-wrapper" for item in low_ratio["findings"])
+
+
+def test_factory_state_and_decorator_detectors(tmp_path):
+    factory = _inspect(tmp_path, '''public class Example {
+        public Product create(String kind) {
+            if (kind.equals("a")) return new Alpha();
+            else return new Beta();
+        }
+    }''')
+    finding = next(item for item in factory["findings"]
+                   if item["code"] == "conditional-object-creation")
+    assert finding["suggested_pattern"] == "Factory Method"
+    assert finding["method"] == "create"
+
+    state = _inspect(tmp_path, '''public class Example {
+        private int state;
+        public void start() { if (state == 0) state = 1; }
+        public void stop() { switch (state) { case 1: state = 0; break; } }
+    }''')
+    finding = next(item for item in state["findings"]
+                   if item["code"] == "repeated-state-dispatch")
+    assert finding["field"] == "state"
+    assert finding["methods"] == ["start", "stop"]
+
+    decorator = _inspect(tmp_path, '''public class Example implements Service {
+        private final Service delegate;
+        public Example(Service delegate) { this.delegate = delegate; }
+        public int run(int value) { Logger.info("run"); return delegate.run(value); }
+        public void reset() { Metrics.increment("reset"); delegate.reset(); }
+    }''')
+    finding = next(item for item in decorator["findings"]
+                   if item["code"] == "cross-cutting-delegation")
+    assert finding["suggested_pattern"] == "Decorator"
+    assert finding["methods"] == ["reset", "run"]
+
+
+def test_new_detector_near_misses_are_conservative(tmp_path):
+    result = _inspect(tmp_path, '''public class Example implements Service {
+        private final Service delegate;
+        private String condition;
+        public Example(Service delegate) { this.delegate = delegate; }
+        public Product create() { if (condition != null) return new Alpha(); return null; }
+        public void run() { Logger.info("run"); }
+        public void reset() { delegate.reset(); }
+    }''')
+    new_codes = {"conditional-object-creation", "repeated-state-dispatch",
+                 "cross-cutting-delegation"}
+    assert not (new_codes & {finding["code"] for finding in result["findings"]})
+
+    unbound_decorator = _inspect(tmp_path, '''public class Example implements Service {
+        private Service delegate;
+        public Example(Service input) { }
+        public void run() { Logger.info("run"); delegate.run(); }
+        public void reset() { Metrics.increment("reset"); delegate.reset(); }
+    }''')
+    assert not any(item["code"] == "cross-cutting-delegation"
+                   for item in unbound_decorator["findings"])
+
+    one_state_branch = _inspect(tmp_path, '''public class Example {
+        private String status;
+        public void run() { if (status == null) status = "ready"; }
+        public void reset() { int local = 0; }
+    }''')
+    assert not any(item["code"] == "repeated-state-dispatch"
+                   for item in one_state_branch["findings"])

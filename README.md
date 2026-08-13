@@ -732,7 +732,11 @@ methods longer than 60 lines (Extract Method), constructors with at least five p
 private-constructor/static-accessor Singleton shapes (dependency-injection review), paired listener
 registries (Observer), large mostly-literal construction calls (Builder), database calls mixed with
 branching/calculation (Repository), and delegation-heavy single-field wrappers (Adapter). Findings
-include source lines, metrics, recommendations, and a source hash. Comments and literals cannot
+also cover conditional creation of multiple concrete products (Factory Method), repeated branching
+on scalar `state`/`status`/`mode` fields (State), and interface wrappers that combine logging or
+metrics with delegation in at least half their public methods (Decorator). Findings include source
+lines, implicated methods or fields where relevant, metrics, recommendations, and a source hash.
+Comments and literals cannot
 manufacture findings because decisions are made from Java AST nodes; lexical scanning is used only
 to calculate method end lines, which `javalang` does not expose.
 
@@ -763,6 +767,11 @@ only independent successful ESC results can produce `REFACTOR_CONTRACT_PRESERVED
 records `behavior_equivalence_proved: false` and `refactor_verified: false`. Strategy, Facade,
 dependency injection, multi-file moves, arbitrary statement selection, and semantic rewrites remain
 outside this initial action profile.
+
+Factory, State, and Decorator currently remain inspection-only recommendations. Their deterministic
+application would introduce new objects and cross-file calls, changing heap topology and proof
+boundaries. `apply-refactor` therefore does not offer those patterns until a multi-file composition
+gate can prove the generated collaborators and delegation glue rather than merely compiling them.
 
 ## Providers
 
