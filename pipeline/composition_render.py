@@ -83,18 +83,23 @@ def render_interface(reviewed: ReviewedDomainSpecV2) -> str:
 
 
 def render_orchestrator(use_case: CompositionUseCase,
-                        resolved: dict[str, ReviewedDomainSpecV2]) -> str:
+                        resolved: dict[str, ReviewedDomainSpecV2], architecture=None) -> str:
     """Deterministically compose reviewed operations into a JML orchestrator."""
-    coupling = analyze_coupling(use_case, resolved)
+    coupling = analyze_coupling(use_case, resolved, architecture)
+    external_by_id = ({component.id: component for component in architecture.components
+                       if component.external} if architecture is not None else {})
     pascal = _pascal(use_case.name)
     class_name = f"{pascal}Orchestrator"
     method_name = pascal[:1].lower() + pascal[1:]
     lines = [f"public class {class_name} {{"]
     for step in use_case.steps:
+        component_type = (external_by_id[step.component].name
+                          if step.component in external_by_id else
+                          resolved[step.component].domain_name)
         lines.append(f"    private /*@ spec_public @*/ final "
-                     f"{resolved[step.component].domain_name} {step.component};")
+                     f"{component_type} {step.component};")
     parameters = ", ".join(
-        f"{resolved[step.component].domain_name} {step.component}Arg"
+        f"{(external_by_id[step.component].name if step.component in external_by_id else resolved[step.component].domain_name)} {step.component}Arg"
         for step in use_case.steps)
     lines.append("")
     lines.extend(f"    //@ requires {step.component}Arg != null;"
@@ -109,6 +114,8 @@ def render_orchestrator(use_case: CompositionUseCase,
 
     frame: list[str] = []
     for step in use_case.steps:
+        if step.component in external_by_id:
+            continue
         frame.extend(f"{step.component}.{name}"
                      for name in _operation(resolved[step.component],
                                             step.operation).frame)
@@ -118,15 +125,21 @@ def render_orchestrator(use_case: CompositionUseCase,
     lines.append("    //@ assignable " +
                  (", ".join(frame) if frame else r"\nothing") + ";")
     for step in use_case.steps:
+        if step.component in external_by_id:
+            continue
         operation = _operation(resolved[step.component], step.operation)
         for effect in operation.effects:
             value = render_qualified(effect.value, step.component, pre_state=True)
             lines.append(f"    //@ ensures {step.component}.{effect.target} "
                          f"== {value};")
-    lines.append(f"    public void {method_name}() {{")
-    lines.extend(f"        {step.component}."
-                 f"{java_method_name(step.operation)}();"
-                 for step in use_case.steps)
+    method_parameters = ", ".join(
+        f"{_java_type(type_name)} {name}" for name, type_name
+        in coupling["orchestrator_parameters"].items())
+    lines.append(f"    public void {method_name}({method_parameters}) {{")
+    for step in use_case.steps:
+        arguments = ", ".join(step.arguments.values())
+        lines.append(f"        {step.component}.{java_method_name(step.operation)}"
+                     f"({arguments});")
     lines.extend(["    }", "}", ""])
     return "\n".join(lines)
 
@@ -263,10 +276,11 @@ def build_composition_sources(spec, resolved) -> dict[str, str]:
         rendered_domains.add(reviewed.domain_name)
         sources[f"{reviewed.domain_name}.java"] = render_verified_class(reviewed)
         sources[f"{reviewed.domain_name}API.java"] = render_interface(reviewed)
+    architecture = parse_architecture(spec.architecture)
     for use_case in spec.use_cases:
         sources[f"{_pascal(use_case.name)}Orchestrator.java"] = \
-            render_orchestrator(use_case, resolved)
-    for component in parse_architecture(spec.architecture).components:
+            render_orchestrator(use_case, resolved, architecture)
+    for component in architecture.components:
         if component.external and component.kind == "interface":
             adapter_name = _external_adapter_name(spec.architecture, component.id,
                                                   component.name)
@@ -301,6 +315,8 @@ def render_external_port(component) -> str:
         lines.append("")
         lines.extend(f"    //@ requires {clause};" for clause in operation.requires)
         lines.extend(f"    //@ ensures {clause};" for clause in operation.ensures)
+        lines.append("    //@ assignable " +
+                     (", ".join(operation.assignable) if operation.assignable else r"\nothing") + ";")
         lines.append(f"    public {_java_type(operation.returns)} {operation.name}"
                      f"({_operation_parameters(operation)});")
     return "\n".join(lines + ["}", ""])
@@ -313,6 +329,8 @@ def render_external_adapter(component, adapter_name: str) -> str:
         lines.append("")
         lines.extend(f"    //@ requires {clause};" for clause in operation.requires)
         lines.extend(f"    //@ ensures {clause};" for clause in operation.ensures)
+        lines.append("    //@ assignable " +
+                     (", ".join(operation.assignable) if operation.assignable else r"\nothing") + ";")
         return_type = _java_type(operation.returns)
         lines.append(f"    public {return_type} {operation.name}"
                      f"({_operation_parameters(operation)}) {{")
@@ -345,7 +363,8 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
     except CompositionError as exc:
         return {"status": "RESOLUTION_FAILED", "claim": "NO_PROOF", "message": str(exc)}
     try:
-        coupling = [analyze_coupling(use_case, resolved)
+        architecture = parse_architecture(spec.architecture)
+        coupling = [analyze_coupling(use_case, resolved, architecture)
                     for use_case in spec.use_cases]
     except UnsupportedCompositionBoundary as exc:
         return {"status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
@@ -359,7 +378,6 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
     except UnsupportedCompositionBoundary as exc:
         return {"status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
                 "message": str(exc)}
-    architecture = parse_architecture(spec.architecture)
     unverified_boundaries = sorted(
         _external_adapter_name(spec.architecture, component.id, component.name)
         for component in architecture.components if component.external)
@@ -401,7 +419,8 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
                                 "effect obligation; the composition discharged "
                                 "nothing")}
         return {**verdict, "status": "COMPOSITION_VERIFIED",
-                "claim": "SCOPED_COMPOSITION_PROOF"}
+                "claim": ("SYSTEM_COMPOSITION_PROOF" if unverified_boundaries else
+                          "SCOPED_COMPOSITION_PROOF")}
     diagnostics = parse_vcs(esc_output) if esc_exit == 6 else parse_check(esc_output)
     return {**verdict, "status": f"COMPOSITION_{esc_status}", "claim": "NO_PROOF",
             "diagnostics": [item.__dict__ for item in diagnostics]}

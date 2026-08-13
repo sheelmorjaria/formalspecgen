@@ -14,6 +14,7 @@ linearizability nor distributed-message asynchrony.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -43,6 +44,7 @@ class _StrictModel(BaseModel):
 class CompositionStep(_StrictModel):
     component: str
     operation: str
+    arguments: dict[str, str] = Field(default_factory=dict)
 
 
 class CompositionUseCase(_StrictModel):
@@ -120,7 +122,9 @@ def resolve_bindings(spec: CompositionSpec,
             raise CompositionError(
                 f"module {binding.module_name!r} is not a reviewed V2 artifact: "
                 f"{exc.errors()[0].get('msg', exc)}") from exc
-    used = {step.component for use_case in spec.use_cases for step in use_case.steps}
+    architecture = parse_architecture(spec.architecture)
+    external = {component.id for component in architecture.components if component.external}
+    used = {step.component for use_case in spec.use_cases for step in use_case.steps} - external
     missing = used - set(resolved)
     if missing:
         raise CompositionError(
@@ -134,6 +138,7 @@ def lint_composition(spec: CompositionSpec,
     architecture = parse_architecture(spec.architecture)
     findings = list(lint_architecture(architecture))
     known = {component.id for component in architecture.components}
+    external = {component.id for component in architecture.components if component.external}
     bound = {binding.component for binding in spec.bindings}
 
     def finding(code, subject, severity, message, advice, target=None):
@@ -146,7 +151,7 @@ def lint_composition(spec: CompositionSpec,
                     f"Binding targets undeclared component {binding.component!r}.",
                     "Declare the component in the architecture artifact or drop the binding.")
     used = {step.component for use_case in spec.use_cases for step in use_case.steps}
-    for component in sorted(used - bound):
+    for component in sorted(used - bound - external):
         finding("composition-missing-binding", component, "error",
                 f"Component {component!r} appears in a use case without a V2 binding.",
                 "Bind it to a promoted domains/v2 artifact before composing.")
@@ -166,8 +171,33 @@ def lint_composition(spec: CompositionSpec,
                 continue
             seen.add(step.component)
             reviewed = resolved.get(step.component)
+            external_component = next((item for item in architecture.components
+                                       if item.id == step.component and item.external), None)
+            if external_component is not None:
+                operation = next((item for item in external_component.operations
+                                  if item.name == step.operation), None)
+                if operation is None:
+                    finding("composition-unknown-port-operation", use_case.name, "error",
+                            f"External Port {step.component!r} has no operation {step.operation!r}.",
+                            "Use an operation declared on the contracted external interface.")
+                    continue
+                expected = {str(item.get("name")) for item in operation.parameters}
+                if set(step.arguments) != expected:
+                    finding("composition-port-argument-mismatch", use_case.name, "error",
+                            f"Port step {step.component}.{step.operation} requires exact arguments: "
+                            + ", ".join(sorted(expected)),
+                            "Bind every Port parameter exactly once to an identifier or literal.")
+                elif any(not _safe_argument(value) for value in step.arguments.values()):
+                    finding("composition-unsafe-port-argument", use_case.name, "error",
+                            "Port argument bindings contain an unsupported expression.",
+                            "Use a Java identifier or integer/boolean literal only.")
+                continue
             if reviewed is None:
                 continue
+            if step.arguments:
+                finding("composition-internal-arguments", use_case.name, "error",
+                        "Reviewed V2 operations do not accept explicit arguments.",
+                        "Remove arguments from internal atomic steps.")
             operation = next((item for item in reviewed.operations
                               if item.name == step.operation), None)
             if operation is None:
@@ -215,7 +245,7 @@ def _unparenthesized(text: str) -> str:
 
 
 def analyze_coupling(use_case: CompositionUseCase,
-                     resolved: dict[str, ReviewedDomainSpecV2]) -> dict:
+                     resolved: dict[str, ReviewedDomainSpecV2], architecture=None) -> dict:
     """Partition every step guard into caller preconditions and ESC obligations.
 
     With one reviewed operation per component per use case, no earlier step writes a
@@ -226,12 +256,43 @@ def analyze_coupling(use_case: CompositionUseCase,
     preconditions: list[str] = []
     obligations: list[dict] = []
     seen: set[str] = set()
+    orchestrator_parameters: dict[str, str] = {}
+    external_by_id = ({component.id: component for component in architecture.components
+                       if component.external} if architecture is not None else {})
     for index, step in enumerate(use_case.steps):
         if step.component in seen:
             raise UnsupportedCompositionBoundary(
                 f"use case {use_case.name!r} composes component {step.component!r} more "
                 "than once; one reviewed operation per component is the supported boundary")
         seen.add(step.component)
+        external = external_by_id.get(step.component)
+        if external is not None:
+            operation = next((item for item in external.operations
+                              if item.name == step.operation), None)
+            if operation is None:
+                raise UnsupportedCompositionBoundary(
+                    f"external Port {step.component!r} has no operation {step.operation!r}")
+            expected = {str(item.get("name")): str(item.get("type", "Object"))
+                        for item in operation.parameters}
+            if set(step.arguments) != set(expected):
+                raise UnsupportedCompositionBoundary(
+                    f"external Port {step.component}.{step.operation} requires exact argument bindings")
+            for parameter, expression in step.arguments.items():
+                if not _safe_argument(expression):
+                    raise UnsupportedCompositionBoundary(
+                        f"unsupported Port argument expression {expression!r}")
+                if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", expression):
+                    previous = orchestrator_parameters.setdefault(expression, expected[parameter])
+                    if previous != expected[parameter]:
+                        raise UnsupportedCompositionBoundary(
+                            f"orchestrator parameter {expression!r} has conflicting Port types")
+            for clause in operation.requires:
+                fact = _substitute_arguments(clause, step.arguments)
+                preconditions.append(fact)
+                obligations.append({"step": index + 1, "component": step.component,
+                                    "operation": step.operation, "fact": fact,
+                                    "external_port": True})
+            continue
         reviewed = resolved.get(step.component)
         if reviewed is None:
             raise UnsupportedCompositionBoundary(
@@ -252,4 +313,16 @@ def analyze_coupling(use_case: CompositionUseCase,
                                 "operation": step.operation, "fact": fact})
     return {"use_case": use_case.name,
             "caller_preconditions": preconditions,
-            "coupling_obligations": obligations}
+            "coupling_obligations": obligations,
+            "orchestrator_parameters": orchestrator_parameters}
+
+
+def _safe_argument(value: str) -> bool:
+    return bool(re.fullmatch(r"(?:[A-Za-z_$][A-Za-z0-9_$]*|-?[0-9]+|true|false)", value))
+
+
+def _substitute_arguments(clause: str, arguments: dict[str, str]) -> str:
+    result = clause
+    for name in sorted(arguments, key=len, reverse=True):
+        result = re.sub(rf"\b{re.escape(name)}\b", arguments[name], result)
+    return result

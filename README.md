@@ -823,9 +823,23 @@ marker and TODO body. The adapter source is distributed as integration scaffoldi
 OpenJML check/ESC evidence. Verdicts list it under `unverified_boundaries`, record the skip reason
 `Unverified external boundary`, and set `external_io_safety_proved: false`.
 
-This does not yet inject parameterized port calls into generated orchestrators. That requires an
-explicit argument-binding schema so the composition prover can establish each port precondition;
-the pipeline will not infer call arguments or pretend an adapter's network behavior was proved.
+Parameterized Port calls use explicit step bindings:
+
+```json
+{"component":"payments", "operation":"charge", "arguments":{"amount":"amount"}}
+```
+
+Each Port parameter must be bound exactly once to a Java identifier or integer/Boolean literal.
+Identifiers become typed orchestrator parameters; repeated identifiers must have the same declared
+Port type. The renderer substitutes bindings into the Port preconditions, injects the Port through
+the orchestrator constructor, and OpenJML proves the call site establishes those preconditions.
+Missing, extra, expression-valued, or type-conflicting bindings fail closed.
+
+When that core proof succeeds with external Ports present, composition evidence uses
+`SYSTEM_COMPOSITION_PROOF`, lists every skipped adapter, and keeps
+`external_io_safety_proved: false`. The claim proves the generated core respects contracted Port
+calls; it does not prove the adapter implementation, remote service, transport, credentials,
+availability, response authenticity, or network side effects.
 
 ### Restricted Factory Method application
 

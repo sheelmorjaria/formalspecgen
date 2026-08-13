@@ -101,13 +101,93 @@ def test_composition_skips_adapter_but_proves_core_and_records_boundary():
          patch("pipeline.composition_render.build_composition_sources", return_value=sources), \
          patch("pipeline.composition_render.verify_files", side_effect=verified):
         result = verify_composition(artifact())
-    assert result["claim"] == "SCOPED_COMPOSITION_PROOF"
+    assert result["claim"] == "SYSTEM_COMPOSITION_PROOF"
     assert result["unverified_boundaries"] == ["StripePaymentGateway"]
     assert result["verification_skips"]["StripePaymentGateway"] == \
         "Unverified external boundary"
     assert not result["external_io_safety_proved"]
     assert all("StripePaymentGateway.java" not in names for _, names in calls)
     assert all("PaymentGateway.java" in names for _, names in calls)
+
+
+def test_external_step_injects_port_and_proves_bound_precondition():
+    value = artifact()
+    value["use_cases"] = [{"name": "ChargeOrder", "steps": [{
+        "component": "payments", "operation": "charge",
+        "arguments": {"amount": "amount"}}]}]
+    spec = parse_composition(value).model_copy(update={"bindings": []})
+    sources = build_composition_sources(spec, {})
+    orchestrator = sources["ChargeOrderOrchestrator.java"]
+    assert "private /*@ spec_public @*/ final PaymentGateway payments;" in orchestrator
+    assert "ChargeOrderOrchestrator(PaymentGateway paymentsArg)" in orchestrator
+    assert "//@ requires amount > 0;" in orchestrator
+    assert "public void chargeOrder(int amount)" in orchestrator
+    assert "payments.charge(amount);" in orchestrator
+    assert "//@ assignable \\nothing;" in sources["PaymentGateway.java"]
+
+
+def test_external_argument_bindings_fail_closed_on_missing_unsafe_and_conflicting_types():
+    from pipeline.composition import UnsupportedCompositionBoundary, analyze_coupling, lint_composition
+    value = artifact()
+    value["use_cases"] = [{"name": "Charge", "steps": [{
+        "component": "payments", "operation": "charge", "arguments": {}}]}]
+    spec = parse_composition(value)
+    architecture = parse_architecture(spec.architecture)
+    findings = lint_composition(spec, {})
+    assert any(item["code"] == "composition-port-argument-mismatch" for item in findings)
+    with pytest.raises(UnsupportedCompositionBoundary, match="exact argument"):
+        analyze_coupling(spec.use_cases[0], {}, architecture)
+
+    value["use_cases"][0]["steps"][0]["arguments"] = {"amount": "amount + 1"}
+    spec = parse_composition(value)
+    assert any(item["code"] == "composition-unsafe-port-argument"
+               for item in lint_composition(spec, {}))
+    with pytest.raises(UnsupportedCompositionBoundary, match="unsupported Port argument"):
+        analyze_coupling(spec.use_cases[0], {}, parse_architecture(spec.architecture))
+
+    value = artifact()
+    port = value["architecture"]["components"][1]
+    labels = {**port, "id": "labels", "name": "LabelGateway", "adapter": "LabelAdapter",
+              "operations": [{"name": "label",
+        "parameters": [{"name": "text", "type": "String"}], "returns": "boolean",
+        "requires": ["text != null"], "ensures": ["true"]}]}
+    value["architecture"]["components"].append(labels)
+    value["use_cases"] = [{"name": "Conflict", "steps": [
+        {"component": "payments", "operation": "charge", "arguments": {"amount": "input"}},
+        {"component": "labels", "operation": "label", "arguments": {"text": "input"}}]}]
+    spec = parse_composition(value)
+    with pytest.raises(UnsupportedCompositionBoundary, match="conflicting Port types"):
+        analyze_coupling(spec.use_cases[0], {}, parse_architecture(spec.architecture))
+
+
+def test_unknown_port_internal_arguments_and_literal_binding_paths():
+    from pipeline.composition import UnsupportedCompositionBoundary, analyze_coupling, lint_composition
+    value = artifact()
+    value["use_cases"] = [{"name": "Unknown", "steps": [{
+        "component": "payments", "operation": "refund", "arguments": {}}]}]
+    spec = parse_composition(value)
+    architecture = parse_architecture(spec.architecture)
+    assert any(item["code"] == "composition-unknown-port-operation"
+               for item in lint_composition(spec, {}))
+    with pytest.raises(UnsupportedCompositionBoundary, match="has no operation"):
+        analyze_coupling(spec.use_cases[0], {}, architecture)
+
+    value = artifact()
+    value["use_cases"][0]["steps"][0]["arguments"] = {"unexpected": "1"}
+    spec = parse_composition(value)
+    reviewed = SimpleNamespace(operations=[SimpleNamespace(
+        name="Submit", return_type="void", guards=[])])
+    assert any(item["code"] == "composition-internal-arguments"
+               for item in lint_composition(spec, {"orders": reviewed}))
+
+    value = artifact()
+    value["use_cases"] = [{"name": "Literal", "steps": [{
+        "component": "payments", "operation": "charge", "arguments": {"amount": "5"}}]}]
+    spec = parse_composition(value)
+    coupling = analyze_coupling(
+        spec.use_cases[0], {}, parse_architecture(spec.architecture))
+    assert coupling["caller_preconditions"] == ["5 > 0"]
+    assert coupling["orchestrator_parameters"] == {}
 
 
 def test_composition_reports_adapter_rendering_boundary():
