@@ -147,6 +147,109 @@ def test_schema_requires_boolean_guards_exception_triggers_and_invariants():
                   invariant={"id": "Typed", "expression": integer})
 
 
+def test_schema_accepts_valid_lock_metadata_and_rejects_unbound_or_single_actor_lock():
+    operation = {"name": "step", "return_type": "void",
+                 "failure_semantics": "unavailable", "guards": [],
+                 "effects": [], "frame": []}
+    variables = [{"kind": "int", "name": "account_lock",
+                  "bound": [0, 2], "initial": 0}]
+    value = spec_with(operation, actors=2, variables=variables).model_dump(mode="json")
+    value["concurrency"] = {"mode": "lock_protocol",
+                            "lock_variable": "account_lock",
+                            "lock_states": ["UNLOCKED", "LOCKED_BY_A", "LOCKED_BY_B"]}
+    parsed = DomainSpecV2.model_validate(value)
+    assert parsed.concurrency.mode == "lock_protocol"
+    assert parsed.concurrency.lock_variable == "account_lock"
+
+    value["concurrency"]["lock_variable"] = "missing"
+    with pytest.raises(ValueError, match="must be declared state"):
+        DomainSpecV2.model_validate(value)
+    value["concurrency"]["lock_variable"] = "account_lock"
+    value["actors"] = 1
+    with pytest.raises(ValueError, match="at least two actors"):
+        DomainSpecV2.model_validate(value)
+    value["actors"] = 2
+    value["concurrency"]["lock_states"] = ["UNLOCKED", "UNLOCKED"]
+    with pytest.raises(ValueError, match="lock states must be unique"):
+        DomainSpecV2.model_validate(value)
+
+
+def test_bounded_traverser_explores_complete_lock_history_phases():
+    operation = {"name": "read", "return_type": "void",
+                 "failure_semantics": "unavailable", "guards": [],
+                 "effects": [], "frame": []}
+    variables = [{"kind": "int", "name": "lock",
+                  "bound": [0, 2], "initial": 0}]
+    value = spec_with(operation, actors=2, variables=variables).model_dump(mode="json")
+    value["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock",
+        "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"], "unlocked_value": 0,
+        "actor_lock_values": [1, 2],
+        "linearization_points": {"read": "effect_commit"}}
+    spec = DomainSpecV2.model_validate(value)
+    states, transitions = validate_transitions_and_invariants(spec)
+    assert (states, transitions) == (21, 38)
+    assert state_space_upper_bound(spec) == 75
+
+
+@pytest.mark.parametrize("mutation, message", [
+    ("boolean_lock", "bounded integer state"),
+    ("partial", "must be complete"),
+    ("state_names", "unlocked plus every actor"),
+    ("owner_count", "unique and total"),
+    ("owner_duplicate", "unique and total"),
+    ("unlocked_collision", "must differ"),
+    ("locked_initial", "initialize to the unlocked"),
+    ("owner_out_of_bounds", "within lock bounds"),
+    ("missing_linearization", "cover every operation"),
+    ("boolean_operation", "void/unavailable"),
+    ("mutates_lock", "cannot directly mutate"),
+    ("references_lock", "cannot reference protocol lock"),
+])
+def test_explicit_lock_protocol_metadata_fails_closed_at_each_boundary(mutation, message):
+    import copy
+    operation = {"name": "read", "return_type": "void",
+                 "failure_semantics": "unavailable", "guards": [],
+                 "effects": [], "frame": []}
+    variables = [{"kind": "int", "name": "lock", "bound": [0, 2], "initial": 0}]
+    value = spec_with(operation, actors=2, variables=variables).model_dump(mode="json")
+    value["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock",
+        "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"], "unlocked_value": 0,
+        "actor_lock_values": [1, 2],
+        "linearization_points": {"read": "effect_commit"}}
+    value = copy.deepcopy(value)
+    if mutation == "boolean_lock":
+        value["state_variables"] = [{"kind": "bool", "name": "lock", "initial": False}]
+    elif mutation == "partial":
+        value["concurrency"]["actor_lock_values"] = None
+    elif mutation == "state_names":
+        value["concurrency"]["lock_states"] = ["UNLOCKED", "LOCKED"]
+    elif mutation == "owner_count":
+        value["concurrency"]["actor_lock_values"] = [1]
+    elif mutation == "owner_duplicate":
+        value["concurrency"]["actor_lock_values"] = [1, 1]
+    elif mutation == "unlocked_collision":
+        value["concurrency"]["unlocked_value"] = 1
+    elif mutation == "locked_initial":
+        value["state_variables"][0]["initial"] = 1
+    elif mutation == "owner_out_of_bounds":
+        value["concurrency"]["actor_lock_values"] = [1, 3]
+    elif mutation == "missing_linearization":
+        value["concurrency"]["linearization_points"] = {}
+    elif mutation == "boolean_operation":
+        value["operations"][0].update(
+            return_type="boolean", failure_semantics="false_and_stutter")
+    elif mutation == "mutates_lock":
+        value["operations"][0].update(
+            effects=[{"id": "set", "target": "lock",
+                      "value": {"kind": "integer", "value": 1}}], frame=["lock"])
+    elif mutation == "references_lock":
+        value["operations"][0]["guards"] = [{"id": "free", "expression": {
+            "kind": "eq", "left": {"kind": "field", "name": "lock"},
+            "right": {"kind": "integer", "value": 0}}}]
+    with pytest.raises(ValueError, match=message):
+        DomainSpecV2.model_validate(value)
+
+
 def test_initial_invariant_failure_is_reported():
     op={"name":"stay","return_type":"void","failure_semantics":"unavailable",
         "guards":[],"effects":[],"frame":[]}

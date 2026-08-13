@@ -197,6 +197,9 @@ def _render_operation(operation, variables_by_name: dict, reviewed,
 
 def render_translation_unit(reviewed: ReviewedDomainSpecV2) -> str:
     """Assemble the complete deterministic C/ACSL translation unit."""
+    if reviewed.concurrency is not None:
+        raise UnsupportedAcslBoundary(
+            "lock_protocol C lowering requires a dedicated memory and linearizability model")
     module = reviewed.module_name
     variables_by_name = {variable.name: variable
                          for variable in reviewed.state_variables}

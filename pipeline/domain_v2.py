@@ -109,6 +109,29 @@ StateVariable = Annotated[
     Union[IntStateVariable, BoolStateVariable], Field(discriminator="kind")]
 
 
+class LockProtocolMetadata(_StrictModel):
+    mode: Literal["lock_protocol"] = "lock_protocol"
+    lock_variable: str
+    lock_states: list[str] = Field(min_length=2)
+    unlocked_value: int | None = None
+    actor_lock_values: list[int] | None = None
+    linearization_points: dict[str, Literal["effect_commit"]] | None = None
+
+    @field_validator("lock_variable")
+    @classmethod
+    def safe_lock_variable(cls, value: str) -> str:
+        return _safe_identifier(value)
+
+    @field_validator("lock_states")
+    @classmethod
+    def valid_lock_states(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("lock states must be unique")
+        for state in value:
+            _safe_identifier(state)
+        return value
+
+
 class Guard(_StrictModel):
     id: str
     expression: ExpressionIR
@@ -223,6 +246,7 @@ class DomainSpecV2(_StrictModel):
     domain_name: str
     module_name: str
     actors: int = Field(default=1, ge=1, le=16)
+    concurrency: LockProtocolMetadata | None = None
     state_variables: list[StateVariable] = Field(min_length=1)
     operations: list[Operation] = Field(min_length=1)
     tlc_invariants: list[Invariant] = Field(min_length=1)
@@ -252,6 +276,51 @@ class DomainSpecV2(_StrictModel):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} must be unique")
         declared = set(groups["state variables"])
+        if self.concurrency is not None:
+            if self.concurrency.lock_variable not in declared:
+                raise ValueError("lock protocol variable must be declared state")
+            if self.actors < 2:
+                raise ValueError("lock protocol requires at least two actors")
+            lock = next(item for item in self.state_variables
+                        if item.name == self.concurrency.lock_variable)
+            if not isinstance(lock, IntStateVariable):
+                raise ValueError("lock protocol variable must be bounded integer state")
+            metadata = self.concurrency
+            complete = (metadata.unlocked_value is not None or
+                        metadata.actor_lock_values is not None or
+                        metadata.linearization_points is not None)
+            if complete:
+                if (metadata.unlocked_value is None or metadata.actor_lock_values is None or
+                        metadata.linearization_points is None):
+                    raise ValueError("explicit lock protocol metadata must be complete")
+                owners = metadata.actor_lock_values
+                if len(metadata.lock_states) != self.actors + 1:
+                    raise ValueError("lock states must name unlocked plus every actor owner")
+                if len(owners) != self.actors or len(owners) != len(set(owners)):
+                    raise ValueError("actor lock values must be unique and total over actors")
+                if metadata.unlocked_value in owners:
+                    raise ValueError("unlocked value must differ from actor lock values")
+                if lock.initial != metadata.unlocked_value:
+                    raise ValueError("lock state must initialize to the unlocked value")
+                if any(not lock.bound[0] <= item <= lock.bound[1]
+                       for item in [metadata.unlocked_value, *owners]):
+                    raise ValueError("lock ownership values must be within lock bounds")
+                operation_names = {item.name for item in self.operations}
+                if set(metadata.linearization_points) != operation_names:
+                    raise ValueError("linearization points must cover every operation exactly")
+                if any(item.return_type != "void" or
+                       item.failure_semantics != "unavailable"
+                       for item in self.operations):
+                    raise ValueError(
+                        "explicit lock protocol currently supports void/unavailable operations")
+                if any(metadata.lock_variable in item.frame for item in self.operations):
+                    raise ValueError("domain operations cannot directly mutate protocol lock state")
+                if any(metadata.lock_variable in set().union(
+                        *(_referenced_fields(guard.expression) for guard in item.guards),
+                        *(_referenced_fields(effect.value) for effect in item.effects))
+                       for item in self.operations):
+                    raise ValueError(
+                        "domain operations cannot reference protocol lock abstraction state")
         field_types = {item.name: ("bool" if isinstance(item, BoolStateVariable) else "int")
                        for item in self.state_variables}
         reserved = {"Init", "Next", "Spec", "TypeOK", "vars", "Actors", "callResult"}

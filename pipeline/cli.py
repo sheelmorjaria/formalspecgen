@@ -205,6 +205,15 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                     "accepted_evidence_sha256": reviewed_v2.accepted_evidence_sha256,
                     "transformation": "DETERMINISTIC_V2_TO_JML",
                 })
+                if reviewed_v2.concurrency is not None:
+                    from .v2_lock_serializer import lock_discipline_gate
+                    discipline = lock_discipline_gate(reviewed_v2, code, "java")
+                    evidence.update({
+                        "claim": discipline["claim"],
+                        "lock_discipline": discipline,
+                        "lock_discipline_proved": discipline["lock_discipline_proved"],
+                        "concurrent_linearizability_proved": False,
+                    })
             evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
             evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
                                      encoding="utf-8")
@@ -268,7 +277,8 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
         return 2
     _write_json(result, args.json, ui.console)
     return 0 if result["final_status"] in {
-        "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED"} else 1
+        "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED",
+        "LOCK_DISCIPLINE_VERIFIED"} else 1
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -548,19 +558,32 @@ def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: Sessi
         "requirement": enriched,
         "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
         "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
-        "assumptions": [
+        "assumptions": ([
+            "Generated deterministically from a hash-bound reviewed V2 domain.",
+            "All concrete state access is routed through one non-panicking Rust Mutex.",
+            "This is structural lock discipline, not Prusti proof or linearizability evidence.",
+        ] if reviewed.concurrency is not None else [
             "Generated deterministically from a hash-bound reviewed V2 domain.",
             "Prusti attributes encode the reviewed contracts; no LLM was involved.",
             "Bodies transcribe reviewed effects; concurrent linearizability is not proved.",
-        ],
+        ]),
         "rust_check": check["status"],
         "human_acceptance_required": True,
         "source_refinement_proved": False,
         "reviewed_v2_domain": str(reviewed_path.resolve()),
         "accepted_candidate_sha256": reviewed.accepted_candidate_sha256,
         "accepted_evidence_sha256": reviewed.accepted_evidence_sha256,
-        "transformation": "DETERMINISTIC_V2_TO_PRUSTI",
+        "transformation": ("DETERMINISTIC_V2_TO_RUST_MUTEX"
+                           if reviewed.concurrency is not None else
+                           "DETERMINISTIC_V2_TO_PRUSTI"),
+        "lock_discipline_proved": reviewed.concurrency is not None,
+        "concurrent_linearizability_proved": False,
     }
+    if reviewed.concurrency is not None:
+        from .v2_lock_serializer import lock_discipline_gate
+        discipline = lock_discipline_gate(reviewed, code, "rust")
+        evidence.update({"claim": discipline["claim"],
+                         "lock_discipline": discipline})
     evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
     evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
                              encoding="utf-8")

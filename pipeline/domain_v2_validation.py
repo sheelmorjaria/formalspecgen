@@ -51,8 +51,11 @@ def validate_v2_candidate(candidate_path: str | Path, validation_path: str | Pat
         evidence = ValidatedEvidence(
             candidate_sha256=digest,
             generated_tla_sha256=hashlib.sha256(tla.encode("utf-8")).hexdigest(),
-            execution_assumption="atomic_last_result_abstraction",
-            abstraction_mode="atomic_operations",
+            execution_assumption=(
+                "bounded_lock_history_abstraction" if candidate.concurrency is not None else
+                "atomic_last_result_abstraction"),
+            abstraction_mode=(
+                "lock_protocol" if candidate.concurrency is not None else "atomic_operations"),
             bounds=_bounds(candidate),
             state_space_upper_bound=state_space_upper_bound(candidate),
             reachable_state_count=states,

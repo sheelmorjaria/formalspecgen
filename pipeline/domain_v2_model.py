@@ -68,6 +68,10 @@ def state_space_upper_bound(spec: DomainSpecV2) -> int:
             variable.bound[1] - variable.bound[0] + 1)
     if any(item.failure_semantics == "false_and_stutter" for item in spec.operations):
         result *= 3 ** spec.actors
+    if (spec.concurrency is not None and
+            spec.concurrency.linearization_points is not None):
+        # Each actor has IDLE plus four in-flight phases for each operation.
+        result *= (1 + 4 * len(spec.operations)) ** spec.actors
     return result
 
 
@@ -100,6 +104,10 @@ def validate_transitions_and_invariants(
         raise UnsupportedV2Boundary(
             f"state space upper bound {upper} exceeds maximum {max_states}")
     initial = {item.name: item.initial for item in spec.state_variables}
+    if (spec.concurrency is not None and
+            spec.concurrency.linearization_points is not None):
+        initial["__pc"] = tuple("IDLE" for _ in range(spec.actors))
+        initial["__pending"] = tuple("none" for _ in range(spec.actors))
     has_results = any(item.failure_semantics == "false_and_stutter" for item in spec.operations)
     if has_results:
         initial["callResult"] = tuple("none" for _ in range(spec.actors))
@@ -112,6 +120,10 @@ def validate_transitions_and_invariants(
         if key in visited:
             continue
         visited.add(key)
+        if (spec.concurrency is not None and
+                spec.concurrency.linearization_points is not None):
+            transitions += _enqueue_lock_protocol_successors(spec, state, queue)
+            continue
         for operation in spec.operations:
             enabled = guards_hold(operation, state)
             if enabled:
@@ -136,3 +148,54 @@ def validate_transitions_and_invariants(
             "initial state has no enabled transition; add the missing environment/controller "
             "operations or explicitly redesign the initial state (deadlock checking remains on)")
     return len(visited), transitions
+
+
+def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
+                                      queue: deque) -> int:
+    """Explore invocation, acquisition, commit, release, and response separately."""
+    metadata = spec.concurrency
+    assert metadata is not None and metadata.actor_lock_values is not None
+    assert metadata.unlocked_value is not None
+    count = 0
+    lock = metadata.lock_variable
+    for actor in range(spec.actors):
+        pc = state["__pc"][actor]
+        pending = state["__pending"][actor]
+        if pc == "IDLE":
+            for operation in spec.operations:
+                post = dict(state)
+                pcs = list(state["__pc"]); pcs[actor] = "INVOKED"
+                pending_ops = list(state["__pending"]); pending_ops[actor] = operation.name
+                post["__pc"], post["__pending"] = tuple(pcs), tuple(pending_ops)
+                queue.append(post); count += 1
+        elif pc == "INVOKED":
+            operation = next(item for item in spec.operations if item.name == pending)
+            if state[lock] == metadata.unlocked_value and guards_hold(operation, state):
+                post = dict(state); post[lock] = metadata.actor_lock_values[actor]
+                pcs = list(state["__pc"]); pcs[actor] = "ACQUIRED"
+                post["__pc"] = tuple(pcs)
+                _check_bounds(spec, post, operation.name + "Acquire")
+                _check_invariants(spec, post, operation.name + "Acquire")
+                queue.append(post); count += 1
+        elif pc == "ACQUIRED":
+            operation = next(item for item in spec.operations if item.name == pending)
+            post = apply_effects(operation, state)
+            pcs = list(state["__pc"]); pcs[actor] = "LINEARIZED"
+            post["__pc"] = tuple(pcs)
+            _check_bounds(spec, post, operation.name + "Linearize")
+            _check_invariants(spec, post, operation.name + "Linearize")
+            queue.append(post); count += 1
+        elif pc == "LINEARIZED":
+            post = dict(state); post[lock] = metadata.unlocked_value
+            pcs = list(state["__pc"]); pcs[actor] = "RELEASED"
+            post["__pc"] = tuple(pcs)
+            _check_bounds(spec, post, str(pending) + "Release")
+            _check_invariants(spec, post, str(pending) + "Release")
+            queue.append(post); count += 1
+        elif pc == "RELEASED":
+            post = dict(state)
+            pcs = list(state["__pc"]); pcs[actor] = "IDLE"
+            pending_ops = list(state["__pending"]); pending_ops[actor] = "none"
+            post["__pc"], post["__pending"] = tuple(pcs), tuple(pending_ops)
+            queue.append(post); count += 1
+    return count

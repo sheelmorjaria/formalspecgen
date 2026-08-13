@@ -172,6 +172,9 @@ def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]
 
 def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
     """Assemble the complete deterministic Rust/Prusti source file."""
+    if reviewed.concurrency is not None:
+        from .v2_lock_serializer import render_rust_mutex
+        return render_rust_mutex(reviewed)
     variables_by_name = {variable.name: variable
                          for variable in reviewed.state_variables}
     lines = ["use prusti_contracts::*;", ""]

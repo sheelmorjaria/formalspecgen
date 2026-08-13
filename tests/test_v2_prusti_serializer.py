@@ -104,6 +104,28 @@ def test_m1_expression_serialization():
         render_prusti_expression(object())
 
 
+def test_lock_protocol_rust_lowering_uses_non_panicking_single_mutex():
+    spec = reviewed_lock_spec()
+    spec["actors"] = 2
+    spec["state_variables"] = [
+        {"kind": "int", "name": "lock_state", "bound": [0, 2], "initial": 0},
+        {"kind": "int", "name": "value", "bound": [0, 2], "initial": 0}]
+    spec["operations"] = [{"name": "Read", "return_type": "void",
+        "failure_semantics": "unavailable", "guards": [], "effects": [], "frame": []}]
+    spec["tlc_invariants"] = [{"id": "ValueBounded", "expression": {
+        "kind": "lte", "left": {"kind": "field", "name": "value"},
+        "right": {"kind": "integer", "value": 2}}}]
+    spec["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock_state",
+        "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"], "unlocked_value": 0,
+        "actor_lock_values": [1, 2],
+        "linearization_points": {"Read": "effect_commit"}}
+    reviewed = prusti.ReviewedDomainSpecV2.model_validate(spec)
+    code = render_struct(reviewed)
+    assert "state: Mutex<DoorLatchState>" in code
+    assert "self.state.lock().map_err(|_| LockError::Poisoned)?" in code
+    assert "unwrap(" not in code and "expect(" not in code
+
+
 # --- Milestones 2-4: struct, constructor, operations -------------------------
 
 def _bounded_counter_struct():
@@ -272,6 +294,31 @@ class CanonicalRustDraftCliTests(unittest.TestCase):
         self.assertTrue(evidence["human_acceptance_required"])
         rendered = check.call_args.args[0]
         self.assertIn("use prusti_contracts::*;", rendered)
+
+    def test_cli_lock_domain_records_only_structural_lock_claim(self):
+        value = json.loads(BOUNDED_COUNTER.read_text(encoding="utf-8"))
+        value["actors"] = 2
+        value["state_variables"].append(
+            {"kind": "int", "name": "lock_state", "bound": [0, 2], "initial": 0})
+        value["concurrency"] = {
+            "mode": "lock_protocol", "lock_variable": "lock_state",
+            "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"],
+            "unlocked_value": 0, "actor_lock_values": [1, 2],
+            "linearization_points": {
+                operation["name"]: "effect_commit" for operation in value["operations"]}}
+        (self.root / "domains" / "v2" / "locked_counter.json").write_text(
+            json.dumps(value), encoding="utf-8")
+        destination = self.root / "BoundedCounter.rs"
+        with patch("pipeline.rust_support.check_rust_syntax",
+                   return_value={"status": "RUST_CHECKED"}):
+            status = cli.command_draft(self._args(
+                canonical_domain="locked_counter", out_file=str(destination)),
+                self.ui, self.store, self.state)
+        self.assertEqual(status, 0)
+        evidence = json.loads(destination.with_suffix(".rs.canonical.json").read_text())
+        self.assertEqual(evidence["claim"], "LOCK_DISCIPLINE_VERIFIED")
+        self.assertEqual(evidence["transformation"], "DETERMINISTIC_V2_TO_RUST_MUTEX")
+        self.assertFalse(evidence["concurrent_linearizability_proved"])
 
     def test_m5_cli_fails_closed(self):
         code = cli.command_draft(self._args(canonical_domain="missing_domain"),

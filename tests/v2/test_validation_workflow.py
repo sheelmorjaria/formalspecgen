@@ -58,6 +58,33 @@ def test_validation_measures_runs_tlc_and_publishes_bound_envelope(tmp_path):
     assert not failure.exists()
 
 
+def test_validation_records_explicit_lock_history_abstraction(tmp_path):
+    value = candidate_value()
+    value.update(actors=2,
+        state_variables=[{"kind": "int", "name": "lock", "bound": [0, 2],
+                          "initial": 0}],
+        concurrency={"mode": "lock_protocol", "lock_variable": "lock",
+            "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"],
+            "unlocked_value": 0, "actor_lock_values": [1, 2],
+            "linearization_points": {"Read": "effect_commit"}},
+        operations=[{"name": "Read", "return_type": "void",
+                     "failure_semantics": "unavailable", "guards": [],
+                     "effects": [], "frame": []}],
+        tlc_invariants=[{"id": "LockBounded", "expression": {"kind": "lte",
+            "left": {"kind": "field", "name": "lock"},
+            "right": {"kind": "integer", "value": 2}}}])
+    candidate = tmp_path / "lock.v2.yaml"
+    candidate.write_text(yaml.safe_dump(value), encoding="utf-8")
+    evidence = validate_v2_candidate(
+        candidate, tmp_path / "lock.validation.json",
+        failure_path=tmp_path / "lock.failed.json", tlc_jar="tlc.jar",
+        runner=successful_runner)
+    assert evidence.execution_assumption == "bounded_lock_history_abstraction"
+    assert evidence.abstraction_mode == "lock_protocol"
+    assert evidence.reachable_state_count == 21
+    assert evidence.reachable_transition_count == 38
+
+
 def test_tlc_failure_is_retained_separately_and_not_published_as_validated(tmp_path):
     candidate = tmp_path / "counter.v2.yaml"; write_candidate(candidate)
     validation = tmp_path / "counter.validation.json"

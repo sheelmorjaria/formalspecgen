@@ -124,6 +124,18 @@ def test_generic_gate_requires_both_formal_judgments(tmp_path):
         esc_verified=True, tlc_verified=False)["code"] == "tlc_not_verified"
 
 
+def test_generic_gate_refuses_to_upgrade_lock_metadata_to_linearizability(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    reviewed, evidence = _reviewed_files(tmp_path)
+    with patch("pipeline.generic_refinement_gate.load_bound_reviewed_domain",
+               return_value=SimpleNamespace(concurrency=object())):
+        result = generic_v2_refinement_gate(
+            reviewed, evidence, CONTRACT, CONTRACT, esc_verified=True)
+    assert result["code"] == "unsupported_concurrency_boundary"
+    assert not result["source_refinement_proved"]
+
+
 def test_generic_gate_fails_closed_at_each_external_binding(tmp_path):
     reviewed, evidence = _reviewed_files(tmp_path)
     assert generic_v2_refinement_gate(

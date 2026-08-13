@@ -64,6 +64,12 @@ def test_polyglot_gate_fails_closed_without_proof_or_with_surface_drift():
         assert polyglot_v2_refinement_gate(
             REVIEWED, EVIDENCE, source, source, "c",
             backend_verified=True)["code"] == "unsupported_refinement_boundary"
+    from types import SimpleNamespace
+    with patch("pipeline.polyglot_refinement_gate.load_bound_reviewed_domain",
+               return_value=SimpleNamespace(concurrency=object())):
+        assert polyglot_v2_refinement_gate(
+            REVIEWED, EVIDENCE, source, source, "c",
+            backend_verified=True)["code"] == "unsupported_concurrency_boundary"
 
 
 def test_polyglot_implementation_composes_c_proof_and_refinement(tmp_path):

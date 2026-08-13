@@ -86,6 +86,9 @@ def generic_v2_refinement_gate(reviewed_path: str | Path, validation_path: str |
     if not tlc_verified: return fail("tlc_not_verified", "V2 model has no successful TLC result")
     try:
         reviewed = load_bound_reviewed_domain(reviewed_path, validation_path)
+        if reviewed.concurrency is not None:
+            return fail("unsupported_concurrency_boundary",
+                        "Atomic JML refinement does not prove lock linearizability")
         fields = {item.name for item in reviewed.state_variables}
         contract_encapsulation = _encapsulation_errors(contract_code, reviewed)
         implementation_encapsulation = _encapsulation_errors(implementation_code, reviewed)

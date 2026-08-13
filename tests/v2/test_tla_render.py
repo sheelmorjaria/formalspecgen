@@ -93,3 +93,33 @@ def test_renderer_extends_integers_for_negative_bounded_sentinels():
 
     from pipeline.domain_v2_tla import _contains_negative_integer
     assert _contains_negative_integer({"nested": [{"kind": "integer", "value": -2}]})
+
+
+def test_atomic_tla_renderer_fails_closed_for_lock_protocol_metadata():
+    op={"name":"Step","return_type":"void","failure_semantics":"unavailable",
+        "guards":[],"effects":[],"frame":[]}
+    variables=[{"kind":"int","name":"lock","bound":[0,2],"initial":0}]
+    value=spec_with(op,actors=2,variables=variables).model_dump(mode="json")
+    value["concurrency"]={"mode":"lock_protocol","lock_variable":"lock",
+                          "lock_states":["UNLOCKED","LOCKED_A","LOCKED_B"]}
+    with pytest.raises(UnsupportedV2Boundary, match="invocation/response histories"):
+        render_v2_tla(DomainSpecV2.model_validate(value))
+
+
+def test_complete_lock_protocol_renders_explicit_interleaved_call_phases():
+    op={"name":"Read","return_type":"void","failure_semantics":"unavailable",
+        "guards":[],"effects":[],"frame":[]}
+    variables=[{"kind":"int","name":"lock","bound":[0,2],"initial":0}]
+    value=spec_with(op,actors=2,variables=variables).model_dump(mode="json")
+    value["concurrency"]={"mode":"lock_protocol","lock_variable":"lock",
+        "lock_states":["UNLOCKED","LOCKED_A","LOCKED_B"],"unlocked_value":0,
+        "actor_lock_values":[1,2],"linearization_points":{"Read":"effect_commit"}}
+    tla,cfg=render_v2_tla(DomainSpecV2.model_validate(value))
+    for action in ("ReadInvoke(actor)", "ReadAcquire(actor)", "ReadLinearize(actor)",
+                   "ReadRelease(actor)", "ReadRespond(actor)"):
+        assert action in tla
+    assert 'pc = [a \\in Actors |-> "IDLE"]' in tla
+    assert "lock' = OwnerValue(actor)" in tla
+    assert "lock' = 0" in tla
+    assert "Actors == 1..2" in tla
+    assert "CONSTANTS" not in cfg

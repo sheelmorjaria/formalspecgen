@@ -41,6 +41,45 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
     source = Path(file_path)
     code = source.read_text(encoding="utf-8")
     suffix = source.suffix.lower()
+    if v2_reviewed_domain and v2_validation_evidence:
+        from .v2_refinement import RefinementBoundaryError, load_bound_reviewed_domain
+        try:
+            reviewed = load_bound_reviewed_domain(
+                v2_reviewed_domain, v2_validation_evidence)
+        except RefinementBoundaryError:
+            # Atomic implementations retain their established downstream routing;
+            # that gate owns and reports malformed or missing refinement evidence.
+            reviewed = None
+        if reviewed is not None and reviewed.concurrency is not None:
+            if suffix not in {".java", ".jml", ".rs"}:
+                return {"final_status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
+                        "code": "unsupported_lock_language",
+                        "message": "Native lock discipline currently supports Java and Rust",
+                        "source_refinement_proved": False,
+                        "concurrent_linearizability_proved": False}
+            language = "rust" if suffix == ".rs" else "java"
+            from .v2_lock_serializer import lock_discipline_gate
+            discipline = lock_discipline_gate(reviewed, code, language)
+            if discipline["status"] != "VERIFIED":
+                return {"final_status": "LOCK_DISCIPLINE_FAILED", **discipline}
+            if language == "rust":
+                from .rust_support import check_rust_syntax
+                native_check = check_rust_syntax(code)
+                checked = native_check.get("status") == "RUST_CHECKED"
+            else:
+                from .validate import check_stub
+                passed, errors = check_stub(code)
+                native_check = {"status": "OPENJML_CHECKED" if passed else "CHECK_FAILED",
+                                "errors": errors}
+                checked = passed
+            if not checked:
+                return {**discipline, "final_status": "NATIVE_CHECK_FAILED",
+                        "claim": "NO_PROOF", "native_check": native_check}
+            return {"final_status": "LOCK_DISCIPLINE_VERIFIED",
+                    "claim": "LOCK_DISCIPLINE_VERIFIED",
+                    "claims": ["BOUNDED_ARCHITECTURE_EVIDENCE",
+                               "LOCK_DISCIPLINE_VERIFIED"],
+                    "native_check": native_check, **discipline}
     if suffix in {".java", ".jml"}:
         if method_proof_only:
             from .implementation import synthesize_implementation

@@ -74,6 +74,74 @@ def test_implementation_router_dispatches_by_extension_and_fails_closed(tmp_path
         orchestrator.run_implementation_loop(unknown)
 
 
+def test_reviewed_lock_protocol_routes_to_structural_gate_without_synthesis(tmp_path):
+    rust = tmp_path / "Lock.rs"; rust.write_text("canonical", encoding="utf-8")
+    reviewed = SimpleNamespace(concurrency=object())
+    discipline = {"status": "VERIFIED", "claim": "LOCK_DISCIPLINE_VERIFIED",
+                  "lock_discipline_proved": True,
+                  "source_refinement_proved": False,
+                  "concurrent_linearizability_proved": False}
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), \
+         patch("pipeline.v2_lock_serializer.lock_discipline_gate",
+               return_value=discipline) as gate, \
+         patch("pipeline.rust_support.check_rust_syntax",
+               return_value={"status": "RUST_CHECKED"}), \
+         patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation") as synth:
+        result = orchestrator.run_implementation_loop(
+            rust, v2_reviewed_domain="reviewed.json",
+            v2_validation_evidence="validation.json")
+    synth.assert_not_called()
+    gate.assert_called_once_with(reviewed, "canonical", "rust")
+    assert result["final_status"] == "LOCK_DISCIPLINE_VERIFIED"
+    assert result["claims"] == ["BOUNDED_ARCHITECTURE_EVIDENCE",
+                                "LOCK_DISCIPLINE_VERIFIED"]
+    assert not result["concurrent_linearizability_proved"]
+
+
+def test_lock_protocol_router_fails_closed_at_each_native_boundary(tmp_path):
+    reviewed = SimpleNamespace(concurrency=object())
+    rust = tmp_path / "Lock.rs"; rust.write_text("canonical", encoding="utf-8")
+    cfile = tmp_path / "Lock.c"; cfile.write_text("canonical", encoding="utf-8")
+    java = tmp_path / "Lock.java"; java.write_text("canonical", encoding="utf-8")
+    paths = {"v2_reviewed_domain": "reviewed.json",
+             "v2_validation_evidence": "validation.json"}
+
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed):
+        unsupported = orchestrator.run_implementation_loop(cfile, **paths)
+    assert unsupported["code"] == "unsupported_lock_language"
+    assert not unsupported["concurrent_linearizability_proved"]
+
+    failed = {"status": "FAIL", "code": "noncanonical_lock_surface",
+              "claim": "NO_PROOF"}
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), patch(
+                   "pipeline.v2_lock_serializer.lock_discipline_gate",
+                   return_value=failed):
+        rejected = orchestrator.run_implementation_loop(rust, **paths)
+    assert rejected["final_status"] == "LOCK_DISCIPLINE_FAILED"
+
+    discipline = {"status": "VERIFIED", "claim": "LOCK_DISCIPLINE_VERIFIED"}
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), patch(
+                   "pipeline.v2_lock_serializer.lock_discipline_gate",
+                   return_value=discipline), patch(
+                   "pipeline.rust_support.check_rust_syntax",
+                   return_value={"status": "RUST_FAILED"}):
+        native_failed = orchestrator.run_implementation_loop(rust, **paths)
+    assert native_failed["final_status"] == "NATIVE_CHECK_FAILED"
+    assert native_failed["claim"] == "NO_PROOF"
+
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), patch(
+                   "pipeline.v2_lock_serializer.lock_discipline_gate",
+                   return_value=discipline), patch(
+                   "pipeline.validate.check_stub", return_value=(False, ["bad JML"])):
+        java_failed = orchestrator.run_implementation_loop(java, **paths)
+    assert java_failed["native_check"]["errors"] == ["bad JML"]
+
+
 def test_usage_slug_and_fallback_helpers():
     assert orchestrator._norm_usage({"prompt_tokens": 2, "completion_tokens": 3}) == {
         "input": 2, "output": 3, "total": 0}

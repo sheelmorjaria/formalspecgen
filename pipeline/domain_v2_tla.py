@@ -40,6 +40,14 @@ def _contains_negative_integer(value) -> bool:
 
 
 def render_v2_tla(spec: DomainSpecV2) -> tuple[str, str]:
+    if spec.concurrency is not None:
+        metadata = spec.concurrency
+        if (metadata.unlocked_value is None or metadata.actor_lock_values is None or
+                metadata.linearization_points is None):
+            raise UnsupportedV2Boundary(
+                "lock_protocol requires per-actor invocation/response histories, program "
+                "counters, ownership values, and reviewed linearization points")
+        return _render_lock_protocol(spec)
     domain_vars = [item.name for item in spec.state_variables]
     boolean_ops = [item for item in spec.operations if item.return_type == "boolean"]
     if any(item.failure_semantics == "exception" for item in boolean_ops):
@@ -101,4 +109,94 @@ def render_v2_tla(spec: DomainSpecV2) -> tuple[str, str]:
     cfg=((f"CONSTANTS\nActors = {{{', '.join(f'a{i+1}' for i in range(spec.actors))}}}\n\n"
           if boolean_ops else "") + "SPECIFICATION\nSpec\n\nINVARIANT\nTypeOK\n" +
          ''.join(f"\nINVARIANT\n{item.id}\n" for item in spec.tlc_invariants))
+    return tla, cfg
+
+
+def _render_lock_protocol(spec: DomainSpecV2) -> tuple[str, str]:
+    """Render a bounded invocation/acquire/commit/release/response history."""
+    metadata = spec.concurrency
+    assert metadata is not None and metadata.actor_lock_values is not None
+    assert metadata.unlocked_value is not None
+    domain_vars = [item.name for item in spec.state_variables]
+    lock = metadata.lock_variable
+    variables = [*domain_vars, "pc", "pendingOp"]
+    init = [f"    /\\ {item.name} = " +
+            (str(item.initial) if not isinstance(item, BoolStateVariable) else
+             ("TRUE" if item.initial else "FALSE"))
+            for item in spec.state_variables]
+    init.extend([
+        '    /\\ pc = [a \\in Actors |-> "IDLE"]',
+        '    /\\ pendingOp = [a \\in Actors |-> "none"]',
+    ])
+    typeok = []
+    for item in spec.state_variables:
+        typeok.append(f"    /\\ {item.name} \\in " +
+                      ("BOOLEAN" if isinstance(item, BoolStateVariable)
+                       else f"{item.bound[0]}..{item.bound[1]}"))
+    operation_names = ", ".join(f'"{item.name}"' for item in spec.operations)
+    typeok.extend([
+        '    /\\ pc \\in [Actors -> {"IDLE", "INVOKED", "ACQUIRED", '
+        '"LINEARIZED", "RELEASED"}]',
+        f'    /\\ pendingOp \\in [Actors -> {{"none", {operation_names}}}]',
+    ])
+    owner_cases = " [] ".join(
+        f"actor = {index + 1} -> {value}"
+        for index, value in enumerate(metadata.actor_lock_values))
+    actions = [f"OwnerValue(actor) == CASE {owner_cases}"]
+    next_items = []
+    for operation in spec.operations:
+        guards = [render_expression(item.expression) for item in operation.guards]
+        guard = " /\\ ".join(guards) if guards else "TRUE"
+        effects = [f"    /\\ {item.target}' = {render_expression(item.value)}"
+                   for item in operation.effects]
+        commit_unchanged = [name for name in domain_vars if name not in operation.frame]
+        acquire_unchanged = ["pendingOp", *(
+            name for name in domain_vars if name != lock)]
+        release_unchanged = acquire_unchanged
+        prefix = operation.name
+        actions.extend([
+            f'{prefix}Invoke(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "IDLE"\n'
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "INVOKED"]\n'
+            f'    /\\ pendingOp\' = [pendingOp EXCEPT ![actor] = "{operation.name}"]\n'
+            f'    /\\ UNCHANGED <<{", ".join(domain_vars)}>>',
+            f'{prefix}Acquire(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "INVOKED"\n'
+            f'    /\\ pendingOp[actor] = "{operation.name}"\n'
+            f'    /\\ {lock} = {metadata.unlocked_value}\n    /\\ {guard}\n'
+            f'    /\\ {lock}\' = OwnerValue(actor)\n'
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "ACQUIRED"]\n'
+            f'    /\\ UNCHANGED <<{", ".join(acquire_unchanged)}>>',
+            f'{prefix}Linearize(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "ACQUIRED"\n'
+            f'    /\\ pendingOp[actor] = "{operation.name}"\n'
+            f'    /\\ {lock} = OwnerValue(actor)\n' + "\n".join(effects) + "\n" +
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "LINEARIZED"]\n'
+            f'    /\\ UNCHANGED <<pendingOp, {", ".join(commit_unchanged)}>>',
+            f'{prefix}Release(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "LINEARIZED"\n'
+            f'    /\\ {lock} = OwnerValue(actor)\n'
+            f'    /\\ {lock}\' = {metadata.unlocked_value}\n'
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "RELEASED"]\n'
+            f'    /\\ UNCHANGED <<{", ".join(release_unchanged)}>>',
+            f'{prefix}Respond(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "RELEASED"\n'
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "IDLE"]\n'
+            f'    /\\ pendingOp\' = [pendingOp EXCEPT ![actor] = "none"]\n'
+            f'    /\\ UNCHANGED <<{", ".join(domain_vars)}>>',
+        ])
+        next_items.extend(
+            f"    \\/ \\E actor \\in Actors : {prefix}{phase}(actor)"
+            for phase in ("Invoke", "Acquire", "Linearize", "Release", "Respond"))
+    invariants = "\n".join(
+        f"{item.id} == {render_expression(item.expression)}"
+        for item in spec.tlc_invariants)
+    tla = (f"---- MODULE {spec.domain_name} ----\nEXTENDS Integers\n\n"
+           f"Actors == 1..{spec.actors}\n\n" +
+           f"VARIABLES {', '.join(variables)}\nvars == <<{', '.join(variables)}>>\n\n"
+           "Init ==\n" + "\n".join(init) + "\n\nTypeOK ==\n" + "\n".join(typeok) +
+           "\n\n" + "\n\n".join(actions) + "\n\nNext ==\n" + "\n".join(next_items) +
+           "\n\n" + invariants + "\n\nSpec == Init /\\ [][Next]_vars\n====\n")
+    cfg = ("SPECIFICATION\nSpec\n\nINVARIANT\nTypeOK\n" +
+           "".join(f"\nINVARIANT\n{item.id}\n" for item in spec.tlc_invariants))
     return tla, cfg

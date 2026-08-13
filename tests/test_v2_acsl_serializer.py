@@ -71,6 +71,16 @@ def reviewed_lock_spec():
     }
 
 
+def test_lock_protocol_c_lowering_fails_closed_without_memory_model():
+    spec = reviewed_lock_spec()
+    spec["actors"] = 2
+    spec["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock_state",
+                           "lock_states": ["UNLOCKED", "LOCKED"]}
+    reviewed = acsl.ReviewedDomainSpecV2.model_validate(spec)
+    with pytest.raises(UnsupportedAcslBoundary, match="linearizability model"):
+        render_translation_unit(reviewed)
+
+
 # --- Milestone 1: expression AST serialization -------------------------------
 
 def test_m1_expression_serialization():

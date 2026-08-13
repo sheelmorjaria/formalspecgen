@@ -3,6 +3,7 @@
 """Deterministic reviewed-V2 to Java/JML contract serialization."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .domain_v2 import (
@@ -147,7 +148,22 @@ def render_operation(operation: Operation, state_fields: list[str]) -> str:
 
 
 def render_class(spec: DomainSpecV2) -> str:
-    """Assemble a complete deterministic Java/JML contract from typed V2 semantics."""
+    """Assemble a deterministic Java/JML contract from typed V2 semantics."""
+    code = _render_atomic_class(spec)
+    if spec.concurrency is None:
+        return code
+    if spec.concurrency.linearization_points is None:
+        raise UnsupportedJmlSemantics(
+            "lock_protocol Java lowering requires complete reviewed linearization metadata")
+    # Java monitor entry/exit supplies the concrete lock discipline. The
+    # explicit V2 lock variable remains an abstraction field and is not mutated
+    # by domain operations.
+    return re.sub(r"(?m)^(    public )(?!" + re.escape(spec.domain_name) +
+                  r"\()(?!synchronized )", r"\1synchronized ", code)
+
+
+def _render_atomic_class(spec: DomainSpecV2) -> str:
+    """Assemble the existing single-threaded Java/JML representation."""
     state_fields = [item.name for item in spec.state_variables]
     lines = [f"public class {spec.domain_name} {{"]
     for variable in spec.state_variables:

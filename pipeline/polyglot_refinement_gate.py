@@ -29,6 +29,9 @@ def polyglot_v2_refinement_gate(
         return fail("tlc_not_verified", "V2 model has no successful TLC result")
     try:
         reviewed = load_bound_reviewed_domain(reviewed_path, validation_path)
+        if reviewed.concurrency is not None:
+            return fail("unsupported_concurrency_boundary",
+                        "Atomic source/model refinement does not prove lock linearizability")
         expected = render_struct(reviewed) if language == "rust" else render_translation_unit(reviewed)
         # Imported lazily to avoid coupling serializer imports to the synthesis loop.
         from .polyglot_implementation import trusted_surface_matches

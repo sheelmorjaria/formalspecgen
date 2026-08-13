@@ -40,6 +40,30 @@ def smart_lock_value():
     }
 
 
+def test_lock_protocol_java_lowering_marks_all_public_state_access_synchronized():
+    value = smart_lock_value()
+    value["actors"] = 2
+    value["state_variables"][1]["bound"] = [0, 2]
+    value["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock_state",
+        "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"], "unlocked_value": 0,
+        "actor_lock_values": [1, 2],
+        "linearization_points": {"CloseDoor": "effect_commit"}}
+    code = render_class(DomainSpecV2.model_validate(value))
+    assert "public synchronized void closeDoor()" in code
+    assert "public SmartLock()" in code
+    parsed = DomainSpecV2.model_validate(value)
+    incomplete = parsed.model_copy(update={"concurrency": parsed.concurrency.model_copy(
+        update={"linearization_points": None})})
+    with pytest.raises(UnsupportedJmlSemantics, match="complete reviewed"):
+        render_class(incomplete)
+
+
+def test_empty_getter_identifier_fails_closed():
+    variable = BoolStateVariable.model_construct(name="", initial=False)
+    with pytest.raises(UnsupportedJmlSemantics, match="field name cannot be empty"):
+        render_getter(variable)
+
+
 def test_expression_ast_serialization_and_fail_closed_boundary():
     field = FieldExpr(name="door_state")
     assert render_expression(field) == "door_state"
