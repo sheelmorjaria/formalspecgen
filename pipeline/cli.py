@@ -359,6 +359,13 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "VERIFIED" else 1
 
 
+def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .java_inspection import inspect_java_file
+    result = inspect_java_file(args.source)
+    _write_json(result, args.json, ui.console)
+    return 0 if result["status"] == "INSPECTED" else 1
+
+
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
     result = generate_and_check(_read(args.stub), clarifications=args.clarifications or "",
                                 abstraction=args.abstraction)
@@ -873,6 +880,11 @@ def build_parser() -> argparse.ArgumentParser:
     verify_refactor.add_argument("refactored", help="refactored Java/JML revision")
     verify_refactor.add_argument("--json", help="machine-readable evidence destination")
 
+    inspect = sub.add_parser(
+        "inspect", help="deterministically inspect one Java class for refactoring signals")
+    inspect.add_argument("source", help="Java/JML source to inspect")
+    inspect.add_argument("--json", help="machine-readable findings destination")
+
     architecture = sub.add_parser("architecture", help="render typed IR and run bounded TLC")
     architecture.add_argument("stub")
     architecture.add_argument("--clarifications")
@@ -938,6 +950,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "implement": return command_implement(args, ui)
     if args.command == "verify": return command_verify(args, ui)
     if args.command == "verify-refactor": return command_verify_refactor(args, ui)
+    if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
@@ -948,7 +961,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     return 2
 
 
-_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "architecture", "domain",
+_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "inspect", "architecture", "domain",
                   "validate-domain", "promote-domain", "compose", "reverify", "system"}
 
 

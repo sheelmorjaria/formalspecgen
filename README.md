@@ -698,6 +698,27 @@ code, automatic design-pattern rewrites, private behavior, reflection, concurren
 topology equivalence remain outside this first profile. Any changed contract/API surface or failed
 baseline/refactored proof produces `NO_PROOF`.
 
+### AST-based modernization inspection
+
+Before changing legacy Java, the read-only inspection command parses exactly one concrete class
+with pinned `javalang=0.13.0`:
+
+```bash
+formalspecgen inspect LegacyService.java --json inspection.json
+```
+
+The deterministic rules flag repeated runtime type dispatch (Strategy), classes at or above 10
+fields and 15 callables (Facade/decomposition), methods longer than 60 lines (Extract Method), and
+constructors with at least five parameters (collaborator façade/interface review). Findings include
+source lines, metrics, recommendations, and a source hash. Comments and literals cannot manufacture
+findings because decisions are made from Java AST nodes; lexical scanning is used only to calculate
+method end lines, which `javalang` does not expose.
+
+The output claim is `STATIC_INSPECTION`, not a proof that a design is defective. It records
+`formal_defect_proved: false`, `automated_refactor_applied: false`, and
+`behavior_equivalence_proved: false`. Unsupported syntax, multiple top-level types, missing files,
+and non-Java inputs fail closed. The command recommends patterns but never rewrites source.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the
