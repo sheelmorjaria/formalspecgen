@@ -116,7 +116,7 @@ def test_complete_lock_protocol_renders_explicit_interleaved_call_phases():
         "actor_lock_values":[1,2],"linearization_points":{"Read":"effect_commit"}}
     tla,cfg=render_v2_tla(DomainSpecV2.model_validate(value))
     for action in ("ReadInvoke(actor)", "ReadAcquire(actor)", "ReadLinearize(actor)",
-                   "ReadRelease(actor)", "ReadRespond(actor)"):
+                   "ReadReject(actor)", "ReadRelease(actor)", "ReadRespond(actor)"):
         assert action in tla
     assert 'pc = [a \\in Actors |-> "IDLE"]' in tla
     assert "lock' = OwnerValue(actor)" in tla

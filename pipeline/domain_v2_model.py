@@ -152,7 +152,7 @@ def validate_transitions_and_invariants(
 
 def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
                                       queue: deque) -> int:
-    """Explore invocation, acquisition, commit, release, and response separately."""
+    """Explore invocation, acquisition, commit/reject, release, and response."""
     metadata = spec.concurrency
     assert metadata is not None and metadata.actor_lock_values is not None
     assert metadata.unlocked_value is not None
@@ -170,7 +170,7 @@ def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
                 queue.append(post); count += 1
         elif pc == "INVOKED":
             operation = next(item for item in spec.operations if item.name == pending)
-            if state[lock] == metadata.unlocked_value and guards_hold(operation, state):
+            if state[lock] == metadata.unlocked_value:
                 post = dict(state); post[lock] = metadata.actor_lock_values[actor]
                 pcs = list(state["__pc"]); pcs[actor] = "ACQUIRED"
                 post["__pc"] = tuple(pcs)
@@ -179,11 +179,18 @@ def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
                 queue.append(post); count += 1
         elif pc == "ACQUIRED":
             operation = next(item for item in spec.operations if item.name == pending)
-            post = apply_effects(operation, state)
-            pcs = list(state["__pc"]); pcs[actor] = "LINEARIZED"
+            if guards_hold(operation, state):
+                post = apply_effects(operation, state)
+                phase, step = "LINEARIZED", "Linearize"
+            else:
+                # Native unavailable semantics returns after observing a false
+                # guard while holding the mutex; no reviewed domain field changes.
+                post = dict(state); post[lock] = metadata.unlocked_value
+                phase, step = "RELEASED", "Reject"
+            pcs = list(state["__pc"]); pcs[actor] = phase
             post["__pc"] = tuple(pcs)
-            _check_bounds(spec, post, operation.name + "Linearize")
-            _check_invariants(spec, post, operation.name + "Linearize")
+            _check_bounds(spec, post, operation.name + step)
+            _check_invariants(spec, post, operation.name + step)
             queue.append(post); count += 1
         elif pc == "LINEARIZED":
             post = dict(state); post[lock] = metadata.unlocked_value

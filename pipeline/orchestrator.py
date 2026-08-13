@@ -75,6 +75,22 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
             if not checked:
                 return {**discipline, "final_status": "NATIVE_CHECK_FAILED",
                         "claim": "NO_PROOF", "native_check": native_check}
+            if language == "rust":
+                from .v2_linearizability_gate import rust_v2_linearizability_gate
+                linearizability = rust_v2_linearizability_gate(
+                    v2_reviewed_domain, v2_validation_evidence, code,
+                    native_checked=True)
+                if linearizability["status"] != "VERIFIED":
+                    return {"final_status": "LINEARIZABILITY_FAILED",
+                            "native_check": native_check, **linearizability}
+                return {"final_status": "CONCURRENT_LINEARIZABILITY_VERIFIED",
+                        "claims": ["BOUNDED_ARCHITECTURE_EVIDENCE",
+                                   "LOCK_DISCIPLINE_VERIFIED",
+                                   "SOURCE_MODEL_REFINEMENT",
+                                   "CONCURRENT_LINEARIZABILITY"],
+                        "native_check": native_check,
+                        "lock_discipline": discipline,
+                        **linearizability}
             return {"final_status": "LOCK_DISCIPLINE_VERIFIED",
                     "claim": "LOCK_DISCIPLINE_VERIFIED",
                     "claims": ["BOUNDED_ARCHITECTURE_EVIDENCE",

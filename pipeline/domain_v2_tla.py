@@ -163,16 +163,23 @@ def _render_lock_protocol(spec: DomainSpecV2) -> tuple[str, str]:
             f'{prefix}Acquire(actor) ==\n    /\\ actor \\in Actors\n'
             f'    /\\ pc[actor] = "INVOKED"\n'
             f'    /\\ pendingOp[actor] = "{operation.name}"\n'
-            f'    /\\ {lock} = {metadata.unlocked_value}\n    /\\ {guard}\n'
+            f'    /\\ {lock} = {metadata.unlocked_value}\n'
             f'    /\\ {lock}\' = OwnerValue(actor)\n'
             f'    /\\ pc\' = [pc EXCEPT ![actor] = "ACQUIRED"]\n'
             f'    /\\ UNCHANGED <<{", ".join(acquire_unchanged)}>>',
             f'{prefix}Linearize(actor) ==\n    /\\ actor \\in Actors\n'
             f'    /\\ pc[actor] = "ACQUIRED"\n'
             f'    /\\ pendingOp[actor] = "{operation.name}"\n'
-            f'    /\\ {lock} = OwnerValue(actor)\n' + "\n".join(effects) + "\n" +
+            f'    /\\ {lock} = OwnerValue(actor)\n    /\\ {guard}\n' + "\n".join(effects) + "\n" +
             f'    /\\ pc\' = [pc EXCEPT ![actor] = "LINEARIZED"]\n'
             f'    /\\ UNCHANGED <<pendingOp, {", ".join(commit_unchanged)}>>',
+            f'{prefix}Reject(actor) ==\n    /\\ actor \\in Actors\n'
+            f'    /\\ pc[actor] = "ACQUIRED"\n'
+            f'    /\\ pendingOp[actor] = "{operation.name}"\n'
+            f'    /\\ {lock} = OwnerValue(actor)\n    /\\ ~({guard})\n'
+            f'    /\\ {lock}\' = {metadata.unlocked_value}\n'
+            f'    /\\ pc\' = [pc EXCEPT ![actor] = "RELEASED"]\n'
+            f'    /\\ UNCHANGED <<{", ".join(release_unchanged)}>>',
             f'{prefix}Release(actor) ==\n    /\\ actor \\in Actors\n'
             f'    /\\ pc[actor] = "LINEARIZED"\n'
             f'    /\\ {lock} = OwnerValue(actor)\n'
@@ -187,7 +194,7 @@ def _render_lock_protocol(spec: DomainSpecV2) -> tuple[str, str]:
         ])
         next_items.extend(
             f"    \\/ \\E actor \\in Actors : {prefix}{phase}(actor)"
-            for phase in ("Invoke", "Acquire", "Linearize", "Release", "Respond"))
+            for phase in ("Invoke", "Acquire", "Linearize", "Reject", "Release", "Respond"))
     invariants = "\n".join(
         f"{item.id} == {render_expression(item.expression)}"
         for item in spec.tlc_invariants)

@@ -191,6 +191,22 @@ def test_bounded_traverser_explores_complete_lock_history_phases():
     assert state_space_upper_bound(spec) == 75
 
 
+def test_lock_history_false_guard_rejects_and_responds_without_domain_effect():
+    operation = {"name": "blocked", "return_type": "void",
+                 "failure_semantics": "unavailable", "guards": [{"id": "never",
+                     "expression": {"kind": "boolean", "value": False}}],
+                 "effects": [], "frame": []}
+    variables = [{"kind": "int", "name": "lock", "bound": [0, 2], "initial": 0}]
+    value = spec_with(operation, actors=2, variables=variables).model_dump(mode="json")
+    value["concurrency"] = {"mode": "lock_protocol", "lock_variable": "lock",
+        "lock_states": ["UNLOCKED", "LOCKED_A", "LOCKED_B"], "unlocked_value": 0,
+        "actor_lock_values": [1, 2],
+        "linearization_points": {"blocked": "effect_commit"}}
+    states, transitions = validate_transitions_and_invariants(
+        DomainSpecV2.model_validate(value))
+    assert states > 1 and transitions > 0
+
+
 @pytest.mark.parametrize("mutation, message", [
     ("boolean_lock", "bounded integer state"),
     ("partial", "must be complete"),

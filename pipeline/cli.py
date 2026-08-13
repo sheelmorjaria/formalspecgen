@@ -278,7 +278,7 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     _write_json(result, args.json, ui.console)
     return 0 if result["final_status"] in {
         "VERIFIED", "STATIC_CHECKED", "STATIC_CHECKED_RUNTIME_TESTED", "COMPILED_LINTED",
-        "LOCK_DISCIPLINE_VERIFIED"} else 1
+        "LOCK_DISCIPLINE_VERIFIED", "CONCURRENT_LINEARIZABILITY_VERIFIED"} else 1
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:

@@ -87,16 +87,24 @@ def test_reviewed_lock_protocol_routes_to_structural_gate_without_synthesis(tmp_
                return_value=discipline) as gate, \
          patch("pipeline.rust_support.check_rust_syntax",
                return_value={"status": "RUST_CHECKED"}), \
+         patch("pipeline.v2_linearizability_gate.rust_v2_linearizability_gate",
+               return_value={"status": "VERIFIED",
+                             "claim": "CONCURRENT_LINEARIZABILITY",
+                             "source_refinement_proved": True,
+                             "concurrent_linearizability_proved": True}) as history, \
          patch("pipeline.polyglot_implementation.synthesize_polyglot_implementation") as synth:
         result = orchestrator.run_implementation_loop(
             rust, v2_reviewed_domain="reviewed.json",
             v2_validation_evidence="validation.json")
     synth.assert_not_called()
     gate.assert_called_once_with(reviewed, "canonical", "rust")
-    assert result["final_status"] == "LOCK_DISCIPLINE_VERIFIED"
+    history.assert_called_once()
+    assert result["final_status"] == "CONCURRENT_LINEARIZABILITY_VERIFIED"
     assert result["claims"] == ["BOUNDED_ARCHITECTURE_EVIDENCE",
-                                "LOCK_DISCIPLINE_VERIFIED"]
-    assert not result["concurrent_linearizability_proved"]
+                                "LOCK_DISCIPLINE_VERIFIED",
+                                "SOURCE_MODEL_REFINEMENT",
+                                "CONCURRENT_LINEARIZABILITY"]
+    assert result["concurrent_linearizability_proved"]
 
 
 def test_lock_protocol_router_fails_closed_at_each_native_boundary(tmp_path):
@@ -122,7 +130,9 @@ def test_lock_protocol_router_fails_closed_at_each_native_boundary(tmp_path):
         rejected = orchestrator.run_implementation_loop(rust, **paths)
     assert rejected["final_status"] == "LOCK_DISCIPLINE_FAILED"
 
-    discipline = {"status": "VERIFIED", "claim": "LOCK_DISCIPLINE_VERIFIED"}
+    discipline = {"status": "VERIFIED", "claim": "LOCK_DISCIPLINE_VERIFIED",
+                  "concurrent_linearizability_proved": False,
+                  "source_refinement_proved": False}
     with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
                return_value=reviewed), patch(
                    "pipeline.v2_lock_serializer.lock_discipline_gate",
@@ -137,9 +147,30 @@ def test_lock_protocol_router_fails_closed_at_each_native_boundary(tmp_path):
                return_value=reviewed), patch(
                    "pipeline.v2_lock_serializer.lock_discipline_gate",
                    return_value=discipline), patch(
+                   "pipeline.rust_support.check_rust_syntax",
+                   return_value={"status": "RUST_CHECKED"}), patch(
+                   "pipeline.v2_linearizability_gate.rust_v2_linearizability_gate",
+                   return_value={"status": "FAIL", "claim": "NO_PROOF",
+                                 "code": "history_mismatch"}):
+        history_failed = orchestrator.run_implementation_loop(rust, **paths)
+    assert history_failed["final_status"] == "LINEARIZABILITY_FAILED"
+
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), patch(
+                   "pipeline.v2_lock_serializer.lock_discipline_gate",
+                   return_value=discipline), patch(
                    "pipeline.validate.check_stub", return_value=(False, ["bad JML"])):
         java_failed = orchestrator.run_implementation_loop(java, **paths)
     assert java_failed["native_check"]["errors"] == ["bad JML"]
+
+    with patch("pipeline.v2_refinement.load_bound_reviewed_domain",
+               return_value=reviewed), patch(
+                   "pipeline.v2_lock_serializer.lock_discipline_gate",
+                   return_value=discipline), patch(
+                   "pipeline.validate.check_stub", return_value=(True, [])):
+        java_checked = orchestrator.run_implementation_loop(java, **paths)
+    assert java_checked["final_status"] == "LOCK_DISCIPLINE_VERIFIED"
+    assert java_checked["concurrent_linearizability_proved"] is False
 
 
 def test_usage_slug_and_fallback_helpers():
