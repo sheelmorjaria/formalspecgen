@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from pipeline.architecture import parse_architecture
-from pipeline.composition import CompositionError, parse_composition
+from pipeline.composition import CompositionError, analyze_coupling, parse_composition
 from pipeline.composition_render import (
     UnsupportedCompositionBoundary, build_composition_sources,
     render_external_adapter, render_external_port, verify_composition,
@@ -189,6 +189,121 @@ def test_unknown_port_internal_arguments_and_literal_binding_paths():
     assert coupling["caller_preconditions"] == ["5 > 0"]
     assert coupling["orchestrator_parameters"] == {}
 
+
+def test_port_literal_binding_rejects_vacuous_precondition():
+    from pipeline.composition import UnsatisfiableBindingError
+    value = artifact()
+    value["use_cases"] = [{"name": "Literal", "steps": [{
+        "component": "payments", "operation": "charge",
+        "arguments": {"amount": "-5"}}]}]
+    spec = parse_composition(value)
+    with pytest.raises(UnsatisfiableBindingError, match="UNSATISFIABLE_BINDING"):
+        analyze_coupling(spec.use_cases[0], {}, parse_architecture(spec.architecture))
+
+    operation = value["architecture"]["components"][1]["operations"][0]
+    operation.update({
+        "parameters": [{"name": "amount", "type": "int"}],
+        "requires": ["amount <= 10", "amount > 100"],
+    })
+    value["use_cases"][0] = {"name": "Interval", "steps": [{
+        "component": "payments", "operation": "charge",
+        "arguments": {"amount": "amount"}}]}
+    spec = parse_composition(value)
+    with pytest.raises(UnsatisfiableBindingError, match="CONTRADICTORY_COMPOSITION"):
+        analyze_coupling(spec.use_cases[0], {}, parse_architecture(spec.architecture))
+
+
+def test_port_boolean_literal_and_variable_interval_contradictions_fail_closed():
+    from pipeline.composition import UnsatisfiableBindingError
+    value = artifact()
+    operation = value["architecture"]["components"][1]["operations"][0]
+    operation.update({
+        "parameters": [{"name": "enabled", "type": "boolean"}],
+        "requires": ["enabled == true"],
+        "ensures": ["true"],
+    })
+    value["use_cases"] = [{"name": "Boolean", "steps": [{
+        "component": "payments", "operation": "charge",
+        "arguments": {"enabled": "false"}}]}]
+    spec = parse_composition(value)
+    with pytest.raises(UnsatisfiableBindingError, match="UNSATISFIABLE_BINDING"):
+        analyze_coupling(spec.use_cases[0], {}, parse_architecture(spec.architecture))
+
+
+@pytest.mark.parametrize(("source", "expected"), [
+    ("1 + 2", 3), ("3 - 2", 1), ("2 * 3", 6), ("6 / 2", 3),
+    ("1 < 2", True), ("1 <= 1", True), ("2 > 1", True), ("2 >= 2", True),
+    ("1 == 1", True), ("1 != 2", True),
+    ("true && false", False), ("true || false", True),
+    ("false ==> false", True), ("true <==> true", True),
+    ("!false", True), ("-5", -5),
+])
+def test_ground_precondition_evaluator_covers_reviewed_operators(source, expected):
+    from pipeline import composition, jml_ast
+    node = jml_ast.parse_jml_expression(source)
+    assert composition._literal_value(node) == expected
+
+
+def test_precondition_evaluator_unknown_and_constraint_edges():
+    from pipeline import composition, jml_ast
+    unknown_nodes = [
+        jml_ast.Parameter(name="x"), jml_ast.FieldAccess(receiver="x", field="y"),
+        jml_ast.ResultValue(), jml_ast.OldValue(expression=jml_ast.IntegerLiteral(value=1)),
+        jml_ast.BinaryExpr(kind="add", left=jml_ast.Parameter(name="x"),
+                           right=jml_ast.IntegerLiteral(value=1)),
+        jml_ast.BinaryExpr(kind="div", left=jml_ast.IntegerLiteral(value=1),
+                           right=jml_ast.IntegerLiteral(value=0)),
+    ]
+    assert all(composition._literal_value(node) is composition._UNKNOWN
+               for node in unknown_nodes)
+    unary_unknown = jml_ast.UnaryExpr(kind="neg", operand=jml_ast.Parameter(name="x"))
+    assert composition._literal_value(unary_unknown) is composition._UNKNOWN
+    assert composition._literal_value(object()) is composition._UNKNOWN
+    negative = jml_ast.UnaryExpr(
+        kind="neg", operand=jml_ast.IntegerLiteral(value=3))
+    assert composition._integer_literal(negative) == -3
+    assert composition._integer_literal(jml_ast.BooleanLiteral(value=True)) is None
+    assert list(composition._constraints(jml_ast.BooleanLiteral(value=True))) == []
+
+    node = jml_ast.parse_jml_expression("10 < x && x != 20", parameters={"x"})
+    assert list(composition._constraints(node)) == [
+        ("x", "gt", 10), ("x", "neq", 20)]
+    node = jml_ast.parse_jml_expression("true == enabled", parameters={"enabled"})
+    assert list(composition._constraints(node)) == []
+    node = jml_ast.parse_jml_expression("1 + x", parameters={"x"})
+    assert list(composition._constraints(node)) == []
+
+
+@pytest.mark.parametrize("clauses", [
+    ["x == 1", "x == 2"],
+    ["x >= 2", "x <= 1"],
+    ["x > 1", "x <= 1"],
+    ["x == 1", "x > 1"],
+    ["x == 2", "x < 2"],
+    ["enabled == true", "enabled != true"],
+])
+def test_precondition_consistency_rejects_all_simple_contradiction_shapes(clauses):
+    from pipeline.composition import UnsatisfiableBindingError, _validate_precondition_satisfiability
+    with pytest.raises(UnsatisfiableBindingError, match="CONTRADICTORY_COMPOSITION"):
+        _validate_precondition_satisfiability(clauses, {"x", "enabled"})
+
+
+def test_precondition_consistency_accepts_supported_and_defers_unknown_syntax():
+    from pipeline.composition import _validate_precondition_satisfiability
+    _validate_precondition_satisfiability(
+        ["x >= 1", "x > 0", "x >= 0", "x <= 2", "x < 3", "x <= 3",
+         "x == 2", "opaque[0] > 1"], {"x"})
+
+
+def test_verify_composition_reports_unsatisfiable_binding_before_rendering():
+    value = artifact()
+    value["use_cases"] = [{"name": "Literal", "steps": [{
+        "component": "payments", "operation": "charge",
+        "arguments": {"amount": "-5"}}]}]
+    with patch("pipeline.composition_render.resolve_bindings", return_value={}):
+        result = verify_composition(value)
+    assert result["status"] == "UNSATISFIABLE_BINDING"
+    assert result["claim"] == "NO_PROOF"
 
 def test_composition_reports_adapter_rendering_boundary():
     with patch("pipeline.composition_render.resolve_bindings", return_value={"orders": object()}), \

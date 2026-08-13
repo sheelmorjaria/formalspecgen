@@ -840,6 +840,11 @@ Identifiers become typed orchestrator parameters; repeated identifiers must have
 Port type. The renderer substitutes bindings into the Port preconditions, injects the Port through
 the orchestrator constructor, and OpenJML proves the call site establishes those preconditions.
 Missing, extra, expression-valued, or type-conflicting bindings fail closed.
+Before rendering, the composition gate evaluates fully literal Port preconditions and checks the
+supported integer-interval and Boolean constraint subset for contradictions. Ground-false bindings
+return `UNSATISFIABLE_BINDING`; inconsistent variable constraints return
+`CONTRADICTORY_COMPOSITION`. Recognized OpenJML false-precondition warnings are also classified as
+`VACUOUS_COMPOSITION`, so an impossible caller contract cannot mint a composition proof.
 
 When that core proof succeeds with external Ports present, composition evidence uses
 `SYSTEM_COMPOSITION_PROOF`, lists every skipped adapter, and keeps

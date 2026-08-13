@@ -210,6 +210,14 @@ def test_verify_composition_statuses(v2_dir):
     assert result["claim"] == "STATIC_CHECK" and run.call_count == 1
 
 
+def test_verify_composition_rejects_openjml_vacuity_warning(v2_dir):
+    with patch.object(composition_render, "verify_files", side_effect=[
+            (0, "check ok"), (0, "warning: Precondition is always false")]):
+        result = composition_render.verify_composition(composition_value(), v2_dir)
+    assert result["status"] == "VACUOUS_COMPOSITION"
+    assert result["claim"] == "NO_PROOF"
+
+
 def test_verify_composition_fails_closed_early(v2_dir, tmp_path):
     result = composition_render.verify_composition(
         composition_value(), tmp_path / "empty")

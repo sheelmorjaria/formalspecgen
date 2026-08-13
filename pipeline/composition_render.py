@@ -19,6 +19,7 @@ from .architecture import parse_architecture
 from .composition import (
     CompositionError,
     CompositionUseCase,
+    UnsatisfiableBindingError,
     UnsupportedCompositionBoundary,
     _unparenthesized,
     analyze_coupling,
@@ -366,6 +367,8 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
         architecture = parse_architecture(spec.architecture)
         coupling = [analyze_coupling(use_case, resolved, architecture)
                     for use_case in spec.use_cases]
+    except UnsatisfiableBindingError as exc:
+        return {"status": exc.code, "claim": "NO_PROOF", "message": str(exc)}
     except UnsupportedCompositionBoundary as exc:
         return {"status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
                 "message": str(exc)}
@@ -407,7 +410,10 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
     verdict = {**base, "exit_code": esc_exit}
     esc_status = classify(esc_exit)
     if esc_status == "VERIFIED":
-        if has_dropped_vc(esc_output):
+        vacuity_markers = ("Precondition is always false", "precondition is false",
+                           "unsatisfiable precondition")
+        if has_dropped_vc(esc_output) or any(
+                marker.lower() in esc_output.lower() for marker in vacuity_markers):
             return {**verdict, "status": "VACUOUS_COMPOSITION", "claim": "NO_PROOF",
                     "message": ("OpenJML reported an unsupported construct dropped "
                                 "from the SMT encoding; the composition proof is "

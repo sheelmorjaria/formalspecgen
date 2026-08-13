@@ -26,6 +26,7 @@ from .domain_v2 import (
     BinaryExpr, BooleanExpr, FieldExpr, IntegerExpr, NotExpr, OldExpr,
 )
 from .domain_v2_promotion import ReviewedDomainSpecV2
+from . import jml_ast
 from .v2_jml_serializer import _OPS
 
 
@@ -35,6 +36,14 @@ class CompositionError(ValueError):
 
 class UnsupportedCompositionBoundary(ValueError):
     """The requested composition leaves the reviewed deterministic subset."""
+
+
+class UnsatisfiableBindingError(ValueError):
+    """A composed caller contract is contradictory and would prove vacuously."""
+
+    def __init__(self, code: str, detail: str):
+        self.code = code
+        super().__init__(f"{code}: {detail}; vacuous proof prevented")
 
 
 class _StrictModel(BaseModel):
@@ -311,6 +320,7 @@ def analyze_coupling(use_case: CompositionUseCase,
             preconditions.append(fact)
             obligations.append({"step": index + 1, "component": step.component,
                                 "operation": step.operation, "fact": fact})
+    _validate_precondition_satisfiability(preconditions, set(orchestrator_parameters))
     return {"use_case": use_case.name,
             "caller_preconditions": preconditions,
             "coupling_obligations": obligations,
@@ -326,3 +336,128 @@ def _substitute_arguments(clause: str, arguments: dict[str, str]) -> str:
     for name in sorted(arguments, key=len, reverse=True):
         result = re.sub(rf"\b{re.escape(name)}\b", arguments[name], result)
     return result
+
+
+_UNKNOWN = object()
+
+
+def _literal_value(node):
+    """Evaluate a ground expression; return _UNKNOWN when variables remain."""
+    if isinstance(node, (jml_ast.IntegerLiteral, jml_ast.BooleanLiteral)):
+        return node.value
+    if isinstance(node, (jml_ast.Parameter, jml_ast.FieldAccess,
+                         jml_ast.ResultValue, jml_ast.OldValue)):
+        return _UNKNOWN
+    if isinstance(node, jml_ast.UnaryExpr):
+        value = _literal_value(node.operand)
+        if value is _UNKNOWN:
+            return _UNKNOWN
+        return (not bool(value)) if node.kind == "not" else -value
+    if isinstance(node, jml_ast.BinaryExpr):
+        left, right = _literal_value(node.left), _literal_value(node.right)
+        if left is _UNKNOWN or right is _UNKNOWN:
+            return _UNKNOWN
+        operations = {
+            "add": lambda: left + right, "sub": lambda: left - right,
+            "mul": lambda: left * right, "div": lambda: left // right,
+            "lt": lambda: left < right, "lte": lambda: left <= right,
+            "gt": lambda: left > right, "gte": lambda: left >= right,
+            "eq": lambda: left == right, "neq": lambda: left != right,
+            "and": lambda: bool(left) and bool(right),
+            "or": lambda: bool(left) or bool(right),
+            "implies": lambda: (not bool(left)) or bool(right),
+            "iff": lambda: bool(left) == bool(right),
+        }
+        try:
+            return operations[node.kind]()
+        except (ArithmeticError, TypeError):
+            return _UNKNOWN
+    return _UNKNOWN
+
+
+def _integer_literal(node):
+    if isinstance(node, jml_ast.IntegerLiteral):
+        return node.value
+    if (isinstance(node, jml_ast.UnaryExpr) and node.kind == "neg" and
+            isinstance(node.operand, jml_ast.IntegerLiteral)):
+        return -node.operand.value
+    return None
+
+
+def _constraints(node):
+    """Yield simple parameter/literal comparisons from conjunctions."""
+    if isinstance(node, jml_ast.BinaryExpr) and node.kind == "and":
+        yield from _constraints(node.left)
+        yield from _constraints(node.right)
+        return
+    if not isinstance(node, jml_ast.BinaryExpr):
+        return
+    left_name = node.left.name if isinstance(node.left, jml_ast.Parameter) else None
+    right_name = node.right.name if isinstance(node.right, jml_ast.Parameter) else None
+    left_int, right_int = _integer_literal(node.left), _integer_literal(node.right)
+    if left_name is not None and right_int is not None:
+        yield left_name, node.kind, right_int
+    elif right_name is not None and left_int is not None:
+        reverse = {"lt": "gt", "lte": "gte", "gt": "lt", "gte": "lte",
+                   "eq": "eq", "neq": "neq"}
+        if node.kind in reverse:
+            yield right_name, reverse[node.kind], left_int
+    elif isinstance(node.left, jml_ast.Parameter) and isinstance(
+            node.right, jml_ast.BooleanLiteral) and node.kind in {"eq", "neq"}:
+        yield node.left.name, node.kind, node.right.value
+
+
+def _validate_precondition_satisfiability(clauses: list[str], parameters: set[str]) -> None:
+    """Reject ground-false and simple contradictory caller preconditions."""
+    parsed = []
+    for clause in clauses:
+        try:
+            node = jml_ast.parse_jml_expression(clause, parameters=parameters)
+        except jml_ast.JmlExpressionSyntaxError:
+            continue  # OpenJML remains authoritative outside the reviewed parser subset.
+        parsed.append(node)
+        value = _literal_value(node)
+        if value is not _UNKNOWN and not bool(value):
+            raise UnsatisfiableBindingError(
+                "UNSATISFIABLE_BINDING", f"literal Port precondition {clause!r} is false")
+
+    ranges: dict[str, dict[str, object]] = {}
+    for node in parsed:
+        for name, operator, value in _constraints(node):
+            state = ranges.setdefault(name, {"lower": None, "upper": None,
+                                             "equal": None, "boolean": None})
+            if isinstance(value, bool):
+                required = value if operator == "eq" else not value
+                if state["boolean"] is not None and state["boolean"] != required:
+                    raise UnsatisfiableBindingError(
+                        "CONTRADICTORY_COMPOSITION", f"conflicting Boolean constraints for {name}")
+                state["boolean"] = required
+                continue
+            if operator == "eq":
+                state["equal"] = value if state["equal"] is None else state["equal"]
+                if state["equal"] != value:
+                    raise UnsatisfiableBindingError(
+                        "CONTRADICTORY_COMPOSITION", f"conflicting equalities for {name}")
+            elif operator in {"gt", "gte"}:
+                bound = (value, operator == "gte")
+                old = state["lower"]
+                if old is None or bound[0] > old[0] or (bound[0] == old[0] and not bound[1]):
+                    state["lower"] = bound
+            elif operator in {"lt", "lte"}:
+                bound = (value, operator == "lte")
+                old = state["upper"]
+                if old is None or bound[0] < old[0] or (bound[0] == old[0] and not bound[1]):
+                    state["upper"] = bound
+    for name, state in ranges.items():
+        lower, upper, equal = state["lower"], state["upper"], state["equal"]
+        impossible = (lower is not None and upper is not None and
+                      (lower[0] > upper[0] or
+                       (lower[0] == upper[0] and not (lower[1] and upper[1]))))
+        if equal is not None:
+            impossible = impossible or (lower is not None and
+                (equal < lower[0] or (equal == lower[0] and not lower[1])))
+            impossible = impossible or (upper is not None and
+                (equal > upper[0] or (equal == upper[0] and not upper[1])))
+        if impossible:
+            raise UnsatisfiableBindingError(
+                "CONTRADICTORY_COMPOSITION", f"integer constraints for {name} have no solution")
