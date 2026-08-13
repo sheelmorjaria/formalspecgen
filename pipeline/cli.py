@@ -366,6 +366,27 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "INSPECTED" else 1
 
 
+def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .deterministic_refactor import extract_method_from_inspection
+    from .refactor_gate import verify_contract_preserving_refactor
+    transformed = extract_method_from_inspection(args.source, args.inspection, args.method)
+    if transformed["status"] != "TRANSFORMED":
+        _write_json(transformed, args.json, ui.console)
+        return 1
+    destination = Path(args.out)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(transformed.pop("source"), encoding="utf-8")
+    proof = verify_contract_preserving_refactor(args.source, destination)
+    result = {"status": "VERIFIED" if proof["status"] == "VERIFIED" else "FAIL",
+              "claim": proof.get("claim", "NO_PROOF"),
+              "transformation": transformed, "verification": proof,
+              "automated_refactor_applied": True,
+              "behavior_equivalence_proved": False,
+              "refactor_verified": False}
+    _write_json(result, args.json, ui.console)
+    return 0 if result["status"] == "VERIFIED" else 1
+
+
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
     result = generate_and_check(_read(args.stub), clarifications=args.clarifications or "",
                                 abstraction=args.abstraction)
@@ -885,6 +906,17 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("source", help="Java/JML source to inspect")
     inspect.add_argument("--json", help="machine-readable findings destination")
 
+    apply_refactor = sub.add_parser(
+        "apply-refactor", help="apply a hash-bound deterministic Java refactoring profile")
+    apply_refactor.add_argument("source", help="baseline Java/JML source")
+    apply_refactor.add_argument("--inspection", required=True,
+                                help="hash-bound inspect JSON evidence")
+    apply_refactor.add_argument("--pattern", choices=["extract-method"],
+                                default="extract-method")
+    apply_refactor.add_argument("--method", required=True, help="inspected long method name")
+    apply_refactor.add_argument("--out", required=True, help="same-named refactored Java path")
+    apply_refactor.add_argument("--json", help="combined transformation/proof evidence")
+
     architecture = sub.add_parser("architecture", help="render typed IR and run bounded TLC")
     architecture.add_argument("stub")
     architecture.add_argument("--clarifications")
@@ -951,6 +983,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "verify": return command_verify(args, ui)
     if args.command == "verify-refactor": return command_verify_refactor(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
+    if args.command == "apply-refactor": return command_apply_refactor(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
@@ -961,7 +994,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     return 2
 
 
-_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "inspect", "architecture", "domain",
+_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "inspect",
+                  "apply-refactor", "architecture", "domain",
                   "validate-domain", "promote-domain", "compose", "reverify", "system"}
 
 

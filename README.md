@@ -707,17 +707,43 @@ with pinned `javalang=0.13.0`:
 formalspecgen inspect LegacyService.java --json inspection.json
 ```
 
-The deterministic rules flag repeated runtime type dispatch (Strategy), classes at or above 10
-fields and 15 callables (Facade/decomposition), methods longer than 60 lines (Extract Method), and
-constructors with at least five parameters (collaborator façade/interface review). Findings include
-source lines, metrics, recommendations, and a source hash. Comments and literals cannot manufacture
-findings because decisions are made from Java AST nodes; lexical scanning is used only to calculate
-method end lines, which `javalang` does not expose.
+An explicit detector registry owns small independent AST rules. The catalog flags repeated runtime
+type dispatch (Strategy), classes at or above 10 fields and 15 callables (Facade/decomposition),
+methods longer than 60 lines (Extract Method), constructors with at least five parameters,
+private-constructor/static-accessor Singleton shapes (dependency-injection review), paired listener
+registries (Observer), large mostly-literal construction calls (Builder), database calls mixed with
+branching/calculation (Repository), and delegation-heavy single-field wrappers (Adapter). Findings
+include source lines, metrics, recommendations, and a source hash. Comments and literals cannot
+manufacture findings because decisions are made from Java AST nodes; lexical scanning is used only
+to calculate method end lines, which `javalang` does not expose.
 
 The output claim is `STATIC_INSPECTION`, not a proof that a design is defective. It records
 `formal_defect_proved: false`, `automated_refactor_applied: false`, and
 `behavior_equivalence_proved: false`. Unsupported syntax, multiple top-level types, missing files,
 and non-Java inputs fail closed. The command recommends patterns but never rewrites source.
+
+### Deterministic Extract Method application
+
+The first action profile consumes hash-bound inspection evidence and applies Extract Method to one
+AST-identified long public or protected method:
+
+```bash
+formalspecgen apply-refactor baseline/Calculator.java \
+  --inspection inspection.json --pattern extract-method --method calculate \
+  --out refactored/Calculator.java --json applied-refactor.json
+```
+
+The complete body moves into a uniquely named private helper while the original signature remains
+as a delegating wrapper. The helper repeats the original JML obligations so OpenJML can reason
+modularly; normalized contract-set comparison ensures repeated annotation text is not mistaken for
+a changed contract. Overloaded names, abstract/native bodies, stale inspection hashes, absent
+long-method findings, helper collisions, and unreconstructable spans fail closed.
+
+Writing source is not preservation evidence. The command immediately invokes `verify-refactor`;
+only independent successful ESC results can produce `REFACTOR_CONTRACT_PRESERVED`. Output still
+records `behavior_equivalence_proved: false` and `refactor_verified: false`. Strategy, Facade,
+dependency injection, multi-file moves, arbitrary statement selection, and semantic rewrites remain
+outside this initial action profile.
 
 ## Providers
 

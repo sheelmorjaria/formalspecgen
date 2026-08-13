@@ -64,8 +64,10 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
     if baseline_file.stem != baseline_class or refactored_file.stem != refactored_class:
         return _fail("source_layout_invalid",
                      "Each public Java class must use its matching source filename")
-    baseline_contract = sorted(extract_clauses(baseline))
-    refactored_contract = sorted(extract_clauses(refactored))
+    # A private extracted helper may repeat the public method's obligations so ESC can
+    # reason modularly. Repetition does not alter the normalized contract surface.
+    baseline_contract = sorted(set(extract_clauses(baseline)))
+    refactored_contract = sorted(set(extract_clauses(refactored)))
     if not baseline_contract:
         return _fail("missing_trusted_contract", "Baseline contains no JML contract clauses")
     if baseline_contract != refactored_contract:

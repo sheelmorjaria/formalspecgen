@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from pathlib import Path
 
 import javalang
@@ -13,6 +14,7 @@ GOD_FIELD_THRESHOLD = 10
 GOD_METHOD_THRESHOLD = 15
 LONG_METHOD_LINES = 60
 CONSTRUCTOR_DEPENDENCY_THRESHOLD = 5
+BUILDER_ARGUMENT_THRESHOLD = 6
 
 def inspect_java_file(path: str | Path) -> dict:
     source_path = Path(path)
@@ -36,31 +38,8 @@ def inspect_java_file(path: str | Path) -> dict:
     methods = list(declaration.constructors) + list(declaration.methods)
     fields = list(declaration.fields)
     findings = []
-
-    switches = [node for _, node in declaration.filter(javalang.tree.IfStatement)
-                if _runtime_type_condition(node.condition)]
-    if len(switches) >= 2:
-        findings.append(_finding(_line(switches[0]), "type-switch", "warning",
-            f"Found {len(switches)} runtime type-dispatch branches.", "Strategy",
-            "Move variant behavior behind a polymorphic strategy interface."))
-
-    if len(fields) >= GOD_FIELD_THRESHOLD and len(methods) >= GOD_METHOD_THRESHOLD:
-        findings.append(_finding(_line(declaration), "god-class", "warning",
-            f"Class has {len(fields)} fields and {len(methods)} methods.", "Facade",
-            "Split cohesive responsibilities, retaining a small façade at the existing boundary."))
-
-    for method in methods:
-        lines = _callable_lines(source, method)
-        if lines > LONG_METHOD_LINES:
-            findings.append(_finding(_line(method), "long-method", "warning",
-                f"Method {method.name} spans {lines} lines.", "Extract Method",
-                "Extract cohesive steps while preserving the existing JML method contract."))
-        parameters = len(method.parameters)
-        if (isinstance(method, javalang.tree.ConstructorDeclaration) and
-                parameters >= CONSTRUCTOR_DEPENDENCY_THRESHOLD):
-            findings.append(_finding(_line(method), "constructor-overinjection", "warning",
-                f"Constructor accepts {parameters} dependencies/parameters.", "Facade",
-                "Group cohesive collaborators behind narrower role interfaces; review lifetime ownership."))
+    for detector_type in DETECTOR_REGISTRY:
+        findings.extend(detector_type(source, declaration).detect())
 
     return {"status": "INSPECTED", "claim": "STATIC_INSPECTION",
             "scope": "deterministic_token_aware_java_structure_heuristics",
@@ -120,6 +99,156 @@ def _runtime_type_condition(condition) -> bool:
         (node.operator == "instanceof" or (node.operator in {"==", "!="} and has_type_member))
         or isinstance(node, javalang.tree.MethodInvocation) and node.member == "getClass"
         for node in nodes)
+
+
+class PatternDetector:
+    """Small deterministic detector registered in ``DETECTOR_REGISTRY``."""
+    def __init__(self, source: str, declaration) -> None:
+        self.source, self.declaration = source, declaration
+
+    def detect(self) -> list[dict]:
+        raise NotImplementedError
+
+
+class CoreStructureDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        findings = []
+        methods = list(self.declaration.constructors) + list(self.declaration.methods)
+        switches = [node for _, node in self.declaration.filter(javalang.tree.IfStatement)
+                    if _runtime_type_condition(node.condition)]
+        if len(switches) >= 2:
+            findings.append(_finding(_line(switches[0]), "type-switch", "warning",
+                f"Found {len(switches)} runtime type-dispatch branches.", "Strategy",
+                "Move variant behavior behind a polymorphic strategy interface."))
+        if (len(self.declaration.fields) >= GOD_FIELD_THRESHOLD and
+                len(methods) >= GOD_METHOD_THRESHOLD):
+            findings.append(_finding(_line(self.declaration), "god-class", "warning",
+                f"Class has {len(self.declaration.fields)} fields and {len(methods)} methods.",
+                "Facade", "Split cohesive responsibilities, retaining a small façade at the existing boundary."))
+        for method in methods:
+            lines = _callable_lines(self.source, method)
+            if lines > LONG_METHOD_LINES:
+                findings.append(_finding(_line(method), "long-method", "warning",
+                    f"Method {method.name} spans {lines} lines.", "Extract Method",
+                    "Extract cohesive steps while preserving the existing JML method contract."))
+            if (isinstance(method, javalang.tree.ConstructorDeclaration) and
+                    len(method.parameters) >= CONSTRUCTOR_DEPENDENCY_THRESHOLD):
+                findings.append(_finding(_line(method), "constructor-overinjection", "warning",
+                    f"Constructor accepts {len(method.parameters)} dependencies/parameters.",
+                    "Facade", "Group cohesive collaborators behind narrower role interfaces; review lifetime ownership."))
+        return findings
+
+
+class SingletonDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        private_constructor = any("private" in node.modifiers
+                                  for node in self.declaration.constructors)
+        accessor = next((node for node in self.declaration.methods
+                         if {"public", "static"}.issubset(node.modifiers) and
+                         _type_name(node.return_type) == self.declaration.name), None)
+        if not private_constructor or accessor is None:
+            return []
+        return [_finding(_line(accessor), "singleton-global-access", "warning",
+            "Private construction plus a public static self-typed accessor forms a Singleton.",
+            "Dependency Injection", "Review global lifetime/state and prefer an explicitly owned dependency where possible.")]
+
+
+class ObserverDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        listener_list = any(_type_name(field.type) in {"List", "Collection", "Set"} and
+                            "Listener" in str(field.type.arguments)
+                            for field in self.declaration.fields)
+        names = [method.name for method in self.declaration.methods]
+        adds = any(name.startswith("add") and name.endswith("Listener") for name in names)
+        removes = any(name.startswith("remove") and name.endswith("Listener") for name in names)
+        if not (listener_list and adds and removes):
+            return []
+        return [_finding(_line(self.declaration), "listener-registry", "info",
+            "Listener collection has paired add/remove listener operations.", "Observer",
+            "Make event ordering, subscription lifetime, and callback failure semantics explicit.")]
+
+
+class BuilderOpportunityDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        findings = []
+        for _, node in self.declaration.filter(javalang.tree.ClassCreator):
+            arguments = list(node.arguments or [])
+            literal_count = sum(isinstance(argument, javalang.tree.Literal)
+                                for argument in arguments)
+            if (len(arguments) >= BUILDER_ARGUMENT_THRESHOLD and
+                    literal_count >= math.ceil(len(arguments) * 0.6)):
+                findings.append(_finding(_line(node), "large-literal-construction", "warning",
+                    f"Constructor call has {len(arguments)} arguments, mostly literals.", "Builder",
+                    "Use named construction steps and validate required values before build()."))
+        return findings
+
+
+class RepositoryDetector(PatternDetector):
+    _DATABASE_MEMBERS = {"executeQuery", "executeUpdate", "persist", "merge",
+                         "remove", "getConnection", "prepareStatement"}
+
+    def detect(self) -> list[dict]:
+        calls = [node for _, node in self.declaration.filter(javalang.tree.MethodInvocation)
+                 if node.member in self._DATABASE_MEMBERS]
+        business_branches = list(self.declaration.filter(javalang.tree.IfStatement))
+        calculations = [node for _, node in self.declaration.filter(javalang.tree.BinaryOperation)
+                        if node.operator in {"+", "-", "*", "/", "%"}]
+        if not calls or not (business_branches or calculations):
+            return []
+        return [_finding(_line(calls[0]), "mixed-persistence-logic", "warning",
+            "Database API calls are mixed with branching or calculation logic.", "Repository",
+            "Extract persistence behind an interface and keep transaction assumptions explicit.")]
+
+
+class AdapterDetector(PatternDetector):
+    def detect(self) -> list[dict]:
+        if len(self.declaration.fields) != 1 or not self.declaration.constructors:
+            return []
+        field_names = {declarator.name for declarator in self.declaration.fields[0].declarators}
+        if not any(_assigns_field(constructor, field_names)
+                   for constructor in self.declaration.constructors):
+            return []
+        public_methods = [method for method in self.declaration.methods
+                          if "public" in method.modifiers and method.body]
+        if len(public_methods) < 2:
+            return []
+        delegated = sum(_delegates_to(method, field_names) for method in public_methods)
+        if delegated / len(public_methods) < 0.8:
+            return []
+        return [_finding(_line(self.declaration), "delegation-wrapper", "info",
+            f"{delegated}/{len(public_methods)} public methods delegate directly to one field.",
+            "Adapter", "Document the target contract and verify argument/result translation explicitly.")]
+
+
+DETECTOR_REGISTRY = (CoreStructureDetector, SingletonDetector, ObserverDetector,
+                     BuilderOpportunityDetector, RepositoryDetector, AdapterDetector)
+
+
+def _type_name(node) -> str:
+    return getattr(node, "name", "") if node is not None else ""
+
+
+def _delegates_to(method, field_names: set[str]) -> bool:
+    if len(method.body) != 1:
+        return False
+    statement = method.body[0]
+    expression = (statement.expression if isinstance(
+        statement, javalang.tree.StatementExpression) else
+        statement.expression if isinstance(statement, javalang.tree.ReturnStatement) else None)
+    return (isinstance(expression, javalang.tree.MethodInvocation) and
+            expression.qualifier in field_names)
+
+
+def _assigns_field(constructor, field_names: set[str]) -> bool:
+    for _, assignment in constructor.filter(javalang.tree.Assignment):
+        target = assignment.expressionl
+        if isinstance(target, javalang.tree.MemberReference) and target.member in field_names:
+            return True
+        if (isinstance(target, javalang.tree.This) and
+                any(isinstance(selector, javalang.tree.MemberReference) and
+                    selector.member in field_names for selector in target.selectors or [])):
+            return True
+    return False
 
 
 def _callable_lines(source: str, method) -> int:
