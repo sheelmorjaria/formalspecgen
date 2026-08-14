@@ -671,7 +671,8 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
                     f"reviewed V2 domain {name!r} already exists; use --replace-reviewed-domain")
             reviewed = promote_validated_candidate(
                 candidate, validation, canonical,
-                accept_candidate_sha256=args.accept_candidate_sha256)
+                accept_candidate_sha256=args.accept_candidate_sha256,
+                signing_key=getattr(args, "signing_key", None))
         except (ValueError, OSError) as exc:
             ui.console.print(f"[bold red]V2 domain promotion failed:[/bold red] {escape(str(exc))}")
             return 2
@@ -679,6 +680,8 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
             f"[green]Promoted reviewed V2 domain {name}[/green]\n"
             f"  [path]{canonical}[/path]\n"
             f"  accepted candidate: {reviewed.accepted_candidate_sha256}")
+        if getattr(args, "signing_key", None):
+            ui.console.print(f"  promotion signature: {canonical}.promotion.sig")
         return 0
     candidate = root / "domains" / "candidates" / f"{name}.generated.yaml"
     canonical = root / "domains" / f"{name}.yaml"
@@ -1121,6 +1124,7 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--schema-version", type=int, choices=[1, 2], default=None,
                          help="candidate schema; inferred from validated V2 evidence when omitted")
     promote.add_argument("--accept-candidate-sha256")
+    promote.add_argument("--signing-key", help="GPG key ID for a detached promotion signature")
     compose = sub.add_parser(
         "compose", help="compose reviewed V2 domains and prove the glue with OpenJML ESC")
     compose.add_argument("artifact", help="composition artifact JSON path")

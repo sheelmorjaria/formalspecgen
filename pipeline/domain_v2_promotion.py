@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Literal
 
@@ -51,6 +52,7 @@ def promote_validated_candidate(
     destination: str | Path,
     *,
     accept_candidate_sha256: str,
+    signing_key: str | None = None,
 ) -> ReviewedDomainSpecV2:
     """Promote only the exact candidate bound to intact VALIDATED evidence."""
     candidate = load_candidate(candidate_path)
@@ -72,12 +74,22 @@ def promote_validated_candidate(
         "accepted_evidence_sha256": envelope.evidence_sha256,
     })
     write_json_atomic(destination, reviewed.model_dump(mode="json"))
+    if signing_key:
+        signature = Path(str(destination) + ".promotion.sig")
+        try:
+            subprocess.run(["gpg", "--batch", "--yes", "--local-user", signing_key,
+                            "--detach-sign", "--output", str(signature), str(destination)],
+                           check=True, capture_output=True, text=True)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            signature.unlink(missing_ok=True)
+            raise ValueError("CRITICAL: promotion signature generation failed") from exc
     return reviewed
 
 
 def promote_domain(name: str, *, accept_candidate_sha256: str,
                    project_root: str | Path = ".",
-                   replace_reviewed: bool = False) -> ReviewedDomainSpecV2:
+                   replace_reviewed: bool = False,
+                   signing_key: str | None = None) -> ReviewedDomainSpecV2:
     """Promote a named CLI-layout V2 candidate into the separate V2 registry."""
     if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
         raise ValueError("V2 domain name must be a safe module identifier")
@@ -90,4 +102,5 @@ def promote_domain(name: str, *, accept_candidate_sha256: str,
         root / "domains" / "candidates" / f"{name}.v2.validation.json",
         destination,
         accept_candidate_sha256=accept_candidate_sha256,
+        signing_key=signing_key,
     )

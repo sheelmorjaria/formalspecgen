@@ -126,6 +126,36 @@ def test_successful_promotion_records_both_accepted_hashes_without_mutating_cand
     assert candidate_sha256(candidate) != candidate_sha256(saved)
 
 
+def test_promotion_can_emit_explicit_gpg_detached_signature(tmp_path):
+    candidate_path = tmp_path / "switch.json"
+    candidate = write_candidate(candidate_path)
+    digest = candidate_sha256(candidate)
+    evidence_path = tmp_path / "switch.validation.json"
+    destination = tmp_path / "canonical" / "switch.json"
+    write_evidence(evidence_path, digest)
+    with patch("pipeline.domain_v2_promotion.subprocess.run") as run:
+        reviewed = promote_validated_candidate(
+            candidate_path, evidence_path, destination,
+            accept_candidate_sha256=digest, signing_key="reviewer@example.test")
+    signature = destination.with_name(destination.name + ".promotion.sig")
+    assert reviewed.review_status == "reviewed"
+    assert run.call_args.kwargs["check"] is True
+    assert str(signature) in run.call_args.args[0]
+
+
+def test_promotion_fails_closed_when_gpg_signing_fails(tmp_path):
+    candidate_path = tmp_path / "switch.json"
+    candidate = write_candidate(candidate_path)
+    digest = candidate_sha256(candidate)
+    evidence_path = tmp_path / "switch.validation.json"
+    destination = tmp_path / "canonical" / "switch.json"
+    write_evidence(evidence_path, digest)
+    with patch("pipeline.domain_v2_promotion.subprocess.run", side_effect=OSError("gpg missing")):
+        with pytest.raises(ValueError, match="signature generation failed"):
+            promote_validated_candidate(candidate_path, evidence_path, destination,
+                                        accept_candidate_sha256=digest, signing_key="key")
+
+
 def test_promotion_rejects_already_reviewed_candidate(tmp_path):
     value = candidate_value()
     value["review_status"] = "reviewed"
