@@ -561,6 +561,52 @@ deliberately `unreviewed`: tests establish schema validity, bounded traversal, a
 renderability, but only an explicit `validate-domain` and hash-accepted `promote-domain` workflow
 may place adapted semantics in the reviewed V2 registry.
 
+### Domain-referenced system workflow
+
+For a multi-component system, generate and review the bounded domains first. The staged system
+designer then maps components to those reviewed domains instead of asking the provider to invent
+state variables, transitions, or nested expression trees. A component with `domain` is forbidden
+from carrying inline `state_variables` or `transitions`; the reviewed V2 artifact is the sole source
+of truth for those ASTs.
+
+The complete workflow is:
+
+```bash
+# 1. Generate, validate, and promote the bounded core domain.
+formalspecgen domain \
+  "An inventory tracker for checkout. Stock is 0 to 5; reserve decrements it and release increments it." \
+  --schema-version 2 --force --restart-clarifications
+formalspecgen validate-domain inventory --project-root .
+HASH=$(jq -r '.evidence.candidate_sha256' \
+  domains/candidates/inventory.v2.validation.json)
+formalspecgen promote-domain inventory --accept-candidate-sha256 "$HASH" --project-root .
+
+# 2. Design the architecture in staged/domain-reference mode.
+formalspecgen design-system \
+  "Checkout uses the 'inventory' domain for InventoryService. PaymentGateway is external; OrderService orchestrates." \
+  --provider ollama --staged --out-file checkout_architecture.json
+
+# 3. Bind TLC evidence and lower the architecture into Java sources.
+formalspecgen validate-architecture checkout_architecture.json \
+  --json checkout_design_evidence.json
+formalspecgen unified-system checkout_architecture.json \
+  --evidence checkout_design_evidence.json --out-dir src/ \
+  --json unified_verdict.json
+
+# 4. Optionally fill the generated external adapter with an SDK implementation.
+formalspecgen implement src/StripePaymentGateway.java \
+  --dependencies stripe --provider ollama \
+  --assurance-level lightweight --out src/
+```
+
+`unified-system` loads `domains/v2/<domain>.json`, emits the reviewed state and operation surface,
+and keeps external adapters outside the OpenJML input set. A successful core composition reports
+`SYSTEM_COMPOSITION_PROOF`; it proves the generated core respects the contracted port calls, not
+the Stripe SDK, credentials, transport, remote response authenticity, availability, or network
+side effects. Dependency injection must preserve the boundary marker, class/interface surface,
+method signatures, and JML clauses; injected adapters remain
+`UNVERIFIED_EXTERNAL_ADAPTER`.
+
 The implemented milestones provide:
 
 - Recursive discriminated expression trees and distinct bounded integer/Boolean state variables.
