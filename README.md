@@ -21,6 +21,21 @@ server command and its absolute project path, for example:
 {"mcpServers":{"formalspecgen":{"command":"python","args":["/path/to/formalspecgen/mcp_server.py"]}}}
 ```
 
+### Verified algorithm optimization
+
+For a verified Java/JML baseline, `optimize-algorithm` can ask a provider for a constrained
+algorithm rewrite, preserve the trusted surface, and re-run ESC plus the refactor gate:
+
+```bash
+formalspecgen optimize-algorithm TwoSum.java --strategy hashmap \
+  --out optimized/TwoSum.java --provider ollama --json optimization.json
+```
+
+The strongest claim is `ALGORITHM_OPTIMIZATION_VERIFIED`. It means the baseline and candidate
+passed their configured proof gates and the shared contract surface was preserved; it does not
+prove runtime bisimulation or asymptotic complexity. `nested_loop` is rejected as a possible
+complexity regression.
+
 ```text
 Natural language → clarification → checked language contract
                                       │

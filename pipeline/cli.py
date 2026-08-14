@@ -398,6 +398,16 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "VERIFIED" else 1
 
 
+def command_optimize_algorithm(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .algorithm_optimization import optimize_algorithm
+    result = optimize_algorithm(args.source, args.out, strategy=args.strategy,
+                                provider=args.provider, model=args.model)
+    if args.json:
+        _write_json(result, args.json, ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
+    return 0 if result["status"] == "VERIFIED" else 1
+
+
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .bisimulation import verify_bisimulation_inputs
     result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
@@ -1091,6 +1101,14 @@ def build_parser() -> argparse.ArgumentParser:
     verify_refactor.add_argument("--json", help="machine-readable evidence destination")
     verify_refactor.add_argument("--signing-key", help="GPG key ID for a detached verdict signature")
 
+    optimize = sub.add_parser("optimize-algorithm", parents=[common],
+                              help="rewrite a verified Java algorithm and re-run its proof gates")
+    optimize.add_argument("source")
+    optimize.add_argument("--strategy", choices=["hashmap", "two_pointer", "binary_search", "nested_loop"],
+                          required=True)
+    optimize.add_argument("--out", required=True)
+    optimize.add_argument("--json")
+
     bisimulation = sub.add_parser("verify-bisimulation",
                                   help="validate a scoped state mapping without claiming equivalence")
     bisimulation.add_argument("baseline")
@@ -1207,6 +1225,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "implement": return command_implement(args, ui)
     if args.command == "verify": return command_verify(args, ui)
     if args.command == "verify-refactor": return command_verify_refactor(args, ui)
+    if args.command == "optimize-algorithm": return command_optimize_algorithm(args, ui)
     if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
