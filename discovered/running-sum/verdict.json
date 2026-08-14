@@ -1,0 +1,24 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "RunningSum.java",
+  "strategies": [
+    "prefix_sum"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "prefix_sum"
+  ],
+  "results": [
+    {
+      "strategy": "prefix_sum",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "          ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: not a statement\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                    ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: Loop specifications must immediately precede a loop statement\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n            ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: > or ',' expected\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                             ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: not a statement\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                         ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: Expected a declaration or a JML construct inside the JML annotation here\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                       ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: not a statement\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                                      ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: ';' expected\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                                         ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: Expected a declaration or a JML construct inside the JML annotation here\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                                  ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:10: error: ';' expected\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; result[k] == \\sum(int j; 0; j < k + 1; nums[j]);\n                                                                                                           ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: illegal start of type\n        for (int i = 0; i < nums.length; i++) {\n        ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: <identifier> expected\n        for (int i = 0; i < nums.length; i++) {\n           ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: ',', ')', or '[' expected\n        for (int i = 0; i < nums.length; i++) {\n                  ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: > or ',' expected\n        for (int i = 0; i < nums.length; i++) {\n                                       ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: <identifier> expected\n        for (int i = 0; i < nums.length; i++) {\n                                          ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: <identifier> expected\n        for (int i = 0; i < nums.length; i++) {\n                                            ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:11: error: <identifier> expected\n        for (int i = 0; i < nums.length; i++) {\n                                             ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:15: error: illegal start of type\n        return result;\n        ^\ndiscovered/running-sum/prefix_sum/RunningSum.java:17: error: class, interface, enum, or record expected\n}\n^\n30 errors\n",
+      "file": "discovered/running-sum/prefix_sum/RunningSum.java",
+      "complexity": "O(n)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}

@@ -1,0 +1,14 @@
+{
+  "status": "VERIFIED",
+  "claim": "REFACTOR_CONTRACT_PRESERVED",
+  "scope": "same_normalized_jml_and_public_method_surface_with_independent_esc",
+  "baseline_sha256": "e79ca2b2b85d5176f50fe37b5d85f8f6f4a079a8bbedc394c996f2404fe2fc4a",
+  "refactored_sha256": "94ad92e75c417f98857cec23e27a7ee7d50e865bd2ab72e6c7da8df7d0ebd6ed",
+  "contract_sha256": "57f5f72c6bf78705d663a8cb8cfd60177bc8ff964fe1349ad435130beb5a4310",
+  "method_surface_sha256": "cdb56a86818aa82c83664bc1c2a3a0347617eae1b632590f83a91ea1a312cfab",
+  "baseline_deductive_proof": true,
+  "refactored_deductive_proof": true,
+  "contract_surface_preserved": true,
+  "behavior_equivalence_proved": false,
+  "refactor_verified": false
+}

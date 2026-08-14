@@ -36,6 +36,49 @@ passed their configured proof gates and the shared contract surface was preserve
 prove runtime bisimulation or asymptotic complexity. `nested_loop` is rejected as a possible
 complexity regression.
 
+### Algorithm discovery
+
+`discover-algorithms` fans a Java/JML specification out across independent strategy prompts and
+keeps only candidates that pass OpenJML ESC and the contract-preserving refactor gate. Candidates
+are isolated in strategy-named directories so public Java class filenames remain valid:
+
+```bash
+formalspecgen discover-algorithms TwoSumSpec.java \
+  --strategies all --provider ollama --max-workers 1 \
+  --out-dir discovered --json discovered/discovery-verdict.json
+```
+
+The registry includes `brute_force`, `two_pointer`, `hashmap`, `sliding_window`,
+`binary_search`, `prefix_sum`, `bit_manipulation`, and `dynamic_programming`. Use
+`--strategies name1,name2` to select a subset. `--max-workers 1` is recommended for local Ollama
+servers to avoid concurrent GPU/model contention. A successful run emits
+`ALGORITHM_DISCOVERY_COMPLETE`; no candidate is admitted when generation, syntax, ESC, or the
+trusted contract surface fails. Complexity labels are heuristics only; the discovery claim does
+not prove asymptotic complexity or behavioral bisimulation.
+
+### Security assessment
+
+`assess-security` combines OpenJML evidence with an optional Semgrep Java SAST pass and writes a
+machine-readable verdict:
+
+```bash
+formalspecgen assess-security src/Counter.java --json security-verdict.json
+```
+
+Recognized formal verification conditions are mapped to CWE evidence (for example,
+`ArithmeticOperationRange` → CWE-190, index failures → CWE-125, and null dereferences → CWE-476).
+Semgrep findings with `HIGH`, `ERROR`, or `CRITICAL` severity fail closed as `SECURITY_VIOLATION`.
+If Semgrep is unavailable or skipped, the report cannot claim full security:
+
+```bash
+formalspecgen assess-security src/Counter.java --no-sast
+# status: FORMALLY_VERIFIED_SAST_SKIPPED
+```
+
+`VERIFIED_SECURE` requires successful formal verification, no mapped formal findings, and a
+successful clean Semgrep run. This is scoped evidence—not immunity from all CWEs, cryptographic
+assurance, taint-flow proof, external-I/O safety, or regulatory certification.
+
 ```text
 Natural language → clarification → checked language contract
                                       │

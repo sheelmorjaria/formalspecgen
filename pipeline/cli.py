@@ -139,7 +139,9 @@ def _read(path: str) -> str:
 def _write_json(value: Any, destination: str | None, console: Console) -> None:
     text = json.dumps(value, indent=2, ensure_ascii=False, default=str)
     if destination:
-        Path(destination).write_text(text + "\n", encoding="utf-8")
+        output_path = Path(destination)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text + "\n", encoding="utf-8")
         console.print(f"Evidence written to [path]{destination}[/path]")
     else:
         console.print(text)
@@ -409,6 +411,27 @@ def command_optimize_algorithm(args: argparse.Namespace, ui: TerminalUI) -> int:
         ui.console.print(f"Code: {result.get('code', 'UNKNOWN')}\n"
                          f"Message: {result.get('message', 'no diagnostic available')}")
     return 0 if result["status"] == "VERIFIED" else 1
+
+
+def command_discover_algorithms(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .algorithm_discovery import discover_algorithms
+    selected = None if args.strategies == "all" else [item.strip() for item in args.strategies.split(",")]
+    result = discover_algorithms(args.source, args.out_dir, strategies=selected,
+                                 provider=args.provider, model=args.model,
+                                 max_workers=args.max_workers)
+    destination = args.json or str(Path(args.out_dir) / "discovery_verdict.json")
+    _write_json(result, destination, ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}\n"
+                     f"Verified candidates: {len(result.get('verified_candidates', []))}")
+    return 0 if result["status"] == "VERIFIED" else 1
+
+
+def command_assess_security(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .security_assessment import assess_security
+    result = assess_security(args.source, run_sast=not args.no_sast)
+    _write_json(result, args.json or "security_verdict.json", ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
+    return 0 if result["status"] == "VERIFIED_SECURE" else 1
 
 
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -1112,6 +1135,21 @@ def build_parser() -> argparse.ArgumentParser:
     optimize.add_argument("--out", required=True)
     optimize.add_argument("--json")
 
+    discover = sub.add_parser("discover-algorithms", parents=[common],
+                              help="fan out verified algorithm strategy candidates")
+    discover.add_argument("source")
+    discover.add_argument("--out-dir", default="discovered")
+    discover.add_argument("--strategies", default="all",
+                          help="all or comma-separated strategy names")
+    discover.add_argument("--max-workers", type=int, default=3)
+    discover.add_argument("--json")
+
+    security = sub.add_parser("assess-security", help="run formal CWE mapping and SAST assessment")
+    security.add_argument("source")
+    security.add_argument("--json")
+    security.add_argument("--no-sast", action="store_true",
+                          help="skip Semgrep; report is limited to formal evidence")
+
     bisimulation = sub.add_parser("verify-bisimulation",
                                   help="validate a scoped state mapping without claiming equivalence")
     bisimulation.add_argument("baseline")
@@ -1229,6 +1267,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "verify": return command_verify(args, ui)
     if args.command == "verify-refactor": return command_verify_refactor(args, ui)
     if args.command == "optimize-algorithm": return command_optimize_algorithm(args, ui)
+    if args.command == "discover-algorithms": return command_discover_algorithms(args, ui)
+    if args.command == "assess-security": return command_assess_security(args, ui)
     if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
@@ -1245,7 +1285,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     return 2
 
 
-_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "inspect",
+_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "compose", "reverify", "system"}
 

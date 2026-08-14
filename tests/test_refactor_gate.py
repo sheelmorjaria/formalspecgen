@@ -36,6 +36,22 @@ def test_contract_preserving_refactor_mints_only_scoped_claim(tmp_path):
     assert result["baseline_sha256"] != result["refactored_sha256"]
 
 
+def test_algorithm_refactor_allows_different_loop_proof_hints(tmp_path):
+    before = BASELINE.replace(
+        "public int balance() { return 1; }",
+        "//@ loop_invariant i >= 0;\n    //@ decreases 10 - i;\n"
+        "    public int balance() { return 1; }")
+    after = REFACTORED.replace(
+        "public int balance() { int current = 1; return current; }",
+        "//@ loop_invariant j >= 0;\n    //@ decreases j;\n"
+        "    public int balance() { int current = 1; return current; }")
+    baseline, refactored = _files(tmp_path, before=before, after=after)
+    with patch("pipeline.refactor_gate.verify", side_effect=[(0, ""), (0, "proved"),
+                                                               (0, ""), (0, "proved")]):
+        result = verify_contract_preserving_refactor(baseline, refactored)
+    assert result["claim"] == "REFACTOR_CONTRACT_PRESERVED"
+
+
 def test_refactor_surface_boundaries_fail_closed(tmp_path):
     missing = verify_contract_preserving_refactor(tmp_path / "missing.java", tmp_path / "x.java")
     assert missing["code"] == "source_unavailable"

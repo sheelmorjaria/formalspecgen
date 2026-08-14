@@ -79,6 +79,11 @@ class CliTests(unittest.TestCase):
         self.assertTrue(json.loads(destination.read_text())["ok"])
         cli._write_json({"ok": True}, None, self.console)
 
+    def test_json_output_creates_missing_parent_directories(self):
+        destination = self.root / "nested" / "evidence" / "result.json"
+        cli._write_json({"status": "ok"}, str(destination), self.console)
+        self.assertEqual(json.loads(destination.read_text(encoding="utf-8"))["status"], "ok")
+
     def test_draft_success_and_validation_failure(self):
         stub = self.root / "run" / "attempt1" / "X.java"
         stub.parent.mkdir(parents=True)

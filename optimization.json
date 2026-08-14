@@ -1,0 +1,7 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "code": "optimized_candidate_not_verified",
+  "message": "optimized/MaxArea.java:11: verify: The prover cannot establish an assertion (LoopInvariant) in method maxArea\n        //@ loop_invariant 0 <= left && left < right && right < height.length;\n            ^\n1 verification failure\n",
+  "behavior_equivalence_proved": false
+}

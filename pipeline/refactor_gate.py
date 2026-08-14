@@ -18,6 +18,17 @@ _METHOD = re.compile(
     r"\([^)]*\)(?:\s+throws\s+[^{;]+)?)(?=\s*[;{])")
 
 
+def _public_contract_clauses(source: str) -> list[str]:
+    """Return observable JML clauses, excluding implementation proof hints.
+
+    Loop invariants and termination measures describe a particular implementation's
+    control flow. An algorithm refactor is expected to replace them, so they must not
+    be treated as a changed public contract.
+    """
+    return sorted({clause for clause in extract_clauses(source)
+                   if not clause.startswith(("loop_invariant", "decreases"))})
+
+
 def _sha256(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
@@ -45,10 +56,11 @@ def _verification(path: Path) -> dict:
 
 def verify_contract_preserving_refactor(baseline_path: str | Path,
                                         refactored_path: str | Path) -> dict:
-    """Verify both revisions and bind an unchanged contract/API surface to their hashes.
+    """Verify both revisions and bind an unchanged public contract/API surface to their hashes.
 
-    This deliberately does not claim relational behavior equivalence. It establishes only that
-    both revisions discharge the same syntactic JML contract over the same visible method surface.
+    Loop invariants and decreases clauses are implementation proof hints and may change with
+    control flow. This deliberately does not claim relational behavior equivalence; it establishes
+    only that both revisions discharge the same public JML contract over the same method surface.
     """
     baseline_file, refactored_file = Path(baseline_path), Path(refactored_path)
     try:
@@ -67,8 +79,8 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
                      "Each public Java class must use its matching source filename")
     # A private extracted helper may repeat the public method's obligations so ESC can
     # reason modularly. Repetition does not alter the normalized contract surface.
-    baseline_contract = sorted(set(extract_clauses(baseline)))
-    refactored_contract = sorted(set(extract_clauses(refactored)))
+    baseline_contract = _public_contract_clauses(baseline)
+    refactored_contract = _public_contract_clauses(refactored)
     if not baseline_contract:
         return _fail("missing_trusted_contract", "Baseline contains no JML contract clauses")
     if baseline_contract != refactored_contract:
@@ -122,8 +134,8 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
         return _fail("unsafe_refactored_file_set", "A nonempty, non-symlink Java file set is required")
     if baseline_file.stem != class_name(baseline) or class_name(refactored_primary) != class_name(baseline):
         return _fail("primary_class_identity_changed", "Primary public class identity must be preserved")
-    baseline_contract = sorted(set(extract_clauses(baseline)))
-    primary_contract = sorted(set(extract_clauses(refactored_primary)))
+    baseline_contract = _public_contract_clauses(baseline)
+    primary_contract = _public_contract_clauses(refactored_primary)
     if not baseline_contract or baseline_contract != primary_contract:
         return _fail("primary_contract_surface_changed", "Primary normalized JML clauses differ")
     baseline_api, primary_api = public_method_surface(baseline), public_method_surface(refactored_primary)

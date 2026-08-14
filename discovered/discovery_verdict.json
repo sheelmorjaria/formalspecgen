@@ -1,0 +1,80 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "archive/generated/test-runs/leetcode/TwoSum.java",
+  "strategies": [
+    "brute_force",
+    "two_pointer",
+    "hashmap",
+    "sliding_window",
+    "binary_search"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "binary_search",
+    "hashmap",
+    "sliding_window",
+    "two_pointer",
+    "brute_force"
+  ],
+  "results": [
+    {
+      "strategy": "binary_search",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/binary_search/TwoSum.java:18: verify: The prover cannot establish an assertion (ArithmeticOperationRange) in method twoSum: overflow in int difference\n                int mid = lo + (hi - lo) / 2;\n                                   ^\ndiscovered/binary_search/TwoSum.java:18: verify: The prover cannot establish an assertion (ArithmeticOperationRange) in method twoSum: underflow in int sum\n                int mid = lo + (hi - lo) / 2;\n                             ^\ndiscovered/binary_search/TwoSum.java:19: verify: The prover cannot establish an assertion (PossiblyNegativeIndex) in method twoSum\n                int sum = nums[i] + nums[mid];\n                              ^\ndiscovered/binary_search/TwoSum.java:19: verify: The prover cannot establish an assertion (PossiblyNegativeIndex) in method twoSum\n                int sum = nums[i] + nums[mid];\n                                        ^\ndiscovered/binary_search/TwoSum.java:16: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n            //@ loop_invariant \\forall int k; hi < k && k < nums.length; nums[i] + nums[k] != target;\n                ^\ndiscovered/binary_search/TwoSum.java:19: verify: The prover cannot establish an assertion (PossiblyTooLargeIndex) in method twoSum\n                int sum = nums[i] + nums[mid];\n                                        ^\ndiscovered/binary_search/TwoSum.java:15: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n            //@ loop_invariant \\forall int k; i + 1 <= k && k < lo; nums[i] + nums[k] != target;\n                ^\ndiscovered/binary_search/TwoSum.java:21: verify: The prover cannot establish an assertion (Postcondition: discovered/binary_search/TwoSum.java:7:) in method twoSum\n                    return new int[]{i, mid};\n                    ^\ndiscovered/binary_search/TwoSum.java:7: verify: Associated declaration: discovered/binary_search/TwoSum.java:21:\n    //@ ensures (\\result[0] == -1 && \\result[1] == -1) ||\n        ^\n9 verification failures\n",
+      "file": "discovered/binary_search/TwoSum.java",
+      "complexity": "O(log n)"
+    },
+    {
+      "strategy": "hashmap",
+      "status": "FAIL",
+      "code": "refactor_gate_failed",
+      "verification": {
+        "status": "FAIL",
+        "claim": "NO_PROOF",
+        "code": "source_unchanged",
+        "message": "No refactoring change was detected",
+        "contract_surface_preserved": false,
+        "behavior_equivalence_proved": false,
+        "refactor_verified": false
+      },
+      "file": "discovered/hashmap/TwoSum.java",
+      "complexity": "O(n)"
+    },
+    {
+      "strategy": "sliding_window",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/sliding_window/TwoSum.java:20: verify: The prover cannot establish an assertion (LoopInvariantBeforeLoop) in method twoSum\n            //@ loop_invariant \\forall int i; left < i && i < right; nums[left] + nums[i] != target;\n                ^\ndiscovered/sliding_window/TwoSum.java:17: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n        //@ loop_invariant \\forall int i; 0 <= i && i < left; \\forall int j; right <= j && j < nums.length; nums[i] + nums[j] != target;\n            ^\n2 verification failures\n",
+      "file": "discovered/sliding_window/TwoSum.java",
+      "complexity": "O(n)"
+    },
+    {
+      "strategy": "two_pointer",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/two_pointer/TwoSum.java:17: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n        //@ loop_invariant \\forall int i, j; 0 <= i && i < left && 0 <= j && j < nums.length && j > right; nums[i] + nums[j] != target;\n            ^\n1 verification failure\n",
+      "file": "discovered/two_pointer/TwoSum.java",
+      "complexity": "O(n)"
+    },
+    {
+      "strategy": "brute_force",
+      "status": "FAIL",
+      "code": "refactor_gate_failed",
+      "verification": {
+        "status": "FAIL",
+        "claim": "NO_PROOF",
+        "code": "source_unchanged",
+        "message": "No refactoring change was detected",
+        "contract_surface_preserved": false,
+        "behavior_equivalence_proved": false,
+        "refactor_verified": false
+      },
+      "file": "discovered/brute_force/TwoSum.java",
+      "complexity": "O(n^2)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}

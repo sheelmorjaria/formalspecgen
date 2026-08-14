@@ -1,0 +1,24 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "archive/generated/test-runs/leetcode/TwoSum.java",
+  "strategies": [
+    "two_pointer"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "two_pointer"
+  ],
+  "results": [
+    {
+      "strategy": "two_pointer",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/TwoSum_two_pointer.java:1: error: class TwoSum is public, should be declared in a file named TwoSum.java\npublic class TwoSum {\n       ^\n1 error\n",
+      "file": "discovered/TwoSum_two_pointer.java",
+      "complexity": "O(n)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}

@@ -1,0 +1,38 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "SingleNumber.java",
+  "strategies": [
+    "bit_manipulation"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "bit_manipulation"
+  ],
+  "results": [
+    {
+      "strategy": "bit_manipulation",
+      "status": "FAIL",
+      "code": "trusted_surface_changed",
+      "message": {
+        "clauses": {
+          "expected": [
+            "ensures nums != null ==> \\result == \\result",
+            "ensures nums == null ==> \\result == 0",
+            "requires nums != null && nums.length <= 1000"
+          ],
+          "actual": [
+            "\\exists int k; 0 <= k < \\length(nums)",
+            "\\forall int j; 0 <= j < i",
+            "ensures nums != null ==> \\result == \\result",
+            "ensures nums == null ==> \\result == 0",
+            "requires nums != null && nums.length <= 1000"
+          ]
+        }
+      },
+      "complexity": "O(n)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}

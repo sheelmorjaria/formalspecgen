@@ -1,7 +1,7 @@
 {
   "status": "FAIL",
   "claim": "NO_PROOF",
-  "code": "optimization_generation_failed",
-  "message": "[NETWORK] request failed/timed out after 900s: <urlopen error [Errno 1] Operation not permitted>",
+  "code": "optimized_candidate_not_verified",
+  "message": "archive/generated/test-runs/leetcode/optimized/TwoSum.java:22: verify: The prover cannot establish an assertion (Assignable: archive/generated/test-runs/leetcode/optimized/TwoSum.java:17:) in method twoSum: objectState\n            map.put(nums[i], i);\n                   ^\narchive/generated/test-runs/leetcode/optimized/TwoSum.java:17: verify: Associated declaration: archive/generated/test-runs/leetcode/optimized/TwoSum.java:22:\n        for (int i = 0; i < nums.length; i++) {\n        ^\narchive/generated/test-runs/leetcode/optimized/TwoSum.java:16: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n        //@ loop_invariant \\forall int k; 0 <= k && k < i; !map.containsKey(nums[k]);\n            ^\n3 verification failures\n",
   "behavior_equivalence_proved": false
 }

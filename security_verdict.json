@@ -1,0 +1,23 @@
+{
+  "status": "FORMALLY_VERIFIED_SAST_SKIPPED",
+  "claim": "FORMALLY_VERIFIED_SAST_SKIPPED",
+  "file": "optimized/MaxArea.java",
+  "formal_verification": {
+    "exit_code": 0,
+    "verified": true,
+    "output": ""
+  },
+  "formal_findings": [],
+  "formal_cwes_mitigated": [
+    "CWE-125",
+    "CWE-190",
+    "CWE-476"
+  ],
+  "sast": {
+    "status": "SKIPPED",
+    "tool": "semgrep"
+  },
+  "sast_findings": [],
+  "security_scope": "Formal memory/arithmetic obligations plus configured Semgrep rules; external I/O and unmodeled vulnerabilities are not assessed.",
+  "behavior_equivalence_proved": false
+}

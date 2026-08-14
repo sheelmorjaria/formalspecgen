@@ -1,0 +1,34 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "SortedTwoSum.java",
+  "strategies": [
+    "two_pointer",
+    "brute_force"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "two_pointer",
+    "brute_force"
+  ],
+  "results": [
+    {
+      "strategy": "two_pointer",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/sorted-two-sum/two_pointer/SortedTwoSum.java:5: error: Incorrectly formed or terminated requires statement near here\n    //@ requires target >= 0 && target <= 20000;\n                 ^\ndiscovered/sorted-two-sum/two_pointer/SortedTwoSum.java:7: error: Incorrectly formed or terminated requires statement near here\n    //@ ensures \\result != null && \\result.length == 2;\n                ^\ndiscovered/sorted-two-sum/two_pointer/SortedTwoSum.java:20: error: Incorrectly formed or terminated loop_invariant statement near here\n        //@ loop_invariant \\forall int i, j; \n                           ^\ndiscovered/sorted-two-sum/two_pointer/SortedTwoSum.java:21: error: not a statement\n        //@   0 <= i && i < left && right < j && i < j ==> nums[i] + nums[j] != target;\n                                                       ^\ndiscovered/sorted-two-sum/two_pointer/SortedTwoSum.java:21: error: Expected a declaration or a JML construct inside the JML annotation here\n        //@   0 <= i && i < left && right < j && i < j ==> nums[i] + nums[j] != target;\n              ^\ndiscovered/sorted-two-sum/two_pointer/SortedTwoSum.java:15: error: Loop specifications must immediately precede a loop statement\n        //@ loop_invariant 0 <= left && left < nums.length;\n            ^\n6 errors\n",
+      "file": "discovered/sorted-two-sum/two_pointer/SortedTwoSum.java",
+      "complexity": "O(n)"
+    },
+    {
+      "strategy": "brute_force",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/sorted-two-sum/brute_force/SortedTwoSum.java:5: error: Incorrectly formed or terminated requires statement near here\n    //@ requires target >= 0 && target <= 20000;\n                 ^\ndiscovered/sorted-two-sum/brute_force/SortedTwoSum.java:7: error: Incorrectly formed or terminated requires statement near here\n    //@ ensures \\result != null && \\result.length == 2;\n                ^\n2 errors\n",
+      "file": "discovered/sorted-two-sum/brute_force/SortedTwoSum.java",
+      "complexity": "O(n^2)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}

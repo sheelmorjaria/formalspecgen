@@ -1,0 +1,24 @@
+{
+  "status": "FAIL",
+  "claim": "NO_PROOF",
+  "source": "archive/generated/test-runs/leetcode/TwoSum.java",
+  "strategies": [
+    "two_pointer"
+  ],
+  "verified_candidates": [],
+  "failed_strategies": [
+    "two_pointer"
+  ],
+  "results": [
+    {
+      "strategy": "two_pointer",
+      "status": "FAIL",
+      "code": "candidate_not_verified",
+      "message": "discovered/two_pointer/TwoSum.java:17: verify: The prover cannot establish an assertion (LoopInvariant) in method twoSum\n        //@ loop_invariant \\forall int i, j; 0 <= i && i < left && 0 <= j && j < nums.length && j > right; nums[i] + nums[j] != target;\n            ^\n1 verification failure\n",
+      "file": "discovered/two_pointer/TwoSum.java",
+      "complexity": "O(n)"
+    }
+  ],
+  "behavior_equivalence_proved": false,
+  "complexity_improvement_proved": false
+}
