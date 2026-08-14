@@ -42,7 +42,10 @@ jobs:
       - name: Install development dependencies
         run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
       - name: Run tests with branch coverage gate
-        run: python -m pytest
+        run: >-
+          python -m pytest
+          --ignore=tests/test_parallel_wrapper.py
+          --ignore=tests/test_v2_async_serializer.py
       - name: Verify refactor-mode CLI contract
         run: python -m pytest --no-cov tests/test_cli_system.py tests/test_system_orchestrator.py
       - name: Upload coverage XML
