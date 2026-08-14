@@ -1,7 +1,7 @@
 {
   "status": "FAIL",
   "claim": "NO_PROOF",
-  "code": "baseline_not_verified",
-  "message": "archive/generated/test-runs/leetcode/TwoSum.java:19: verify: The prover cannot establish an assertion (Postcondition: archive/generated/test-runs/leetcode/TwoSum.java:7:) in method twoSum\n        return new int[]{-1, -1};\n        ^\narchive/generated/test-runs/leetcode/TwoSum.java:7: verify: Associated declaration: archive/generated/test-runs/leetcode/TwoSum.java:19:\n    //@ ensures 0 <= \\result[0] && \\result[0] < \\result[1] && \\result[1] < nums.length;\n        ^\n2 verification failures\n",
+  "code": "optimization_generation_failed",
+  "message": "[NETWORK] request failed/timed out after 900s: <urlopen error [Errno 1] Operation not permitted>",
   "behavior_equivalence_proved": false
 }

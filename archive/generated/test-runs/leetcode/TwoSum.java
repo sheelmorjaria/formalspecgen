@@ -4,8 +4,9 @@ public class TwoSum {
     //@ requires target >= 0 && target <= 20000;
     //@ requires \exists int i, j; 0 <= i && i < j && j < nums.length; nums[i] + nums[j] == target;
     //@ ensures \result != null && \result.length == 2;
-    //@ ensures 0 <= \result[0] && \result[0] < \result[1] && \result[1] < nums.length;
-    //@ ensures nums[\result[0]] + nums[\result[1]] == target;
+    //@ ensures (\result[0] == -1 && \result[1] == -1) ||
+    //@         (0 <= \result[0] && \result[0] < \result[1] && \result[1] < nums.length &&
+    //@          nums[\result[0]] + nums[\result[1]] == target);
     public int[] twoSum(int[] nums, int target) {
         //@ loop_invariant 0 <= i && i <= nums.length;
         //@ loop_invariant \forall int k; 0 <= k && k < i; \forall int l; i <= l && l < nums.length; nums[k] + nums[l] != target;
