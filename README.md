@@ -1023,6 +1023,7 @@ Factory, narrow State, narrow Decorator, and narrow Facade extraction profiles.
 
 `verify-bisimulation` validates a JSON state mapping and binds baseline/refactored source hashes,
 but deliberately emits `behavior_equivalence_proved: false`; a mapping is not a relational proof.
+The preflight also reports `contract_surface_preserved` by comparing public Java method signatures.
 
 ```bash
 formalspecgen verify-bisimulation baseline/Legacy.java refactored/ mapping.json --json bisim.json
