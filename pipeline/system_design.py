@@ -16,7 +16,8 @@ from .parse_check import parse_check
 from .parse_vcs import parse_vcs
 from .staged_architecture import (
     ComponentFragment, OperationFragment, StateVariableFragment, TransitionFragment,
-    UseCaseStepFragment, parse_json_fragment, assemble_architecture, validate_transition,
+    UseCaseStepFragment, parse_json_fragment, parse_operation_fragments,
+    assemble_architecture, validate_transition,
 )
 from .architecture_tla_renderer import render_architecture_tla
 from .architecture_tlc_gate import publish_architecture
@@ -102,9 +103,14 @@ def design_system_staged(requirement: str, provider: str = "ollama",
         states = {}
         transitions = {}
         for component in components:
-            operations[component.name] = ask(
-                f"List operations for {component.name}. Each needs name, params, requires, ensures, returns. Requirement:\n{requirement}",
-                list[OperationFragment])
+            operation_prompt = (f"List operations for {component.name}. Each needs name, params, "
+                                f"requires, ensures, returns. You may return a flat list or an "
+                                f"object keyed by component name. Requirement:\n{requirement}")
+            raw_ops, _used, _usage = chat(
+                [{"role": "system", "content": "Return only valid JSON operation fragments."},
+                 {"role": "user", "content": operation_prompt}], None, 0.0)
+            grouped = parse_operation_fragments(raw_ops)
+            operations[component.name] = grouped.get(component.name, grouped.get("", []))
             if component.type in {"core", "orchestrator"}:
                 states[component.name] = ask(
                     f"List bounded integer/boolean state variables for {component.name}; every integer needs bound and initial. Requirement:\n{requirement}",

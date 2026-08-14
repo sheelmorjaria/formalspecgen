@@ -137,6 +137,20 @@ def parse_json_fragment(raw: str, model, repair_chat: Callable[[str], str] | Non
     raise ValueError(f"FRAGMENT_REPAIR_FAILED: {last_error}") from last_error
 
 
+def parse_operation_fragments(raw: str) -> dict[str, list[OperationFragment]]:
+    """Normalize flat or component-keyed operation JSON into validated groups."""
+    data = json.loads(raw)
+    groups = data if isinstance(data, dict) else {"": data}
+    if not isinstance(groups, dict):
+        raise ValueError("operation fragments must be a list or component-keyed object")
+    result = {}
+    for component, values in groups.items():
+        if not isinstance(values, list):
+            raise ValueError(f"INVALID_OPERATION_GROUP: {component}")
+        result[str(component)] = [OperationFragment.model_validate(item) for item in values]
+    return result
+
+
 def assemble_component_fragments(components: list[ComponentFragment],
                                  operations: dict[str, list[OperationFragment]] | None = None,
                                  steps: list[UseCaseStepFragment] | None = None) -> dict:
