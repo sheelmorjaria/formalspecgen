@@ -46,6 +46,20 @@ def load_validation_envelope(path: str | Path) -> EvidenceEnvelope:
     return EvidenceEnvelope.model_validate_json(Path(path).read_text(encoding="utf-8"))
 
 
+def sign_artifact(path: str | Path, signing_key: str, *, suffix: str = ".sig") -> Path:
+    """Create a detached GPG signature for an emitted evidence artifact."""
+    artifact = Path(path)
+    signature = Path(str(artifact) + suffix)
+    try:
+        subprocess.run(["gpg", "--batch", "--yes", "--local-user", signing_key,
+                        "--detach-sign", "--output", str(signature), str(artifact)],
+                       check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        signature.unlink(missing_ok=True)
+        raise ValueError("CRITICAL: artifact signature generation failed") from exc
+    return signature
+
+
 def promote_validated_candidate(
     candidate_path: str | Path,
     validation_path: str | Path,
@@ -75,14 +89,7 @@ def promote_validated_candidate(
     })
     write_json_atomic(destination, reviewed.model_dump(mode="json"))
     if signing_key:
-        signature = Path(str(destination) + ".promotion.sig")
-        try:
-            subprocess.run(["gpg", "--batch", "--yes", "--local-user", signing_key,
-                            "--detach-sign", "--output", str(signature), str(destination)],
-                           check=True, capture_output=True, text=True)
-        except (OSError, subprocess.CalledProcessError) as exc:
-            signature.unlink(missing_ok=True)
-            raise ValueError("CRITICAL: promotion signature generation failed") from exc
+        sign_artifact(destination, signing_key, suffix=".promotion.sig")
     return reviewed
 
 

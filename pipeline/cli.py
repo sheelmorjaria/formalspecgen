@@ -384,6 +384,14 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
               if Path(args.refactored).is_dir() else
               verify_contract_preserving_refactor(args.baseline, args.refactored))
     _write_json(result, args.json, ui.console)
+    if getattr(args, "signing_key", None) and args.json:
+        from .domain_v2_promotion import sign_artifact
+        try:
+            signature = sign_artifact(args.json, args.signing_key)
+        except ValueError as exc:
+            ui.console.print(f"[bold red]{escape(str(exc))}[/bold red]")
+            return 2
+        ui.console.print(f"[green]Refactor verdict signature:[/green] {signature}")
     return 0 if result["status"] == "VERIFIED" else 1
 
 
@@ -1068,6 +1076,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_refactor.add_argument(
         "refactored", help="refactored Java/JML revision or multi-file source directory")
     verify_refactor.add_argument("--json", help="machine-readable evidence destination")
+    verify_refactor.add_argument("--signing-key", help="GPG key ID for a detached verdict signature")
 
     inspect = sub.add_parser(
         "inspect", help="deterministically inspect one Java class for refactoring signals")
