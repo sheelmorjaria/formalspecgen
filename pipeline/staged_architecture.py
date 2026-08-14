@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from typing import Literal
+import json
+from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -77,3 +79,51 @@ def validate_step_bindings(step: UseCaseStepFragment, operation: OperationFragme
         raise ValueError("MISSING_ARGUMENT_BINDING: " + ", ".join(sorted(expected - actual)))
     if actual - expected:
         raise ValueError("EXTRA_ARGUMENT_BINDING: " + ", ".join(sorted(actual - expected)))
+
+
+def parse_json_fragment(raw: str, model, repair_chat: Callable[[str], str] | None = None,
+                        max_attempts: int = 3):
+    """Parse one small fragment, optionally asking the provider to repair diagnostics."""
+    candidate = raw
+    last_error = None
+    for _ in range(max_attempts):
+        try:
+            value = json.loads(candidate)
+            return model.model_validate(value)
+        except (json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+            if repair_chat is None:
+                break
+            candidate = repair_chat(
+                "Return only corrected JSON. Previous fragment:\n" + candidate[:12000] +
+                "\nValidation error:\n" + str(exc))
+    raise ValueError(f"FRAGMENT_REPAIR_FAILED: {last_error}") from last_error
+
+
+def assemble_component_fragments(components: list[ComponentFragment],
+                                 operations: dict[str, list[OperationFragment]] | None = None,
+                                 steps: list[UseCaseStepFragment] | None = None) -> dict:
+    """Resolve staged names and return a plain assembly manifest without proving it."""
+    by_name = {item.name: item for item in components}
+    if len(by_name) != len(components):
+        raise ValueError("DUPLICATE_COMPONENT_NAME")
+    operation_map: dict[tuple[str, str], OperationFragment] = {}
+    for component_name, fragments in (operations or {}).items():
+        if component_name not in by_name:
+            raise ValueError(f"UNRESOLVED_COMPONENT_REFERENCE: {component_name}")
+        names = [item.name for item in fragments]
+        if len(names) != len(set(names)):
+            raise ValueError(f"DUPLICATE_OPERATION_NAME: {component_name}")
+        for operation in fragments:
+            operation_map[(component_name, operation.name)] = operation
+    for step in steps or []:
+        if step.component not in by_name:
+            raise ValueError(f"UNRESOLVED_COMPONENT_REFERENCE: {step.component}")
+        operation = operation_map.get((step.component, step.operation))
+        if operation is None:
+            raise ValueError(f"UNRESOLVED_OPERATION_REFERENCE: {step.component}.{step.operation}")
+        validate_step_bindings(step, operation)
+    return {"components": [item.model_dump() for item in components],
+            "operations": {name: [item.model_dump() for item in values]
+                            for name, values in (operations or {}).items()},
+            "steps": [item.model_dump() for item in (steps or [])]}
