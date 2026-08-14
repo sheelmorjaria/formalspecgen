@@ -57,6 +57,10 @@ dist/
 /*.cfg
 *.canonical.json
 *.validation_failed.json
+inspection.json
+refactor_candidate.json
+refactor_verdict.json
+sensor_gateway_design*.json
 
 # Local model-checker and prover working directories
 states/
