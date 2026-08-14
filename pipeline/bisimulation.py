@@ -34,6 +34,12 @@ def verify_bisimulation_inputs(baseline: str | Path, refactored: str | Path,
     if any(not isinstance(key, str) or not isinstance(value, str) or
            not _IDENTIFIER.fullmatch(value) for key, value in mapping_value.items()):
         return {"status": "BISIMULATION_MAPPING_INVALID", "claim": "NO_PROOF"}
+    refactored_text = "\n".join(Path(path).read_text(encoding="utf-8") for path in sources)
+    state_types = set(re.findall(r"\bclass\s+([A-Za-z_$][A-Za-z0-9_$]*)", refactored_text))
+    missing = sorted(set(mapping_value.values()) - state_types)
+    if missing:
+        return {"status": "BISIMULATION_STATE_UNRESOLVED", "claim": "NO_PROOF",
+                "missing_states": missing}
     return {"status": "BISIMULATION_PREFLIGHT_READY", "claim": "NO_PROOF",
             "behavior_equivalence_proved": False, "heap_topology_equivalence_proved": False,
             "mapping": mapping_value,

@@ -20,3 +20,11 @@ def test_bisimulation_preflight_rejects_invalid_mapping(tmp_path):
     mapping = tmp_path / "mapping.json"; mapping.write_text(json.dumps({"0": "not-valid!"}))
     assert verify_bisimulation_inputs(baseline, refactored, mapping)["status"] == \
         "BISIMULATION_MAPPING_INVALID"
+
+
+def test_bisimulation_preflight_rejects_unresolved_state_type(tmp_path):
+    baseline = tmp_path / "Legacy.java"; baseline.write_text("class Legacy {}")
+    refactored = tmp_path / "Modern.java"; refactored.write_text("class Modern {}")
+    mapping = tmp_path / "mapping.json"; mapping.write_text(json.dumps({"0": "IdleState"}))
+    result = verify_bisimulation_inputs(baseline, refactored, mapping)
+    assert result["status"] == "BISIMULATION_STATE_UNRESOLVED"
