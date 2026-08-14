@@ -39,6 +39,39 @@ FormalSpecGen now covers three connected workflows:
 | Hexagonal integration | `compose` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use; `external_io_safety_proved: false` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
 
+### Post-push roadmap progress
+
+The following milestones were added after the previous repository push:
+
+Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `c367d3a`,
+`692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`.
+
+- Narrow deterministic State, Decorator, and Facade profiles now emit multifile candidates with
+  explicit heap-topology and callback/state limitations. Their outputs still require the
+  multifile refactor gate.
+- V2 promotions and refactor verdicts support optional detached GPG signatures. Signature
+  verification, authorized-key policy, composition binding checks, and unified-system domain
+  loading are opt-in through `FORMALSPECGEN_REQUIRE_SIGNATURES=1` and
+  `AUTHORIZED_REVIEWER_KEYS`.
+- Rust/C standard assurance now mints `STATIC_CHECKED_RUNTIME_TESTED` only after a passing
+  instrumented runtime sample. C proof-support includes indexed `\\valid` and `\\separated`
+  passes.
+- Bisimulation preflight validates state mappings, resolves target classes, hashes sources, and
+  rejects public-surface drift. Concurrent composition preflight emits bounded `Actors`,
+  `callResult`, and `history` state; lock correspondence checks require synchronized Java regions
+  and a lock-protocol model.
+
+The following roadmap claims remain intentionally incomplete:
+
+- `BEHAVIORAL_EQUIVALENCE_PROVED`: requires a genuine relational/bisimulation proof backend.
+- `CONCURRENT_COMPOSITION_LINEARIZABILITY_PROVED`: requires TLC interleaving verification plus
+  discharged Java lock-acquisition/release correspondence.
+- Broad semantic Strategy/State/Decorator/Facade decomposition: only the restricted profiles above
+  are admitted; responsibility grouping, callback ordering, and heap topology are not inferred.
+
+Preflight artifacts and mappings never mint these claims by themselves; unsupported or missing
+proof evidence fails closed.
+
 These evidence classes are intentionally not interchangeable. In particular,
 `REFACTOR_CONTRACT_PRESERVED` proves that both revisions discharge the same normalized JML/API
 surface; it does not claim relational behavioral equivalence. Async Tokio generation similarly
