@@ -1,0 +1,26 @@
+{
+  "status": "INSPECTED",
+  "claim": "STATIC_INSPECTION",
+  "scope": "deterministic_token_aware_java_structure_heuristics",
+  "parser_mode": "javalang_ast_0.13.0",
+  "source": "/home/sheel/formalspecgen/baseline/LegacyService.java",
+  "source_sha256": "da287a2618a8a8e3132c62850a66b140a92ef148b151990c69c34ab2c9eb8506",
+  "class": "LegacyService",
+  "metrics": {
+    "fields": 1,
+    "methods": 1
+  },
+  "findings": [
+    {
+      "line": 7,
+      "code": "long-method",
+      "severity": "warning",
+      "message": "Method processOrder spans 67 lines.",
+      "suggested_pattern": "Extract Method",
+      "recommendation": "Extract cohesive steps while preserving the existing JML method contract."
+    }
+  ],
+  "automated_refactor_applied": false,
+  "formal_defect_proved": false,
+  "behavior_equivalence_proved": false
+}

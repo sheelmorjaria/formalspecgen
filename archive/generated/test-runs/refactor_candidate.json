@@ -1,0 +1,31 @@
+{
+  "status": "VERIFIED",
+  "claim": "REFACTOR_CONTRACT_PRESERVED",
+  "transformation": {
+    "status": "TRANSFORMED",
+    "claim": "DETERMINISTIC_REFACTOR_CANDIDATE",
+    "pattern": "Extract Method",
+    "method": "processOrder",
+    "source_sha256": "da287a2618a8a8e3132c62850a66b140a92ef148b151990c69c34ab2c9eb8506",
+    "refactored_sha256": "5586ddef5bc5e1152aa570677850625d36eb08a07046b0ecae1f6f3a697f5b24",
+    "formal_preservation_proved": false,
+    "requires_refactor_gate": true
+  },
+  "verification": {
+    "status": "VERIFIED",
+    "claim": "REFACTOR_CONTRACT_PRESERVED",
+    "scope": "same_normalized_jml_and_public_method_surface_with_independent_esc",
+    "baseline_sha256": "da287a2618a8a8e3132c62850a66b140a92ef148b151990c69c34ab2c9eb8506",
+    "refactored_sha256": "5586ddef5bc5e1152aa570677850625d36eb08a07046b0ecae1f6f3a697f5b24",
+    "contract_sha256": "26171279074bc944e74521833f74403a3c5fe1cf943794d2c6ca0ceff85dc8f7",
+    "method_surface_sha256": "e1374032f0fca6cd9f807bf8dfb4cd37cdc93d16f9157b198bbac93545274ad8",
+    "baseline_deductive_proof": true,
+    "refactored_deductive_proof": true,
+    "contract_surface_preserved": true,
+    "behavior_equivalence_proved": false,
+    "refactor_verified": false
+  },
+  "automated_refactor_applied": true,
+  "behavior_equivalence_proved": false,
+  "refactor_verified": false
+}

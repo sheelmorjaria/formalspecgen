@@ -1,0 +1,4 @@
+{
+  "status": "STAGED_GENERATION_FAILED",
+  "message": "[NETWORK] request failed/timed out after 900s: <urlopen error [Errno 1] Operation not permitted>"
+}

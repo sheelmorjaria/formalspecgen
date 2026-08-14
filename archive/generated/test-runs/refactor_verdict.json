@@ -1,0 +1,22 @@
+{
+  "status": "VERIFIED",
+  "claim": "MULTIFILE_REFACTOR_CONTRACT_PRESERVED",
+  "scope": "primary_jml_api_preservation_plus_joint_refactored_fileset_esc",
+  "baseline_sha256": "da287a2618a8a8e3132c62850a66b140a92ef148b151990c69c34ab2c9eb8506",
+  "primary_sha256": "5586ddef5bc5e1152aa570677850625d36eb08a07046b0ecae1f6f3a697f5b24",
+  "contract_sha256": "26171279074bc944e74521833f74403a3c5fe1cf943794d2c6ca0ceff85dc8f7",
+  "method_surface_sha256": "e1374032f0fca6cd9f807bf8dfb4cd37cdc93d16f9157b198bbac93545274ad8",
+  "refactored_manifest": [
+    {
+      "path": "LegacyService.java",
+      "sha256": "5586ddef5bc5e1152aa570677850625d36eb08a07046b0ecae1f6f3a697f5b24"
+    }
+  ],
+  "refactored_manifest_sha256": "ed3625c173a352f2d8be849e97ac6f185da2980d45b48f27ea74a873dfbffbe2",
+  "baseline_deductive_proof": true,
+  "refactored_fileset_deductive_proof": true,
+  "contract_surface_preserved": true,
+  "behavior_equivalence_proved": false,
+  "heap_topology_equivalence_proved": false,
+  "refactor_verified": false
+}
