@@ -846,10 +846,12 @@ records `behavior_equivalence_proved: false` and `refactor_verified: false`. Str
 dependency injection, multi-file moves, arbitrary statement selection, and semantic rewrites remain
 outside this initial action profile.
 
-State and Decorator currently remain inspection-only recommendations. Their deterministic
-application would introduce new objects and cross-file calls with transition or callback-order
-semantics. `apply-refactor` does not offer those patterns until profile-specific obligations can
-prove the generated collaborators and delegation glue rather than merely compiling them.
+State and Decorator remain inspection-only recommendations for general code. A narrow State
+profile is admitted for methods containing two or more `int` equality branches whose bodies are
+single return expressions; it emits stateless handler classes and routes the selected branch
+through them. It does not replace the state field or infer legal transitions, and the generated
+directory still requires the multifile refactor gate. Decorator and broad state transitions remain
+unavailable until their callback/order and invariant obligations can be proved.
 
 #### End-to-end modernization workflow
 
@@ -1013,9 +1015,9 @@ creation body. Existing product types must already be available in the output pr
 
 The generated directory is immediately routed through the multi-file gate. Constructor arguments,
 field-dependent decisions, additional statements, overloaded target names, type-name collisions,
-side effects, or stale inspection evidence fail closed. State and Decorator transformations remain
-inspection-only: their transition and callback-order mappings require stronger profile-specific
-obligations than the Factory creation-policy extraction.
+side effects, or stale inspection evidence fail closed. Decorator transformations remain
+inspection-only: callback-order mappings require stronger profile-specific obligations than the
+Factory and narrow State extraction profiles.
 
 ## Providers
 

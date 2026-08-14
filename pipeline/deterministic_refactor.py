@@ -145,6 +145,69 @@ def _factory_files(source: str, method, product_type: str) -> dict[str, str]:
             f"{concrete_type}.java": concrete}
 
 
+def extract_state_from_inspection(source_path: str | Path, inspection_path: str | Path,
+                                  method_name: str) -> dict:
+    """Extract a narrow scalar-state dispatch into stateless handler classes."""
+    source_file, evidence_file = Path(source_path), Path(inspection_path)
+    try:
+        source = source_file.read_text(encoding="utf-8")
+        evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        return _fail("input_unavailable", str(exc))
+    digest = hashlib.sha256(source.encode()).hexdigest()
+    finding = next((item for item in evidence.get("findings", [])
+                    if item.get("code") == "repeated-state-dispatch" and
+                    method_name in item.get("methods", [])), None)
+    if (evidence.get("status") != "INSPECTED" or evidence.get("claim") != "STATIC_INSPECTION" or
+            evidence.get("source_sha256") != digest or finding is None):
+        return _fail("inspection_binding_mismatch", "A hash-bound State finding is required")
+    try:
+        tree = javalang.parse.parse(source)
+        method = next(node for _, node in tree.filter(javalang.tree.MethodDeclaration)
+                       if node.name == method_name)
+        files = _state_files(source, method, finding["field"])
+    except (javalang.parser.JavaSyntaxError, javalang.tokenizer.LexerError, TypeError) as exc:
+        return _fail("unsupported_java_syntax", str(exc))
+    except (StopIteration, ValueError) as exc:
+        return _fail("unsupported_state_shape", str(exc))
+    return {"status": "TRANSFORMED", "claim": "DETERMINISTIC_MULTIFILE_REFACTOR_CANDIDATE",
+            "pattern": "State", "method": method_name, "source_sha256": digest,
+            "files": files, "formal_preservation_proved": False,
+            "requires_multifile_refactor_gate": True}
+
+
+def _state_files(source: str, method, field: str) -> dict[str, str]:
+    if method.body is None or method.return_type is None:
+        raise ValueError("State method must be concrete and return a value")
+    lines = source.splitlines(keepends=True)
+    start = sum(len(line) for line in lines[:method.position.line - 1])
+    masked = _mask_non_code(source); opening = masked.find("{", start)
+    end = _matching_brace(masked, opening)
+    body = source[opening + 1:end]
+    branch = re.compile(rf"if\s*\(\s*(?:this\.)?{re.escape(field)}\s*==\s*"
+                        r"(?P<value>-?\d+)\s*\)\s*\{\s*return\s+"
+                        r"(?P<expr>[A-Za-z0-9_ .+*()\"'-]+);\s*\}")
+    branches = list(branch.finditer(body))
+    if len(branches) < 2 or len({item["value"] for item in branches}) != len(branches):
+        raise ValueError("State requires two or more distinct scalar return branches")
+    return_type = getattr(method.return_type, "name", "")
+    if not return_type:
+        raise ValueError("State method return type is unsupported")
+    signature = f"{return_type} handle();"
+    files = {"State.java": f"public interface State {{\n    {signature}\n}}\n"}
+    transformed = body
+    for index, item in reversed(list(enumerate(branches))):
+        state_type = f"StateHandler{index + 1}"
+        files[f"{state_type}.java"] = (f"public class {state_type} implements State {{\n"
+            f"    public {return_type} handle() {{ return {item['expr'].strip()}; }}\n}}\n")
+        replacement = f"return new {state_type}().handle();"
+        return_start = item.start("expr") - len("return ")
+        return_start = body.rfind("return", 0, item.start("expr"))
+        transformed = transformed[:return_start] + replacement + transformed[item.end("expr") + 1:]
+    files[source_file_name(source)] = source[:opening + 1] + transformed + source[end:]
+    return files
+
+
 def source_file_name(source: str) -> str:
     match = re.search(r"\bpublic\s+class\s+([A-Za-z_$][\w$]*)", source)
     if not match:
