@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from .domain_v2 import ExpressionIR, _referenced_fields
+from .architecture import Architecture, Component, Operation, Dependency, UseCase, Step
 
 
 class ComponentFragment(BaseModel):
@@ -179,3 +180,41 @@ def attach_transitions(component_name: str, operation_names: set[str],
                              f"{transition.operation_name}")
         declared.add(transition.operation_name)
     return transitions
+
+
+def assemble_architecture(components: list[ComponentFragment],
+                          operations: dict[str, list[OperationFragment]],
+                          states: dict[str, list[StateVariableFragment]],
+                          steps: list[UseCaseStepFragment],
+                          transitions: dict[str, list[TransitionFragment]]) -> Architecture:
+    """Convert validated staged fragments into the existing architecture artifact model."""
+    by_name = {item.name: item for item in components}
+    operation_map: dict[tuple[str, str], OperationFragment] = {}
+    result_components = []
+    for fragment in components:
+        kind = "interface" if fragment.type == "interface" else "class"
+        layer = "adapters" if fragment.type == "adapter" else (
+            "use_cases" if fragment.type == "orchestrator" else "entities")
+        fragment_ops = operations.get(fragment.name, [])
+        for operation in fragment_ops:
+            operation_map[(fragment.name, operation.name)] = operation
+        result_components.append(Component(
+            id=fragment.name, name=fragment.name, layer=layer, kind=kind,
+            responsibilities=[fragment.desc], external=fragment.type in {"interface", "adapter"},
+            operations=[Operation(name=op.name,
+                                  parameters=[item.model_dump() for item in op.params],
+                                  returns=op.returns, requires=[op.requires], ensures=[op.ensures])
+                        for op in fragment_ops],
+            dependencies=[Dependency(target=fragment.implements, abstraction=True)]
+            if fragment.implements else []))
+    for step in steps:
+        if step.component not in by_name:
+            raise ValueError(f"UNRESOLVED_COMPONENT_REFERENCE: {step.component}")
+        if (step.component, step.operation) not in operation_map:
+            raise ValueError(f"UNRESOLVED_OPERATION_REFERENCE: {step.component}.{step.operation}")
+        validate_step_bindings(step, operation_map[(step.component, step.operation)])
+    return Architecture(name="StagedArchitecture", description="Staged bounded architecture",
+                        components=result_components,
+                        use_cases=[UseCase(name="MainFlow", steps=[Step(component=s.component,
+                                                                          operation=s.operation)
+                                                                      for s in steps])])
