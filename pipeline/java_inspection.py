@@ -117,9 +117,14 @@ class CoreStructureDetector(PatternDetector):
         switches = [node for _, node in self.declaration.filter(javalang.tree.IfStatement)
                     if _runtime_type_condition(node.condition)]
         if len(switches) >= 2:
+            implicated = [method.name for method in methods
+                          if any(candidate is node for node in switches
+                                 for _, candidate in method.filter(javalang.tree.IfStatement))]
             findings.append(_finding(_line(switches[0]), "type-switch", "warning",
                 f"Found {len(switches)} runtime type-dispatch branches.", "Strategy",
                 "Move variant behavior behind a polymorphic strategy interface."))
+            if implicated:
+                findings[-1]["methods"] = sorted(set(implicated))
         if (len(self.declaration.fields) >= GOD_FIELD_THRESHOLD and
                 len(methods) >= GOD_METHOD_THRESHOLD):
             findings.append(_finding(_line(self.declaration), "god-class", "warning",

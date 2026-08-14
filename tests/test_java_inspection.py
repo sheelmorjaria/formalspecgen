@@ -35,6 +35,8 @@ def test_inspection_detects_type_switch_long_method_and_overinjection(tmp_path):
     assert result["parser_mode"] == "javalang_ast_0.13.0"
     assert {finding["code"] for finding in result["findings"]} == {
         "type-switch", "constructor-overinjection", "long-method"}
+    strategy = next(finding for finding in result["findings"] if finding["code"] == "type-switch")
+    assert strategy["methods"] == ["dispatch"]
     assert not result["formal_defect_proved"]
     assert not result["automated_refactor_applied"]
 
