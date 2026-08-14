@@ -948,19 +948,23 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]System artifact unreadable:[/bold red] {escape(str(exc))}")
         return 2
-    verdict = verify_system(value, out_dir=args.out_dir,
-                            max_workers=args.max_workers,
-                            executable=args.executable)
+    if getattr(args, "mode", "implement") == "refactor":
+        from .system_orchestrator import refactor_system
+        verdict = refactor_system(value, out_dir=args.out_dir, max_workers=args.max_workers)
+    else:
+        verdict = verify_system(value, out_dir=args.out_dir,
+                                max_workers=args.max_workers,
+                                executable=args.executable)
     if args.json:
         Path(args.json).write_text(
             json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8")
-    style = "green" if verdict["status"] == "SYSTEM_SYNTHESIS_VERIFIED" else "red"
+    style = "green" if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED", "SYSTEM_REFACTOR_VERIFIED"} else "red"
     ui.console.print(Panel(
         f"Status: {verdict['status']}\nClaim: {verdict.get('claim', 'NO_PROOF')}\n"
         f"Components: {len(verdict.get('components') or [])}",
         title="System verification", border_style=style))
-    return 0 if verdict["status"] == "SYSTEM_SYNTHESIS_VERIFIED" else 1
+    return 0 if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED", "SYSTEM_REFACTOR_VERIFIED"} else 1
 
 
 def command_unified_system(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -1140,6 +1144,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="isolated component verdict and evidence directory")
     system.add_argument("--max-workers", type=int, default=4,
                         help="maximum concurrent component subprocesses")
+    system.add_argument("--mode", choices=["implement", "refactor"], default="implement",
+                        help="run isolated implementation proofs or contract-preserving refactors")
     system.add_argument("--executable", default="formalspecgen",
                         help=argparse.SUPPRESS)
     system.add_argument("--json", help="aggregate machine-readable verdict destination")

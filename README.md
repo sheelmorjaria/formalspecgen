@@ -872,6 +872,37 @@ the baseline and refactored contracts independently with OpenJML; it intentional
 `behavior_equivalence_proved: false` because full heap/bisimulation equivalence is outside this
 profile.
 
+### Parallel system refactoring
+
+For a bounded modernization plan, `system --mode refactor` inspects and refactors independent
+Java components concurrently. Each component receives one source file and an optional supported
+pattern/method; unsupported or uninspected smells fail closed without running a composition gate.
+
+```json
+{
+  "components": [
+    {"component": "legacy", "file": "baseline/LegacyService.java",
+     "pattern": "extract-method", "method": "processOrder"}
+  ]
+}
+```
+
+Run the isolated refactor workers with a bounded pool:
+
+```bash
+formalspecgen system refactor-plan.json --mode refactor \
+  --out-dir refactored-system --max-workers 4 \
+  --json refactor-system-verdict.json
+```
+
+Every worker must produce `REFACTOR_CONTRACT_PRESERVED` (or the multifile equivalent) before
+the aggregate result can be `SYSTEM_REFACTOR_VERIFIED`. A plan may also include a reviewed
+composition artifact under `composition`; when present, the existing composition gate runs only
+after every local proof succeeds and the aggregate claim becomes `SYSTEM_COMPOSITION_PROOF`.
+The verdict always records `global_behavior_equivalence_proved: false`: local contract proofs and
+composition soundness do not establish behavioral equivalence of the legacy system's heap,
+scheduling, I/O, or runtime topology.
+
 ### Cross-file refactoring verification
 
 `verify-refactor` also accepts a refactored source directory whose primary file retains the baseline

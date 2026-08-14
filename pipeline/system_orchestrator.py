@@ -14,6 +14,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .composition import CompositionSpec
+from .java_inspection import inspect_java_file
+from .deterministic_refactor import extract_factory_from_inspection, extract_method_from_inspection
+from .refactor_gate import verify_contract_preserving_refactor, verify_multifile_contract_refactor
 
 
 class _StrictModel(BaseModel):
@@ -131,6 +134,95 @@ def verify_system(value: dict | str, *, out_dir: str | Path,
             "components": results, "composition": composition,
             "certificate_sha256": hashlib.sha256(json.dumps(
                 body, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "concurrent_component_execution_proved": False}
+
+
+def refactor_system(value: dict | str, *, out_dir: str | Path,
+                    max_workers: int = 4) -> dict:
+    """Inspect and refactor independent Java components in parallel, then gate the result.
+
+    This is intentionally narrower than general architectural modernization: each component must
+    expose one supported AST finding (Extract Method or Factory Method), and every worker must
+    produce an independent contract-preservation verdict before the aggregate result succeeds.
+    """
+    try:
+        raw = json.loads(value) if isinstance(value, str) else value
+        components = raw.get("components", [])
+        if not isinstance(components, list) or not components:
+            raise ValueError("refactor artifact requires a non-empty components list")
+        if max_workers < 1:
+            raise ValueError("max_workers must be positive")
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        return _fail("invalid_refactor_artifact", str(exc))
+    root = Path(out_dir); root.mkdir(parents=True, exist_ok=True)
+
+    def run(item: dict) -> dict:
+        source = Path(item.get("file") or item.get("interface_file") or "")
+        if not source.is_file():
+            return {"component": item.get("component", source.stem), "status": "FAIL",
+                    "code": "source_unavailable", "message": str(source)}
+        inspection = inspect_java_file(source)
+        findings = inspection.get("findings", [])
+        requested = str(item.get("pattern", "")).lower().replace("_", "-")
+        finding = next((f for f in findings if f.get("code") == "long-method" and
+                        (not requested or requested == "extract-method")), None)
+        if finding is None:
+            finding = next((f for f in findings if f.get("code") == "conditional-object-creation" and
+                            (not requested or requested == "factory-method")), None)
+        method = item.get("method") or (finding or {}).get("method")
+        if not method and finding and finding.get("code") == "long-method":
+            method = re.search(r"Method\s+([A-Za-z_$][\w$]*)", finding.get("message", ""))
+            method = method.group(1) if method else None
+        if not finding or not method:
+            return {"component": item.get("component", source.stem), "status": "FAIL",
+                    "code": "no_supported_refactoring_finding", "inspection": inspection}
+        pattern = "factory-method" if finding.get("code") == "conditional-object-creation" else "extract-method"
+        destination = root / source.name if pattern == "extract-method" else root / source.stem
+        inspection_path = root / f"{source.stem}.inspection.json"
+        inspection_path.write_text(json.dumps(inspection, indent=2) + "\n", encoding="utf-8")
+        transformed = (extract_factory_from_inspection(source, inspection_path, method)
+                       if pattern == "factory-method" else
+                       extract_method_from_inspection(source, inspection_path, method))
+        if transformed.get("status") != "TRANSFORMED":
+            return {"component": item.get("component", source.stem), "status": "FAIL",
+                    "code": "refactor_transform_failed", "inspection": inspection,
+                    "transformation": transformed}
+        if pattern == "factory-method":
+            destination.mkdir(parents=True, exist_ok=True)
+            for name, content in transformed["files"].items():
+                (destination / name).write_text(content, encoding="utf-8")
+            proof = verify_multifile_contract_refactor(source, destination)
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(transformed["source"], encoding="utf-8")
+            proof = verify_contract_preserving_refactor(source, destination)
+        return {"component": item.get("component", source.stem), "status": proof.get("status"),
+                "pattern": pattern, "method": method, "inspection": inspection,
+                "proof": proof, "refactored": str(destination)}
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(components))) as pool:
+        results = list(pool.map(run, components))
+    results.sort(key=lambda item: str(item.get("component", "")))
+    failed = [item for item in results if item.get("status") != "VERIFIED"]
+    if failed:
+        return {"status": "SYSTEM_REFACTOR_FAILED", "claim": "NO_PROOF",
+                "components": results, "global_behavior_equivalence_proved": False,
+                "concurrent_component_execution_proved": False}
+    composition = None
+    if raw.get("composition") is not None:
+        from .composition_render import verify_composition
+        composition = verify_composition(raw["composition"])
+        if composition.get("status") != "COMPOSITION_VERIFIED":
+            return {"status": "SYSTEM_REFACTOR_FAILED", "claim": "NO_PROOF",
+                    "code": "composition_verification_failed", "components": results,
+                    "composition": composition,
+                    "global_behavior_equivalence_proved": False,
+                    "concurrent_component_execution_proved": False}
+    return {"status": "SYSTEM_REFACTOR_VERIFIED",
+            "claim": "SYSTEM_COMPOSITION_PROOF" if composition else
+                     "SYSTEM_REFACTOR_CONTRACTS_PRESERVED", "components": results,
+            "composition": composition,
+            "global_behavior_equivalence_proved": False,
             "concurrent_component_execution_proved": False}
 
 
