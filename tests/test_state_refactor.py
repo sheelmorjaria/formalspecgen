@@ -31,6 +31,7 @@ def test_state_profile_emits_parseable_handlers_and_primary(tmp_path):
     evidence.write_text(json.dumps(inspect_java_file(source)), encoding="utf-8")
     result = extract_state_from_inspection(source, evidence, "run")
     assert result["status"] == "TRANSFORMED"
+    assert result["heap_topology_equivalence_proved"] is False
     assert sorted(result["files"]) == ["Legacy.java", "State.java", "StateHandler1.java",
                                        "StateHandler2.java"]
     assert "new StateHandler1().handle()" in result["files"]["Legacy.java"]

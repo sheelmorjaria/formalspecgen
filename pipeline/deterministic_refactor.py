@@ -285,7 +285,8 @@ def extract_state_from_inspection(source_path: str | Path, inspection_path: str 
     return {"status": "TRANSFORMED", "claim": "DETERMINISTIC_MULTIFILE_REFACTOR_CANDIDATE",
             "pattern": "State", "method": method_name, "source_sha256": digest,
             "files": files, "formal_preservation_proved": False,
-            "requires_multifile_refactor_gate": True}
+            "requires_multifile_refactor_gate": True,
+            "heap_topology_equivalence_proved": False}
 
 
 def _state_files(source: str, method, field: str) -> dict[str, str]:
