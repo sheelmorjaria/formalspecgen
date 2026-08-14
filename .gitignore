@@ -75,6 +75,7 @@ pnpm-debug.log*
 .yarn/cache/
 .pnpm-store/
 archive/vscode-extension/bin/
+bin/esbmc
 archive/vscode-extension/build/
 archive/vscode-extension/dist/
 archive/vscode-extension/out/
