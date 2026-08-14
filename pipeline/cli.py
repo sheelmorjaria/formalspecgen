@@ -395,6 +395,15 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "VERIFIED" else 1
 
 
+def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .bisimulation import verify_bisimulation_inputs
+    result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
+    _write_json(result, args.json, ui.console)
+    ui.console.print(f"[{'green' if result['status'] == 'BISIMULATION_PREFLIGHT_READY' else 'red'}]"
+                     f"{result['status']}[/]")
+    return 0 if result["status"] == "BISIMULATION_PREFLIGHT_READY" else 1
+
+
 def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .java_inspection import inspect_java_file
     result = inspect_java_file(args.source)
@@ -1078,6 +1087,13 @@ def build_parser() -> argparse.ArgumentParser:
     verify_refactor.add_argument("--json", help="machine-readable evidence destination")
     verify_refactor.add_argument("--signing-key", help="GPG key ID for a detached verdict signature")
 
+    bisimulation = sub.add_parser("verify-bisimulation",
+                                  help="validate a scoped state mapping without claiming equivalence")
+    bisimulation.add_argument("baseline")
+    bisimulation.add_argument("refactored")
+    bisimulation.add_argument("mapping")
+    bisimulation.add_argument("--json")
+
     inspect = sub.add_parser(
         "inspect", help="deterministically inspect one Java class for refactoring signals")
     inspect.add_argument("source", help="Java/JML source to inspect")
@@ -1186,6 +1202,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "implement": return command_implement(args, ui)
     if args.command == "verify": return command_verify(args, ui)
     if args.command == "verify-refactor": return command_verify_refactor(args, ui)
+    if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)

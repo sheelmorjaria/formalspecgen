@@ -1019,6 +1019,15 @@ side effects, or stale inspection evidence fail closed. Decorator transformation
 inspection-only: callback-order mappings require stronger profile-specific obligations than the
 Factory, narrow State, narrow Decorator, and narrow Facade extraction profiles.
 
+### Bisimulation preflight
+
+`verify-bisimulation` validates a JSON state mapping and binds baseline/refactored source hashes,
+but deliberately emits `behavior_equivalence_proved: false`; a mapping is not a relational proof.
+
+```bash
+formalspecgen verify-bisimulation baseline/Legacy.java refactored/ mapping.json --json bisim.json
+```
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the
