@@ -64,6 +64,18 @@ while (i < n) { output[i++] = 0; }
         c_support.apply_c_passes(code, ["guess_aliases"])
 
 
+def test_c_pointer_validity_and_separation_passes_are_conservative():
+    code = r"""/*@ assigns \\nothing; ensures \\result == dst[0]; */
+int copy_first(const int *src, int *dst) { dst[0] = src[0]; return dst[0]; }
+"""
+    valid = c_support.apply_c_passes(code, ["inject_valid_pointers"])
+    assert r"requires \valid_read(src);" in valid["code"]
+    assert r"requires \valid(dst);" in valid["code"]
+    separated = c_support.apply_c_passes(code, ["inject_separated"])
+    assert r"requires \separated(src, dst);" in separated["code"]
+    assert c_support.apply_c_passes(separated["code"], ["inject_separated"])["changed"] is False
+
+
 def test_c_overflow_pass_derives_exact_int_constant_bounds_and_limits_header():
     code = r"""/*@ assigns \nothing; ensures \result == value + 1; */
 int increment(int value) { return value + 1; }

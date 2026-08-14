@@ -19,7 +19,8 @@ from .parse_framac import parse_framac_vcs
 _C_BLOCK = re.compile(r"```c\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _PROVED = re.compile(r"Proved goals:\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
-C_PASS_NAMES = ("inject_overflow_bounds", "inject_null_checks", "inject_loop_assigns")
+C_PASS_NAMES = ("inject_overflow_bounds", "inject_null_checks", "inject_valid_pointers",
+                "inject_separated", "inject_loop_assigns")
 
 ACSL_SYSTEM = r"""Draft one bounded C11 API and implementation with ACSL contracts for Frama-C WP.
 Return exactly one ```c block and one JSON metadata block. Use /*@ requires, assigns, ensures */.
@@ -38,6 +39,8 @@ def apply_c_passes(code: str, selected=None) -> dict:
         raise ValueError("unknown C postprocessor passes: " + ", ".join(unknown))
     transforms = {"inject_overflow_bounds": _inject_overflow_bounds,
                   "inject_null_checks": _inject_null_checks,
+                  "inject_valid_pointers": _inject_null_checks,
+                  "inject_separated": _inject_separated,
                   "inject_loop_assigns": _promote_loop_assigns_markers}
     original = current = code; reports = []
     for name in C_PASS_NAMES:
@@ -79,6 +82,33 @@ def _inject_null_checks(code: str) -> str:
             point = contract.start("body")
             insertion = "".join(f" requires {fact};\n" for fact in additions)
             code = code[:point] + insertion + code[point:]
+    return code
+
+
+def _inject_separated(code: str) -> str:
+    """Require separation for directly paired pointer parameters.
+
+    The pass only handles ordinary C function declarations and inserts a fact when two or
+    more pointer parameters are present. It never guesses relationships across calls.
+    """
+    function = re.compile(r"(?m)^(?P<indent>\s*)(?P<ret>[A-Za-z_]\w*(?:\s+\w+)*)\s+"
+                          r"(?P<name>[A-Za-z_]\w*)\s*\((?P<params>[^)]*)\)\s*\{")
+    for match in reversed(list(function.finditer(code))):
+        pointers = []
+        for raw in match["params"].split(","):
+            pointer = re.search(r"\*\s*(?P<name>[A-Za-z_]\w*)\s*$", raw.strip())
+            if pointer:
+                pointers.append(pointer["name"])
+        if len(pointers) < 2:
+            continue
+        contract = _attached_contract(code, match.start())
+        if not contract:
+            continue
+        fact = r"\separated(" + ", ".join(pointers) + ")"
+        if fact in contract["body"]:
+            continue
+        point = contract.start("body")
+        code = code[:point] + f" requires {fact};\n" + code[point:]
     return code
 
 

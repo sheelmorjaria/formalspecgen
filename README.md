@@ -276,7 +276,8 @@ Rust and C also expose conservative, opt-in proof-support passes:
 formalspecgen implement Counter.rs --method-proof-only \
   --accept-pass inject_pure --accept-pass inject_slice_bounds
 formalspecgen implement counter.c --method-proof-only \
-  --accept-pass inject_null_checks --accept-pass inject_loop_assigns
+  --accept-pass inject_valid_pointers --accept-pass inject_separated \
+  --accept-pass inject_loop_assigns
 ```
 
 The Rust passes annotate only locally defined contract helpers, direct typed slice/index access,
@@ -284,9 +285,12 @@ and exact signed parameter/constant arithmetic intervals. The C overflow pass de
 `INT_MIN`/`INT_MAX` obligations for the corresponding restricted `int` arithmetic subset. Neither
 pass invents a generic numeric policy such as `<= 1000`.
 The C null pass handles only directly dereferenced pointer parameters with an existing ACSL
-contract. The C loop-frame pass promotes explicit `// acsl-loop-assigns: ...` review markers; it
-does not infer alias-sensitive frames. Any changed candidate remains proof-relevant and requires
-explicit pass acceptance.
+contract. `inject_valid_pointers` is the explicit name for that same conservative validity pass;
+it does not guess an index range such as `\valid(arr + (0..idx))` without a reviewed bound.
+`inject_separated` adds `\separated(...)` only when an existing function contract has at least two
+pointer parameters; it does not infer aliasing relationships across calls. The C loop-frame pass
+promotes explicit `// acsl-loop-assigns: ...` review markers; it does not infer alias-sensitive
+frames. Any changed candidate remains proof-relevant and requires explicit pass acceptance.
 
 Choose an explicit assurance profile. The complete gate table currently applies to Java/JML:
 
