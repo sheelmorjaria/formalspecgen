@@ -386,3 +386,11 @@ def test_has_operation_obligations_ignores_constructor_clauses():
         constructor_only + "    //@ requires gate.door == 0;\n")
     assert composition_render._has_operation_obligations(
         constructor_only + "    //@ ensures gate.door == 1;\n")
+
+
+def test_bindings_can_require_verified_promotion_signatures(v2_dir, monkeypatch):
+    monkeypatch.setenv("FORMALSPECGEN_REQUIRE_SIGNATURES", "1")
+    with patch("pipeline.composition.verify_artifact_signature",
+               return_value={"status": "SIGNATURE_MISSING"}):
+        with pytest.raises(Exception, match="Cryptographic signature verification failed"):
+            resolve_bindings(parse_composition(composition_value()), v2_dir)

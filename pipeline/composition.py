@@ -14,6 +14,7 @@ linearizability nor distributed-message asynchrony.
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Literal
@@ -25,7 +26,7 @@ from .architecture import lint_architecture, parse_architecture
 from .domain_v2 import (
     BinaryExpr, BooleanExpr, FieldExpr, IntegerExpr, NotExpr, OldExpr,
 )
-from .domain_v2_promotion import ReviewedDomainSpecV2
+from .domain_v2_promotion import ReviewedDomainSpecV2, verify_artifact_signature
 from . import jml_ast
 from .v2_jml_serializer import _OPS
 
@@ -124,6 +125,15 @@ def resolve_bindings(spec: CompositionSpec,
         if not path.exists():
             raise CompositionError(
                 f"reviewed V2 artifact for module {binding.module_name!r} not found at {path}")
+        if os.getenv("FORMALSPECGEN_REQUIRE_SIGNATURES", "").lower() in {"1", "true", "yes"}:
+            authorized = {item.strip() for item in os.getenv("AUTHORIZED_REVIEWER_KEYS", "").split(",")
+                          if item.strip()} or None
+            signature_result = verify_artifact_signature(
+                path, Path(str(path) + ".promotion.sig"), authorized)
+            if signature_result["status"] != "SIGNATURE_VERIFIED":
+                raise CompositionError(
+                    f"CRITICAL: Cryptographic signature verification failed for {binding.module_name!r}: "
+                    f"{signature_result['status']}")
         try:
             resolved[binding.component] = ReviewedDomainSpecV2.model_validate_json(
                 path.read_text(encoding="utf-8"))
