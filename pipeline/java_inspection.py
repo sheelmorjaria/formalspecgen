@@ -127,9 +127,16 @@ class CoreStructureDetector(PatternDetector):
                 findings[-1]["methods"] = sorted(set(implicated))
         if (len(self.declaration.fields) >= GOD_FIELD_THRESHOLD and
                 len(methods) >= GOD_METHOD_THRESHOLD):
-            findings.append(_finding(_line(self.declaration), "god-class", "warning",
+            finding = _finding(_line(self.declaration), "god-class", "warning",
                 f"Class has {len(self.declaration.fields)} fields and {len(methods)} methods.",
-                "Facade", "Split cohesive responsibilities, retaining a small façade at the existing boundary."))
+                "Facade", "Split cohesive responsibilities, retaining a small façade at the existing boundary.")
+            finding.update({"class": self.declaration.name,
+                            "field_count": len(self.declaration.fields),
+                            "callable_count": len(methods),
+                            "fields": sorted({declarator.name for field in self.declaration.fields
+                                               for declarator in field.declarators}),
+                            "methods": sorted(method.name for method in methods)})
+            findings.append(finding)
         for method in methods:
             lines = _callable_lines(self.source, method)
             if lines > LONG_METHOD_LINES:
