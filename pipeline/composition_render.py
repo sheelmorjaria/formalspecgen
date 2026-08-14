@@ -356,7 +356,8 @@ def _has_operation_obligations(text: str) -> bool:
     return False
 
 
-def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
+def verify_composition(value, v2_dir=None, *, run_esc: bool = True,
+                       actors: list[str] | None = None) -> dict:
     """Render the composition deterministically and let OpenJML judge it."""
     try:
         spec = parse_composition(value)
@@ -391,6 +392,12 @@ def verify_composition(value, v2_dir=None, *, run_esc: bool = True) -> dict:
             "verification_skips": {name: "Unverified external boundary"
                                    for name in unverified_boundaries},
             "external_io_safety_proved": False, "disclaimer": _DISCLAIMER}
+    if actors is not None:
+        from .concurrent_composition import render_actor_model
+        model = render_actor_model(actors)
+        if model["status"] != "CONCURRENT_MODEL_READY":
+            return {**base, **model}
+        base["concurrent_model"] = model
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         paths = []

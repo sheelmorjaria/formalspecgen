@@ -924,7 +924,8 @@ def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
         ui.console.print(f"[bold red]Composition artifact unreadable:[/bold red] {escape(str(exc))}")
         return 2
     verdict = composition_render.verify_composition(
-        value, args.v2_dir, run_esc=not args.no_esc)
+        value, args.v2_dir, run_esc=not args.no_esc,
+        actors=getattr(args, "actors", None).split(",") if getattr(args, "actors", None) else None)
     if args.out_dir and verdict.get("files"):
         destination = Path(args.out_dir)
         destination.mkdir(parents=True, exist_ok=True)
@@ -1168,6 +1169,7 @@ def build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--json", help="machine-readable verdict destination")
     compose.add_argument("--no-esc", action="store_true",
                          help="stop after the check gate; claims only STATIC_CHECK")
+    compose.add_argument("--actors", help="comma-separated actor names for concurrent model preflight")
     reverify = sub.add_parser(
         "reverify", help="re-prove composition after a reviewed module changed")
     reverify.add_argument("artifact")
