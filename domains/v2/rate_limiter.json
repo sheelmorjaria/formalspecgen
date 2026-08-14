@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "RateLimiter",
+  "module_name": "rate_limiter",
+  "actors": 1,
+  "execution_model": null,
+  "concurrency": null,
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "tokens",
+      "bound": [
+        0,
+        5
+      ],
+      "initial": 5
+    }
+  ],
+  "operations": [
+    {
+      "name": "handleRequest",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_tokens_positive",
+          "expression": {
+            "kind": "gt",
+            "left": {
+              "kind": "field",
+              "name": "tokens"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_consume_token",
+          "target": "tokens",
+          "value": {
+            "kind": "sub",
+            "left": {
+              "kind": "field",
+              "name": "tokens"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "tokens"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "refill",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_not_full",
+          "expression": {
+            "kind": "lt",
+            "left": {
+              "kind": "field",
+              "name": "tokens"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 5
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_refill",
+          "target": "tokens",
+          "value": {
+            "kind": "integer",
+            "value": 5
+          }
+        }
+      ],
+      "frame": [
+        "tokens"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "token_bounds",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "tokens"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "tokens"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 5
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "bfd1fb6da4bc2908528d1472059388ac8cf16b17729091b438b717660bd7f14f",
+  "accepted_evidence_sha256": "530f1af52354d5149217098b53662d177ac5ba4abdc544772ebbec42af635f72"
+}

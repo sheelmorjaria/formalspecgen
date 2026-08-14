@@ -1,0 +1,222 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "ConcurrentBankingCore",
+  "module_name": "concurrent_banking_core",
+  "actors": 2,
+  "execution_model": null,
+  "concurrency": {
+    "mode": "lock_protocol",
+    "lock_variable": "account_lock",
+    "lock_states": [
+      "UNLOCKED",
+      "LOCKED_ACTOR_1",
+      "LOCKED_ACTOR_2"
+    ],
+    "unlocked_value": 0,
+    "actor_lock_values": [
+      1,
+      2
+    ],
+    "linearization_points": {
+      "Deposit": "effect_commit",
+      "Withdraw": "effect_commit"
+    }
+  },
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "balance",
+      "bound": [
+        0,
+        10
+      ],
+      "initial": 0
+    },
+    {
+      "kind": "int",
+      "name": "account_lock",
+      "bound": [
+        0,
+        2
+      ],
+      "initial": 0
+    }
+  ],
+  "operations": [
+    {
+      "name": "Deposit",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "lt",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 10
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "balance",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "balance"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "Withdraw",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "gt",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "balance",
+          "value": {
+            "kind": "sub",
+            "left": {
+              "kind": "field",
+              "name": "balance"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "balance"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "BalanceNonNegative",
+      "expression": {
+        "kind": "gte",
+        "left": {
+          "kind": "field",
+          "name": "balance"
+        },
+        "right": {
+          "kind": "integer",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "BalanceWithinBound",
+      "expression": {
+        "kind": "lte",
+        "left": {
+          "kind": "field",
+          "name": "balance"
+        },
+        "right": {
+          "kind": "integer",
+          "value": 10
+        }
+      }
+    },
+    {
+      "id": "LockVariableNonNegative",
+      "expression": {
+        "kind": "gte",
+        "left": {
+          "kind": "field",
+          "name": "account_lock"
+        },
+        "right": {
+          "kind": "integer",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "LockVariableWithinBound",
+      "expression": {
+        "kind": "lte",
+        "left": {
+          "kind": "field",
+          "name": "account_lock"
+        },
+        "right": {
+          "kind": "integer",
+          "value": 2
+        }
+      }
+    },
+    {
+      "id": "LockStateValid",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "account_lock"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "account_lock"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 2
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "8138075434d5c91a6f718e8b74094a6987a0aa979c0352e5b411efc926b66884",
+  "accepted_evidence_sha256": "0fb88718e3c838aa89b2143bb0f5569b14abbfeec13675085b00cffbb55efbb7"
+}

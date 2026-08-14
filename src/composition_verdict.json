@@ -1,0 +1,10 @@
+{
+  "status": "VERIFIED",
+  "claim": "SYSTEM_COMPOSITION_PROOF",
+  "architecture_sha256": "ef8aea923c664360a58abcd85285e3186a507055391724a3a3af933a542ff3aa",
+  "unverified_boundaries": [
+    "StripePaymentGateway"
+  ],
+  "external_io_safety_proved": false,
+  "esc_output": ""
+}

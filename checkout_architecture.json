@@ -1,0 +1,165 @@
+{
+  "name": "GeneratedSystem",
+  "components": [
+    {
+      "name": "InventoryService",
+      "type": "core",
+      "file": "InventoryService.java",
+      "external": false,
+      "implements": "inventory",
+      "domain": "inventory",
+      "state_variables": [],
+      "transitions": [],
+      "operations": [
+        {
+          "name": "checkStock",
+          "params": [
+            {
+              "name": "productId",
+              "type": "int"
+            }
+          ],
+          "contract": {
+            "requires": "productId > 0",
+            "ensures": "result >= 0"
+          }
+        },
+        {
+          "name": "updateStock",
+          "params": [
+            {
+              "name": "productId",
+              "type": "int"
+            },
+            {
+              "name": "quantity",
+              "type": "int"
+            }
+          ],
+          "contract": {
+            "requires": "productId > 0 and quantity >= 0",
+            "ensures": "result = true or result = false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PaymentGateway",
+      "type": "interface",
+      "file": "PaymentGateway.java",
+      "external": true,
+      "implements": null,
+      "domain": null,
+      "state_variables": [],
+      "transitions": [],
+      "operations": [
+        {
+          "name": "processPayment",
+          "params": [
+            {
+              "name": "amount",
+              "type": "int"
+            }
+          ],
+          "contract": {
+            "requires": "amount > 0",
+            "ensures": "result = true or result = false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "OrderService",
+      "type": "core",
+      "file": "OrderService.java",
+      "external": false,
+      "implements": null,
+      "domain": null,
+      "state_variables": [
+        {
+          "name": "totalAmount",
+          "type": "int",
+          "bound": [
+            10,
+            10
+          ],
+          "initial": 10
+        }
+      ],
+      "transitions": [],
+      "operations": [
+        {
+          "name": "completeCheckout",
+          "params": [
+            {
+              "name": "productId",
+              "type": "int"
+            },
+            {
+              "name": "quantity",
+              "type": "int"
+            }
+          ],
+          "contract": {
+            "requires": "productId > 0 and quantity > 0",
+            "ensures": "result = true or result = false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "StripePaymentGateway",
+      "type": "adapter",
+      "file": "StripePaymentGateway.java",
+      "external": true,
+      "implements": "PaymentGateway",
+      "domain": null,
+      "state_variables": [],
+      "transitions": [],
+      "operations": [
+        {
+          "name": "processPayment",
+          "params": [
+            {
+              "name": "amount",
+              "type": "int"
+            }
+          ],
+          "contract": {
+            "requires": "amount > 0",
+            "ensures": "result = true or result = false"
+          }
+        }
+      ]
+    }
+  ],
+  "use_cases": [
+    {
+      "name": "CheckoutFlow",
+      "steps": [
+        {
+          "component": "OrderService",
+          "operation": "completeCheckout",
+          "arguments": {
+            "productId": "1",
+            "quantity": "1"
+          }
+        },
+        {
+          "component": "InventoryService",
+          "operation": "checkStock",
+          "arguments": {
+            "productId": "1"
+          }
+        },
+        {
+          "component": "PaymentGateway",
+          "operation": "processPayment",
+          "arguments": {
+            "amount": "10"
+          }
+        }
+      ]
+    }
+  ]
+}

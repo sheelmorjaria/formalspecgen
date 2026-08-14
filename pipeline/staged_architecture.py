@@ -20,6 +20,7 @@ class ComponentFragment(BaseModel):
     file: str | None = None
     external: bool = False
     implements: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*$")
+    domain: str | None = Field(default=None, pattern=r"^[a-z_][a-z0-9_]*$")
 
 
 class StagedContract(BaseModel):
@@ -64,9 +65,12 @@ class StagedComponent(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
     type: Literal["core", "interface", "adapter"]
-    file: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*\.java$")
+    file: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*\.[A-Za-z0-9]+$")
     external: bool = False
     implements: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*$")
+    # Reviewed V2 domains are the sole source of truth for core state and transitions.
+    # When present, inline state_variables/transitions are forbidden below.
+    domain: str | None = Field(default=None, pattern=r"^[a-z_][a-z0-9_]*$")
     state_variables: list[StagedStateVariable] = Field(default_factory=list)
     transitions: list[TransitionFragment] = Field(default_factory=list)
     operations: list[StagedOperation] = Field(default_factory=list)
@@ -77,6 +81,8 @@ class StagedComponent(BaseModel):
             raise ValueError("ADAPTER_REQUIRES_IMPLEMENTS")
         if self.type == "interface" and not self.operations:
             raise ValueError("EXTERNAL_INTERFACE_REQUIRES_OPERATIONS")
+        if self.domain and (self.state_variables or self.transitions):
+            raise ValueError("DOMAIN_COMPONENT_CANNOT_DEFINE_INLINE_STATE")
         names = [item.name for item in self.state_variables]
         if len(names) != len(set(names)):
             raise ValueError("DUPLICATE_STATE_VARIABLE")
@@ -248,8 +254,97 @@ def parse_operation_fragments(raw: str) -> dict[str, list[OperationFragment]]:
     for component, values in groups.items():
         if not isinstance(values, list):
             raise ValueError(f"INVALID_OPERATION_GROUP: {component}")
-        result[str(component)] = [OperationFragment.model_validate(item) for item in values]
+        normalized = []
+        for item in values:
+            item = dict(item)
+            contract = item.pop("contract", {}) or {}
+            if not isinstance(contract, dict):
+                raise ValueError("operation contract must be an object")
+            for key in ("requires", "ensures"):
+                value = item.get(key, contract.get(key, "true"))
+                if isinstance(value, list):
+                    value = " && ".join(str(part) for part in value)
+                item[key] = value
+            for param in item.get("params", []):
+                if str(param.get("type", "")).lower() not in {"int", "boolean", "bool"}:
+                    raise ValueError("UNSUPPORTED_OPERATION_PARAMETER_TYPE")
+            normalized.append(OperationFragment.model_validate(item))
+        result[str(component)] = normalized
     return result
+
+
+def parse_fragment_list(raw: str, model, label: str) -> list:
+    """Parse a flat fragment list or flatten a component-keyed object."""
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        values = []
+        for group in data.values():
+            if isinstance(group, list):
+                values.extend(group)
+            elif isinstance(group, dict):
+                if ((label == "transition" and "operation_name" in group) or
+                        (label == "state" and "name" in group and "type" in group) or
+                        (label == "use-case" and "component" in group)):
+                    nested = [group]
+                else:
+                    nested = None
+                key = {"state": "state_variables", "transition": "transitions",
+                       "use-case": "steps"}.get(label)
+                nested = nested or (group.get(key) if key else None)
+                if nested is None:
+                    list_values = [value for value in group.values() if isinstance(value, list)]
+                    nested = list_values[0] if len(list_values) == 1 else None
+                if not isinstance(nested, list):
+                    # Models sometimes emit {"transitions": {"Component": [...]}}.
+                    # Recursively collect nested lists, then validate every item.
+                    def collect(value):
+                        if isinstance(value, list):
+                            return value
+                        if isinstance(value, dict):
+                            out = []
+                            for child in value.values():
+                                out.extend(collect(child))
+                            return out
+                        return []
+                    nested = collect(group)
+                if not isinstance(nested, list) or not nested:
+                    raise ValueError(f"{label} fragments must be lists")
+                values.extend(nested)
+            else:
+                raise ValueError(f"{label} fragments must be lists")
+    elif isinstance(data, list):
+        values = data
+    else:
+        raise ValueError(f"{label} fragments must be a list or keyed object")
+    if model is dict:
+        return values
+    return [model.model_validate(item) for item in values]
+
+
+def normalize_transition_fragments(items: list[dict]) -> list[dict]:
+    """Normalize only unambiguous LLM aliases before strict V2 validation."""
+    def fix(node):
+        if isinstance(node, list):
+            return [fix(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        value = {key: fix(child) for key, child in node.items()}
+        if "type" in value and "kind" not in value:
+            value["kind"] = value.pop("type")
+        return value
+
+    normalized = []
+    for item in items:
+        item = fix(dict(item))
+        effects = []
+        for effect in item.get("effects", []):
+            effect = dict(effect)
+            if "value" not in effect and "set" in effect:
+                effect["value"] = effect.pop("set")
+            effects.append(effect)
+        item["effects"] = effects
+        normalized.append(item)
+    return normalized
 
 
 def normalize_component_type(value: str) -> str:
@@ -258,7 +353,7 @@ def normalize_component_type(value: str) -> str:
     groups = {
         "core": {"core", "service", "manager", "engine", "logic", "domain"},
         "orchestrator": {"orchestrator", "controller", "coordinator", "flow"},
-        "interface": {"interface", "port", "api", "gateway"},
+        "interface": {"interface", "port", "api", "gateway", "external", "external_service"},
         "adapter": {"adapter", "implementation", "impl", "concrete"},
     }
     for canonical, synonyms in groups.items():
@@ -277,6 +372,10 @@ def parse_component_fragments(raw: str) -> list[ComponentFragment]:
             raise ValueError("component fragment must be an object")
         item = dict(item)
         item["type"] = normalize_component_type(item.get("type", ""))
+        if item.get("implements") == "":
+            item["implements"] = None
+        if item.get("file") == "":
+            item["file"] = None
         normalized.append(ComponentFragment.model_validate(item))
     return normalized
 
@@ -385,6 +484,7 @@ def assemble_unified_architecture(components: list[ComponentFragment],
             file=component.file or f"{component.name}.java",
             external=component.external or component.type == "interface",
             implements=component.implements,
+            domain=component.domain,
             state_variables=[StagedStateVariable.model_validate(item.model_dump())
                              for item in states.get(component.name, [])],
             transitions=transitions.get(component.name, []), operations=staged_ops))

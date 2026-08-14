@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "review_status": "reviewed",
+  "domain_name": "InventoryTracker",
+  "module_name": "inventory_tracker",
+  "actors": 1,
+  "execution_model": null,
+  "concurrency": null,
+  "state_variables": [
+    {
+      "kind": "int",
+      "name": "stock",
+      "bound": [
+        0,
+        5
+      ],
+      "initial": 5
+    }
+  ],
+  "operations": [
+    {
+      "name": "reserve",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "gt",
+            "left": {
+              "kind": "field",
+              "name": "stock"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "stock",
+          "value": {
+            "kind": "sub",
+            "left": {
+              "kind": "field",
+              "name": "stock"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "stock"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    },
+    {
+      "name": "release",
+      "return_type": "void",
+      "failure_semantics": "unavailable",
+      "guards": [
+        {
+          "id": "guard_1",
+          "expression": {
+            "kind": "lt",
+            "left": {
+              "kind": "field",
+              "name": "stock"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 5
+            }
+          }
+        }
+      ],
+      "effects": [
+        {
+          "id": "effect_1",
+          "target": "stock",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "field",
+              "name": "stock"
+            },
+            "right": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "frame": [
+        "stock"
+      ],
+      "exception_type": null,
+      "exception_trigger": null
+    }
+  ],
+  "tlc_invariants": [
+    {
+      "id": "StockBoundsInvariant",
+      "expression": {
+        "kind": "and",
+        "left": {
+          "kind": "gte",
+          "left": {
+            "kind": "field",
+            "name": "stock"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 0
+          }
+        },
+        "right": {
+          "kind": "lte",
+          "left": {
+            "kind": "field",
+            "name": "stock"
+          },
+          "right": {
+            "kind": "integer",
+            "value": 5
+          }
+        }
+      }
+    }
+  ],
+  "accepted_candidate_sha256": "4fd4223f8ed058cc9ceba8a31dbeeda172ab5107e3d2a7e45e3796925792ab98",
+  "accepted_evidence_sha256": "7ccd45dcead01772fda4c68f41a82e4aa8aef02df05f4a9fb54a457456ba807e"
+}

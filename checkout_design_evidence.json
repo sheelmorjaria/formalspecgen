@@ -1,0 +1,174 @@
+{
+  "architecture": {
+    "name": "GeneratedSystem",
+    "components": [
+      {
+        "name": "InventoryService",
+        "type": "core",
+        "file": "InventoryService.java",
+        "external": false,
+        "implements": "inventory",
+        "domain": "inventory",
+        "state_variables": [],
+        "transitions": [],
+        "operations": [
+          {
+            "name": "checkStock",
+            "params": [
+              {
+                "name": "productId",
+                "type": "int"
+              }
+            ],
+            "contract": {
+              "requires": "productId > 0",
+              "ensures": "result >= 0"
+            }
+          },
+          {
+            "name": "updateStock",
+            "params": [
+              {
+                "name": "productId",
+                "type": "int"
+              },
+              {
+                "name": "quantity",
+                "type": "int"
+              }
+            ],
+            "contract": {
+              "requires": "productId > 0 and quantity >= 0",
+              "ensures": "result = true or result = false"
+            }
+          }
+        ]
+      },
+      {
+        "name": "PaymentGateway",
+        "type": "interface",
+        "file": "PaymentGateway.java",
+        "external": true,
+        "implements": null,
+        "domain": null,
+        "state_variables": [],
+        "transitions": [],
+        "operations": [
+          {
+            "name": "processPayment",
+            "params": [
+              {
+                "name": "amount",
+                "type": "int"
+              }
+            ],
+            "contract": {
+              "requires": "amount > 0",
+              "ensures": "result = true or result = false"
+            }
+          }
+        ]
+      },
+      {
+        "name": "OrderService",
+        "type": "core",
+        "file": "OrderService.java",
+        "external": false,
+        "implements": null,
+        "domain": null,
+        "state_variables": [
+          {
+            "name": "totalAmount",
+            "type": "int",
+            "bound": [
+              10,
+              10
+            ],
+            "initial": 10
+          }
+        ],
+        "transitions": [],
+        "operations": [
+          {
+            "name": "completeCheckout",
+            "params": [
+              {
+                "name": "productId",
+                "type": "int"
+              },
+              {
+                "name": "quantity",
+                "type": "int"
+              }
+            ],
+            "contract": {
+              "requires": "productId > 0 and quantity > 0",
+              "ensures": "result = true or result = false"
+            }
+          }
+        ]
+      },
+      {
+        "name": "StripePaymentGateway",
+        "type": "adapter",
+        "file": "StripePaymentGateway.java",
+        "external": true,
+        "implements": "PaymentGateway",
+        "domain": null,
+        "state_variables": [],
+        "transitions": [],
+        "operations": [
+          {
+            "name": "processPayment",
+            "params": [
+              {
+                "name": "amount",
+                "type": "int"
+              }
+            ],
+            "contract": {
+              "requires": "amount > 0",
+              "ensures": "result = true or result = false"
+            }
+          }
+        ]
+      }
+    ],
+    "use_cases": [
+      {
+        "name": "CheckoutFlow",
+        "steps": [
+          {
+            "component": "OrderService",
+            "operation": "completeCheckout",
+            "arguments": {
+              "productId": "1",
+              "quantity": "1"
+            }
+          },
+          {
+            "component": "InventoryService",
+            "operation": "checkStock",
+            "arguments": {
+              "productId": "1"
+            }
+          },
+          {
+            "component": "PaymentGateway",
+            "operation": "processPayment",
+            "arguments": {
+              "amount": "10"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "status": "VERIFIED",
+  "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+  "tlc": {
+    "status": "VERIFIED",
+    "exit_code": 0,
+    "trace": "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)\nWarning: Please run the Java VM which executes TLC with a throughput optimized garbage collector by passing the \"-XX:+UseParallelGC\" property.\n(Use the -nowarning option to disable this warning.)\nRunning breadth-first search Model-Checking with fp 73 and seed -6853160411877525666 with 1 worker on 32 cores with 14064MB heap and 64MB offheap memory [pid: 3882843] (Linux 6.18.33.1-microsoft-standard-WSL2 amd64, Ubuntu 21.0.11 x86_64, MSBDiskFPSet, DiskStateQueue).\nParsing file /tmp/formalspecgen-architecture-9bgm0ek_/GeneratedSystem.tla\nParsing file /tmp/Naturals.tla\nSemantic processing of module Naturals\nSemantic processing of module GeneratedSystem\nStarting... (2026-08-14 05:27:29)\nComputing initial states...\nFinished computing initial states: 1 distinct state generated at 2026-08-14 05:27:30.\nModel checking completed. No error has been found.\n  Estimates of the probability that TLC did not check all reachable states\n  because two distinct states had the same fingerprint:\n  calculated (optimistic):  val = 5.4E-20\n2 states generated, 1 distinct states found, 0 states left on queue.\nThe depth of the complete state graph search is 1.\nThe average outdegree of the complete state graph is 0 (minimum is 0, the maximum 0 and the 95th percentile is 0).\nFinished in 00s at (2026-08-14 05:27:30)"
+  }
+}

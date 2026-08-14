@@ -452,8 +452,20 @@ def command_design_system(args: argparse.Namespace, ui: TerminalUI) -> int:
     ui.console.print(f"[bold cyan]Designing architecture via {args.provider}…[/bold cyan]")
     try:
         generator = design_system_staged if args.staged else design_system
-        result = generator(args.requirement, provider=args.provider,
-                           max_attempts=args.max_attempts, timeout=args.timeout)
+        repair_feedback = ""
+        result = None
+        rounds = 2 if args.staged else 1
+        for _ in range(rounds):
+            result = generator(args.requirement, provider=args.provider,
+                               max_attempts=args.max_attempts, timeout=args.timeout,
+                               target_lang=getattr(args, "lang", "java"),
+                               repair_feedback=repair_feedback) if args.staged else generator(
+                                   args.requirement, provider=args.provider,
+                                   max_attempts=args.max_attempts, timeout=args.timeout)
+            if result.get("status") == "VERIFIED":
+                break
+            tlc = result.get("tlc", {})
+            repair_feedback = str(tlc.get("output", result.get("message", "")))[:12000]
     except Exception as exc:  # fail closed at the CLI boundary
         ui.console.print(f"[bold red]Architecture generation failed:[/bold red] {escape(str(exc))}")
         return 1
@@ -951,6 +963,15 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if verdict["status"] == "SYSTEM_SYNTHESIS_VERIFIED" else 1
 
 
+def command_unified_system(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .unified_system_runner import run_unified_system
+    verdict = run_unified_system(args.artifact, args.evidence, args.out_dir, args.lang)
+    if args.json:
+        _write_json(verdict, args.json, ui.console)
+    ui.console.print(f"Status: {verdict.get('status')}\nClaim: {verdict.get('claim')}")
+    return 0 if verdict.get("status") in {"LOWERED", "VERIFIED"} else 1
+
+
 def _domain_candidate_name(value: str) -> str:
     """Accept a module name or displayed candidate filename without allowing paths."""
     raw = value.strip().lower().replace("-", "_")
@@ -1066,6 +1087,8 @@ def build_parser() -> argparse.ArgumentParser:
     design.add_argument("--max-attempts", type=int, default=3)
     design.add_argument("--staged", action="store_true",
                         help="use typed fragment elicitation and TLA/TLC publication gate")
+    design.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java",
+                        help="target source language for deterministic component filenames")
     validate_arch = sub.add_parser("validate-architecture",
                                    help="validate unified staged architecture JSON with TLC")
     validate_arch.add_argument("artifact")
@@ -1120,6 +1143,12 @@ def build_parser() -> argparse.ArgumentParser:
     system.add_argument("--executable", default="formalspecgen",
                         help=argparse.SUPPRESS)
     system.add_argument("--json", help="aggregate machine-readable verdict destination")
+    unified = sub.add_parser("unified-system", help="lower a unified architecture artifact")
+    unified.add_argument("artifact")
+    unified.add_argument("--evidence", required=True)
+    unified.add_argument("--out-dir", required=True)
+    unified.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java")
+    unified.add_argument("--json")
     return parser
 
 
@@ -1140,6 +1169,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "compose": return command_compose(args, ui)
     if args.command == "reverify": return command_reverify(args, ui)
     if args.command == "system": return command_system(args, ui)
+    if args.command == "unified-system": return command_unified_system(args, ui)
     return 2
 
 

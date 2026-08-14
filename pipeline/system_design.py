@@ -18,10 +18,13 @@ from .staged_architecture import (
     ComponentFragment, OperationFragment, StateVariableFragment, TransitionFragment,
     UseCaseStepFragment, parse_json_fragment, parse_component_fragments,
     parse_operation_fragments,
+    parse_fragment_list,
+    normalize_transition_fragments,
     assemble_architecture, assemble_unified_architecture, validate_transition,
 )
 from .architecture_tla_renderer import render_architecture_tla, render_unified_architecture
 from .architecture_tlc_gate import publish_architecture
+from .domain_generator import _dsl_expression
 
 DESIGN_SYSTEM = """Design a bounded, verifiable system from the requirement.
 This is a finite-state architecture exercise. Every mutable quantity must be a scalar bounded
@@ -89,44 +92,134 @@ def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3
             **last_candidate}
 
 
+def _component_filename(name: str, language: str) -> str:
+    import re
+    snake = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", snake).lower()
+    suffix = {"java": ".java", "rust": ".rs", "c": ".c", "cpp": ".cpp"}.get(language)
+    if suffix is None:
+        raise ValueError(f"UNSUPPORTED_LANGUAGE: {language}")
+    return f"{name if language in {'java', 'cpp'} else snake}{suffix}"
+
+
+def _inject_missing_adapters(components):
+    """Ensure every external port has a deterministic unverified adapter."""
+    existing = {item.implements for item in components if item.type == "adapter"}
+    for interface in list(components):
+        if interface.type == "interface" and interface.name not in existing:
+            components.append(ComponentFragment(name=f"Stripe{interface.name}", type="adapter",
+                                                desc=f"External adapter for {interface.name}",
+                                                implements=interface.name, external=True))
+    return components
+
+
 def design_system_staged(requirement: str, provider: str = "ollama",
-                         timeout: int = 120, max_attempts: int = 3) -> dict:
+                         timeout: int = 120, max_attempts: int = 3,
+                         target_lang: str = "java", repair_feedback: str = "") -> dict:
     """Elicit small typed fragments, assemble them, and gate publication through TLC."""
     chat = _chat_fn(provider)
-    def ask(prompt: str, model):
-        raw, _used, _usage = chat([{"role": "system", "content":
-            "Return only valid JSON for the requested fragment. Use bounded scalar state; "
-            "never invent identifiers."}, {"role": "user", "content": prompt}], None, 0.0)
-        return parse_json_fragment(raw, model, max_attempts=max_attempts)
+    history = [{"role": "system", "content":
+                "You are a formal methods architecture assistant. Return only strict JSON; "
+                "use bounded scalar state and preserve identifiers from prior stages. "
+                "For core components, reference an existing reviewed V2 domain with a safe "
+                "lowercase domain field whenever one is named by the requirement; never emit "
+                "state_variables or transitions for a component that has domain. The reviewed "
+                "domain is the sole source of truth for its state and transition ASTs."},
+               {"role": "user", "content": "System requirement:\n" + requirement +
+                ("\n\nPrevious TLC failure; repair the model:\n" + repair_feedback
+                 if repair_feedback else "")}]
+    transition_schema = {"type": "object", "required": ["transitions"], "properties": {
+        "transitions": {"type": "array", "minItems": 1, "items": {"type": "object",
+            "required": ["operation_name", "precondition", "effects", "frame"],
+            "properties": {
+                "operation_name": {"type": "string"},
+                "precondition": {"type": "string"},
+                "effects": {"type": "array", "minItems": 1, "items": {"type": "object",
+                    "required": ["target", "value"], "properties": {
+                        "target": {"type": "string"}, "value": {"type": "string"}},
+                    "additionalProperties": False}},
+                "frame": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            }, "additionalProperties": False}},
+    }, "additionalProperties": False}
+
+    def ask_json(prompt: str, parser, system: str = "Return only valid JSON for the requested fragment.", schema=None):
+        """Call Ollama defensively, retrying empty or malformed fragment responses."""
+        nudge = ""
+        last_error = None
+        for attempt in range(max_attempts):
+            history.append({"role": "user", "content": system + "\n" + prompt + nudge})
+            caller = _chat_fn(provider, json_schema=schema) if schema else chat
+            raw, _used, _usage = caller(
+                history, None, 0.0)
+            history.append({"role": "assistant", "content": raw or ""})
+            if not raw or not raw.strip():
+                last_error = "empty response"
+                nudge = "\n\nIMPORTANT: Do not return an empty response. Return ONLY valid JSON."
+                continue
+            try:
+                return parser(raw)
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                last_error = str(exc)
+                nudge = ("\n\nIMPORTANT: Repair the previous response and return ONLY valid JSON. "
+                         f"Validation error: {exc}")
+        raise ValueError(f"FRAGMENT_REPAIR_FAILED: {last_error}")
+
+    def ask_model(prompt: str, model, parser=None, schema=None):
+        parser = parser or (lambda raw: parse_json_fragment(raw, model))
+        return ask_json(prompt, parser,
+                        "Return only valid JSON for the requested typed fragment.", schema)
     try:
-        raw_components, _used, _usage = chat(
-            [{"role": "system", "content": "Return only a JSON list of component objects."},
-             {"role": "user", "content": "List components for this requirement with name, type, desc, file, and implements when applicable. Requirement:\n" + requirement}], None, 0.0)
-        components = parse_component_fragments(raw_components)
+        components = ask_json(
+            "List components for this requirement with name, type, desc, and no file field; include implements only when applicable. The compiler assigns filenames. Requirement:\n" + requirement,
+            parse_component_fragments, "Return only a JSON list of component objects.")
+        # Bind explicit reviewed-domain references deterministically. This keeps the model's
+        # component list lightweight while preventing it from silently dropping a named domain.
+        for component in components:
+            match = re.search(r"['\"]([a-z_][a-z0-9_]*)['\"]\s+domain", requirement,
+                              flags=re.IGNORECASE)
+            if match and component.name.lower().startswith(match.group(1)):
+                component.domain = match.group(1).lower()
+                component.type = "core"
+        components = _inject_missing_adapters(components)
+        for component in components:
+            component.file = _component_filename(component.name, target_lang)
         operations = {}
         states = {}
         transitions = {}
         for component in components:
-            operation_prompt = (f"List operations for {component.name}. Each needs name, params, "
-                                f"requires, ensures, returns. You may return a flat list or an "
-                                f"object keyed by component name. Requirement:\n{requirement}")
-            raw_ops, _used, _usage = chat(
-                [{"role": "system", "content": "Return only valid JSON operation fragments."},
-                 {"role": "user", "content": operation_prompt}], None, 0.0)
-            grouped = parse_operation_fragments(raw_ops)
+            operation_prompt = (f"List operations for {component.name}. Return only JSON. Each needs name, params, requires, ensures, returns. "
+                                f"requires and ensures MUST be single infix strings, never lists. Parameter types MUST be int or boolean only; never array, list, String, or object. "
+                                f"Use an empty params list when there are no parameters. You may return a flat list or an object keyed by component name. Requirement:\n{requirement}")
+            grouped = ask_json(operation_prompt, parse_operation_fragments,
+                               "Return only valid JSON operation fragments.")
             operations[component.name] = grouped.get(component.name, grouped.get("", []))
-            if component.type in {"core", "orchestrator"}:
-                states[component.name] = ask(
+            if component.type in {"core", "orchestrator"} and not component.domain:
+                states[component.name] = ask_model(
                     f"List bounded integer/boolean state variables for {component.name}; every integer needs bound and initial. Requirement:\n{requirement}",
-                    list[StateVariableFragment])
-            transitions[component.name] = ask(
-                f"List transitions for {component.name}; each needs operation_name, typed precondition, effects, frame. Use only declared state fields.",
-                list[TransitionFragment])
+                    list[StateVariableFragment],
+                    lambda raw: parse_fragment_list(raw, StateVariableFragment, "state"))
+            if component.type != "core" or component.domain:
+                transitions[component.name] = []
+                continue
             declared = {item.name for item in states.get(component.name, [])}
+            def parse_transitions(raw):
+                items = normalize_transition_fragments(parse_fragment_list(raw, dict, "transition"))
+                for item in items:
+                    if isinstance(item.get("precondition"), str):
+                        item["precondition"] = _dsl_expression(item["precondition"], declared)
+                    for effect in item.get("effects", []):
+                        if isinstance(effect.get("value"), str):
+                            effect["value"] = _dsl_expression(effect["value"], declared)
+                return [TransitionFragment.model_validate(item) for item in items]
+            transitions[component.name] = ask_model(
+                f"For {component.name}, return ONLY a JSON object with a transitions key whose value is a JSON list. Do not use the component name as a key. Each transition is parameterless and needs operation_name, precondition as an infix string (for example stock > 0), at least one effect, and a non-empty frame of field-name strings. Effects and frame MUST NOT be empty; omit getter/view operations that do not change state. Use ONLY the exact state fields declared for this component and fixed integer literals. Never invent variables such as quantity or amount, and never emit stock + quantity. Do not emit nested AST objects, timestamps, lists, or invented fields.",
+                list[TransitionFragment],
+                parse_transitions, transition_schema)
             for transition in transitions[component.name]:
                 validate_transition(transition, declared)
-        steps = ask("List ordered use-case steps with component, operation, and exact arguments for this requirement:\n" + requirement,
-                    list[UseCaseStepFragment])
+        steps = ask_model("List ordered use-case steps with component, operation, and exact arguments for this requirement:\n" + requirement,
+                    list[UseCaseStepFragment],
+                    lambda raw: parse_fragment_list(raw, UseCaseStepFragment, "use-case"))
         unified = assemble_unified_architecture(components, operations, states, steps, transitions)
         tla, cfg = render_unified_architecture(unified)
         tlc = check_tla(tla, cfg, timeout=timeout)
