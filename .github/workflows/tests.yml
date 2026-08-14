@@ -44,6 +44,7 @@ jobs:
       - name: Run tests with branch coverage gate
         run: >-
           python -m pytest
+          --cov-fail-under=90
           --ignore=tests/test_parallel_wrapper.py
           --ignore=tests/test_v2_async_serializer.py
       - name: Verify refactor-mode CLI contract
