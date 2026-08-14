@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+_PUBLIC_METHOD = re.compile(r"\bpublic\s+(?:static\s+)?[A-Za-z_$][\w$<>\[\]]*\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)")
 
 
 def verify_bisimulation_inputs(baseline: str | Path, refactored: str | Path,
@@ -40,8 +41,13 @@ def verify_bisimulation_inputs(baseline: str | Path, refactored: str | Path,
     if missing:
         return {"status": "BISIMULATION_STATE_UNRESOLVED", "claim": "NO_PROOF",
                 "missing_states": missing}
+    baseline_surface = sorted(_PUBLIC_METHOD.findall(baseline_text))
+    refactored_surface = sorted(_PUBLIC_METHOD.findall(refactored_text))
     return {"status": "BISIMULATION_PREFLIGHT_READY", "claim": "NO_PROOF",
             "behavior_equivalence_proved": False, "heap_topology_equivalence_proved": False,
+            "contract_surface_preserved": baseline_surface == refactored_surface,
+            "baseline_public_surface": baseline_surface,
+            "refactored_public_surface": refactored_surface,
             "mapping": mapping_value,
             "baseline_sha256": hashlib.sha256(baseline_text.encode()).hexdigest(),
             "refactored_sha256": refactored_hash, "refactored_sources": sources}
