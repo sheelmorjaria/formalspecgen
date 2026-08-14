@@ -1,0 +1,9 @@
+[package]
+name = "formalspecgen-ci-rust-deps"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rayon = "=1.11.0"
+tokio = { version = "=1.49.0", features = ["sync"] }

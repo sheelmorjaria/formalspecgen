@@ -8,6 +8,7 @@ on:
       - "pyproject.toml"
       - ".coveragerc"
       - "pytest.ini"
+      - "ci/rust-deps/**"
       - ".github/workflows/tests.yml"
   push:
     branches: [main]
@@ -52,3 +53,36 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
           retention-days: 14
+
+  rust-lanes:
+    name: Rayon and Tokio offline gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo registry and git dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ci/rust-deps/target
+          key: cargo-rust-lanes-${{ runner.os }}-${{ hashFiles('ci/rust-deps/Cargo.toml') }}
+          restore-keys: cargo-rust-lanes-${{ runner.os }}-
+      - name: Prefetch pinned Rayon and Tokio dependencies
+        run: cargo fetch --manifest-path ci/rust-deps/Cargo.toml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
+      - name: Run offline Rayon and Tokio gates
+        env:
+          CARGO_NET_OFFLINE: "true"
+        run: python -m pytest --no-cov tests/test_parallel_wrapper.py tests/test_v2_async_serializer.py
