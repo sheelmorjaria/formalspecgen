@@ -60,6 +60,66 @@ def extract_method_from_inspection(source_path: str | Path, inspection_path: str
             "requires_refactor_gate": True}
 
 
+def extract_decorator_from_inspection(source_path: str | Path, inspection_path: str | Path) -> dict:
+    """Emit a decorator wrapper for a narrowly inspected interface implementation."""
+    source_file, evidence_file = Path(source_path), Path(inspection_path)
+    try:
+        source = source_file.read_text(encoding="utf-8")
+        evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        return _fail("input_unavailable", str(exc))
+    digest = hashlib.sha256(source.encode()).hexdigest()
+    finding = next((item for item in evidence.get("findings", [])
+                    if item.get("code") == "cross-cutting-delegation"), None)
+    if (evidence.get("status") != "INSPECTED" or evidence.get("claim") != "STATIC_INSPECTION" or
+            evidence.get("source_sha256") != digest or finding is None or
+            len(finding.get("interfaces", [])) != 1 or len(finding.get("wrapped_fields", [])) != 1):
+        return _fail("inspection_binding_mismatch", "A unique hash-bound Decorator finding is required")
+    try:
+        tree = javalang.parse.parse(source)
+        declaration = next(node for node in tree.types if isinstance(node, javalang.tree.ClassDeclaration))
+        methods = [node for node in declaration.methods if node.name in finding.get("methods", [])]
+        if len(methods) != len(finding["methods"]):
+            raise ValueError("decorated methods are not uniquely available")
+        files = _decorator_files(source, declaration, methods, finding)
+    except (javalang.parser.JavaSyntaxError, javalang.tokenizer.LexerError, TypeError) as exc:
+        return _fail("unsupported_java_syntax", str(exc))
+    except (StopIteration, ValueError) as exc:
+        return _fail("unsupported_decorator_shape", str(exc))
+    return {"status": "TRANSFORMED", "claim": "DETERMINISTIC_MULTIFILE_REFACTOR_CANDIDATE",
+            "pattern": "Decorator", "source_sha256": digest, "files": files,
+            "formal_preservation_proved": False, "requires_multifile_refactor_gate": True}
+
+
+def _decorator_files(source: str, declaration, methods: list, finding: dict) -> dict[str, str]:
+    interface, wrapped = finding["interfaces"][0], finding["wrapped_fields"][0]
+    for method in methods:
+        if method.return_type is not None or method.parameters:
+            raise ValueError("Decorator profile requires void methods without parameters")
+        fields = {node.member for _, node in method.filter(javalang.tree.MemberReference)}
+        if fields - {wrapped}:
+            raise ValueError("Decorator method depends on additional instance state")
+    class_name = declaration.name + "Decorator"
+    methods_text = []
+    masked = _mask_non_code(source)
+    for method in methods:
+        lines = source.splitlines(keepends=True)
+        start = sum(len(line) for line in lines[:method.position.line - 1])
+        opening = masked.find("{", start); end = _matching_brace(masked, opening)
+        if opening < 0 or end <= opening:
+            raise ValueError("decorator method span could not be reconstructed")
+        declaration_text = source[start:opening].strip()
+        declaration_text = re.sub(r"\b(?:public|protected|private)\b\s*", "public ",
+                                  declaration_text, count=1)
+        methods_text.append("    " + declaration_text + source[opening:end + 1].replace("\n", "\n    "))
+    body = "\n".join(methods_text)
+    wrapper = (f"public class {class_name} implements {interface} {{\n"
+               f"    private final {interface} {wrapped};\n\n"
+               f"    public {class_name}({interface} {wrapped}) {{ this.{wrapped} = {wrapped}; }}\n\n"
+               f"{body}\n}}\n")
+    return {source_file_name(source): source, f"{class_name}.java": wrapper}
+
+
 def extract_factory_from_inspection(source_path: str | Path, inspection_path: str | Path,
                                     method_name: str) -> dict:
     """Extract one closed conditional-creation method into deterministic factory files."""
