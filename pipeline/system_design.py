@@ -16,6 +16,12 @@ from .parse_check import parse_check
 from .parse_vcs import parse_vcs
 
 DESIGN_SYSTEM = """Design a bounded, verifiable system from the requirement.
+This is a finite-state architecture exercise. Every mutable quantity must be a scalar bounded
+integer or boolean with an explicit finite bound (for example stock: 0..5). Do not model lists,
+sets, maps, queues, arbitrary strings, timestamps, money decimals, or unbounded collections.
+Represent repeated resources with a small scalar bound and state the abstraction explicitly.
+Every use-case step must use operations declared on its component; external calls require an
+explicit positive literal or named parameter binding. Never invent operation or component names.
 Apply Clean Architecture and SOLID: entities and use cases own policy; outer infrastructure
 depends on inward-owned interfaces. Split reader/writer roles when clients differ. Model concurrent
 state transitions explicitly. Return exactly these sections:
