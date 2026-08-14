@@ -17,6 +17,8 @@ class ComponentFragment(BaseModel):
     name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
     type: Literal["core", "interface", "adapter", "orchestrator"]
     desc: str = Field(min_length=1, max_length=500)
+    file: str | None = None
+    external: bool = False
     implements: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*$")
 
 
@@ -332,3 +334,33 @@ def assemble_architecture(components: list[ComponentFragment],
                         use_cases=[UseCase(name="MainFlow", steps=[Step(component=s.component,
                                                                           operation=s.operation)
                                                                       for s in steps])])
+
+
+def assemble_unified_architecture(components: list[ComponentFragment],
+                                  operations: dict[str, list[OperationFragment]],
+                                  states: dict[str, list[StateVariableFragment]],
+                                  steps: list[UseCaseStepFragment],
+                                  transitions: dict[str, list[TransitionFragment]],
+                                  name: str = "GeneratedSystem") -> UnifiedArchitecture:
+    """Build and validate the exact unified staged JSON shape."""
+    staged = []
+    for component in components:
+        component_type = component.type if component.type != "orchestrator" else "core"
+        staged_ops = [StagedOperation(
+            name=op.name,
+            params=[ParameterFragment.model_validate(item.model_dump()) for item in op.params],
+            contract=StagedContract(requires=op.requires, ensures=op.ensures))
+            for op in operations.get(component.name, [])]
+        staged.append(StagedComponent(
+            name=component.name, type=component_type,
+            file=component.file or f"{component.name}.java",
+            external=component.external or component.type == "interface",
+            implements=component.implements,
+            state_variables=[StagedStateVariable.model_validate(item.model_dump())
+                             for item in states.get(component.name, [])],
+            transitions=transitions.get(component.name, []), operations=staged_ops))
+    return UnifiedArchitecture(name=name, components=staged,
+                               use_cases=[StagedUseCase(
+                                   name="CheckoutFlow",
+                                   steps=[StagedUseCaseStep.model_validate(item.model_dump())
+                                          for item in steps])])

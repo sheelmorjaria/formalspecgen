@@ -17,9 +17,9 @@ from .parse_vcs import parse_vcs
 from .staged_architecture import (
     ComponentFragment, OperationFragment, StateVariableFragment, TransitionFragment,
     UseCaseStepFragment, parse_json_fragment, parse_operation_fragments,
-    assemble_architecture, validate_transition,
+    assemble_architecture, assemble_unified_architecture, validate_transition,
 )
-from .architecture_tla_renderer import render_architecture_tla
+from .architecture_tla_renderer import render_architecture_tla, render_unified_architecture
 from .architecture_tlc_gate import publish_architecture
 
 DESIGN_SYSTEM = """Design a bounded, verifiable system from the requirement.
@@ -123,15 +123,12 @@ def design_system_staged(requirement: str, provider: str = "ollama",
                 validate_transition(transition, declared)
         steps = ask("List ordered use-case steps with component, operation, and exact arguments for this requirement:\n" + requirement,
                     list[UseCaseStepFragment])
-        architecture = assemble_architecture(components, operations, states, steps, transitions)
-        all_states = [state for values in states.values() for state in values]
-        all_transitions = [(transition.operation_name, transition)
-                           for values in transitions.values() for transition in values]
-        tla, cfg = render_architecture_tla(all_states, all_transitions, "StagedArchitecture")
+        unified = assemble_unified_architecture(components, operations, states, steps, transitions)
+        tla, cfg = render_unified_architecture(unified)
         tlc = check_tla(tla, cfg, timeout=timeout)
         if tlc.get("status") != "VERIFIED":
             return {"status": "DESIGN_FAILED", "message": tlc.get("status"), "tlc": tlc}
-        return {"status": "VERIFIED", "architecture": architecture.to_dict(),
+        return {"status": "VERIFIED", "architecture": unified.model_dump(),
                 "tlc": tlc, "tla": tla, "cfg": cfg,
                 "claim": "BOUNDED_ARCHITECTURE_EVIDENCE"}
     except Exception as exc:
