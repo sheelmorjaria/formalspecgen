@@ -236,7 +236,11 @@ def synthesize_polyglot_implementation(
         publish({"type": "implementation_attempt", **attempt})
 
     final_status = attempts[-1]["status"] if attempts else "NO_ATTEMPT"
+    runtime_evidence = attempts[-1].get("runtime_evidence") if attempts else None
+    runtime_passed = bool(runtime_evidence and
+                          runtime_evidence.get("status") == "NO_RUNTIME_FAILURE_FOUND")
     claim = ("DEDUCTIVE_PROOF" if final_status == "VERIFIED" and verification_mode == "esc"
+             else "STATIC_CHECKED_RUNTIME_TESTED" if final_status == "STATIC_CHECKED" and runtime_passed
              else "STATIC_CHECK" if final_status == "STATIC_CHECKED" else "NO_PROOF")
     result = {"final_status": final_status, "stop_reason": stop_reason,
               "language": language, "attempts": attempts, "implementation_code": final_code,

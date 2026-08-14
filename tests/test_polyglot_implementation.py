@@ -82,6 +82,16 @@ def test_c_verified_and_check_only_candidates(tmp_path):
     assert result["final_status"] == "STATIC_CHECKED"
     assert result["claim"] == "STATIC_CHECK"
 
+    with patch.object(implementation, "lint_acsl", return_value=[]), \
+         patch.object(implementation, "collect_polyglot_runtime_evidence",
+                      return_value={"status": "NO_RUNTIME_FAILURE_FOUND", "exit_code": 0}), \
+         patch.object(implementation, "verify_c",
+                      return_value={"status": "C_CHECKED", "exit_code": 0}):
+        result = implementation.synthesize_polyglot_implementation(
+            C, "c", out_dir=tmp_path / "runtime", candidate=C, max_attempts=1,
+            verification_mode="check", runtime_gate=True)
+    assert result["claim"] == "STATIC_CHECKED_RUNTIME_TESTED"
+
     pointer = r"""/*@ assigns \nothing; ensures \result == *p; */
 int read(const int *p) { return *p; }
 """
