@@ -16,7 +16,8 @@ from .parse_check import parse_check
 from .parse_vcs import parse_vcs
 from .staged_architecture import (
     ComponentFragment, OperationFragment, StateVariableFragment, TransitionFragment,
-    UseCaseStepFragment, parse_json_fragment, parse_operation_fragments,
+    UseCaseStepFragment, parse_json_fragment, parse_component_fragments,
+    parse_operation_fragments,
     assemble_architecture, assemble_unified_architecture, validate_transition,
 )
 from .architecture_tla_renderer import render_architecture_tla, render_unified_architecture
@@ -98,7 +99,10 @@ def design_system_staged(requirement: str, provider: str = "ollama",
             "never invent identifiers."}, {"role": "user", "content": prompt}], None, 0.0)
         return parse_json_fragment(raw, model, max_attempts=max_attempts)
     try:
-        components = ask("List components for this requirement as objects with name,type(core/interface/adapter/orchestrator),desc. Requirement:\n" + requirement, list[ComponentFragment])
+        raw_components, _used, _usage = chat(
+            [{"role": "system", "content": "Return only a JSON list of component objects."},
+             {"role": "user", "content": "List components for this requirement with name, type, desc, file, and implements when applicable. Requirement:\n" + requirement}], None, 0.0)
+        components = parse_component_fragments(raw_components)
         operations = {}
         states = {}
         transitions = {}

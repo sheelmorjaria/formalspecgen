@@ -252,6 +252,35 @@ def parse_operation_fragments(raw: str) -> dict[str, list[OperationFragment]]:
     return result
 
 
+def normalize_component_type(value: str) -> str:
+    """Canonicalize common LLM role synonyms without accepting unknown roles."""
+    normalized = str(value).strip().lower()
+    groups = {
+        "core": {"core", "service", "manager", "engine", "logic", "domain"},
+        "orchestrator": {"orchestrator", "controller", "coordinator", "flow"},
+        "interface": {"interface", "port", "api", "gateway"},
+        "adapter": {"adapter", "implementation", "impl", "concrete"},
+    }
+    for canonical, synonyms in groups.items():
+        if normalized in synonyms:
+            return canonical
+    return normalized
+
+
+def parse_component_fragments(raw: str) -> list[ComponentFragment]:
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise ValueError("component fragments must be a JSON list")
+    normalized = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("component fragment must be an object")
+        item = dict(item)
+        item["type"] = normalize_component_type(item.get("type", ""))
+        normalized.append(ComponentFragment.model_validate(item))
+    return normalized
+
+
 def assemble_component_fragments(components: list[ComponentFragment],
                                  operations: dict[str, list[OperationFragment]] | None = None,
                                  steps: list[UseCaseStepFragment] | None = None) -> dict:
