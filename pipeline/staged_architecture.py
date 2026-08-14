@@ -7,7 +7,7 @@ from typing import Literal
 import json
 from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 from .domain_v2 import ExpressionIR, _referenced_fields
 from .architecture import Architecture, Component, Operation, Dependency, UseCase, Step
 
@@ -125,7 +125,8 @@ def parse_json_fragment(raw: str, model, repair_chat: Callable[[str], str] | Non
     for _ in range(max_attempts):
         try:
             value = json.loads(candidate)
-            return model.model_validate(value)
+            return (model.model_validate(value) if hasattr(model, "model_validate")
+                    else TypeAdapter(model).validate_python(value))
         except (json.JSONDecodeError, ValueError) as exc:
             last_error = exc
             if repair_chat is None:

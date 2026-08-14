@@ -39,7 +39,7 @@ from .llm import LLMError, _chat_fn
 from .orchestrator import run as draft_contract, run_implementation_loop
 from .rust_support import draft_rust
 from .scaffold_domain import DomainSpec, load_spec, scaffold_domain
-from .system_design import design_system
+from .system_design import design_system, design_system_staged
 from .tla_backend import generate_and_check
 from .verify import classify, verify
 from .verify_c import verify_c
@@ -448,8 +448,9 @@ def command_design_system(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Generate a bounded architecture artifact from natural language."""
     ui.console.print(f"[bold cyan]Designing architecture via {args.provider}…[/bold cyan]")
     try:
-        result = design_system(args.requirement, provider=args.provider,
-                               max_attempts=args.max_attempts, timeout=args.timeout)
+        generator = design_system_staged if args.staged else design_system
+        result = generator(args.requirement, provider=args.provider,
+                           max_attempts=args.max_attempts, timeout=args.timeout)
     except Exception as exc:  # fail closed at the CLI boundary
         ui.console.print(f"[bold red]Architecture generation failed:[/bold red] {escape(str(exc))}")
         return 1
@@ -1030,6 +1031,8 @@ def build_parser() -> argparse.ArgumentParser:
     design.add_argument("--timeout", type=int, default=120,
                         help="TLC timeout in seconds; bounds unbounded model attempts")
     design.add_argument("--max-attempts", type=int, default=3)
+    design.add_argument("--staged", action="store_true",
+                        help="use typed fragment elicitation and TLA/TLC publication gate")
 
     domain = sub.add_parser("domain", parents=[common], help="elicit and scaffold a domain plugin")
     domain.add_argument("idea")

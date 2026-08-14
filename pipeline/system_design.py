@@ -14,6 +14,12 @@ from .tla_backend import check_tla
 from .verify import verify_files, classify
 from .parse_check import parse_check
 from .parse_vcs import parse_vcs
+from .staged_architecture import (
+    ComponentFragment, OperationFragment, StateVariableFragment, TransitionFragment,
+    UseCaseStepFragment, parse_json_fragment, assemble_architecture, validate_transition,
+)
+from .architecture_tla_renderer import render_architecture_tla
+from .architecture_tlc_gate import publish_architecture
 
 DESIGN_SYSTEM = """Design a bounded, verifiable system from the requirement.
 This is a finite-state architecture exercise. Every mutable quantity must be a scalar bounded
@@ -79,6 +85,51 @@ def design_system(requirement: str, provider: str = "glm", max_attempts: int = 3
         feedback = json.dumps({"lint": blocking, "tlc": tlc}, ensure_ascii=False)[:12000]
     return {"status": "STALLED", "attempts": attempts, "message": "design repair limit reached",
             **last_candidate}
+
+
+def design_system_staged(requirement: str, provider: str = "ollama",
+                         timeout: int = 120, max_attempts: int = 3) -> dict:
+    """Elicit small typed fragments, assemble them, and gate publication through TLC."""
+    chat = _chat_fn(provider)
+    def ask(prompt: str, model):
+        raw, _used, _usage = chat([{"role": "system", "content":
+            "Return only valid JSON for the requested fragment. Use bounded scalar state; "
+            "never invent identifiers."}, {"role": "user", "content": prompt}], None, 0.0)
+        return parse_json_fragment(raw, model, max_attempts=max_attempts)
+    try:
+        components = ask("List components for this requirement as objects with name,type(core/interface/adapter/orchestrator),desc. Requirement:\n" + requirement, list[ComponentFragment])
+        operations = {}
+        states = {}
+        transitions = {}
+        for component in components:
+            operations[component.name] = ask(
+                f"List operations for {component.name}. Each needs name, params, requires, ensures, returns. Requirement:\n{requirement}",
+                list[OperationFragment])
+            if component.type in {"core", "orchestrator"}:
+                states[component.name] = ask(
+                    f"List bounded integer/boolean state variables for {component.name}; every integer needs bound and initial. Requirement:\n{requirement}",
+                    list[StateVariableFragment])
+            transitions[component.name] = ask(
+                f"List transitions for {component.name}; each needs operation_name, typed precondition, effects, frame. Use only declared state fields.",
+                list[TransitionFragment])
+            declared = {item.name for item in states.get(component.name, [])}
+            for transition in transitions[component.name]:
+                validate_transition(transition, declared)
+        steps = ask("List ordered use-case steps with component, operation, and exact arguments for this requirement:\n" + requirement,
+                    list[UseCaseStepFragment])
+        architecture = assemble_architecture(components, operations, states, steps, transitions)
+        all_states = [state for values in states.values() for state in values]
+        all_transitions = [(transition.operation_name, transition)
+                           for values in transitions.values() for transition in values]
+        tla, cfg = render_architecture_tla(all_states, all_transitions, "StagedArchitecture")
+        tlc = check_tla(tla, cfg, timeout=timeout)
+        if tlc.get("status") != "VERIFIED":
+            return {"status": "DESIGN_FAILED", "message": tlc.get("status"), "tlc": tlc}
+        return {"status": "VERIFIED", "architecture": architecture.to_dict(),
+                "tlc": tlc, "tla": tla, "cfg": cfg,
+                "claim": "BOUNDED_ARCHITECTURE_EVIDENCE"}
+    except Exception as exc:
+        return {"status": "STAGED_GENERATION_FAILED", "message": str(exc)}
 
 
 def parse_design(raw: str) -> tuple[Architecture, str, str]:
