@@ -162,3 +162,20 @@ def assemble_component_fragments(components: list[ComponentFragment],
             "operations": {name: [item.model_dump() for item in values]
                             for name, values in (operations or {}).items()},
             "steps": [item.model_dump() for item in (steps or [])]}
+
+
+def attach_transitions(component_name: str, operation_names: set[str],
+                       transitions: list[TransitionFragment]) -> list[TransitionFragment]:
+    """Attach only transitions belonging to declared component operations."""
+    for transition in transitions:
+        if transition.operation_name not in operation_names:
+            raise ValueError(
+                f"UNDECLARED_OPERATION_TRANSITION: {component_name}."
+                f"{transition.operation_name}")
+    declared = set()
+    for transition in transitions:
+        if transition.operation_name in declared:
+            raise ValueError(f"DUPLICATE_OPERATION_TRANSITION: {component_name}."
+                             f"{transition.operation_name}")
+        declared.add(transition.operation_name)
+    return transitions
