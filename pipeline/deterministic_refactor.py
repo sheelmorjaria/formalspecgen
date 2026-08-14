@@ -91,6 +91,58 @@ def extract_decorator_from_inspection(source_path: str | Path, inspection_path: 
             "formal_preservation_proved": False, "requires_multifile_refactor_gate": True}
 
 
+def extract_facade_from_inspection(source_path: str | Path, inspection_path: str | Path) -> dict:
+    """Emit a narrow public-surface facade for a hash-bound God-class finding."""
+    source_file, evidence_file = Path(source_path), Path(inspection_path)
+    try:
+        source = source_file.read_text(encoding="utf-8")
+        evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        return _fail("input_unavailable", str(exc))
+    digest = hashlib.sha256(source.encode()).hexdigest()
+    finding = next((item for item in evidence.get("findings", []) if item.get("code") == "god-class"), None)
+    if (evidence.get("status") != "INSPECTED" or evidence.get("claim") != "STATIC_INSPECTION" or
+            evidence.get("source_sha256") != digest or finding is None):
+        return _fail("inspection_binding_mismatch", "A hash-bound Facade finding is required")
+    try:
+        tree = javalang.parse.parse(source)
+        declaration = next(node for node in tree.types if isinstance(node, javalang.tree.ClassDeclaration))
+        methods = [node for node in declaration.methods if "public" in node.modifiers and
+                   "static" not in node.modifiers and node.body is not None]
+        if not methods:
+            raise ValueError("Facade requires public instance methods")
+        facade = _facade_source(declaration.name, methods)
+    except (javalang.parser.JavaSyntaxError, javalang.tokenizer.LexerError, TypeError) as exc:
+        return _fail("unsupported_java_syntax", str(exc))
+    except (StopIteration, ValueError) as exc:
+        return _fail("unsupported_facade_shape", str(exc))
+    return {"status": "TRANSFORMED", "claim": "DETERMINISTIC_MULTIFILE_REFACTOR_CANDIDATE",
+            "pattern": "Facade", "source_sha256": digest,
+            "files": {source_file.name: source, f"{declaration.name}Facade.java": facade},
+            "formal_preservation_proved": False, "requires_multifile_refactor_gate": True}
+
+
+def _facade_source(class_name: str, methods: list) -> str:
+    lines = [f"public class {class_name}Facade {{",
+             f"    private final {class_name} delegate;", "",
+             f"    public {class_name}Facade({class_name} delegate) {{ this.delegate = delegate; }}", ""]
+    for method in methods:
+        return_type = getattr(method.return_type, "name", "void") if method.return_type else "void"
+        params = []
+        args = []
+        for parameter in method.parameters:
+            type_name = getattr(parameter.type, "name", "")
+            if not type_name:
+                raise ValueError("Facade parameter type is unsupported")
+            params.append(f"{type_name} {parameter.name}"); args.append(parameter.name)
+        lines.append(f"    public {return_type} {method.name}({', '.join(params)}) {{")
+        call = f"delegate.{method.name}({', '.join(args)})"
+        lines.append(f"        {'return ' if return_type != 'void' else ''}{call};")
+        lines.extend(["    }", ""])
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def _decorator_files(source: str, declaration, methods: list, finding: dict) -> dict[str, str]:
     interface, wrapped = finding["interfaces"][0], finding["wrapped_fields"][0]
     for method in methods:

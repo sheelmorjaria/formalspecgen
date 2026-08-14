@@ -1017,7 +1017,7 @@ The generated directory is immediately routed through the multi-file gate. Const
 field-dependent decisions, additional statements, overloaded target names, type-name collisions,
 side effects, or stale inspection evidence fail closed. Decorator transformations remain
 inspection-only: callback-order mappings require stronger profile-specific obligations than the
-Factory, narrow State, and narrow Decorator extraction profiles.
+Factory, narrow State, narrow Decorator, and narrow Facade extraction profiles.
 
 ## Providers
 
