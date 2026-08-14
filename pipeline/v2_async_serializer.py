@@ -59,8 +59,12 @@ def check_tokio_scaffold(code: str, timeout: int = 60) -> dict:
             (root / "Cargo.lock").write_text(lockfile.read_text(encoding="utf-8"), encoding="utf-8")
         (root / "src" / "lib.rs").write_text(code, encoding="utf-8")
         environment = dict(os.environ); environment["RUSTFLAGS"] = "-D warnings"
+        offline = os.environ.get("FORMALSPECGEN_CARGO_OFFLINE", "1") != "0"
+        command = ["cargo", "check", "--locked", "--quiet"]
+        if offline:
+            command.insert(3, "--offline")
         try:
-            process = subprocess.run(["cargo", "check", "--locked", "--offline", "--quiet"], cwd=root,
+            process = subprocess.run(command, cwd=root,
                 capture_output=True, text=True, timeout=timeout, env=environment)
         except FileNotFoundError:
             return {"status": "TOOL_MISSING", "exit_code": 127}
@@ -69,7 +73,7 @@ def check_tokio_scaffold(code: str, timeout: int = 60) -> dict:
     output = ((process.stdout or "") + (process.stderr or "")).strip()
     return {"status": "TOKIO_CHECKED" if process.returncode == 0 else "TOKIO_CHECK_FAILED",
             "exit_code": process.returncode, "output": output[-8000:],
-            "dependency": "tokio=1.49.0", "offline": True}
+            "dependency": "tokio=1.49.0", "offline": offline}
 
 
 def async_static_gate(reviewed: ReviewedDomainSpecV2, code: str, *, native_checked: bool) -> dict:
