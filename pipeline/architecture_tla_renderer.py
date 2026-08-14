@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from .domain_v2_tla import render_expression
 from .staged_architecture import StateVariableFragment, TransitionFragment, validate_transition
+from .staged_architecture import UnifiedArchitecture
 
 
 def render_transition(name: str, transition: TransitionFragment,
@@ -48,3 +49,13 @@ def render_architecture_tla(states: list[StateVariableFragment],
     # non-boolean config syntax accepted by some TLC versions only.
     cfg = "SPECIFICATION Spec\nINVARIANT TypeOK\n"
     return "\n".join(lines) + "\n", cfg
+
+
+def render_unified_architecture(architecture: UnifiedArchitecture) -> tuple[str, str]:
+    """Lower the unified component schema into one bounded architecture model."""
+    states = [state for component in architecture.components
+              for state in component.state_variables]
+    transitions = [(transition.operation_name, transition)
+                   for component in architecture.components
+                   for transition in component.transitions]
+    return render_architecture_tla(states, transitions, architecture.name)

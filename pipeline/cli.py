@@ -40,6 +40,9 @@ from .orchestrator import run as draft_contract, run_implementation_loop
 from .rust_support import draft_rust
 from .scaffold_domain import DomainSpec, load_spec, scaffold_domain
 from .system_design import design_system, design_system_staged
+from .staged_architecture import UnifiedArchitecture
+from .architecture_tla_renderer import render_unified_architecture
+from .architecture_tlc_gate import validate_architecture_with_tlc
 from .tla_backend import generate_and_check
 from .verify import classify, verify
 from .verify_c import verify_c
@@ -471,6 +474,36 @@ def command_design_system(args: argparse.Namespace, ui: TerminalUI) -> int:
                      "evidence": evidence}, args.json, ui.console)
     ui.console.print(f"[green]Architecture artifact written to {destination}[/green]")
     return 0
+
+
+def command_validate_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Validate a unified staged architecture JSON through TLA+/TLC."""
+    try:
+        architecture = UnifiedArchitecture.model_validate(
+            json.loads(Path(args.artifact).read_text(encoding="utf-8")))
+        tla, cfg = render_unified_architecture(architecture)
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="formalspecgen-architecture-") as directory:
+            root = Path(directory)
+            tla_path, cfg_path = root / f"{architecture.name}.tla", root / f"{architecture.name}.cfg"
+            tla_path.write_text(tla, encoding="utf-8")
+            cfg_path.write_text(cfg, encoding="utf-8")
+            result = validate_architecture_with_tlc(
+                tla_path, cfg_path, config.TLC_JAR, config.JAVA_BIN, args.timeout)
+        if result["status"] != "VERIFIED":
+            if args.json:
+                _write_json({"status": result["status"], "tlc": result}, args.json, ui.console)
+            ui.console.print(f"[red]Architecture validation failed: {result['status']}[/red]")
+            return 1
+        evidence = {"status": "VERIFIED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+                    "tlc": result}
+        if args.json:
+            _write_json({"architecture": architecture.model_dump(), **evidence}, args.json, ui.console)
+        ui.console.print("[green]Unified architecture TLC validation passed[/green]")
+        return 0
+    except Exception as exc:
+        ui.console.print(f"[red]Architecture validation failed: {escape(str(exc))}[/red]")
+        return 1
 
 
 def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
@@ -1033,6 +1066,11 @@ def build_parser() -> argparse.ArgumentParser:
     design.add_argument("--max-attempts", type=int, default=3)
     design.add_argument("--staged", action="store_true",
                         help="use typed fragment elicitation and TLA/TLC publication gate")
+    validate_arch = sub.add_parser("validate-architecture",
+                                   help="validate unified staged architecture JSON with TLC")
+    validate_arch.add_argument("artifact")
+    validate_arch.add_argument("--json")
+    validate_arch.add_argument("--timeout", type=int, default=120)
 
     domain = sub.add_parser("domain", parents=[common], help="elicit and scaffold a domain plugin")
     domain.add_argument("idea")
@@ -1095,6 +1133,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
     if args.command == "architecture": return command_architecture(args, ui)
     if args.command == "design-system": return command_design_system(args, ui)
+    if args.command == "validate-architecture": return command_validate_architecture(args, ui)
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
     if args.command == "promote-domain": return command_promote_domain(args, ui)
