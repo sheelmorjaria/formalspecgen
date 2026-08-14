@@ -68,10 +68,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ci/rust-deps/target
-          key: cargo-rust-lanes-${{ runner.os }}-${{ hashFiles('ci/rust-deps/Cargo.toml') }}
+          key: cargo-rust-lanes-${{ runner.os }}-${{ hashFiles('ci/rust-deps/Cargo.toml', 'ci/rust-deps/Cargo.lock') }}
           restore-keys: cargo-rust-lanes-${{ runner.os }}-
       - name: Prefetch pinned Rayon and Tokio dependencies
-        run: cargo fetch --manifest-path ci/rust-deps/Cargo.toml
+        run: cargo fetch --locked --manifest-path ci/rust-deps/Cargo.toml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
