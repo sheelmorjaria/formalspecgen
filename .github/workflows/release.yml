@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12', cache: pip }
       - name: Install test and build dependencies
-        run: python -m pip install --upgrade pip build twine -r requirements-dev.txt
+        run: python -m pip install --upgrade pip build twine -r requirements-dev.txt -e .
       - name: Run deterministic test suite
         run: python -m pytest
       - name: Build wheel and source distribution

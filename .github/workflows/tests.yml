@@ -39,7 +39,7 @@ jobs:
             requirements-dev.txt
             pyproject.toml
       - name: Install development dependencies
-        run: python -m pip install --upgrade pip -r requirements-dev.txt
+        run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
       - name: Run tests with branch coverage gate
         run: python -m pytest
       - name: Upload coverage XML
