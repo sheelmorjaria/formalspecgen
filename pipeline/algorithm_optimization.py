@@ -19,6 +19,9 @@ def optimize_algorithm(source_path: str | Path, output_path: str | Path, *, stra
     source_file, destination = Path(source_path), Path(output_path)
     if strategy not in _STRATEGIES:
         return _fail("unsupported_strategy", f"strategy must be one of {sorted(_STRATEGIES)}")
+    if strategy == "nested_loop":
+        return _fail("complexity_regression_possible",
+                     "nested_loop is not admitted as an optimization strategy")
     try:
         baseline = source_file.read_text(encoding="utf-8")
     except OSError as exc:
@@ -26,9 +29,6 @@ def optimize_algorithm(source_path: str | Path, output_path: str | Path, *, stra
     baseline_exit, baseline_output = verify(source_file, mode="esc")
     if baseline_exit != 0:
         return _fail("baseline_not_verified", baseline_output[-4000:])
-    if strategy == "nested_loop":
-        return _fail("complexity_regression_possible",
-                     "nested_loop is not admitted as an optimization strategy")
     prompt = (f"Rewrite this verified Java/JML algorithm using the {strategy} strategy. "
               "Preserve every class, field, method signature, import, and JML clause exactly. "
               "Return only one complete ```java fenced file. Do not claim complexity or proof.\n\n" + baseline)
