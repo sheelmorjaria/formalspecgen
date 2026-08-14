@@ -43,6 +43,12 @@ def verify_bisimulation_inputs(baseline: str | Path, refactored: str | Path,
                 "missing_states": missing}
     baseline_surface = sorted(_PUBLIC_METHOD.findall(baseline_text))
     refactored_surface = sorted(_PUBLIC_METHOD.findall(refactored_text))
+    if baseline_surface != refactored_surface:
+        return {"status": "BISIMULATION_SURFACE_MISMATCH", "claim": "NO_PROOF",
+                "contract_surface_preserved": False,
+                "baseline_public_surface": baseline_surface,
+                "refactored_public_surface": refactored_surface,
+                "mapping": mapping_value}
     return {"status": "BISIMULATION_PREFLIGHT_READY", "claim": "NO_PROOF",
             "behavior_equivalence_proved": False, "heap_topology_equivalence_proved": False,
             "contract_surface_preserved": baseline_surface == refactored_surface,

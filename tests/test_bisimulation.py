@@ -36,4 +36,5 @@ def test_bisimulation_preflight_reports_public_surface_changes(tmp_path):
     refactored = tmp_path / "Modern.java"; refactored.write_text("class IdleState { public int run() { return 0; } }")
     mapping = tmp_path / "mapping.json"; mapping.write_text(json.dumps({"0": "IdleState"}))
     result = verify_bisimulation_inputs(baseline, refactored, mapping)
+    assert result["status"] == "BISIMULATION_SURFACE_MISMATCH"
     assert result["contract_surface_preserved"] is False
