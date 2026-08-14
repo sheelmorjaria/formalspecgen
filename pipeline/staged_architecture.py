@@ -8,6 +8,7 @@ import json
 from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .domain_v2 import ExpressionIR, _referenced_fields
 
 
 class ComponentFragment(BaseModel):
@@ -70,6 +71,40 @@ class UseCaseStepFragment(BaseModel):
     component: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
     operation: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
     arguments: dict[str, str] = Field(default_factory=dict)
+
+
+class TransitionEffectFragment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    value: ExpressionIR
+
+
+class TransitionFragment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    operation_name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    precondition: ExpressionIR
+    effects: list[TransitionEffectFragment] = Field(min_length=1)
+    frame: list[str] = Field(min_length=1)
+
+    @field_validator("frame")
+    @classmethod
+    def unique_frame(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("FRAME_CONSISTENCY_ERROR: frame fields must be unique")
+        return value
+
+
+def validate_transition(fragment: TransitionFragment,
+                        declared_state: set[str]) -> None:
+    targets = [effect.target for effect in fragment.effects]
+    if set(targets) != set(fragment.frame) or len(targets) != len(set(targets)):
+        raise ValueError("FRAME_CONSISTENCY_ERROR: effects and frame must be identical")
+    referenced = set(_referenced_fields(fragment.precondition))
+    for effect in fragment.effects:
+        referenced.update(_referenced_fields(effect.value))
+    unknown = referenced - declared_state
+    if unknown:
+        raise ValueError("UNDECLARED_STATE_REFERENCE: " + ", ".join(sorted(unknown)))
 
 
 def validate_step_bindings(step: UseCaseStepFragment, operation: OperationFragment) -> None:
