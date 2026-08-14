@@ -379,6 +379,9 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .refactor_gate import (
         verify_contract_preserving_refactor, verify_multifile_contract_refactor,
     )
+    if getattr(args, "signing_key", None) and not args.json:
+        ui.console.print("[bold red]Signing a refactor verdict requires --json[/bold red]")
+        return 2
     ui.console.print("[cyan]Checking baseline and refactored contract surfaces…[/cyan]")
     result = (verify_multifile_contract_refactor(args.baseline, args.refactored)
               if Path(args.refactored).is_dir() else

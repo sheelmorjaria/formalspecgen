@@ -16,3 +16,10 @@ def test_verify_refactor_can_sign_json_verdict(tmp_path):
                   return_value=Path(str(verdict) + ".sig")) as sign:
         assert cli.command_verify_refactor(args, ui) == 0
     sign.assert_called_once_with(str(verdict), "reviewer")
+
+
+def test_verify_refactor_rejects_signing_without_json():
+    args = SimpleNamespace(baseline="baseline.java", refactored="refactored.java",
+                           json=None, signing_key="reviewer")
+    ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_args, **_kwargs: None))
+    assert cli.command_verify_refactor(args, ui) == 2
