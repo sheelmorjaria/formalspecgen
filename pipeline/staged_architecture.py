@@ -7,7 +7,7 @@ from typing import Literal
 import json
 from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 from .domain_v2 import ExpressionIR, _referenced_fields
 from .architecture import Architecture, Component, Operation, Dependency, UseCase, Step
 
@@ -18,6 +18,100 @@ class ComponentFragment(BaseModel):
     type: Literal["core", "interface", "adapter", "orchestrator"]
     desc: str = Field(min_length=1, max_length=500)
     implements: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*$")
+
+
+class StagedContract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    requires: str = Field(min_length=1)
+    ensures: str = Field(min_length=1)
+
+
+class StagedOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    params: list[ParameterFragment] = Field(default_factory=list)
+    contract: StagedContract
+
+    @field_validator("params")
+    @classmethod
+    def unique_parameters(cls, value: list[ParameterFragment]) -> list[ParameterFragment]:
+        names = [item.name for item in value]
+        if len(names) != len(set(names)):
+            raise ValueError("operation parameters must be unique")
+        return value
+
+
+class StagedStateVariable(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    type: Literal["int", "boolean", "bool"]
+    bound: tuple[int, int] | None = None
+    initial: int | bool = 0
+
+    @field_validator("bound")
+    @classmethod
+    def require_integer_bound(cls, value, info):
+        if info.data.get("type") == "int" and value is None:
+            raise ValueError("UNBOUNDED_STATE_SPACE: integer state requires bound")
+        if value is not None and value[0] > value[1]:
+            raise ValueError("state bounds must be ordered")
+        return value
+
+
+class StagedComponent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    type: Literal["core", "interface", "adapter"]
+    file: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*\.java$")
+    external: bool = False
+    implements: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*$")
+    state_variables: list[StagedStateVariable] = Field(default_factory=list)
+    transitions: list[TransitionFragment] = Field(default_factory=list)
+    operations: list[StagedOperation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> "StagedComponent":
+        if self.type == "adapter" and not self.implements:
+            raise ValueError("ADAPTER_REQUIRES_IMPLEMENTS")
+        if self.type == "interface" and not self.operations:
+            raise ValueError("EXTERNAL_INTERFACE_REQUIRES_OPERATIONS")
+        names = [item.name for item in self.state_variables]
+        if len(names) != len(set(names)):
+            raise ValueError("DUPLICATE_STATE_VARIABLE")
+        operation_names = {item.name for item in self.operations}
+        for transition in self.transitions:
+            if transition.operation_name not in operation_names:
+                raise ValueError("UNDECLARED_OPERATION_TRANSITION: " +
+                                 transition.operation_name)
+            validate_transition(transition, set(names))
+        return self
+
+
+class StagedUseCaseStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    component: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    operation: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    arguments: dict[str, str] = Field(default_factory=dict)
+
+
+class StagedUseCase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    steps: list[StagedUseCaseStep] = Field(min_length=1)
+
+
+class UnifiedArchitecture(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_]\w*$")
+    components: list[StagedComponent] = Field(min_length=1)
+    use_cases: list[StagedUseCase] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def unique_components(self) -> "UnifiedArchitecture":
+        names = [item.name for item in self.components]
+        if len(names) != len(set(names)):
+            raise ValueError("DUPLICATE_COMPONENT_NAME")
+        return self
 
 
 class ParameterFragment(BaseModel):
@@ -115,6 +209,11 @@ def validate_step_bindings(step: UseCaseStepFragment, operation: OperationFragme
         raise ValueError("MISSING_ARGUMENT_BINDING: " + ", ".join(sorted(expected - actual)))
     if actual - expected:
         raise ValueError("EXTRA_ARGUMENT_BINDING: " + ", ".join(sorted(actual - expected)))
+
+
+# Resolve forward references used by the unified models declared before the legacy fragments.
+StagedOperation.model_rebuild()
+StagedComponent.model_rebuild()
 
 
 def parse_json_fragment(raw: str, model, repair_chat: Callable[[str], str] | None = None,
