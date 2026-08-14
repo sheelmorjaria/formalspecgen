@@ -93,3 +93,5 @@ OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3-coder:30b")
 OLLAMA_STRUCTURED_THINKING = os.environ.get(
     "OLLAMA_STRUCTURED_THINKING", "disabled").strip().lower()
+OLLAMA_NUM_PREDICT = int(os.environ.get("OLLAMA_NUM_PREDICT", "8192"))
+OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "16384"))

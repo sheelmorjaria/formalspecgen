@@ -264,7 +264,12 @@ def _openai_chat(messages, model, temperature):
 
 def _ollama_chat(messages, model, temperature):
     return _post_chat(config.OLLAMA_BASE_URL, config.OLLAMA_API_KEY, messages,
-                      model or config.OLLAMA_MODEL, temperature, config.LLM_TIMEOUT)
+                      model or config.OLLAMA_MODEL, temperature, config.LLM_TIMEOUT,
+                      {"stream": False, "options": {
+                          "num_predict": config.OLLAMA_NUM_PREDICT,
+                          "num_ctx": config.OLLAMA_NUM_CTX,
+                          "temperature": temperature,
+                      }})
 
 
 def _chat_fn(provider, json_schema=None):
@@ -279,7 +284,13 @@ def _chat_fn(provider, json_schema=None):
                     config.OLLAMA_BASE_URL, config.OLLAMA_API_KEY, messages,
                     model or config.OLLAMA_MODEL, temperature, config.LLM_TIMEOUT,
                     {"response_format": response_format,
-                     "think": config.OLLAMA_STRUCTURED_THINKING != "disabled"})
+                     "think": config.OLLAMA_STRUCTURED_THINKING != "disabled",
+                     "stream": False,
+                     "options": {
+                         "num_predict": config.OLLAMA_NUM_PREDICT,
+                         "num_ctx": config.OLLAMA_NUM_CTX,
+                         "temperature": temperature,
+                     }})
             ollama_structured.structured_for = structured_for
             return ollama_structured
         return structured_for(json_schema, "formal_spec_gen_v2_domain")
