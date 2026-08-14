@@ -1028,6 +1028,15 @@ but deliberately emits `behavior_equivalence_proved: false`; a mapping is not a 
 formalspecgen verify-bisimulation baseline/Legacy.java refactored/ mapping.json --json bisim.json
 ```
 
+Composition can also prepare a bounded actor/interleaving model:
+
+```bash
+formalspecgen compose composition.json --actors OrderA,OrderB --no-esc --json concurrent.json
+```
+
+The artifact records `Actors`, `callResult`, and `history` state, but does not claim concurrent
+linearizability until TLC and the Java lock correspondence are independently discharged.
+
 ## Providers
 
 The default CLI provider is Ollama. Configuration is read from environment variables or the
