@@ -296,6 +296,8 @@ class DecoratorDetector(PatternDetector):
             f"{len(decorated)}/{len(public_methods)} public methods combine cross-cutting calls with wrapped-interface delegation.",
             "Decorator", "Move logging/metrics to a decorator while preserving callback order and exception behavior.")
         finding["methods"] = sorted(method.name for method in decorated)
+        finding["interfaces"] = sorted(interfaces)
+        finding["wrapped_fields"] = sorted(wrapped)
         return [finding]
 
 

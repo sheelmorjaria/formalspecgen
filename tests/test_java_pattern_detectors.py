@@ -129,6 +129,8 @@ def test_factory_state_and_decorator_detectors(tmp_path):
                    if item["code"] == "cross-cutting-delegation")
     assert finding["suggested_pattern"] == "Decorator"
     assert finding["methods"] == ["reset", "run"]
+    assert finding["interfaces"] == ["Service"]
+    assert finding["wrapped_fields"] == ["delegate"]
 
 
 def test_new_detector_near_misses_are_conservative(tmp_path):
