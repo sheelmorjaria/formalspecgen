@@ -44,5 +44,7 @@ def render_architecture_tla(states: list[StateVariableFragment],
     action_names = [name for name, _ in transitions]
     lines.append("Next == " + (" \\/ ".join(action_names) if action_names else "UNCHANGED <<" + ", ".join(variables) + ">>"))
     lines.extend(["Spec == Init /\\ [][Next]_<<" + ", ".join(variables) + ">>", "", "===="])
-    cfg = f"SPECIFICATION Spec\nINVARIANT TypeOK\nCHECK_DEADLOCK TRUE\n"
+    # TLC checks deadlocks by default; omitting CHECK_DEADLOCK avoids the
+    # non-boolean config syntax accepted by some TLC versions only.
+    cfg = "SPECIFICATION Spec\nINVARIANT TypeOK\n"
     return "\n".join(lines) + "\n", cfg
