@@ -1,0 +1,19 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "smart_lock",
+  "requirement": "Generate the reviewed smart-lock contract",
+  "requirement_sha256": "d9e6aa7b50046febc2669f24a1fcb73a2a604af1c96f33768e78b8a7d512a045",
+  "contract_sha256": "114f83ea7f029550c8a60180be93eaccaaaed341614f32ebbe3d9e61d975d284",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Operations model atomic method calls; concurrent linearizability is not proved."
+  ],
+  "openjml_check": "VERIFIED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/smart_lock.json",
+  "accepted_candidate_sha256": "f6c4bcfd1508473e7e270b6d75822bc3c0fd6550630b55ef763158a39e16e94a",
+  "accepted_evidence_sha256": "673af2eb18c5e366a26087c459ab34e221d27cad4ce43b5367552a13f4466806",
+  "transformation": "DETERMINISTIC_V2_TO_JML"
+}

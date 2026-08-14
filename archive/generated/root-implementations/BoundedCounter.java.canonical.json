@@ -1,0 +1,19 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "bounded_counter",
+  "requirement": "Generate the reviewed bounded counter",
+  "requirement_sha256": "604e780d17fcb29492d13c5ffdd219464527c49e4de4245d91586c2209bc4130",
+  "contract_sha256": "d0a991c7f4bc67de474ff7abd1f130672be6bd438a360fc18b7797138076c006",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Operations model atomic method calls; concurrent linearizability is not proved."
+  ],
+  "openjml_check": "VERIFIED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/bounded_counter.json",
+  "accepted_candidate_sha256": "b400f548911278f37cbadf48247db2d830a9ae3f47befcb06f271f8a77008b93",
+  "accepted_evidence_sha256": "1e55a9832207348dc684bcdcc793e9d2a0d02abd0d1254acaea6e200f67e83ed",
+  "transformation": "DETERMINISTIC_V2_TO_JML"
+}

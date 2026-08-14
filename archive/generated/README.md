@@ -7,5 +7,7 @@ for traceability but are not part of the executable FormalSpecGen pipeline.
   provider evidence.
 - `root-implementations/` contains generated Java implementations that were previously left in
   the repository root but are not tracked source fixtures.
+- `root-implementations/` also contains their sibling `*.canonical.json` evidence files.
+- `test-runs/verdicts/` contains generated architecture/design/composition verdicts and evidence.
 - Do not use these files as trusted domains or production implementation inputs without rerunning
   the relevant validation and promotion gates.

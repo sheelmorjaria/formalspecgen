@@ -1,0 +1,19 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "rate_limiter",
+  "requirement": "Rate limiter",
+  "requirement_sha256": "32892404fb040766daac7a91b30ed7ca158db2417d458fc080aac9740000c280",
+  "contract_sha256": "65fc097e52dfec21974f0a9df9bf0e1b30b82d05c3fe7ca7254c16cc3f1f927a",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Operations model atomic method calls; concurrent linearizability is not proved."
+  ],
+  "openjml_check": "VERIFIED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/rate_limiter.json",
+  "accepted_candidate_sha256": "bfd1fb6da4bc2908528d1472059388ac8cf16b17729091b438b717660bd7f14f",
+  "accepted_evidence_sha256": "530f1af52354d5149217098b53662d177ac5ba4abdc544772ebbec42af635f72",
+  "transformation": "DETERMINISTIC_V2_TO_JML"
+}

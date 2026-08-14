@@ -1,0 +1,19 @@
+{
+  "status": "CANONICAL_CONTRACT",
+  "claim": "REVIEWED_TRANSFORMATION",
+  "domain": "peterson",
+  "requirement": "Peterson mutual exclusion benchmark",
+  "requirement_sha256": "8f95316422e5a4b553704d2523b103faed79168bd76655901ebd5d9ad5288897",
+  "contract_sha256": "92cf7267261c28b54bda18d60e5eed7a1243126642d8ba1bb32120d55788d120",
+  "assumptions": [
+    "Generated deterministically from a hash-bound reviewed V2 domain.",
+    "Operations model atomic method calls; concurrent linearizability is not proved."
+  ],
+  "openjml_check": "VERIFIED",
+  "human_acceptance_required": true,
+  "source_refinement_proved": false,
+  "reviewed_v2_domain": "/home/sheel/formalspecgen/domains/v2/peterson.json",
+  "accepted_candidate_sha256": "2647e945949131eda5cc7c2e265322597ee9ade941bf16c8ec05854aef7ed101",
+  "accepted_evidence_sha256": "cee0932b9ca3653641bc43831b2058587f8f4b586579a8ccf1ea9336764d49c8",
+  "transformation": "DETERMINISTIC_V2_TO_JML"
+}
