@@ -847,6 +847,31 @@ application would introduce new objects and cross-file calls with transition or 
 semantics. `apply-refactor` does not offer those patterns until profile-specific obligations can
 prove the generated collaborators and delegation glue rather than merely compiling them.
 
+#### End-to-end modernization workflow
+
+The intended legacy-modernization loop is inspection, hash-bound transformation, and independent
+verification:
+
+```bash
+formalspecgen inspect baseline/LegacyService.java --json inspection.json
+formalspecgen apply-refactor baseline/LegacyService.java \
+  --inspection inspection.json --pattern extract-method --method processOrder \
+  --out refactored/LegacyService.java --json refactor-candidate.json
+formalspecgen verify-refactor baseline/LegacyService.java refactored/ \
+  --json refactor-verdict.json
+```
+
+The supplied method must satisfy the deterministic detector (the current Extract Method profile
+requires more than 60 method lines). Public JML clauses that mention private fields require the
+usual `/*@ spec_public @*/` visibility annotation, and integer arithmetic requires preconditions
+that rule out Java `int` overflow. These are contract obligations, not relaxations of the proof.
+
+On success, `refactor-verdict.json` reports
+`MULTIFILE_REFACTOR_CONTRACT_PRESERVED` with `contract_surface_preserved: true`. The proof covers
+the baseline and refactored contracts independently with OpenJML; it intentionally keeps
+`behavior_equivalence_proved: false` because full heap/bisimulation equivalence is outside this
+profile.
+
 ### Cross-file refactoring verification
 
 `verify-refactor` also accepts a refactored source directory whose primary file retains the baseline
