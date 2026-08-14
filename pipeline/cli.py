@@ -405,6 +405,9 @@ def command_optimize_algorithm(args: argparse.Namespace, ui: TerminalUI) -> int:
     if args.json:
         _write_json(result, args.json, ui.console)
     ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
+    if result["status"] != "VERIFIED":
+        ui.console.print(f"Code: {result.get('code', 'UNKNOWN')}\n"
+                         f"Message: {result.get('message', 'no diagnostic available')}")
     return 0 if result["status"] == "VERIFIED" else 1
 
 
