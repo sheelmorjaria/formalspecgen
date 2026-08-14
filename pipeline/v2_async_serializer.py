@@ -50,13 +50,17 @@ def check_tokio_scaffold(code: str, timeout: int = 60) -> dict:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory); (root / "src").mkdir()
         (root / "Cargo.toml").write_text(
-            '[package]\nname="formalspecgen_async_check"\nversion="0.0.0"\n'
-            'edition="2021"\n\n[dependencies]\ntokio={version="=1.49.0",features=["sync"]}\n',
+            '[package]\nname="formalspecgen-ci-rust-deps"\nversion="0.0.0"\n'
+            'edition="2021"\n\n[dependencies]\nrayon="=1.11.0"\n'
+            'tokio={version="=1.49.0",features=["sync"]}\n',
             encoding="utf-8")
+        lockfile = Path(__file__).resolve().parents[1] / "ci" / "rust-deps" / "Cargo.lock"
+        if lockfile.is_file():
+            (root / "Cargo.lock").write_text(lockfile.read_text(encoding="utf-8"), encoding="utf-8")
         (root / "src" / "lib.rs").write_text(code, encoding="utf-8")
         environment = dict(os.environ); environment["RUSTFLAGS"] = "-D warnings"
         try:
-            process = subprocess.run(["cargo", "check", "--offline", "--quiet"], cwd=root,
+            process = subprocess.run(["cargo", "check", "--locked", "--offline", "--quiet"], cwd=root,
                 capture_output=True, text=True, timeout=timeout, env=environment)
         except FileNotFoundError:
             return {"status": "TOOL_MISSING", "exit_code": 127}
