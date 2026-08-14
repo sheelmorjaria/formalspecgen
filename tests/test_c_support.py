@@ -65,12 +65,14 @@ while (i < n) { output[i++] = 0; }
 
 
 def test_c_pointer_validity_and_separation_passes_are_conservative():
-    code = r"""/*@ assigns \\nothing; ensures \\result == dst[0]; */
-int copy_first(const int *src, int *dst) { dst[0] = src[0]; return dst[0]; }
+    code = r"""/*@ assigns \\nothing; ensures \\result == dst[idx]; */
+int copy_first(const int *src, int *dst, int idx) { dst[idx] = src[idx]; return dst[idx]; }
 """
     valid = c_support.apply_c_passes(code, ["inject_valid_pointers"])
     assert r"requires \valid_read(src);" in valid["code"]
     assert r"requires \valid(dst);" in valid["code"]
+    assert r"requires idx >= 0;" in valid["code"]
+    assert r"requires \valid(dst + (0..idx));" in valid["code"]
     separated = c_support.apply_c_passes(code, ["inject_separated"])
     assert r"requires \separated(src, dst);" in separated["code"]
     assert c_support.apply_c_passes(separated["code"], ["inject_separated"])["changed"] is False

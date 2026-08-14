@@ -39,7 +39,7 @@ def apply_c_passes(code: str, selected=None) -> dict:
         raise ValueError("unknown C postprocessor passes: " + ", ".join(unknown))
     transforms = {"inject_overflow_bounds": _inject_overflow_bounds,
                   "inject_null_checks": _inject_null_checks,
-                  "inject_valid_pointers": _inject_null_checks,
+                  "inject_valid_pointers": _inject_valid_pointers,
                   "inject_separated": _inject_separated,
                   "inject_loop_assigns": _promote_loop_assigns_markers}
     original = current = code; reports = []
@@ -82,6 +82,33 @@ def _inject_null_checks(code: str) -> str:
             point = contract.start("body")
             insertion = "".join(f" requires {fact};\n" for fact in additions)
             code = code[:point] + insertion + code[point:]
+    return code
+
+
+def _inject_valid_pointers(code: str) -> str:
+    """Add base validity plus justified contiguous validity for direct ``ptr[idx]`` access."""
+    code = _inject_null_checks(code)
+    function = re.compile(r"(?m)^(?P<indent>\s*)(?P<ret>[A-Za-z_]\w*(?:\s+\w+)*)\s+"
+                          r"(?P<name>[A-Za-z_]\w*)\s*\((?P<params>[^)]*)\)\s*\{")
+    for match in reversed(list(function.finditer(code))):
+        body_end = _matching_c_brace(code, match.end() - 1)
+        if body_end is None: continue
+        body = code[match.end():body_end]; contract = _attached_contract(code, match.start())
+        if not contract: continue
+        pointer_names = [pointer["name"] for raw in match["params"].split(",")
+                         for pointer in [re.search(r"\*\s*(?P<name>[A-Za-z_]\w*)\s*$", raw.strip())]
+                         if pointer]
+        additions = []
+        for name in pointer_names:
+            for index in re.findall(rf"\b{re.escape(name)}\s*\[\s*([A-Za-z_]\w*)\s*\]", body):
+                if not re.search(rf"\b{re.escape(index)}\b", match["params"]):
+                    continue
+                for fact in (rf"{index} >= 0", rf"\valid({name} + (0..{index}))"):
+                    if fact not in contract["body"] and fact not in additions:
+                        additions.append(fact)
+        if additions:
+            point = contract.start("body")
+            code = code[:point] + "".join(f" requires {fact};\n" for fact in additions) + code[point:]
     return code
 
 
