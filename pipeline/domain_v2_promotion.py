@@ -60,6 +60,25 @@ def sign_artifact(path: str | Path, signing_key: str, *, suffix: str = ".sig") -
     return signature
 
 
+def verify_artifact_signature(path: str | Path, signature: str | Path,
+                              authorized_keys: set[str] | None = None) -> dict:
+    """Verify a detached signature and optionally enforce an authorized key set."""
+    artifact, sig = Path(path), Path(signature)
+    if not artifact.exists() or not sig.exists():
+        return {"status": "SIGNATURE_MISSING", "claim": "NO_PROOF"}
+    result = subprocess.run(["gpg", "--status-fd", "1", "--verify", str(sig), str(artifact)],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        return {"status": "SIGNATURE_INVALID", "claim": "NO_PROOF",
+                "output": result.stderr[-2000:]}
+    goodsig = next((line for line in result.stdout.splitlines() if line.startswith("[GNUPG:] GOODSIG ")), "")
+    key_id = goodsig.split(maxsplit=2)[2].split(maxsplit=1)[0] if goodsig else ""
+    if authorized_keys is not None and key_id not in authorized_keys:
+        return {"status": "UNAUTHORIZED_REVIEWER", "claim": "NO_PROOF", "key_id": key_id}
+    return {"status": "SIGNATURE_VERIFIED", "claim": "CRYPTOGRAPHIC_SIGNATURE_VERIFIED",
+            "key_id": key_id}
+
+
 def promote_validated_candidate(
     candidate_path: str | Path,
     validation_path: str | Path,

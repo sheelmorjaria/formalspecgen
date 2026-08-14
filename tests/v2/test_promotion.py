@@ -9,7 +9,7 @@ import yaml
 from pipeline.domain_v2 import DomainSpecV2
 from pipeline.domain_v2_promotion import (
     ReviewedDomainSpecV2,
-    candidate_sha256, promote_domain,
+    candidate_sha256, promote_domain, verify_artifact_signature,
     promote_validated_candidate,
 )
 from pipeline.domain_v2_publication import TlcEvidence, ValidatedEvidence, publish_validation_success
@@ -141,6 +141,21 @@ def test_promotion_can_emit_explicit_gpg_detached_signature(tmp_path):
     assert reviewed.review_status == "reviewed"
     assert run.call_args.kwargs["check"] is True
     assert str(signature) in run.call_args.args[0]
+
+
+def test_signature_verification_enforces_presence_validity_and_key_policy(tmp_path):
+    artifact = tmp_path / "verdict.json"; artifact.write_text("{}")
+    signature = tmp_path / "verdict.json.sig"; signature.write_text("sig")
+    with patch("pipeline.domain_v2_promotion.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stdout = "[GNUPG:] GOODSIG ABC123 Reviewer"
+        run.return_value.stderr = ""
+        assert verify_artifact_signature(artifact, signature, {"ABC123"})["status"] == \
+            "SIGNATURE_VERIFIED"
+        assert verify_artifact_signature(artifact, signature, {"OTHER"})["status"] == \
+            "UNAUTHORIZED_REVIEWER"
+    signature.unlink()
+    assert verify_artifact_signature(artifact, signature)["status"] == "SIGNATURE_MISSING"
 
 
 def test_promotion_fails_closed_when_gpg_signing_fails(tmp_path):
