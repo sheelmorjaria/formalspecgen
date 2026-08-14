@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 from .staged_architecture import UnifiedArchitecture
-from .domain_v2_promotion import ReviewedDomainSpecV2
+from .domain_v2_promotion import ReviewedDomainSpecV2, verify_artifact_signature
 
 
 def _sha(value) -> str:
@@ -38,6 +38,12 @@ def _load_reviewed_domain(domain_name: str, domains_dir: Path):
     value = json.loads(path.read_text(encoding="utf-8"))
     if value.get("review_status") != "reviewed":
         raise ValueError(f"DOMAIN_NOT_REVIEWED: {domain_name}")
+    if os.getenv("FORMALSPECGEN_REQUIRE_SIGNATURES", "").lower() in {"1", "true", "yes"}:
+        authorized = {item.strip() for item in os.getenv("AUTHORIZED_REVIEWER_KEYS", "").split(",")
+                      if item.strip()} or None
+        result = verify_artifact_signature(path, Path(str(path) + ".promotion.sig"), authorized)
+        if result["status"] != "SIGNATURE_VERIFIED":
+            raise ValueError(f"CRITICAL: Cryptographic signature verification failed: {result['status']}")
     try:
         reviewed = ReviewedDomainSpecV2.model_validate(value)
         return reviewed
