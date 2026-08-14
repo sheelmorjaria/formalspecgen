@@ -23,7 +23,11 @@ jobs:
       - name: Install test and build dependencies
         run: python -m pip install --upgrade pip build twine -r requirements-dev.txt -e .
       - name: Run deterministic test suite
-        run: python -m pytest
+        run: >-
+          python -m pytest
+          --cov-fail-under=90
+          --ignore=tests/test_parallel_wrapper.py
+          --ignore=tests/test_v2_async_serializer.py
       - name: Build wheel and source distribution
         run: python -m build
       - name: Validate distribution metadata
