@@ -875,8 +875,10 @@ profile.
 ### Parallel system refactoring
 
 For a bounded modernization plan, `system --mode refactor` inspects and refactors independent
-Java components concurrently. Each component receives one source file and an optional supported
-pattern/method; unsupported or uninspected smells fail closed without running a composition gate.
+Java components through a bounded in-process worker pool. Each component receives one source file
+and an optional supported pattern/method; unsupported or uninspected smells fail closed without
+running a composition gate. These workers provide context isolation, but are not independent
+LLM agents and their scheduling is not a verified property.
 
 ```json
 {
