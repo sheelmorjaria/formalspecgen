@@ -3,6 +3,24 @@
 FormalSpecGen is a terminal-first, human-in-the-loop tool for turning natural-language requirements
 into reviewed formal contracts, bounded architecture evidence, and deductively verified code.
 
+### Optional MCP server
+
+FormalSpecGen exposes an optional Model Context Protocol façade for structured agent access:
+
+```bash
+pip install 'formalspecgen[mcp]'
+python mcp_server.py
+```
+
+The server provides `verify_code`, `validate_architecture`, `implement_code`, and `inspect_code`
+tools. Inputs are restricted to the current workspace and responses are structured verdict objects;
+the server never converts a tool failure into a success claim. Configure an MCP client with the
+server command and its absolute project path, for example:
+
+```json
+{"mcpServers":{"formalspecgen":{"command":"python","args":["/path/to/formalspecgen/mcp_server.py"]}}}
+```
+
 ```text
 Natural language → clarification → checked language contract
                                       │

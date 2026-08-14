@@ -21,6 +21,9 @@ dependencies = [
 [project.scripts]
 formalspecgen = "pipeline.cli:main"
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0,<2"]
+
 [tool.setuptools.packages.find]
 include = ["pipeline*", "formalspec_core*"]
 
