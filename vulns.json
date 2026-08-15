@@ -1,0 +1,35 @@
+{
+  "status": "VULNERABILITIES_FOUND",
+  "claim": "SECURITY_INSPECTION_COMPLETE",
+  "source": "baseline/VulnerableService.java",
+  "files_checked": [
+    {
+      "file": "baseline/VulnerableService.java",
+      "exit_code": 6
+    }
+  ],
+  "findings": [
+    {
+      "source": "openjml_esc",
+      "vc": "PossiblyNegativeIndex",
+      "cwe": "CWE-125",
+      "severity": "HIGH",
+      "description": "Out-of-bounds Read",
+      "file": "baseline/VulnerableService.java",
+      "line": 4,
+      "type": "FORMAL_VC"
+    },
+    {
+      "source": "openjml_esc",
+      "vc": "PossiblyTooLargeIndex",
+      "cwe": "CWE-125",
+      "severity": "HIGH",
+      "description": "Out-of-bounds Read",
+      "file": "baseline/VulnerableService.java",
+      "line": 4,
+      "type": "FORMAL_VC"
+    }
+  ],
+  "exploitability_proved": false,
+  "scope": "Pattern findings and formal counterexample labels only; no exploit execution."
+}

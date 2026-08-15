@@ -1,0 +1,39 @@
+{
+  "status": "POCS_GENERATED",
+  "claim": "POC_GENERATED_NOT_EXECUTED",
+  "target": "baseline/VulnerableService.java",
+  "generated": [
+    {
+      "file": "security-pocs/OutOfBoundsPoC1.java",
+      "finding": {
+        "source": "openjml_esc",
+        "vc": "PossiblyNegativeIndex",
+        "cwe": "CWE-125",
+        "severity": "HIGH",
+        "description": "Out-of-bounds Read",
+        "file": "baseline/VulnerableService.java",
+        "line": 4,
+        "type": "FORMAL_VC"
+      },
+      "status": "POC_GENERATED",
+      "executed": false
+    },
+    {
+      "file": "security-pocs/OutOfBoundsPoC2.java",
+      "finding": {
+        "source": "openjml_esc",
+        "vc": "PossiblyTooLargeIndex",
+        "cwe": "CWE-125",
+        "severity": "HIGH",
+        "description": "Out-of-bounds Read",
+        "file": "baseline/VulnerableService.java",
+        "line": 4,
+        "type": "FORMAL_VC"
+      },
+      "status": "POC_GENERATED",
+      "executed": false
+    }
+  ],
+  "exploit_proven": false,
+  "scope": "Local JUnit source templates only; compilation and execution require explicit human review."
+}

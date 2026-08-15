@@ -1,11 +1,18 @@
 from unittest.mock import patch
 
-from pipeline.security_assessment import assess_security, map_formal_vcs, run_semgrep
+from pipeline.security_assessment import (assess_security, map_formal_failure_to_cwe,
+                                          map_formal_vcs, run_semgrep)
 
 
 def test_formal_vc_labels_map_to_cwes():
     findings = map_formal_vcs("ArithmeticOperationRange and underflow PossiblyNegativeIndex NegativeArraySize")
     assert {item["cwe"] for item in findings} == {"CWE-190", "CWE-191", "CWE-125", "CWE-131"}
+
+
+def test_native_prover_failures_share_universal_cwe_mapping():
+    assert map_formal_failure_to_cwe("framac", "RTE: signed_overflow")['cwe'] == "CWE-190"
+    assert map_formal_failure_to_cwe("prusti", "precondition of method: index")['cwe'] == "CWE-125"
+    assert map_formal_failure_to_cwe("esbmc", "array bounds violation")['cwe'] == "CWE-125"
 
 
 def test_security_assessment_fails_closed_on_formal_failure(tmp_path):

@@ -22,6 +22,30 @@ FORMAL_CWE_MAP = {
 }
 
 
+def map_formal_failure_to_cwe(verifier: str, failure_text: str) -> dict[str, str]:
+    """Map native prover diagnostics to the language-independent CWE taxonomy."""
+    text = failure_text.lower()
+    if verifier == "openjml":
+        if "possiblynegativeindex" in text or "possiblytoolargeindex" in text:
+            return {"cwe": "CWE-125", "severity": "HIGH"}
+        if "arithmeticoperationrange" in text:
+            return {"cwe": "CWE-191" if "underflow" in text else "CWE-190", "severity": "HIGH"}
+    elif verifier == "framac":
+        if "pointer_dereference" in text or "null_pointer" in text:
+            return {"cwe": "CWE-476", "severity": "HIGH"}
+        if "signed_overflow" in text or "unsigned_overflow" in text:
+            return {"cwe": "CWE-190", "severity": "HIGH"}
+    elif verifier == "prusti":
+        if "precondition" in text and "index" in text:
+            return {"cwe": "CWE-125", "severity": "HIGH"}
+    elif verifier == "esbmc":
+        if "array bounds" in text or "out of bounds" in text:
+            return {"cwe": "CWE-125", "severity": "HIGH"}
+        if "overflow" in text:
+            return {"cwe": "CWE-190", "severity": "HIGH"}
+    return {"cwe": "UNKNOWN", "severity": "LOW"}
+
+
 def map_formal_vcs(output: str) -> list[dict[str, str]]:
     """Map recognized formal verification-condition labels to CWE evidence."""
     findings: list[dict[str, str]] = []

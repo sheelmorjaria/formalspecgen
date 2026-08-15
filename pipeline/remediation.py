@@ -25,9 +25,16 @@ def remediate(target: str | Path, report: str | Path, out_dir: str | Path = "rem
         return {"status": "NO_REMEDIATION_REQUIRED", "claim": "NO_PROOF",
                 "target": str(target_path), "mitigated_cwes": []}
     original = target_path.read_text(encoding="utf-8")
+    language = {".java": "Java/JML with //@ requires clauses",
+                ".rs": "Rust/Prusti with #[requires] attributes",
+                ".c": "C/ACSL with /*@ requires ... */ contracts",
+                ".h": "C/ACSL with /*@ requires ... */ contracts",
+                ".cpp": "C++ with the native contract syntax supported by the configured verifier",
+                ".cc": "C++ with the native contract syntax supported by the configured verifier"}.get(
+                    target_path.suffix.lower(), "the source language's supported contract syntax")
     details = "\n".join(f"- {item.get('cwe', 'UNKNOWN')}: {item.get('message', item.get('description', ''))}"
                          for item in findings)
-    prompt = ("You are a defensive security engineer. Patch the Java source below to address "
+    prompt = (f"You are a defensive security engineer. Patch this {language} source to address "
               "the listed findings. Preserve the public class and method signatures. Add precise "
               "JML requires/ensures clauses and safe handling where appropriate. Do not use "
               "loop_assignable (OpenJML 21 rejects it). Return only one complete Java file.\n\n"

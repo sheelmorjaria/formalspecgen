@@ -118,6 +118,12 @@ formalspecgen remediate src/Service.java vulnerability-report.json \
 contract context. The original code is preserved, PoCs remain unexecuted, and external I/O,
 runtime exploit neutralization, and behavioral equivalence are not claimed automatically.
 
+Security inspection routes native source lanes by extension: Java uses OpenJML, Rust uses Prusti,
+C/ACSL uses Frama-C, and C++ uses ESBMC when available. Native diagnostics are normalized to the
+language-independent CWE vocabulary. PoCs are language-aware (`.java` JUnit, `.rs` Rust tests,
+and C/C++ assertion harness templates), while remediation prompts select JML, Prusti, or ACSL
+contract syntax from the target extension.
+
 ```text
 Natural language → clarification → checked language contract
                                       │

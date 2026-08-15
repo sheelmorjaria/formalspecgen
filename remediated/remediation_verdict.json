@@ -1,0 +1,19 @@
+{
+  "status": "REMEDIATION_VERIFIED",
+  "claim": "REMEDIATION_VERIFIED",
+  "target": "baseline/VulnerableService.java",
+  "patched_file": "remediated/VulnerableService.java",
+  "mitigated_cwes": [
+    "CWE-125"
+  ],
+  "formal_proof": "DEDUCTIVE_PROOF",
+  "formal_exit_code": 0,
+  "model": "qwen3-coder:30b",
+  "usage": {
+    "prompt_tokens": 159,
+    "completion_tokens": 228,
+    "total_tokens": 387
+  },
+  "poc_status": "NOT_EXECUTED",
+  "disclaimer": "The patched copy passed ESC; PoCs were not executed and external I/O is unassessed."
+}
