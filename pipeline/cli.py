@@ -608,6 +608,15 @@ def command_validate_architecture(args: argparse.Namespace, ui: TerminalUI) -> i
         return 1
 
 
+def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .codebase_analysis import analyze_codebase
+    result = analyze_codebase(args.target_dir, args.out_dir)
+    if args.json:
+        _write_json(result, args.json, ui.console)
+    ui.console.print(f"Status: {result['status']}\nComponents: {len(result.get('components', []))}")
+    return 0 if result["status"] == "EXTRACTED" else 1
+
+
 def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                    state: dict[str, Any]) -> int:
     draft = state.get("domain_draft") or {}
@@ -1296,6 +1305,10 @@ def build_parser() -> argparse.ArgumentParser:
     unified.add_argument("--out-dir", required=True)
     unified.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java")
     unified.add_argument("--json")
+    analyze = sub.add_parser("analyze-codebase", help="extract unreviewed architecture/domain candidates")
+    analyze.add_argument("target_dir")
+    analyze.add_argument("--out-dir", default="extracted")
+    analyze.add_argument("--json")
     return parser
 
 
@@ -1324,6 +1337,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "reverify": return command_reverify(args, ui)
     if args.command == "system": return command_system(args, ui)
     if args.command == "unified-system": return command_unified_system(args, ui)
+    if args.command == "analyze-codebase": return command_analyze_codebase(args, ui)
     return 2
 
 
