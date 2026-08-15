@@ -308,9 +308,27 @@ class DecoratorDetector(PatternDetector):
         return [finding]
 
 
+class NullObjectDetector(PatternDetector):
+    """Detect repeated nullable collaborator checks suitable for Null Object."""
+    def detect(self) -> list[dict]:
+        checks = []
+        for _, node in self.declaration.filter(javalang.tree.IfStatement):
+            condition = node.condition
+            if isinstance(condition, javalang.tree.BinaryOperation) and condition.operator in {"==", "!="}:
+                text = str(condition.operandl) + str(condition.operandr)
+                if "null" in text.lower():
+                    checks.append(node)
+        if len(checks) < 2:
+            return []
+        return [_finding(_line(checks[0]), "repeated-null-check", "info",
+                         f"Found {len(checks)} nullable branches.", "Null Object",
+                         "Provide a safe no-op implementation to eliminate repeated null checks and preserve CWE-476 safety.")]
+
+
 DETECTOR_REGISTRY = (CoreStructureDetector, SingletonDetector, ObserverDetector,
                      BuilderOpportunityDetector, RepositoryDetector, AdapterDetector,
-                     FactoryMethodDetector, StatePatternDetector, DecoratorDetector)
+                     FactoryMethodDetector, StatePatternDetector, DecoratorDetector,
+                     NullObjectDetector)
 
 
 def _type_name(node) -> str:

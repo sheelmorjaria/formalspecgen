@@ -28,6 +28,9 @@ def map_formal_failure_to_cwe(verifier: str, failure_text: str) -> dict[str, str
     if verifier == "openjml":
         if "possiblynegativeindex" in text or "possiblytoolargeindex" in text:
             return {"cwe": "CWE-125", "severity": "HIGH"}
+        if ("possiblynull" in text or "nullpointer" in text or
+                "null dereference" in text or "null" in text and "derefer" in text):
+            return {"cwe": "CWE-476", "severity": "HIGH"}
         if "arithmeticoperationrange" in text:
             return {"cwe": "CWE-191" if "underflow" in text else "CWE-190", "severity": "HIGH"}
     elif verifier == "framac":
@@ -61,6 +64,14 @@ def map_formal_vcs(output: str) -> list[dict[str, str]]:
         findings.append({"source": "openjml_esc", "vc": "LoopTermination",
                          "cwe": "CWE-835", "severity": "MEDIUM",
                          "description": "Infinite Loop"})
+    # OpenJML versions differ in the exact null-dereference label. Preserve the
+    # security classification when the diagnostic is phrased descriptively.
+    lowered = output.lower()
+    if ("possiblynull" in lowered or "nullpointer" in lowered or
+            "null dereference" in lowered) and not any(item["cwe"] == "CWE-476" for item in findings):
+        findings.append({"source": "openjml_esc", "vc": "PossiblyNull",
+                         "cwe": "CWE-476", "severity": "HIGH",
+                         "description": "NULL Pointer Dereference"})
     return findings
 
 
@@ -90,7 +101,11 @@ def run_semgrep(source: str | Path, *, timeout: int = 60,
         cwe = {"CWE-22-PATH-TRAVERSAL": "CWE-22",
                "CWE-502-DESERIALIZATION": "CWE-502",
                "CWE-327-WEAK-CRYPTO": "CWE-327",
-               "CWE-209-EXCEPTION-EXPOSURE": "CWE-209"}.get(rule_id)
+               "CWE-209-EXCEPTION-EXPOSURE": "CWE-209",
+               "CWE-78-COMMAND-INJECTION": "CWE-78",
+               "CWE-79-XSS-CONCATENATION": "CWE-79",
+               "CWE-326-WEAK-RSA-KEY": "CWE-326",
+               "CWE-732-WORLD-WRITABLE-PERMISSIONS": "CWE-732"}.get(rule_id)
         findings.append({"tool": "semgrep", "rule_id": result.get("check_id"),
                          "line": result.get("start", {}).get("line"),
                          "severity": extra.get("severity", "INFO"),

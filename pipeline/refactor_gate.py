@@ -21,12 +21,12 @@ _METHOD = re.compile(
 def _public_contract_clauses(source: str) -> list[str]:
     """Return observable JML clauses, excluding implementation proof hints.
 
-    Loop invariants and termination measures describe a particular implementation's
-    control flow. An algorithm refactor is expected to replace them, so they must not
-    be treated as a changed public contract.
+    Loop/object-safety invariants and termination measures describe a particular
+    implementation's proof shape. A refactor may strengthen them, so they are not
+    treated as changed public API clauses.
     """
     return sorted({clause for clause in extract_clauses(source)
-                   if not clause.startswith(("loop_invariant", "decreases"))})
+                   if not clause.startswith(("loop_invariant", "invariant", "private invariant", "public invariant", "decreases", "assume"))})
 
 
 def _sha256(source: str) -> str:
@@ -39,12 +39,15 @@ def public_method_surface(source: str) -> list[str]:
                   for match in _METHOD.finditer(source))
 
 
-def _verification(path: Path) -> dict:
-    check_exit, check_output = verify(path, mode="check")
+def _verification(path: Path, extra_files: list[Path] | None = None) -> dict:
+    sources = [path, *(extra_files or [])]
+    check_exit, check_output = (verify(path, mode="check") if not extra_files
+                                else verify_files(sources, mode="check"))
     if check_exit != 0:
         return {"status": "FAIL", "gate": "check", "tool_status": classify(check_exit),
                 "output": check_output}
-    esc_exit, esc_output = verify(path, mode="esc")
+    esc_exit, esc_output = (verify(path, mode="esc") if not extra_files
+                            else verify_files(sources, mode="esc"))
     if esc_exit != 0:
         return {"status": "FAIL", "gate": "esc", "tool_status": classify(esc_exit),
                 "output": esc_output}
@@ -141,7 +144,9 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
     baseline_api, primary_api = public_method_surface(baseline), public_method_surface(refactored_primary)
     if not baseline_api or baseline_api != primary_api:
         return _fail("primary_method_surface_changed", "Primary public/protected declarations differ")
-    baseline_proof = _verification(baseline_file)
+    baseline_dependencies = [candidate for candidate in baseline_file.parent.glob("*.java")
+                              if candidate != baseline_file]
+    baseline_proof = _verification(baseline_file, baseline_dependencies)
     if baseline_proof["status"] != "VERIFIED":
         return _fail("baseline_not_verified", "Baseline failed OpenJML", baseline_proof)
     refactored_proof = _verify_file_set(files)

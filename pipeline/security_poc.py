@@ -124,6 +124,27 @@ def _poc_for(finding: dict[str, Any], target: Path, index: int) -> tuple[str, st
                 "        assertThrows(NullPointerException.class, () -> ((Object) null).toString());\n"
                 "    }\n}\n")
         return name, code
+    if cwe == "CWE-78":
+        name = f"CommandInjectionPoC{index}"
+        code = ("import org.junit.jupiter.api.Test;\n"
+                "import static org.junit.jupiter.api.Assertions.assertTrue;\n\n"
+                f"class {name} {{\n    @Test\n    void demonstratesCommandPayload() {{\n"
+                "        String payload = \"safe-review-payload; echo marker\";\n"
+                "        // Review-only assertion; the PoC is generated but not executed.\n"
+                "        assertTrue(payload.contains(\";\"));\n    }\n}\n")
+        return name, code
+    if cwe in {"CWE-79", "CWE-326", "CWE-732"}:
+        labels = {"CWE-79": ("Xss", "<img src=x onerror=alert('review')>", "HTML payload is retained only as a string."),
+                  "CWE-326": ("WeakRsaKey", "1024", "No key is generated; this is a configuration assertion."),
+                  "CWE-732": ("WorldWritablePermissions", "0777", "No filesystem call is made; review the requested mode.")}
+        suffix, payload, note = labels[cwe]
+        name = f"{suffix}PoC{index}"
+        code = ("import org.junit.jupiter.api.Test;\n"
+                "import static org.junit.jupiter.api.Assertions.assertTrue;\n\n"
+                f"class {name} {{\n    @Test\n    void demonstratesFinding() {{\n"
+                f"        String evidence = \"{payload}\";\n        // {note}\n"
+                "        assertTrue(!evidence.isEmpty());\n    }\n}\n")
+        return name, code
     return None
 
 

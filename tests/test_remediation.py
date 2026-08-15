@@ -46,3 +46,17 @@ def test_remediation_reports_generation_failure(tmp_path):
     with patch("pipeline.remediation._chat_fn", side_effect=RuntimeError("offline")):
         result = remediate(target, report, tmp_path / "patched")
     assert result["code"] == "patch_generation_failed"
+
+
+def test_remediation_prompt_includes_command_injection_guidance(tmp_path):
+    target = tmp_path / "Service.java"; target.write_text("class Service {}")
+    report = tmp_path / "report.json"; report.write_text('{"findings":[{"cwe":"CWE-78","description":"command input"}]}')
+    captured = {}
+    def chat(messages, model, temperature):
+        captured["prompt"] = messages[-1]["content"]
+        return "class Service {}", "model", {}
+    with patch("pipeline.remediation._chat_fn", return_value=chat), \
+         patch("pipeline.remediation.verify", return_value=(1, "not verified")):
+        result = remediate(target, report, tmp_path / "out")
+    assert result["status"] == "REMEDIATION_FAILED"
+    assert "fixed executable" in captured["prompt"]

@@ -44,6 +44,24 @@ def test_semgrep_normalizes_custom_rule_findings(tmp_path):
     assert result["findings"][0]["cwe"] == "CWE-327"
 
 
+def test_semgrep_normalizes_command_injection_rule(tmp_path):
+    source = tmp_path / "X.java"; source.write_text("class X {}")
+    process = type("P", (), {"stdout": '{"results":[{"check_id":"CWE-78-COMMAND-INJECTION", "start":{"line":2}, "extra":{"severity":"ERROR", "message":"command"}}]}', "stderr": "", "returncode": 1})()
+    with patch("pipeline.security_assessment.subprocess.run", return_value=process):
+        result = run_semgrep(source)
+    assert result["findings"][0]["cwe"] == "CWE-78"
+
+
+def test_semgrep_normalizes_web_crypto_and_permission_rules(tmp_path):
+    source = tmp_path / "X.java"; source.write_text("class X {}")
+    ids = ["CWE-79-XSS-CONCATENATION", "CWE-326-WEAK-RSA-KEY", "CWE-732-WORLD-WRITABLE-PERMISSIONS"]
+    payload = {"results": [{"check_id": item, "start": {"line": 1}, "extra": {"severity": "ERROR"}} for item in ids]}
+    process = type("P", (), {"stdout": __import__("json").dumps(payload), "stderr": "", "returncode": 1})()
+    with patch("pipeline.security_assessment.subprocess.run", return_value=process):
+        result = run_semgrep(source)
+    assert {item["cwe"] for item in result["findings"]} == {"CWE-79", "CWE-326", "CWE-732"}
+
+
 def test_semgrep_timeout_and_invalid_output_are_explicit(tmp_path):
     source = tmp_path / "X.java"; source.write_text("class X {}")
     from subprocess import TimeoutExpired
@@ -75,3 +93,4 @@ def test_security_assessment_blocks_high_severity_sast_and_maps_unknowns(tmp_pat
     assert result["status"] == "SECURITY_VIOLATION"
     assert map_formal_failure_to_cwe("unknown", "unrecognized diagnostic")["cwe"] == "UNKNOWN"
     assert map_formal_failure_to_cwe("openjml", "ArithmeticOperationRange underflow")["cwe"] == "CWE-191"
+    assert map_formal_failure_to_cwe("openjml", "PossiblyNull dereference")["cwe"] == "CWE-476"

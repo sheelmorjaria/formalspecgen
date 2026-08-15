@@ -30,3 +30,36 @@ rules:
     pattern-either:
       - pattern: return $E.getMessage();
       - pattern: $RESPONSE.sendError(..., $E.getMessage());
+
+  - id: CWE-78-COMMAND-INJECTION
+    languages: [java]
+    severity: ERROR
+    message: "Potential OS command injection. User input passed to Runtime.exec()."
+    patterns:
+      - pattern: Runtime.getRuntime().exec($INPUT)
+      - pattern-not: Runtime.getRuntime().exec("constant_string")
+
+  - id: CWE-79-XSS-CONCATENATION
+    languages: [java]
+    severity: ERROR
+    message: "Potential XSS: untrusted value concatenated into HTML output."
+    patterns:
+      - pattern-either:
+          - pattern: $RESPONSE.getWriter().print($HTML + $INPUT)
+          - pattern: $RESPONSE.getWriter().write($HTML + $INPUT)
+
+  - id: CWE-326-WEAK-RSA-KEY
+    languages: [java]
+    severity: ERROR
+    message: "RSA key size is below the recommended 2048-bit minimum."
+    pattern-either:
+      - pattern: $GEN.initialize(1024)
+      - pattern: $GEN.initialize(512)
+
+  - id: CWE-732-WORLD-WRITABLE-PERMISSIONS
+    languages: [java, c, cpp]
+    severity: ERROR
+    message: "Potentially insecure world-writable file permissions."
+    pattern-either:
+      - pattern: Files.createFile($PATH, ..., PosixFilePermissions.fromString("rwxrwxrwx"), ...)
+      - pattern: chmod($PATH, 0777)

@@ -35,6 +35,9 @@ def test_security_poc_templates_cover_polyglot_and_web_findings(tmp_path):
     assert "assert.h" in _poc_for({"cwe": "CWE-125"}, c_file, 3)[1]
     for cwe in ("CWE-22", "CWE-502", "CWE-190", "CWE-476"):
         assert _poc_for({"cwe": cwe}, java, 4) is not None
+    assert "not executed" in _poc_for({"cwe": "CWE-78"}, java, 5)[1]
+    for cwe in ("CWE-79", "CWE-326", "CWE-732"):
+        assert "assertTrue" in _poc_for({"cwe": cwe}, java, 6)[1]
 
 
 def test_security_inspect_routes_non_java_and_directory(tmp_path):

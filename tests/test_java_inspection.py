@@ -118,3 +118,23 @@ def test_inspect_cli_writes_findings_and_returns_failure_status(tmp_path):
     with patch("pipeline.java_inspection.inspect_java_file",
                return_value={"status": "FAIL", "claim": "NO_PROOF"}):
         assert cli.command_inspect(args, ui) == 1
+
+
+def test_inspection_recommends_null_object_for_repeated_checks(tmp_path):
+    source = _write(tmp_path, """public class Nullable {
+        private Service service;
+        public void first() { if (service != null) { service.run(); } }
+        public void second() { if (service == null) { return; } service.run(); }
+    }""", "Nullable.java")
+    result = inspect_java_file(source)
+    finding = next(item for item in result["findings"] if item["code"] == "repeated-null-check")
+    assert finding["suggested_pattern"] == "Null Object"
+
+
+def test_single_null_check_does_not_trigger_null_object(tmp_path):
+    source = _write(tmp_path, """public class Nullable {
+        private Service service;
+        public void run() { if (service != null) { service.run(); } }
+    }""", "SingleNullable.java")
+    result = inspect_java_file(source)
+    assert not any(item["code"] == "repeated-null-check" for item in result["findings"])
