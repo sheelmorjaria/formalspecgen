@@ -135,6 +135,30 @@ security-inspect → security-exploit → remediate → OpenJML/Prusti/Frama-C/E
 and `remediate` writes a separate patched artifact. Only a successful native verifier run can
 mint `REMEDIATION_VERIFIED`; PoCs are never run automatically.
 
+### Spec-driven behavior correction
+
+Where `remediate` patches the implementation against a vulnerability report, `correct-behavior`
+strengthens the *contract* first and then proves a defensive implementation of it:
+
+```bash
+formalspecgen correct-behavior src/UnsafeArray.java --cwe CWE-125 \
+  --out-dir corrections --json corrections/correction_verdict.json
+```
+
+The loop is two-stage: a provider proposes a CWE-specific strengthened JML contract (CWE-125
+asks for conditional postconditions plus the runtime bounds guard; CWE-476 asks for explicit
+null handling), the strengthened source is written beside the original, and up to
+`--max-attempts` OpenJML ESC runs — with diagnostic feedback fed back to the provider between
+attempts — must discharge it. Only a successful ESC run mints `BEHAVIOR_CORRECTION_VERIFIED`
+with `formal_proof: DEDUCTIVE_PROOF`; otherwise the verdict fails closed as
+`CORRECTION_FAILED`/`NO_PROOF`. Evidence hash-binds the baseline and strengthened contract
+clause sets, the corrected implementation, and the attempt count.
+
+A correction is deliberately a contract *change*, not a refactor. Output that strengthens a
+contract cannot mint `REFACTOR_CONTRACT_PRESERVED`: `verify-refactor` correctly rejects it as
+`primary_contract_surface_changed`, and the correction verdict is the evidence class that
+covers the new surface. The provider only proposes; ESC judges.
+
 ```text
 Natural language → clarification → checked language contract
                                       │
@@ -170,13 +194,15 @@ FormalSpecGen now covers three connected workflows:
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
 | Hexagonal integration | `compose` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use; `external_io_safety_proved: false` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
+| Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 
 ### Post-push roadmap progress
 
-The following milestones were added after the previous repository push:
+The following milestones were added after the v1.0.0 tag push:
 
 Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `c367d3a`,
-`692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`.
+`692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`, then `90f7015`, `fcb2767`, and
+`ff97364`.
 
 - Narrow deterministic State, Decorator, and Facade profiles now emit multifile candidates with
   explicit heap-topology and callback/state limitations. Their outputs still require the
@@ -192,6 +218,12 @@ Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `
   rejects public-surface drift. Concurrent composition preflight emits bounded `Actors`,
   `callResult`, and `history` state; lock correspondence checks require synchronized Java regions
   and a lock-protocol model.
+- Bottom-up codebase extraction (`analyze-codebase`, commits `90f7015`, `fcb2767`, `ff97364`)
+  parses Java, Rust, C, and C++ with Tree-sitter — with a deterministic regex fallback for
+  minimal installations — and infers guarded scalar assignments into typed V2 transitions that
+  are compiled through the strict JML expression parser and registered as unreviewed candidates
+  under `domains/candidates/`. See
+  [Bottom-up codebase extraction](#bottom-up-codebase-extraction).
 
 The following roadmap claims remain intentionally incomplete:
 
@@ -339,9 +371,10 @@ python3 -m venv .venv
 .venv/bin/formalspecgen --help
 ```
 
-Runtime Python dependencies are deliberately small: Pydantic, PyYAML, Prompt Toolkit, and Rich.
-Formal backends remain external tools configured through environment variables or repository-local
-`tools/` installations.
+Runtime Python dependencies are deliberately small: Pydantic, PyYAML, Prompt Toolkit, Rich,
+pinned `javalang` for the modernization inspection lane, and Tree-sitter plus the Java, Rust, C,
+and C++ grammars for polyglot codebase extraction. Formal backends remain external tools
+configured through environment variables or repository-local `tools/` installations.
 
 The CLI does not silently download large verifier distributions at startup. Install only the
 backends required for the language and assurance profile you intend to use, then configure their
@@ -602,6 +635,65 @@ schema-constrained JSON; Pydantic validates it and PyYAML serializes it. Generat
 TLA+ renderers initially fail closed with `UNSUPPORTED_BOUNDARY` until a human reviews their TODOs.
 Domain clarification answers are stored in the project session so generation can resume after a
 terminal restart.
+
+### Bottom-up codebase extraction
+
+The top-down workflows start from natural language. `analyze-codebase` adds the reverse
+direction — extracting unreviewed architecture and domain candidates from an existing
+polyglot source tree:
+
+```bash
+formalspecgen analyze-codebase legacy/ --out-dir extracted --json extracted/verdict.json
+```
+
+Sources are parsed with Tree-sitter grammars for Java, Rust, C, and C++; a deterministic
+regex fallback keeps extraction working in minimal environments without the grammar wheels.
+The analyzer extracts classes, interfaces, structs, and scalar (`int`/`boolean`) fields, then
+writes:
+
+- `extracted/extracted_architecture.json` — an unreviewed component map in which interfaces
+  are recorded as external components without domain bindings;
+- `extracted/<domain>.v2.json` — a state-variable sketch per concrete type; and
+- `domains/candidates/<module>.v2.yaml` — a registered V2 candidate for Java classes.
+
+For Java sources, guarded scalar assignments — `if (count < LIMIT) { count += N; }` inside a
+public void method — are inferred deterministically into typed transitions. The guard and
+effect are compiled through the strict JML expression parser into the recursive V2
+expression AST; no LLM infix text is stored in the candidate. Bounds read from `<`
+comparisons produce automatic `0..N` invariants, and fields whose bound cannot be inferred
+are flagged `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`.
+
+The result claim is `UNREVIEWED_EXTRACTION_CANDIDATE` with validation deliberately `NOT_RUN`.
+Extraction is an input to the normal V2 lifecycle, not a shortcut around it: review the
+candidate, correct its semantics, then run `validate-domain` and hash-bound `promote-domain`
+as usual. Extracted candidates never enter the reviewed registry by themselves. This closes
+the bidirectional loop — NL → contract → proof top-down, and Code → Math → Architecture
+candidates bottom-up.
+
+### Code-to-requirements documentation
+
+`document-code` completes the bottom-up circle with the final leg — translating the extracted
+V2 math back into structured English Markdown for undocumented legacy code:
+
+```bash
+formalspecgen document-code legacy/LegacyCounter.java --out docs/LegacyCounter.md
+```
+
+The deterministic renderer writes exact sentences from the typed extraction — state variables
+with bounds and initial values, guarded operations with preconditions and effects in English
+("The 'increment' operation can only be called if count is less than 5. When called, it
+increases the count by 1."), and `Safety Rule:` invariant lines — plus an evidence footer with
+the source digest and extractor provenance. An optional provider pass adds an overview
+paragraph and semantic invariant prose; when the provider is unavailable (or `--no-llm` is
+passed) the command still succeeds with deterministic sections only, and the verdict records
+`narrative_source` accordingly.
+
+The command fails closed with `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW` when an integer state
+variable has no inferable bound — it refuses to document math it cannot state — and records
+`operation_inference: java_only` for non-Java sources, where transition inference is not yet
+available. The success claim is `UNREVIEWED_EXTRACTION_DOCUMENTATION` with validation
+`NOT_RUN`: documentation is never verification, no TLC or ESC run has occurred, and the
+registered candidate still needs the normal review lifecycle.
 
 ### V2 domain evidence lifecycle
 
@@ -1302,7 +1394,8 @@ pipeline/              CLI, orchestration, language lanes, assurance policy, and
 pipeline/verify_*.py    Normalized Java, Rust, and C formal-tool judges
 pipeline/domains/      Reviewed and scaffolded semantic-domain plugins
 formalspec_core/       Shared deterministic postprocessor and proof-support core
-domains/               Declarative domain specifications
+domains/               Declarative domain specifications (V2 candidates under candidates/)
+extracted/             Unreviewed `analyze-codebase` output (architecture map and domain sketches)
 tests/                 Mocked deterministic and integration tests
 tests/v2/              Isolated tests for the typed V2 domain-evidence lifecycle
 tests_e2e/             Opt-in real-tool and live-provider tests
@@ -1351,6 +1444,19 @@ Run the real-TLC V2 lifecycle tests directly with:
 
 ```bash
 python3 -m pytest -c tests_e2e/pytest.ini tests_e2e/test_v2_workflow.py -v
+```
+
+The chained-command platform tests in `tests_e2e/test_platform_chains_e2e.py` drive multiple
+subcommands in sequence against one fixture so the CLI is validated as a cohesive pipeline:
+`inspect → security-inspect → apply-refactor null-object → verify-refactor` (which correctly
+fails closed because the Null Object transform strengthens the contract),
+`inspect → apply-refactor extract-method → verify-refactor` minting
+`REFACTOR_CONTRACT_PRESERVED` through real ESC, and
+`security-inspect → correct-behavior → verify` minting `DEDUCTIVE_PROOF` for CWE-125 and
+CWE-476 with static fixtures standing in for the provider. Run them with:
+
+```bash
+python3 -m pytest -c tests_e2e/pytest.ini tests_e2e/test_platform_chains_e2e.py -v
 ```
 
 These tests validate and promote elevator and vending-machine candidates, exercise mixed

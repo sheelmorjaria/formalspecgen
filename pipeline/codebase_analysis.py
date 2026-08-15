@@ -129,28 +129,49 @@ def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[di
     return transitions
 
 
-def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
-                        transitions: list[dict]) -> Path:
-    candidate_dir = project_root / "domains" / "candidates"
-    candidate_dir.mkdir(parents=True, exist_ok=True)
-    state = [{"kind": "bool" if typ == "boolean" else "int", "name": name,
-              "bound": [0, 5] if typ == "int" else None, "initial": 0}
-             for name, typ in fields]
-    for item in state:
-        if item["kind"] != "int":
-            item.pop("bound")
-    def ast_json(node):
-        value = node.model_dump(mode="json") if hasattr(node, "model_dump") else node
-        if value.get("kind") == "field":
-            return {"kind": "field", "name": value.get("field", value.get("name"))}
-        for key, child in list(value.items()):
-            if isinstance(child, dict) and "kind" in child:
-                value[key] = ast_json(child)
-        return value
+def infer_field_bounds(text: str, fields: list[tuple[str, str]]) -> dict[str, tuple[int, int] | None]:
+    """Infer a [0, N] bound per int field from `<` comparisons; None when unbounded."""
+    bounds: dict[str, tuple[int, int] | None] = {}
+    for name, field_type in fields:
+        if field_type != "int":
+            continue
+        match = re.search(rf"\b{re.escape(name)}\s*<\s*(\d+)", text)
+        bounds[name] = (0, int(match.group(1))) if match else None
+    return bounds
+
+
+def _ast_json(node):
+    value = node.model_dump(mode="json") if hasattr(node, "model_dump") else node
+    if value.get("kind") == "field":
+        return {"kind": "field", "name": value.get("field", value.get("name"))}
+    for key, child in list(value.items()):
+        if isinstance(child, dict) and "kind" in child:
+            value[key] = _ast_json(child)
+    return value
+
+
+def build_v2_candidate_payload(class_name: str, fields: list[tuple[str, str]],
+                               transitions: list[dict],
+                               bounds: dict[str, tuple[int, int] | None] | None = None,
+                               initials: dict[str, int | bool] | None = None) -> dict:
+    """Build the strict V2 candidate payload for one extracted class.
+
+    Without explicit ``bounds``/``initials`` the historical extraction defaults
+    ([0, 5], 0/false) apply; callers that inferred real values pass their own.
+    """
+    bounds, initials = bounds or {}, initials or {}
+    state = []
+    for name, field_type in fields:
+        if field_type == "boolean":
+            state.append({"kind": "bool", "name": name, "initial": initials.get(name, False)})
+        else:
+            bound = bounds.get(name) or (0, 5)
+            state.append({"kind": "int", "name": name, "bound": list(bound),
+                          "initial": initials.get(name, 0)})
     operations = []
     for index, transition in enumerate(transitions, 1):
-        guard = ast_json(transition["guard"])
-        value = ast_json(transition["value"])
+        guard = _ast_json(transition["guard"])
+        value = _ast_json(transition["value"])
         operations.append({"name": transition["name"], "return_type": "void",
                            "failure_semantics": "unavailable",
                            "guards": [{"id": f"g{index}", "expression": guard}],
@@ -162,9 +183,19 @@ def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[
             invariants.append({"id": f"inv{index}", "expression": {"kind": "and",
                 "left": {"kind": "gte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][0]}},
                 "right": {"kind": "lte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][1]}}}})
-    payload = {"schema_version": 2, "review_status": "unreviewed",
-               "domain_name": class_name, "module_name": _snake_name(class_name), "actors": 1,
-               "state_variables": state, "operations": operations, "tlc_invariants": invariants}
+    return {"schema_version": 2, "review_status": "unreviewed",
+            "domain_name": class_name, "module_name": _snake_name(class_name), "actors": 1,
+            "state_variables": state, "operations": operations, "tlc_invariants": invariants}
+
+
+def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
+                        transitions: list[dict],
+                        bounds: dict[str, tuple[int, int] | None] | None = None,
+                        initials: dict[str, int | bool] | None = None) -> Path:
+    candidate_dir = project_root / "domains" / "candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_v2_candidate_payload(class_name, fields, transitions,
+                                         bounds=bounds, initials=initials)
     path = candidate_dir / f"{_snake_name(class_name)}.v2.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
@@ -203,12 +234,13 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
             if fields and not is_interface:
                 state = []
                 unbounded = False
+                inferred = infer_field_bounds(text, fields)
                 for field_name, field_type in fields:
                     item = {"name": field_name, "type": field_type}
                     if field_type == "int":
-                        bound = re.search(rf"\b{re.escape(field_name)}\s*<\s*(\d+)", text)
+                        bound = inferred.get(field_name)
                         if bound:
-                            item["bound"] = [0, int(bound.group(1))]
+                            item["bound"] = list(bound)
                         else:
                             unbounded = True
                     state.append(item)

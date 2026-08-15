@@ -459,6 +459,16 @@ def command_remediate(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "REMEDIATION_VERIFIED" else 1
 
 
+def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .behavior_correction import correct_behavior
+    result = correct_behavior(args.target, args.cwe, args.out_dir,
+                              provider=args.provider, model=args.model,
+                              max_attempts=args.max_attempts)
+    _write_json(result, args.json or str(Path(args.out_dir) / "correction_verdict.json"), ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
+    return 0 if result["status"] == "BEHAVIOR_CORRECTION_VERIFIED" else 1
+
+
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .bisimulation import verify_bisimulation_inputs
     result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
@@ -481,6 +491,7 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
         extract_decorator_from_inspection,
         extract_facade_from_inspection,
         extract_state_from_inspection,
+        extract_null_object_from_inspection,
     )
     from .refactor_gate import (
         verify_contract_preserving_refactor, verify_multifile_contract_refactor,
@@ -493,12 +504,14 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
                    if args.pattern == "factory-method" else
                    extract_state_from_inspection(args.source, args.inspection, args.method)
                    if args.pattern == "state" else
+                   extract_null_object_from_inspection(args.source, args.inspection)
+                   if args.pattern == "null-object" else
                    extract_method_from_inspection(args.source, args.inspection, args.method))
     if transformed["status"] != "TRANSFORMED":
         _write_json(transformed, args.json, ui.console)
         return 1
     destination = Path(args.out)
-    if args.pattern in {"factory-method", "state", "decorator", "facade"}:
+    if args.pattern in {"factory-method", "state", "decorator", "facade", "null-object"}:
         destination.mkdir(parents=True, exist_ok=True)
         files = transformed.pop("files")
         for name, content in files.items():
@@ -615,6 +628,18 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
         _write_json(result, args.json, ui.console)
     ui.console.print(f"Status: {result['status']}\nComponents: {len(result.get('components', []))}")
     return 0 if result["status"] == "EXTRACTED" else 1
+
+
+def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .code_documentation import document_code
+    result = document_code(args.source, args.out, project_root=args.project_root,
+                           provider=args.provider, model=args.model, no_llm=args.no_llm)
+    if args.json:
+        _write_json(result, args.json, ui.console)
+    ui.console.print(f"Status: {result['status']}")
+    if result.get("document"):
+        ui.console.print(f"Document: {result['document']}")
+    return 0 if result["status"] == "DOCUMENTED" else 1
 
 
 def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
@@ -1197,6 +1222,13 @@ def build_parser() -> argparse.ArgumentParser:
     remediation.add_argument("report")
     remediation.add_argument("--out-dir", default="remediated")
     remediation.add_argument("--json")
+    correction = sub.add_parser("correct-behavior", parents=[common],
+                                help="strengthen a contract and prove a defensive behavior correction")
+    correction.add_argument("target")
+    correction.add_argument("--cwe", required=True)
+    correction.add_argument("--out-dir", default="corrections")
+    correction.add_argument("--max-attempts", type=int, default=3)
+    correction.add_argument("--json")
 
     bisimulation = sub.add_parser("verify-bisimulation",
                                   help="validate a scoped state mapping without claiming equivalence")
@@ -1215,7 +1247,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_refactor.add_argument("source", help="baseline Java/JML source")
     apply_refactor.add_argument("--inspection", required=True,
                                 help="hash-bound inspect JSON evidence")
-    apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method", "state", "decorator", "facade"],
+    apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method", "state", "decorator", "facade", "null-object"],
                                 default="extract-method")
     apply_refactor.add_argument("--method", required=True, help="inspected long method name")
     apply_refactor.add_argument("--out", required=True, help="same-named refactored Java path")
@@ -1310,6 +1342,14 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--out-dir", default="extracted")
     analyze.add_argument("--project-root", default=".")
     analyze.add_argument("--json")
+    document = sub.add_parser("document-code", parents=[common],
+                              help="document code as natural-language requirements from a formal V2 extraction")
+    document.add_argument("source")
+    document.add_argument("--out", required=True, help="Markdown documentation destination")
+    document.add_argument("--project-root", default=".")
+    document.add_argument("--no-llm", action="store_true",
+                          help="skip the optional narrative pass; deterministic sections only")
+    document.add_argument("--json")
     return parser
 
 
@@ -1325,6 +1365,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "security-inspect": return command_security_inspect(args, ui)
     if args.command == "security-exploit": return command_security_exploit(args, ui)
     if args.command == "remediate": return command_remediate(args, ui)
+    if args.command == "correct-behavior": return command_correct_behavior(args, ui)
     if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)
@@ -1339,12 +1380,14 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "system": return command_system(args, ui)
     if args.command == "unified-system": return command_unified_system(args, ui)
     if args.command == "analyze-codebase": return command_analyze_codebase(args, ui)
+    if args.command == "document-code": return command_document_code(args, ui)
     return 2
 
 
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
-                  "validate-domain", "promote-domain", "compose", "reverify", "system"}
+                  "validate-domain", "promote-domain", "compose", "reverify", "system",
+                  "document-code"}
 
 
 def _repl_argv(line: str) -> list[str]:
