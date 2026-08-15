@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "name": "legacycounter",
+  "review_status": "unreviewed",
+  "state_variables": [
+    {
+      "name": "count",
+      "type": "int",
+      "bound": [
+        0,
+        5
+      ]
+    }
+  ],
+  "operations": [],
+  "transitions": [],
+  "warnings": []
+}

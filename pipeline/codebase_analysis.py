@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import yaml
+from .jml_ast import parse_jml_expression
 
 try:  # Optional at import time for minimal installations.
     from tree_sitter import Language, Parser
@@ -100,7 +102,76 @@ def extract_components_ts(file_path: str | Path) -> list[dict] | None:
         return None
 
 
-def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted") -> dict:
+def _snake_name(value: str) -> str:
+    return re.sub(r"(?<!^)([A-Z])", r"_\1", value).lower()
+
+
+def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]:
+    names = {name for name, _ in fields}
+    transitions = []
+    pattern = re.compile(r"(?:public|protected)\s+void\s+(\w+)\s*\([^)]*\)\s*\{(?P<body>.*?)\}", re.S)
+    for method in pattern.finditer(text):
+        name, body = method.group(1), method.group("body")
+        if name in {"<init>"}:
+            continue
+        match = re.search(r"if\s*\(\s*(?:this\.)?(\w+)\s*(<=|>=|<|>)\s*(-?\d+)\s*\).*?\b(?:this\.)?\1\s*=\s*(?:this\.)?\1\s*([+-])\s*(\d+)", body, re.S)
+        if not match or match.group(1) not in names:
+            continue
+        field, operator, limit, arithmetic, amount = match.groups()
+        guard = f"{field} {operator} {limit}"
+        value = f"{field} {arithmetic} {amount}"
+        try:
+            guard_ast = parse_jml_expression(guard, fields=names)
+            value_ast = parse_jml_expression(value, fields=names)
+        except Exception:
+            continue
+        transitions.append({"name": name, "guard": guard_ast, "target": field, "value": value_ast})
+    return transitions
+
+
+def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
+                        transitions: list[dict]) -> Path:
+    candidate_dir = project_root / "domains" / "candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    state = [{"kind": "bool" if typ == "boolean" else "int", "name": name,
+              "bound": [0, 5] if typ == "int" else None, "initial": 0}
+             for name, typ in fields]
+    for item in state:
+        if item["kind"] != "int":
+            item.pop("bound")
+    def ast_json(node):
+        value = node.model_dump(mode="json") if hasattr(node, "model_dump") else node
+        if value.get("kind") == "field":
+            return {"kind": "field", "name": value.get("field", value.get("name"))}
+        for key, child in list(value.items()):
+            if isinstance(child, dict) and "kind" in child:
+                value[key] = ast_json(child)
+        return value
+    operations = []
+    for index, transition in enumerate(transitions, 1):
+        guard = ast_json(transition["guard"])
+        value = ast_json(transition["value"])
+        operations.append({"name": transition["name"], "return_type": "void",
+                           "failure_semantics": "unavailable",
+                           "guards": [{"id": f"g{index}", "expression": guard}],
+                           "effects": [{"id": f"e{index}", "target": transition["target"], "value": value}],
+                           "frame": [transition["target"]]})
+    invariants = []
+    for index, item in enumerate(state, 1):
+        if item["kind"] == "int":
+            invariants.append({"id": f"inv{index}", "expression": {"kind": "and",
+                "left": {"kind": "gte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][0]}},
+                "right": {"kind": "lte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][1]}}}})
+    payload = {"schema_version": 2, "review_status": "unreviewed",
+               "domain_name": class_name, "module_name": _snake_name(class_name), "actors": 1,
+               "state_variables": state, "operations": operations, "tlc_invariants": invariants}
+    path = candidate_dir / f"{_snake_name(class_name)}.v2.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
+                     project_root: str | Path = ".") -> dict:
     root, destination = Path(target_dir), Path(out_dir)
     if not root.is_dir():
         return {"status": "FAIL", "claim": "NO_PROOF", "code": "input_unavailable", "message": str(root)}
@@ -150,6 +221,10 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted") 
                 path = destination / f"{domain_name}.v2.json"
                 path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
                 domains.append(str(path))
+                if source.suffix.lower() == ".java":
+                    transitions = _infer_java_transitions(text, fields)
+                    registered = _register_candidate(Path(project_root), name, fields, transitions)
+                    domains.append(str(registered))
     architecture = {"name": "ExtractedSystem", "components": components, "use_cases": [],
                     "review_status": "unreviewed", "warnings": warnings}
     architecture_path = destination / "extracted_architecture.json"

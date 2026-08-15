@@ -2,17 +2,17 @@
   "name": "ExtractedSystem",
   "components": [
     {
-      "name": "Weird",
+      "name": "LegacyCounter",
       "type": "core",
       "external": false,
-      "domain": "weird",
-      "file": "Weird.java",
+      "domain": "legacycounter",
+      "file": "LegacyCounter.java",
       "review_status": "unreviewed",
       "lang": "java",
       "language": "java",
       "fields": [
         {
-          "name": "x",
+          "name": "count",
           "type": "int"
         }
       ]
@@ -20,10 +20,5 @@
   ],
   "use_cases": [],
   "review_status": "unreviewed",
-  "warnings": [
-    {
-      "file": "/tmp/pytest-of-sheel/pytest-280/test_tree_sitter_fallback_extr0/Weird.java",
-      "code": "UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW"
-    }
-  ]
+  "warnings": []
 }

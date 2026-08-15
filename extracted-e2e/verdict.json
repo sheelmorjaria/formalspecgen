@@ -1,0 +1,32 @@
+{
+  "status": "EXTRACTED",
+  "claim": "UNREVIEWED_EXTRACTION_CANDIDATE",
+  "architecture": "extracted-e2e/extracted_architecture.json",
+  "domains": [
+    "extracted-e2e/legacycounter.v2.json",
+    "domains/candidates/legacy_counter.v2.yaml"
+  ],
+  "components": [
+    {
+      "name": "LegacyCounter",
+      "type": "core",
+      "external": false,
+      "domain": "legacycounter",
+      "file": "LegacyCounter.java",
+      "review_status": "unreviewed",
+      "lang": "java",
+      "language": "java",
+      "fields": [
+        {
+          "name": "count",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "warnings": [],
+  "validation": {
+    "status": "NOT_RUN",
+    "reason": "human review required"
+  }
+}

@@ -610,7 +610,7 @@ def command_validate_architecture(args: argparse.Namespace, ui: TerminalUI) -> i
 
 def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .codebase_analysis import analyze_codebase
-    result = analyze_codebase(args.target_dir, args.out_dir)
+    result = analyze_codebase(args.target_dir, args.out_dir, args.project_root)
     if args.json:
         _write_json(result, args.json, ui.console)
     ui.console.print(f"Status: {result['status']}\nComponents: {len(result.get('components', []))}")
@@ -1308,6 +1308,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze = sub.add_parser("analyze-codebase", help="extract unreviewed architecture/domain candidates")
     analyze.add_argument("target_dir")
     analyze.add_argument("--out-dir", default="extracted")
+    analyze.add_argument("--project-root", default=".")
     analyze.add_argument("--json")
     return parser
 

@@ -1,0 +1,85 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: LegacyCounter
+module_name: legacy_counter
+actors: 1
+state_variables:
+- kind: int
+  name: count
+  bound:
+  - 0
+  - 5
+  initial: 0
+operations:
+- name: increment
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: g1
+    expression:
+      kind: lt
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 5
+  effects:
+  - id: e1
+    target: count
+    value:
+      kind: add
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - count
+- name: decrement
+  return_type: void
+  failure_semantics: unavailable
+  guards:
+  - id: g2
+    expression:
+      kind: gt
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 0
+  effects:
+  - id: e2
+    target: count
+    value:
+      kind: sub
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 1
+  frame:
+  - count
+tlc_invariants:
+- id: inv1
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 0
+    right:
+      kind: lte
+      left:
+        kind: field
+        name: count
+      right:
+        kind: integer
+        value: 5

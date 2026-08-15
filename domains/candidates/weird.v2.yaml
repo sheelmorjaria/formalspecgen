@@ -1,0 +1,33 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: Weird
+module_name: weird
+actors: 1
+state_variables:
+- kind: int
+  name: x
+  bound:
+  - 0
+  - 5
+  initial: 0
+operations: []
+tlc_invariants:
+- id: inv1
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left:
+        kind: field
+        name: x
+      right:
+        kind: integer
+        value: 0
+    right:
+      kind: lte
+      left:
+        kind: field
+        name: x
+      right:
+        kind: integer
+        value: 5
