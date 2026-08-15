@@ -11,6 +11,8 @@ from .verify import verify
 
 FORMAL_CWE_MAP = {
     "ArithmeticOperationRange": ("CWE-190", "HIGH", "Integer Overflow or Wraparound"),
+    "NegativeArraySize": ("CWE-131", "HIGH", "Incorrect Calculation of Buffer Size"),
+    "LoopTermination": ("CWE-835", "MEDIUM", "Infinite Loop"),
     "PossiblyNegativeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
     "PossiblyTooLargeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
     "UndefinedNegativeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
@@ -27,13 +29,25 @@ def map_formal_vcs(output: str) -> list[dict[str, str]]:
         if label in output:
             findings.append({"source": "openjml_esc", "vc": label, "cwe": cwe,
                              "severity": severity, "description": description})
+    if "ArithmeticOperationRange" in output and "underflow" in output.lower():
+        findings.append({"source": "openjml_esc", "vc": "ArithmeticOperationRange",
+                         "cwe": "CWE-191", "severity": "HIGH",
+                         "description": "Integer Underflow"})
+    if "decreases" in output.lower() and not any(item["cwe"] == "CWE-835" for item in findings):
+        findings.append({"source": "openjml_esc", "vc": "LoopTermination",
+                         "cwe": "CWE-835", "severity": "MEDIUM",
+                         "description": "Infinite Loop"})
     return findings
 
 
-def run_semgrep(source: str | Path, *, timeout: int = 60) -> dict[str, Any]:
+def run_semgrep(source: str | Path, *, timeout: int = 60,
+                config: str | Path | None = None) -> dict[str, Any]:
     """Run Semgrep's Java rules and normalize JSON output."""
+    selected_config = str(config or Path(__file__).resolve().parents[1] / "security" / "java_custom.yml")
+    if not Path(selected_config).exists():
+        selected_config = "p/java"
     try:
-        process = subprocess.run(["semgrep", "--config", "p/java", "--json", str(source)],
+        process = subprocess.run(["semgrep", "--config", selected_config, "--json", str(source)],
                                  capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError:
         return {"status": "TOOL_MISSING", "tool": "semgrep",
@@ -48,10 +62,15 @@ def run_semgrep(source: str | Path, *, timeout: int = 60) -> dict[str, Any]:
     findings = []
     for result in data.get("results", []):
         extra = result.get("extra", {})
+        rule_id = result.get("check_id", "")
+        cwe = {"CWE-22-PATH-TRAVERSAL": "CWE-22",
+               "CWE-502-DESERIALIZATION": "CWE-502",
+               "CWE-327-WEAK-CRYPTO": "CWE-327",
+               "CWE-209-EXCEPTION-EXPOSURE": "CWE-209"}.get(rule_id)
         findings.append({"tool": "semgrep", "rule_id": result.get("check_id"),
                          "line": result.get("start", {}).get("line"),
                          "severity": extra.get("severity", "INFO"),
-                         "message": extra.get("message", "")})
+                         "message": extra.get("message", ""), "cwe": cwe})
     return {"status": "CLEAN" if not findings else "FINDINGS", "tool": "semgrep",
             "findings": findings, "exit_code": process.returncode}
 

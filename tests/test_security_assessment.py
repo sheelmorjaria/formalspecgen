@@ -4,8 +4,8 @@ from pipeline.security_assessment import assess_security, map_formal_vcs, run_se
 
 
 def test_formal_vc_labels_map_to_cwes():
-    findings = map_formal_vcs("ArithmeticOperationRange and PossiblyNegativeIndex")
-    assert {item["cwe"] for item in findings} == {"CWE-190", "CWE-125"}
+    findings = map_formal_vcs("ArithmeticOperationRange and underflow PossiblyNegativeIndex NegativeArraySize")
+    assert {item["cwe"] for item in findings} == {"CWE-190", "CWE-191", "CWE-125", "CWE-131"}
 
 
 def test_security_assessment_fails_closed_on_formal_failure(tmp_path):

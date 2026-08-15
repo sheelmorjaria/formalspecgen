@@ -79,6 +79,26 @@ formalspecgen assess-security src/Counter.java --no-sast
 successful clean Semgrep run. This is scoped evidence—not immunity from all CWEs, cryptographic
 assurance, taint-flow proof, external-I/O safety, or regulatory certification.
 
+For vulnerability triage, `security-inspect` writes a report combining Semgrep findings and
+recognized OpenJML counterexample labels:
+
+```bash
+formalspecgen security-inspect src/Service.java --json vulnerability-report.json
+```
+
+`security-exploit` can turn supported findings (currently bounds violations and SQL-pattern
+findings, plus path traversal, deserialization, weak crypto, null, and overflow findings) into
+local JUnit PoC source templates:
+
+```bash
+formalspecgen security-exploit vulnerability-report.json src/Service.java \
+  --out-dir security-pocs --json security-pocs/poc-verdict.json
+```
+
+PoCs are generated but never compiled, executed, or sent over a network automatically. The
+result is `POC_GENERATED_NOT_EXECUTED`, not `EXPLOIT_PROVEN`; execution and remediation remain
+explicit human-controlled steps.
+
 ```text
 Natural language → clarification → checked language contract
                                       │

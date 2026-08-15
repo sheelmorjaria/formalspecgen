@@ -434,6 +434,22 @@ def command_assess_security(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "VERIFIED_SECURE" else 1
 
 
+def command_security_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .security_poc import inspect_security
+    result = inspect_security(args.source)
+    _write_json(result, args.json or "vulnerability_report.json", ui.console)
+    ui.console.print(f"Status: {result['status']}\nFindings: {len(result.get('findings', []))}")
+    return 0
+
+
+def command_security_exploit(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .security_poc import generate_pocs
+    result = generate_pocs(args.report, args.target, args.out_dir)
+    _write_json(result, args.json or str(Path(args.out_dir) / "poc-verdict.json"), ui.console)
+    ui.console.print(f"Status: {result['status']}\nGenerated PoCs: {len(result.get('generated', []))}")
+    return 0 if result["status"] == "POCS_GENERATED" else 1
+
+
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .bisimulation import verify_bisimulation_inputs
     result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
@@ -1149,6 +1165,14 @@ def build_parser() -> argparse.ArgumentParser:
     security.add_argument("--json")
     security.add_argument("--no-sast", action="store_true",
                           help="skip Semgrep; report is limited to formal evidence")
+    security_inspect = sub.add_parser("security-inspect", help="inspect code for formal and SAST findings")
+    security_inspect.add_argument("source")
+    security_inspect.add_argument("--json")
+    security_exploit = sub.add_parser("security-exploit", help="generate safe local JUnit PoC templates")
+    security_exploit.add_argument("report")
+    security_exploit.add_argument("target")
+    security_exploit.add_argument("--out-dir", default="security-pocs")
+    security_exploit.add_argument("--json")
 
     bisimulation = sub.add_parser("verify-bisimulation",
                                   help="validate a scoped state mapping without claiming equivalence")
@@ -1269,6 +1293,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "optimize-algorithm": return command_optimize_algorithm(args, ui)
     if args.command == "discover-algorithms": return command_discover_algorithms(args, ui)
     if args.command == "assess-security": return command_assess_security(args, ui)
+    if args.command == "security-inspect": return command_security_inspect(args, ui)
+    if args.command == "security-exploit": return command_security_exploit(args, ui)
     if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)

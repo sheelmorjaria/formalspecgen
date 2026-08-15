@@ -1,0 +1,32 @@
+rules:
+  - id: CWE-22-PATH-TRAVERSAL
+    languages: [java]
+    severity: ERROR
+    message: "Potential Path Traversal. User input passed to File API."
+    patterns:
+      - pattern: new File($INPUT)
+      - pattern-not: new File("constant_string")
+
+  - id: CWE-502-DESERIALIZATION
+    languages: [java]
+    severity: ERROR
+    message: "Deserialization of untrusted data."
+    pattern: $STREAM.readObject(...)
+
+  - id: CWE-327-WEAK-CRYPTO
+    languages: [java]
+    severity: WARNING
+    message: "Use of broken or risky cryptographic algorithm (MD5/SHA1/DES)."
+    patterns:
+      - pattern-either:
+          - pattern: MessageDigest.getInstance("MD5")
+          - pattern: MessageDigest.getInstance("SHA1")
+          - pattern: Cipher.getInstance("DES")
+
+  - id: CWE-209-EXCEPTION-EXPOSURE
+    languages: [java]
+    severity: WARNING
+    message: "Exception detail may be exposed to an external caller."
+    pattern-either:
+      - pattern: return $E.getMessage();
+      - pattern: $RESPONSE.sendError(..., $E.getMessage());
