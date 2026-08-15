@@ -450,6 +450,15 @@ def command_security_exploit(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "POCS_GENERATED" else 1
 
 
+def command_remediate(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .remediation import remediate
+    result = remediate(args.target, args.report, args.out_dir,
+                       provider=args.provider, model=args.model)
+    _write_json(result, args.json or str(Path(args.out_dir) / "remediation_verdict.json"), ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
+    return 0 if result["status"] == "REMEDIATION_VERIFIED" else 1
+
+
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .bisimulation import verify_bisimulation_inputs
     result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
@@ -1173,6 +1182,12 @@ def build_parser() -> argparse.ArgumentParser:
     security_exploit.add_argument("target")
     security_exploit.add_argument("--out-dir", default="security-pocs")
     security_exploit.add_argument("--json")
+    remediation = sub.add_parser("remediate", parents=[common],
+                                 help="generate a verified defensive patch copy")
+    remediation.add_argument("target")
+    remediation.add_argument("report")
+    remediation.add_argument("--out-dir", default="remediated")
+    remediation.add_argument("--json")
 
     bisimulation = sub.add_parser("verify-bisimulation",
                                   help="validate a scoped state mapping without claiming equivalence")
@@ -1295,6 +1310,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "assess-security": return command_assess_security(args, ui)
     if args.command == "security-inspect": return command_security_inspect(args, ui)
     if args.command == "security-exploit": return command_security_exploit(args, ui)
+    if args.command == "remediate": return command_remediate(args, ui)
     if args.command == "verify-bisimulation": return command_verify_bisimulation(args, ui)
     if args.command == "inspect": return command_inspect(args, ui)
     if args.command == "apply-refactor": return command_apply_refactor(args, ui)

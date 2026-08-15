@@ -79,6 +79,11 @@ formalspecgen assess-security src/Counter.java --no-sast
 successful clean Semgrep run. This is scoped evidence—not immunity from all CWEs, cryptographic
 assurance, taint-flow proof, external-I/O safety, or regulatory certification.
 
+The bundled [`security/java_custom.yml`](security/java_custom.yml) rules supplement Semgrep's
+Java rules with CWE-22 path traversal, CWE-502 unsafe deserialization, CWE-327 weak cryptography,
+and CWE-209 exception-detail exposure. Formal evidence additionally recognizes CWE-131 invalid
+array sizes, CWE-190/CWE-191 overflow and underflow, and CWE-835 termination failures.
+
 For vulnerability triage, `security-inspect` writes a report combining Semgrep findings and
 recognized OpenJML counterexample labels:
 
@@ -97,7 +102,21 @@ formalspecgen security-exploit vulnerability-report.json src/Service.java \
 
 PoCs are generated but never compiled, executed, or sent over a network automatically. The
 result is `POC_GENERATED_NOT_EXECUTED`, not `EXPLOIT_PROVEN`; execution and remediation remain
-explicit human-controlled steps.
+explicit human-controlled steps. Unsupported findings produce `NO_SUPPORTED_POC` rather than
+inventing an exploit.
+
+The remediation loop generates a patched copy from a vulnerability report and proves that copy
+with OpenJML without overwriting the original source:
+
+```bash
+formalspecgen remediate src/Service.java vulnerability-report.json \
+  --provider ollama --out-dir remediated \
+  --json remediated/remediation-verdict.json
+```
+
+`REMEDIATION_VERIFIED` means only that the generated copy passed ESC for the reported findings'
+contract context. The original code is preserved, PoCs remain unexecuted, and external I/O,
+runtime exploit neutralization, and behavioral equivalence are not claimed automatically.
 
 ```text
 Natural language → clarification → checked language contract
