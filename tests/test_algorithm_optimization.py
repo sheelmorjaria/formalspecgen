@@ -18,6 +18,22 @@ def test_optimization_rejects_explicit_complexity_regression(tmp_path):
     assert result["code"] == "complexity_regression_possible"
 
 
+def test_optimization_rejects_unknown_and_missing_input(tmp_path):
+    assert optimize_algorithm(tmp_path / "x.java", tmp_path / "out.java", strategy="unknown")["code"] == "unsupported_strategy"
+    assert optimize_algorithm(tmp_path / "x.java", tmp_path / "out.java", strategy="hashmap")["code"] == "input_unavailable"
+
+
+def test_optimization_generation_surface_candidate_and_gate_failures(tmp_path):
+    source = tmp_path / "x.java"; source.write_text("public class X {}")
+    with patch("pipeline.algorithm_optimization.verify", return_value=(0, "")), \
+         patch("pipeline.algorithm_optimization._chat_fn", side_effect=RuntimeError("offline")):
+        assert optimize_algorithm(source, tmp_path / "out.java", strategy="hashmap")["code"] == "optimization_generation_failed"
+    with patch("pipeline.algorithm_optimization.verify", return_value=(0, "")), \
+         patch("pipeline.algorithm_optimization._chat_fn", return_value=lambda *_: ("class Changed {}", "m", {})), \
+         patch("pipeline.algorithm_optimization.trusted_surface_matches", return_value=(False, ["changed"])):
+        assert optimize_algorithm(source, tmp_path / "out.java", strategy="hashmap")["code"] == "trusted_surface_changed"
+
+
 def test_optimization_preserves_surface_and_mints_scoped_claim(tmp_path):
     source = tmp_path / "TwoSum.java"; source.write_text(SOURCE)
     destination = tmp_path / "optimized" / "TwoSum.java"

@@ -1,0 +1,29 @@
+{
+  "name": "ExtractedSystem",
+  "components": [
+    {
+      "name": "Weird",
+      "type": "core",
+      "external": false,
+      "domain": "weird",
+      "file": "Weird.java",
+      "review_status": "unreviewed",
+      "lang": "java",
+      "language": "java",
+      "fields": [
+        {
+          "name": "x",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "use_cases": [],
+  "review_status": "unreviewed",
+  "warnings": [
+    {
+      "file": "/tmp/pytest-of-sheel/pytest-277/test_tree_sitter_fallback_extr0/Weird.java",
+      "code": "UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW"
+    }
+  ]
+}

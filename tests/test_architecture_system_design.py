@@ -117,6 +117,18 @@ class ArchitectureTests(unittest.TestCase):
 
 
 class SystemDesignTests(unittest.TestCase):
+    def test_filename_and_adapter_helpers_cover_language_routes(self):
+        self.assertEqual(system_design._component_filename("OrderService", "java"), "OrderService.java")
+        self.assertEqual(system_design._component_filename("OrderService", "rust"), "order_service.rs")
+        self.assertEqual(system_design._component_filename("OrderService", "c"), "order_service.c")
+        self.assertEqual(system_design._component_filename("OrderService", "cpp"), "OrderService.cpp")
+        with self.assertRaisesRegex(ValueError, "UNSUPPORTED_LANGUAGE"):
+            system_design._component_filename("X", "python")
+        components = [system_design.ComponentFragment(name="Port", type="interface", desc="port")]
+        injected = system_design._inject_missing_adapters(components)
+        self.assertEqual(injected[-1].implements, "Port")
+        self.assertEqual(len(system_design._inject_missing_adapters(injected)), 2)
+
     def test_parse_design_accepts_fenced_json_and_rejects_bad_sections(self):
         architecture, tla, cfg = system_design.parse_design(design_text())
         self.assertEqual(architecture.name, "Payments")
@@ -151,6 +163,17 @@ class SystemDesignTests(unittest.TestCase):
             stalled = system_design.design_system("payments", max_attempts=2)
         self.assertEqual(stalled["status"], "STALLED")
         self.assertEqual(len(stalled["attempts"]), 2)
+
+    def test_staged_design_system_fails_closed_on_provider_and_language_errors(self):
+        with patch.object(system_design, "_chat_fn",
+                          return_value=lambda *_args: (_ for _ in ()).throw(LLMError("OFFLINE", "provider unavailable"))):
+            failed = system_design.design_system_staged("checkout", max_attempts=1)
+        self.assertEqual(failed["status"], "STAGED_GENERATION_FAILED")
+        components = '[{"name":"Inventory","type":"core","desc":"stock"}]'
+        with patch.object(system_design, "_chat_fn", return_value=lambda *_args: (components, "m", {})):
+            failed = system_design.design_system_staged("checkout", target_lang="python", max_attempts=1)
+        self.assertEqual(failed["status"], "STAGED_GENERATION_FAILED")
+        self.assertIn("UNSUPPORTED_LANGUAGE", failed["message"])
 
     def test_scaffold_interfaces_runs_check_and_composition_esc(self):
         with patch.object(system_design, "verify_files", side_effect=[(0, ""), (0, "")]) as verify:

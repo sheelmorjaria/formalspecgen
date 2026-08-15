@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from pipeline.codebase_analysis import analyze_codebase
 
@@ -36,3 +37,38 @@ def test_analyze_codebase_extracts_bounded_state_without_manual_review_warning(t
     assert domain["state_variables"] == [{"name": "count", "type": "int", "bound": [0, 5]}]
     assert domain["warnings"] == []
     assert not any(item["code"] == "UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW" for item in result["warnings"])
+
+
+def test_analyze_codebase_extracts_rust_c_and_cpp_components(tmp_path):
+    source = tmp_path / "mixed"; source.mkdir()
+    (source / "counter.rs").write_text("struct Counter { count: i32, }")
+    (source / "meter.c").write_text("struct Meter { int value; };")
+    (source / "gauge.cpp").write_text("class Gauge { int level; };")
+    result = analyze_codebase(source, tmp_path / "out")
+    names = {item["name"] for item in result["components"]}
+    assert names == {"Counter", "Meter", "Gauge"}
+    assert {item["language"] for item in result["components"]} == {"rs", "c", "cpp"}
+    assert len(result["domains"]) == 3
+
+
+def test_analyze_rust_struct_metadata(tmp_path):
+    (tmp_path / "sensor.rs").write_text("pub struct Sensor { pub value: i32, }")
+    result = analyze_codebase(tmp_path)
+    comp = result["components"][0]
+    assert comp["name"] == "Sensor" and comp["lang"] == "rs"
+    assert comp["fields"] == [{"name": "value", "type": "int"}]
+
+
+def test_analyze_c_struct_metadata(tmp_path):
+    (tmp_path / "counter.c").write_text("struct Counter { int count; };")
+    result = analyze_codebase(tmp_path)
+    comp = result["components"][0]
+    assert comp["name"] == "Counter" and comp["lang"] == "c"
+    assert comp["fields"] == [{"name": "count", "type": "int"}]
+
+
+def test_tree_sitter_fallback_extracts_java(tmp_path):
+    (tmp_path / "Weird.java").write_text("class Weird { int x; }")
+    with patch("pipeline.codebase_analysis.extract_components_ts", return_value=None):
+        result = analyze_codebase(tmp_path)
+    assert result["components"][0]["name"] == "Weird"

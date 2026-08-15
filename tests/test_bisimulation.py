@@ -38,3 +38,15 @@ def test_bisimulation_preflight_reports_public_surface_changes(tmp_path):
     result = verify_bisimulation_inputs(baseline, refactored, mapping)
     assert result["status"] == "BISIMULATION_SURFACE_MISMATCH"
     assert result["contract_surface_preserved"] is False
+
+
+def test_bisimulation_preflight_rejects_empty_non_object_and_missing_inputs(tmp_path):
+    baseline = tmp_path / "Legacy.java"; baseline.write_text("class Legacy {}")
+    refactored = tmp_path / "Modern.java"; refactored.write_text("class Modern {}")
+    mapping = tmp_path / "mapping.json"
+    for value in ({}, [], {"0": 1}):
+        mapping.write_text(json.dumps(value))
+        assert verify_bisimulation_inputs(baseline, refactored, mapping)["status"] == "BISIMULATION_MAPPING_INVALID"
+    mapping.write_text("not-json")
+    assert verify_bisimulation_inputs(baseline, refactored, mapping)["status"] == "BISIMULATION_INPUT_INVALID"
+    assert verify_bisimulation_inputs(tmp_path / "missing.java", refactored, mapping)["status"] == "BISIMULATION_INPUT_INVALID"

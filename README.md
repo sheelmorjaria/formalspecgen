@@ -124,6 +124,17 @@ language-independent CWE vocabulary. PoCs are language-aware (`.java` JUnit, `.r
 and C/C++ assertion harness templates), while remediation prompts select JML, Prusti, or ACSL
 contract syntax from the target extension.
 
+The complete defensive lifecycle is:
+
+```text
+security-inspect → security-exploit → remediate → OpenJML/Prusti/Frama-C/ESBMC re-check
+      report          local PoC             patched copy          scoped proof
+```
+
+`security-inspect` produces findings, `security-exploit` produces review-only PoC source,
+and `remediate` writes a separate patched artifact. Only a successful native verifier run can
+mint `REMEDIATION_VERIFIED`; PoCs are never run automatically.
+
 ```text
 Natural language → clarification → checked language contract
                                       │
