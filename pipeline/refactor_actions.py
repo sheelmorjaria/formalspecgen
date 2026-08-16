@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_MULTIFILE_PATTERNS = {"factory-method", "state", "decorator", "facade", "null-object"}
+_MULTIFILE_PATTERNS = {"factory-method", "state", "decorator", "facade", "null-object", "strategy"}
 
 
 def apply_refactor(source: str | Path, inspection: str | Path, pattern: str,
@@ -26,7 +26,10 @@ def apply_refactor(source: str | Path, inspection: str | Path, pattern: str,
         verify_contract_preserving_refactor,
         verify_multifile_contract_refactor,
     )
-    transformed = (extract_facade_from_inspection(source, inspection)
+    from .strategy_refactor import extract_strategy_from_inspection
+    transformed = (extract_strategy_from_inspection(source, inspection, method)
+                   if pattern == "strategy" else
+                   extract_facade_from_inspection(source, inspection)
                    if pattern == "facade" else
                    extract_decorator_from_inspection(source, inspection)
                    if pattern == "decorator" else

@@ -268,8 +268,10 @@ The following roadmap claims remain intentionally incomplete:
 - `BEHAVIORAL_EQUIVALENCE_PROVED`: requires a genuine relational/bisimulation proof backend.
 - `CONCURRENT_COMPOSITION_LINEARIZABILITY_PROVED`: requires TLC interleaving verification plus
   discharged Java lock-acquisition/release correspondence.
-- Broad semantic Strategy/State/Decorator/Facade decomposition: only the restricted profiles above
-  are admitted; responsibility grouping, callback ordering, and heap topology are not inferred.
+- Broad semantic Strategy/State/Decorator/Facade decomposition: the narrow literal-dispatch
+  Strategy, scalar State, Decorator, Facade, and Factory profiles above are admitted with their
+  stated restrictions; broader decomposition is not. Responsibility grouping, callback ordering,
+  and heap topology are not inferred.
 
 Preflight artifacts and mappings never mint these claims by themselves; unsupported or missing
 proof evidence fails closed.
@@ -1144,8 +1146,16 @@ outside this initial action profile.
 State and Decorator remain inspection-only recommendations for general code. A narrow State
 profile is admitted for methods containing two or more `int` equality branches whose bodies are
 single return expressions; it emits stateless handler classes and routes the selected branch
-through them. It does not replace the state field or infer legal transitions, and the generated
-directory still requires the multifile refactor gate. Decorator and broad state transitions remain
+through them. A narrow Strategy profile is admitted for one public `void` method taking a single
+`int` parameter whose body is solely a `param == literal` chain assigning the same `int` field one
+literal per branch under an `ensures <field> >= <k>` contract: it emits a strategy interface with
+a total static selector (the baseline `requires` carried over, out-of-domain values rejected), one
+constant implementation per branch (named from the branch's trailing comment when present), and a
+primary that selects then delegates through `strategy.calculate()`; the interface carries the
+translated `ensures \result >= k` so the primary's original postcondition still proves. The
+generated directory still requires the multifile refactor gate — verified end to end with real
+OpenJML ESC (`inspect → apply-refactor --pattern strategy → verify-refactor` minting
+`MULTIFILE_REFACTOR_CONTRACT_PRESERVED`). Decorator and broad state transitions remain
 unavailable until their callback/order and invariant obligations can be proved.
 
 #### End-to-end modernization workflow

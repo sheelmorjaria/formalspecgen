@@ -1007,7 +1007,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_refactor.add_argument("source", help="baseline Java/JML source")
     apply_refactor.add_argument("--inspection", required=True,
                                 help="hash-bound inspect JSON evidence")
-    apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method", "state", "decorator", "facade", "null-object"],
+    apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method", "state", "decorator", "facade", "null-object", "strategy"],
                                 default="extract-method")
     apply_refactor.add_argument("--method", required=True, help="inspected long method name")
     apply_refactor.add_argument("--out", required=True, help="same-named refactored Java path")

@@ -94,6 +94,20 @@ def _matching_brace(source: str, opening: int) -> int:
     return opening
 
 
+def _literal_param_condition(condition) -> str | None:
+    """Return the parameter name for a `param == <int literal>` condition, else None."""
+    if not isinstance(condition, javalang.tree.BinaryOperation) or condition.operator != "==":
+        return None
+    operand, literal = condition.operandl, condition.operandr
+    if isinstance(literal, javalang.tree.MemberReference):
+        operand, literal = literal, operand
+    if (isinstance(operand, javalang.tree.MemberReference) and not operand.qualifier and
+            isinstance(literal, javalang.tree.Literal) and
+            literal.value is not None and str(literal.value).lstrip("-").isdigit()):
+        return operand.member
+    return None
+
+
 def _runtime_type_condition(condition) -> bool:
     nodes = [condition]
     if isinstance(condition, javalang.ast.Node):
@@ -122,6 +136,20 @@ class CoreStructureDetector(PatternDetector):
         methods = list(self.declaration.constructors) + list(self.declaration.methods)
         switches = [node for _, node in self.declaration.filter(javalang.tree.IfStatement)
                     if _runtime_type_condition(node.condition)]
+        literal_chains: dict[tuple[str, str], list] = {}
+        for method in methods:
+            params = {parameter.name for parameter in method.parameters}
+            for _, node in method.filter(javalang.tree.IfStatement):
+                param = _literal_param_condition(node.condition)
+                if param is not None and param in params:
+                    literal_chains.setdefault((method.name, param), []).append(node)
+        for (method_name, _param), nodes in literal_chains.items():
+            if len(nodes) >= 2:
+                findings.append(_finding(_line(nodes[0]), "type-switch", "warning",
+                    f"Found {len(nodes)} literal parameter-dispatch branches.",
+                    "Strategy",
+                    "Move variant behavior behind a polymorphic strategy interface."))
+                findings[-1]["methods"] = [method_name]
         if len(switches) >= 2:
             implicated = [method.name for method in methods
                           if any(candidate is node for node in switches
