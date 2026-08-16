@@ -432,7 +432,10 @@ def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .behavior_correction import correct_behavior
     result = correct_behavior(args.target, args.cwe, args.out_dir,
                               provider=args.provider, model=args.model,
-                              max_attempts=args.max_attempts)
+                              max_attempts=args.max_attempts,
+                              strategy=getattr(args, "strategy", None),
+                              hardware=getattr(args, "hardware", None),
+                              struct_size_bytes=getattr(args, "struct_size_bytes", None))
     _write_json(result, args.json or str(Path(args.out_dir) / "correction_verdict.json"), ui.console)
     ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
     return 0 if result["status"] == "BEHAVIOR_CORRECTION_VERIFIED" else 1
@@ -1052,6 +1055,14 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="strengthen a contract and prove a defensive behavior correction")
     correction.add_argument("target")
     correction.add_argument("--cwe", required=True)
+    correction.add_argument("--strategy", choices=["bound-loop", "static-pool", "bounded-cache"],
+                           help="capacity-bounding correction: rewrite unbounded loops or "
+                                "dynamic structures into static bounded code (CWE-400)")
+    correction.add_argument("--hardware", metavar="PROFILE.json",
+                           help="hardware profile deriving physical capacity bounds "
+                                "(SRAM/stack limits; mints HARDWARE_MEMORY_BOUND_PROVEN)")
+    correction.add_argument("--struct-size-bytes", type=int,
+                           help="explicit element size for --hardware capacity derivation")
     correction.add_argument("--out-dir", default="corrections")
     correction.add_argument("--max-attempts", type=int, default=3)
     correction.add_argument("--json")

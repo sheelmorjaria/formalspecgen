@@ -191,6 +191,64 @@ with `formal_proof: DEDUCTIVE_PROOF`; otherwise the verdict fails closed as
 `CORRECTION_FAILED`/`NO_PROOF`. Evidence hash-binds the baseline and strengthened contract
 clause sets, the corrected implementation, and the attempt count.
 
+#### Capacity bounding (CWE-400): dynamic code → static, bounded code
+
+`--strategy` rewrites unbounded code into static, bounded code — the transformation
+embedded, aerospace (DO-178C-style), and hardening audiences want, and the reason it lives
+under `correct-behavior` rather than `verify-refactor` is epistemic: rejecting work beyond
+a capacity *changes observable behavior*, so it can never be certified as a
+contract-preserving refactor. Three strategies are supported:
+
+- `--strategy bound-loop` — `while (true)` becomes counter-bounded iteration
+  (`while (i < n && i < 1000)` with `loop_invariant`/`decreases`)
+- `--strategy static-pool` — dynamic `LinkedList`/`ArrayList` nodes become a pre-allocated
+  fixed-size array or object pool with integer indices (`next_index`, `head`, `free_list`)
+- `--strategy bounded-cache` — unbounded `HashMap`s become parallel fixed-size arrays with
+  a count field and `requires count < 100` on mutation
+
+```bash
+formalspecgen correct-behavior src/BatchRunner.java --cwe CWE-400 \
+  --strategy bound-loop --out-dir corrections --json corrections/bound.json
+```
+
+The strategy runs a deterministic pre-prover check: if the rewritten source still contains
+`while (true)`/`for (;;)` (bound-loop) or any dynamic collection or non-array `new`
+(static-pool/bounded-cache), the verdict fails closed as `strategy_not_satisfied` before
+OpenJML is consulted. Pattern absence is only a necessary condition — Z3 still has to prove
+the strengthened `requires/ensures` capacity bounds. A successful run mints
+`BEHAVIOR_CORRECTION_VERIFIED` with `mitigated_cwe: CWE-400` and `strategy` recorded in
+the evidence; real-OpenJML coverage lives in `tests_e2e/test_capacity_bounding_e2e.py`.
+
+#### Hardware-aware bounding (physical SRAM limits drive the number)
+
+A bound of 1000 pulled from thin air is a heuristic. On DO-178C / ISO 26262 class
+targets every statically allocated pool must be derived from the physical memory and
+provably fit. Pass a hardware profile and the pipeline — not the LLM — computes the
+capacity from the silicon:
+
+```json
+{"target": "STM32F411", "total_sram_bytes": 131072,
+ "reserved_system_bytes": 32768, "max_stack_depth_bytes": 4096, "word_size_bytes": 4}
+```
+
+```bash
+formalspecgen correct-behavior src/OrderQueue.java --cwe CWE-400 \
+  --strategy static-pool --hardware hardware_profile.json --struct-size-bytes 16
+```
+
+`safe_capacity` truncates `usable_sram × safety_margin(0.9) ÷ struct_size` (98304 × 0.9 ÷
+16 = 5529 for the profile above), the strengthening prompt is injected with the exact
+capacity, and two more deterministic checks run before the prover: every generated array
+allocation must satisfy `bound × struct_size ≤ budget` (`hardware_bound_exceeded`), and a
+recursive rewrite whose derived bound cannot fit the physical stack fails as
+`STACK_OVERFLOW_RISK` (frame estimate = 2 × word size). A struct larger than the budget
+fails before generation as `HARDWARE_MEMORY_EXCEEDED`. A verified hardware-aware run adds
+`HARDWARE_MEMORY_BOUND_PROVEN` to the claims with `memory_footprint_bytes` (capacity ×
+struct size) recorded — Z3 proves the software bound, the profile proves the physical
+footprint, and neither is trusted alone. The struct-size estimate from scalar Java fields
+is a lower bound only (references are not counted); exact sizes belong in
+`--struct-size-bytes`.
+
 A correction is deliberately a contract *change*, not a refactor. Output that strengthens a
 contract cannot mint `REFACTOR_CONTRACT_PRESERVED`: `verify-refactor` correctly rejects it as
 `primary_contract_surface_changed`, and the correction verdict is the evidence class that

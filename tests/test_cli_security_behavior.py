@@ -84,3 +84,23 @@ def test_verify_refactor_signing_requires_json_and_handles_sign_failure(tmp_path
 def test_validate_architecture_cli_fails_on_bad_artifact_and_tlc(tmp_path):
     ui = _ui(); args = SimpleNamespace(artifact=str(tmp_path / "missing.json"), timeout=1, json=None)
     assert cli.command_validate_architecture(args, ui) == 1
+
+
+def test_correct_behavior_strategy_flag_routes_to_correction(tmp_path):
+    from pipeline import cli
+    source = tmp_path / "BatchRunner.java"
+    source.write_text("public class BatchRunner { public void run(int n) { } }\n")
+    verdict_path = tmp_path / "verdict.json"
+    ok = {"status": "BEHAVIOR_CORRECTION_VERIFIED",
+          "claim": "BEHAVIOR_CORRECTION_VERIFIED", "strategy": "bound-loop"}
+    with patch("pipeline.behavior_correction.correct_behavior",
+               return_value=dict(ok)) as correct:
+        args = cli.build_parser().parse_args(
+            ["correct-behavior", str(source), "--cwe", "CWE-400",
+             "--strategy", "bound-loop", "--out-dir", str(tmp_path / "c"),
+             "--json", str(verdict_path)])
+        code = cli.command_correct_behavior(args, _ui())
+    assert code == 0
+    assert correct.call_args.kwargs["strategy"] == "bound-loop"
+    import json
+    assert json.loads(verdict_path.read_text())["strategy"] == "bound-loop"
