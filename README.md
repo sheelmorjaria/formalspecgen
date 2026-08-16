@@ -12,10 +12,23 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server provides `verify_code`, `validate_architecture`, `implement_code`, and `inspect_code`
-tools. Inputs are restricted to the current workspace and responses are structured verdict objects;
-the server never converts a tool failure into a success claim. Configure an MCP client with the
-server command and its absolute project path, for example:
+The server exposes 21 tools covering the full verification surface: `verify_code`,
+`validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
+`document_code`, `assess_security`, `security_inspect`, `security_exploit`,
+`remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
+`verify_bisimulation`, `optimize_algorithm`, `discover_algorithms`,
+`validate_domain`, `compose`, `reverify_composition`, `unified_system`, and
+`draft_canonical_contract`. Inputs **and** outputs are restricted to the current
+workspace, and responses are structured verdict objects; the server never converts a
+tool failure into a success claim. LLM-backed tools (`remediate_code`,
+`correct_behavior`, `optimize_algorithm`, `discover_algorithms`, and the optional
+`document_code` narrative) fail closed when the provider is unreachable.
+
+Deliberately not exposed: `promote-domain` — hash-bound acceptance of a reviewed
+artifact is a human trust action that stays with the CLI — and the interactive
+clarification wizards (`domain`, non-canonical `draft`, `design-system`).
+Configure an MCP client with the server command and its absolute project path, for
+example:
 
 ```json
 {"mcpServers":{"formalspecgen":{"command":"python","args":["/path/to/formalspecgen/mcp_server.py"]}}}

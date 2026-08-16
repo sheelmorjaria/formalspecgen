@@ -28,6 +28,9 @@ from .c_support import draft_acsl
 from .canonical_contracts import (
     CanonicalContractConflict, canonical_contract,
 )
+from .canonical_draft import (
+    canonical_draft_c, canonical_draft_cpp, canonical_draft_java, canonical_draft_rust,
+)
 from .domain_generator import compile_domain_spec, compile_domain_spec_v2, elicit_domain_questions
 from .domain_v2 import DomainSpecV2
 from .domain_v2_promotion import candidate_sha256, load_candidate, promote_validated_candidate
@@ -147,6 +150,20 @@ def _write_json(value: Any, destination: str | None, console: Console) -> None:
         console.print(text)
 
 
+def _finish_canonical_draft(result: dict[str, Any], title: str, ui: TerminalUI,
+                            store: SessionStore, state: dict[str, Any]) -> int:
+    """Persist the drafted contract in the session and announce it."""
+    destination = Path(result["code_file"])
+    state["last_stub"] = str(destination.resolve())
+    state["last_run"] = str(destination.parent.resolve())
+    store.save(state)
+    ui.console.print(Panel(
+        f"{title}: [path]{destination}[/path]\n"
+        f"Evidence: [path]{result['evidence_file']}[/path]\nHuman review is required.",
+        title="Reviewed domain contract", border_style="green"))
+    return 0
+
+
 def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                   state: dict[str, Any]) -> int:
     requirement = args.requirement
@@ -155,86 +172,36 @@ def command_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
                     if not args.no_clarify else requirement)
         if args.lang == "rust":
             if getattr(args, "canonical_domain", None):
-                return _canonical_rust_draft(args, ui, store, state, enriched)
+                return _finish_canonical_draft(
+                    canonical_draft_rust(args.canonical_domain, enriched,
+                                         domains_root=store.directory.parent / "domains" / "v2",
+                                         out_file=args.out_file),
+                    "Canonical Rust contract", ui, store, state)
             result = draft_rust(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "rs")
         if args.lang == "cpp":
             if getattr(args, "canonical_domain", None):
-                return _canonical_cpp_draft(args, ui, store, state, enriched)
+                return _finish_canonical_draft(
+                    canonical_draft_cpp(args.canonical_domain, enriched,
+                                        domains_root=store.directory.parent / "domains" / "v2",
+                                        out_file=args.out_file),
+                    "Canonical C++ contract", ui, store, state)
             raise ValueError("C++ drafting currently requires --canonical-domain")
         if args.lang == "c":
             if getattr(args, "canonical_domain", None):
-                return _canonical_c_draft(args, ui, store, state, enriched)
+                return _finish_canonical_draft(
+                    canonical_draft_c(args.canonical_domain, enriched,
+                                      domains_root=store.directory.parent / "domains" / "v2",
+                                      out_file=args.out_file),
+                    "Canonical C contract", ui, store, state)
             result = draft_acsl(enriched, provider=args.provider)
             return _finish_language_draft(result, args, ui, store, state, "c")
         if getattr(args, "canonical_domain", None):
-            requested_domain = args.canonical_domain.strip().lower()
-            if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested_domain):
-                raise ValueError("canonical domain must be a safe module identifier")
-            reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested_domain}.json"
-            reviewed_v2 = None
-            if reviewed_path.exists():
-                reviewed_v2, code = render_reviewed_v2_file(reviewed_path)
-                canonical_domain = reviewed_v2.module_name
-                assumptions = [
-                    "Generated deterministically from a hash-bound reviewed V2 domain.",
-                    "Operations model atomic method calls; concurrent linearizability is not proved.",
-                ]
-                default_destination = f"{reviewed_v2.domain_name}.java"
-            else:
-                canonical_domain, code, assumptions = canonical_contract(
-                    args.canonical_domain, enriched)
-                default_destination = "TrafficLightController.java"
-            checked, errors = check_stub(code)
-            if not checked:
-                raise ValueError("reviewed canonical contract failed OpenJML check: " +
-                                 "\n".join(errors))
-            destination = Path(args.out_file or default_destination)
-            generated_class = java_class_name(code)
-            if generated_class is None or destination.name != f"{generated_class}.java":
-                raise ValueError(
-                    f"canonical public class {generated_class or '<unknown>'} must be written "
-                    f"to {generated_class or '<ClassName>'}.java")
-            destination.write_text(code, encoding="utf-8")
-            evidence = {
-                "status": "CANONICAL_CONTRACT",
-                "claim": "REVIEWED_TRANSFORMATION",
-                "domain": canonical_domain,
-                "requirement": enriched,
-                "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
-                "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
-                "assumptions": assumptions,
-                "openjml_check": "VERIFIED",
-                "human_acceptance_required": True,
-                "source_refinement_proved": False,
-            }
-            if reviewed_v2 is not None:
-                evidence.update({
-                    "reviewed_v2_domain": str(reviewed_path.resolve()),
-                    "accepted_candidate_sha256": reviewed_v2.accepted_candidate_sha256,
-                    "accepted_evidence_sha256": reviewed_v2.accepted_evidence_sha256,
-                    "transformation": "DETERMINISTIC_V2_TO_JML",
-                })
-                if reviewed_v2.concurrency is not None:
-                    from .v2_lock_serializer import lock_discipline_gate
-                    discipline = lock_discipline_gate(reviewed_v2, code, "java")
-                    evidence.update({
-                        "claim": discipline["claim"],
-                        "lock_discipline": discipline,
-                        "lock_discipline_proved": discipline["lock_discipline_proved"],
-                        "concurrent_linearizability_proved": False,
-                    })
-            evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
-            evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
-                                     encoding="utf-8")
-            state["last_stub"] = str(destination.resolve())
-            state["last_run"] = str(destination.parent.resolve())
-            store.save(state)
-            ui.console.print(Panel(
-                f"Canonical contract: [path]{destination}[/path]\n"
-                f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
-                title="Reviewed domain contract", border_style="green"))
-            return 0
+            return _finish_canonical_draft(
+                canonical_draft_java(args.canonical_domain, enriched,
+                                     domains_root=store.directory.parent / "domains" / "v2",
+                                     out_file=args.out_file),
+                "Canonical contract", ui, store, state)
         result = draft_contract(enriched, provider=args.provider,
             fallback_provider=args.fallback_provider, model=args.model, out_dir=args.out,
             max_attempts=args.max_attempts, on_event=ui.event,
@@ -486,49 +453,11 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .deterministic_refactor import (
-        extract_factory_from_inspection, extract_method_from_inspection,
-        extract_decorator_from_inspection,
-        extract_facade_from_inspection,
-        extract_state_from_inspection,
-        extract_null_object_from_inspection,
-    )
-    from .refactor_gate import (
-        verify_contract_preserving_refactor, verify_multifile_contract_refactor,
-    )
-    transformed = (extract_facade_from_inspection(args.source, args.inspection)
-                   if args.pattern == "facade" else
-                   extract_decorator_from_inspection(args.source, args.inspection)
-                   if args.pattern == "decorator" else
-                   extract_factory_from_inspection(args.source, args.inspection, args.method)
-                   if args.pattern == "factory-method" else
-                   extract_state_from_inspection(args.source, args.inspection, args.method)
-                   if args.pattern == "state" else
-                   extract_null_object_from_inspection(args.source, args.inspection)
-                   if args.pattern == "null-object" else
-                   extract_method_from_inspection(args.source, args.inspection, args.method))
-    if transformed["status"] != "TRANSFORMED":
-        _write_json(transformed, args.json, ui.console)
-        return 1
-    destination = Path(args.out)
-    if args.pattern in {"factory-method", "state", "decorator", "facade", "null-object"}:
-        destination.mkdir(parents=True, exist_ok=True)
-        files = transformed.pop("files")
-        for name, content in files.items():
-            (destination / name).write_text(content, encoding="utf-8")
-        proof = verify_multifile_contract_refactor(args.source, destination)
-    else:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(transformed.pop("source"), encoding="utf-8")
-        proof = verify_contract_preserving_refactor(args.source, destination)
-    result = {"status": "VERIFIED" if proof["status"] == "VERIFIED" else "FAIL",
-              "claim": proof.get("claim", "NO_PROOF"),
-              "transformation": transformed, "verification": proof,
-              "automated_refactor_applied": True,
-              "behavior_equivalence_proved": False,
-              "refactor_verified": False}
+    from .refactor_actions import apply_refactor
+    result = apply_refactor(args.source, args.inspection, args.pattern,
+                            args.method, args.out)
     _write_json(result, args.json, ui.console)
-    return 0 if result["status"] == "VERIFIED" else 1
+    return 0 if result.get("status") == "VERIFIED" else 1
 
 
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -841,175 +770,6 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
         ui.console.print(f"[bold red]Domain promotion failed:[/bold red] {escape(str(exc))}")
         return 2
     ui.console.print(f"[green]Promoted reviewed domain {name}[/green]\n  [path]{canonical}[/path]")
-    return 0
-
-
-def _canonical_rust_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
-                          state: dict[str, Any], enriched: str) -> int:
-    """Deterministically lower a reviewed V2 domain into a Rust/Prusti contract."""
-    from .rust_support import check_rust_syntax, lint_rust
-    from .v2_prusti_serializer import render_reviewed_v2_prusti_file
-    requested_domain = args.canonical_domain.strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested_domain):
-        raise ValueError("canonical domain must be a safe module identifier")
-    reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested_domain}.json"
-    if not reviewed_path.exists():
-        raise ValueError(
-            f"canonical Rust drafting requires a reviewed V2 domain; "
-            f"{reviewed_path} not found (generate and promote one first)")
-    reviewed, code = render_reviewed_v2_prusti_file(reviewed_path)
-    findings = lint_rust(code)
-    if any(item.get("severity") == "error" for item in findings):
-        raise ValueError("reviewed canonical contract failed Rust safety lint: " +
-                         "; ".join(item.get("message", "") for item in findings
-                                   if item.get("severity") == "error"))
-    if reviewed.execution_model == "async_message_passing":
-        from .v2_async_serializer import check_tokio_scaffold
-        check = check_tokio_scaffold(code)
-        expected_check = "TOKIO_CHECKED"
-    else:
-        check = check_rust_syntax(code)
-        expected_check = "RUST_CHECKED"
-    if check.get("status") != expected_check:
-        raise ValueError("Rust check gate failed on the reviewed canonical "
-                         f"contract: {check.get('output', '')[-500:]}")
-    destination = Path(args.out_file or f"{reviewed.domain_name}.rs")
-    destination.write_text(code, encoding="utf-8")
-    evidence = {
-        "status": "CANONICAL_CONTRACT",
-        "claim": "REVIEWED_TRANSFORMATION",
-        "domain": reviewed.module_name,
-        "requirement": enriched,
-        "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
-        "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
-        "assumptions": ([
-            "TLC proves only a bounded atomic message-handler architecture.",
-            "Tokio transport is statically checked; async refinement and delivery are unproved.",
-        ] if reviewed.execution_model == "async_message_passing" else [
-            "Generated deterministically from a hash-bound reviewed V2 domain.",
-            "All concrete state access is routed through one non-panicking Rust Mutex.",
-            "This is structural lock discipline, not Prusti proof or linearizability evidence.",
-        ] if reviewed.concurrency is not None else [
-            "Generated deterministically from a hash-bound reviewed V2 domain.",
-            "Prusti attributes encode the reviewed contracts; no LLM was involved.",
-            "Bodies transcribe reviewed effects; concurrent linearizability is not proved.",
-        ]),
-        "rust_check": check["status"],
-        "human_acceptance_required": True,
-        "source_refinement_proved": False,
-        "reviewed_v2_domain": str(reviewed_path.resolve()),
-        "accepted_candidate_sha256": reviewed.accepted_candidate_sha256,
-        "accepted_evidence_sha256": reviewed.accepted_evidence_sha256,
-        "transformation": ("DETERMINISTIC_V2_TO_TOKIO_TRANSPORT"
-                           if reviewed.execution_model == "async_message_passing" else
-                           "DETERMINISTIC_V2_TO_RUST_MUTEX"
-                           if reviewed.concurrency is not None else
-                           "DETERMINISTIC_V2_TO_PRUSTI"),
-        "lock_discipline_proved": reviewed.concurrency is not None,
-        "concurrent_linearizability_proved": False,
-        "async_linearizability_proved": False,
-    }
-    if reviewed.concurrency is not None:
-        from .v2_lock_serializer import lock_discipline_gate
-        discipline = lock_discipline_gate(reviewed, code, "rust")
-        evidence.update({"claim": discipline["claim"],
-                         "lock_discipline": discipline})
-    evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
-    evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
-                             encoding="utf-8")
-    state["last_stub"] = str(destination.resolve())
-    state["last_run"] = str(destination.parent.resolve())
-    store.save(state)
-    ui.console.print(Panel(
-        f"Canonical Rust contract: [path]{destination}[/path]\n"
-        f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
-        title="Reviewed domain contract", border_style="green"))
-    return 0
-
-
-def _canonical_c_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
-                       state: dict[str, Any], enriched: str) -> int:
-    """Deterministically lower a reviewed V2 domain into a C/ACSL contract."""
-    from .c_support import check_c_syntax, lint_acsl
-    from .v2_acsl_serializer import render_reviewed_v2_acsl_file
-    requested_domain = args.canonical_domain.strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested_domain):
-        raise ValueError("canonical domain must be a safe module identifier")
-    reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested_domain}.json"
-    if not reviewed_path.exists():
-        raise ValueError(
-            f"canonical C drafting requires a reviewed V2 domain; "
-            f"{reviewed_path} not found (generate and promote one first)")
-    reviewed, code = render_reviewed_v2_acsl_file(reviewed_path)
-    findings = lint_acsl(code)
-    if any(item.get("severity") == "error" for item in findings):
-        raise ValueError("reviewed canonical contract failed ACSL lint: " +
-                         "; ".join(item.get("message", "") for item in findings
-                                   if item.get("severity") == "error"))
-    check = check_c_syntax(code)
-    if check.get("status") != "C_CHECKED":
-        raise ValueError("C check gate failed on the reviewed canonical "
-                         f"contract: {check.get('output', '')[-500:]}")
-    destination = Path(args.out_file or f"{reviewed.module_name}.c")
-    destination.write_text(code, encoding="utf-8")
-    evidence = {
-        "status": "CANONICAL_CONTRACT",
-        "claim": "REVIEWED_TRANSFORMATION",
-        "domain": reviewed.module_name,
-        "requirement": enriched,
-        "requirement_sha256": hashlib.sha256(enriched.encode()).hexdigest(),
-        "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
-        "assumptions": [
-            "Generated deterministically from a hash-bound reviewed V2 domain.",
-            "ACSL contracts encode the reviewed semantics; no LLM was involved.",
-            "Bodies transcribe reviewed effects; concurrent linearizability is not proved.",
-        ],
-        "c_check": check["status"],
-        "human_acceptance_required": True,
-        "source_refinement_proved": False,
-        "reviewed_v2_domain": str(reviewed_path.resolve()),
-        "accepted_candidate_sha256": reviewed.accepted_candidate_sha256,
-        "accepted_evidence_sha256": reviewed.accepted_evidence_sha256,
-        "transformation": "DETERMINISTIC_V2_TO_ACSL",
-    }
-    evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
-    evidence_path.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n",
-                             encoding="utf-8")
-    state["last_stub"] = str(destination.resolve())
-    state["last_run"] = str(destination.parent.resolve())
-    store.save(state)
-    ui.console.print(Panel(
-        f"Canonical C contract: [path]{destination}[/path]\n"
-        f"Evidence: [path]{evidence_path}[/path]\nHuman review is required.",
-        title="Reviewed domain contract", border_style="green"))
-    return 0
-
-
-def _canonical_cpp_draft(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
-                         state: dict[str, Any], enriched: str) -> int:
-    """Deterministically lower a reviewed V2 domain into bounded C++ evidence."""
-    from .v2_cpp_serializer import render_reviewed_v2_cpp_file
-    from .cpp_support import check_cpp_syntax
-    requested = args.canonical_domain.strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", requested):
-        raise ValueError("canonical domain must be a safe module identifier")
-    reviewed_path = store.directory.parent / "domains" / "v2" / f"{requested}.json"
-    if not reviewed_path.exists():
-        raise ValueError(f"canonical C++ drafting requires a reviewed V2 domain; {reviewed_path} not found")
-    reviewed, code = render_reviewed_v2_cpp_file(reviewed_path)
-    check = check_cpp_syntax(code)
-    if check.get("status") != "CPP_CHECKED":
-        raise ValueError("C++ syntax gate failed: " + check.get("output", "")[-500:])
-    destination = Path(args.out_file or f"{reviewed.domain_name}.cpp")
-    destination.write_text(code, encoding="utf-8")
-    evidence = {"status": "CANONICAL_CONTRACT", "claim": "BOUNDED_CPP_EVIDENCE",
-                "domain": reviewed.module_name, "contract_sha256": hashlib.sha256(code.encode()).hexdigest(),
-                "cpp_check": check, "unbounded_loop_proved": False,
-                "source_refinement_proved": False, "human_acceptance_required": True}
-    evidence_path = destination.with_suffix(destination.suffix + ".canonical.json")
-    evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-    ui.console.print(Panel(f"Canonical C++ contract: [path]{destination}[/path]",
-                           title="Reviewed domain contract", border_style="green"))
     return 0
 
 

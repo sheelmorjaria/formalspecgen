@@ -163,9 +163,9 @@ def test_reviewed_v2_jml_draft_records_lock_discipline(tmp_path):
     args = _draft_args(lang="java", canonical_domain="bank", out_file=str(destination))
     store = cli.SessionStore(tmp_path)
     state = store.empty()
-    with patch.object(cli, "render_reviewed_v2_file",
-                      return_value=(reviewed, "public class Bank {}")), \
-         patch.object(cli, "check_stub", return_value=(True, [])), \
+    with patch("pipeline.v2_jml_serializer.render_reviewed_v2_file",
+               return_value=(reviewed, "public class Bank {}")), \
+         patch("pipeline.validate.check_stub", return_value=(True, [])), \
          patch("pipeline.v2_lock_serializer.lock_discipline_gate", return_value=discipline):
         assert cli.command_draft(args, _ui(), store, state) == 0
     evidence = json.loads(destination.with_suffix(
@@ -176,24 +176,18 @@ def test_reviewed_v2_jml_draft_records_lock_discipline(tmp_path):
 
 
 def test_canonical_rust_async_transport_and_safe_identifier(tmp_path):
-    store = cli.SessionStore(tmp_path)
-    state = store.empty()
-    args = _draft_args(lang="rust", canonical_domain="transport")
+    from pipeline.canonical_draft import canonical_draft_rust
     reviewed_dir = tmp_path / "domains" / "v2"
     reviewed_dir.mkdir(parents=True)
     (reviewed_dir / "transport.json").write_text("{}", encoding="utf-8")
 
-    args.canonical_domain = "bad-name"
-    with patch.object(cli, "check_stub", return_value=(True, [])):
-        try:
-            cli._canonical_rust_draft(args, _ui(), store, state, "transport")
-        except ValueError as exc:
-            assert "safe module" in str(exc)
-        else:
-            raise AssertionError("unsafe identifier must be rejected")
+    try:
+        canonical_draft_rust("bad-name", "transport", domains_root=reviewed_dir)
+    except ValueError as exc:
+        assert "safe module" in str(exc)
+    else:
+        raise AssertionError("unsafe identifier must be rejected")
 
-    args.canonical_domain = "transport"
-    args.out_file = str(tmp_path / "Transport.rs")
     reviewed = SimpleNamespace(module_name="transport", domain_name="Transport",
                                accepted_candidate_sha256="a" * 64,
                                accepted_evidence_sha256="b" * 64,
@@ -203,10 +197,12 @@ def test_canonical_rust_async_transport_and_safe_identifier(tmp_path):
          patch("pipeline.rust_support.lint_rust", return_value=[]), \
          patch("pipeline.v2_async_serializer.check_tokio_scaffold",
                return_value={"status": "TOKIO_CHECKED"}):
-        assert cli._canonical_rust_draft(args, _ui(), store, state, "transport") == 0
+        result = canonical_draft_rust("transport", "transport", domains_root=reviewed_dir,
+                                      out_file=tmp_path / "Transport.rs")
+    assert result["evidence"]["transformation"] == "DETERMINISTIC_V2_TO_TOKIO_TRANSPORT"
+    assert result["evidence"]["async_linearizability_proved"] is False
     evidence = json.loads((tmp_path / "Transport.rs.canonical.json").read_text(encoding="utf-8"))
-    assert evidence["transformation"] == "DETERMINISTIC_V2_TO_TOKIO_TRANSPORT"
-    assert evidence["async_linearizability_proved"] is False
+    assert evidence["claim"] == "REVIEWED_TRANSFORMATION"
 
 
 def test_repl_continues_after_argparse_error():

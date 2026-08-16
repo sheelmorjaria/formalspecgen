@@ -2,13 +2,20 @@
 
 Install the optional SDK with ``pip install 'formalspecgen[mcp]'``.  The core functions in this
 module remain importable without the SDK, which keeps the CLI and test environments lightweight.
+
+Every tool confines its inputs AND outputs to the current workspace and returns
+structured verdict objects; a tool failure is never converted into a success
+claim.  Deliberately NOT exposed: ``promote-domain`` (hash-bound human
+acceptance of reviewed artifacts is a trust action that stays with the CLI) and
+the interactive clarification wizards (``domain``, non-canonical ``draft``,
+``design-system``).
 """
 from __future__ import annotations
 
 import json
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -30,6 +37,18 @@ def _workspace_path(value: str, *, must_exist: bool = True) -> Path:
     if must_exist and not path.exists():
         raise FileNotFoundError(str(path))
     return path
+
+
+def _guarded(call: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Run a tool body, converting path violations into fail-closed verdicts."""
+    try:
+        return call()
+    except (ValueError, FileNotFoundError) as exc:
+        message = str(exc)
+        code = ("path_outside_workspace" if "workspace" in message
+                else "input_unavailable" if isinstance(exc, FileNotFoundError)
+                else "invalid_request")
+        return {"status": "FAIL", "claim": "NO_PROOF", "code": code, "message": message}
 
 
 def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
@@ -84,14 +103,188 @@ def inspect_code(file_path: str) -> dict[str, Any]:
     return inspect_java_file(_workspace_path(file_path))
 
 
+def analyze_codebase(target_dir: str, out_dir: str = "extracted",
+                     project_root: str = ".") -> dict[str, Any]:
+    """Extract unreviewed architecture and V2 domain candidates from a source tree."""
+    from pipeline.codebase_analysis import analyze_codebase as run_analysis
+    return _guarded(lambda: run_analysis(
+        _workspace_path(target_dir), _workspace_path(out_dir, must_exist=False),
+        _workspace_path(project_root, must_exist=False)))
+
+
+def document_code(source: str, out: str, project_root: str = ".",
+                  no_llm: bool = False, provider: str = "ollama",
+                  model: str | None = None) -> dict[str, Any]:
+    """Document one source file as natural-language requirements (Code -> Math -> NL)."""
+    from pipeline.code_documentation import document_code as run_documentation
+    return _guarded(lambda: run_documentation(
+        _workspace_path(source), _workspace_path(out, must_exist=False),
+        project_root=str(_workspace_path(project_root, must_exist=False)),
+        provider=provider, model=model, no_llm=no_llm))
+
+
+def assess_security(source: str, run_sast: bool = True) -> dict[str, Any]:
+    """Assess a Java source against formal verification and Semgrep SAST evidence."""
+    from pipeline.security_assessment import assess_security as run_assessment
+    return _guarded(lambda: run_assessment(_workspace_path(source), run_sast=run_sast))
+
+
+def security_inspect(source: str) -> dict[str, Any]:
+    """Inspect sources (file or directory) for findings mapped to CWEs."""
+    from pipeline.security_poc import inspect_security as run_inspection
+    return _guarded(lambda: run_inspection(_workspace_path(source)))
+
+
+def security_exploit(report_path: str, target: str,
+                     out_dir: str = "security-pocs") -> dict[str, Any]:
+    """Generate review-only PoC source templates from an inspection report."""
+    from pipeline.security_poc import generate_pocs as run_pocs
+    return _guarded(lambda: run_pocs(
+        _workspace_path(report_path), _workspace_path(target),
+        _workspace_path(out_dir, must_exist=False)))
+
+
+def remediate_code(target: str, report: str, out_dir: str = "remediated",
+                   provider: str = "ollama", model: str | None = None) -> dict[str, Any]:
+    """Generate a patched copy from a vulnerability report and prove it with ESC."""
+    from pipeline.remediation import remediate as run_remediation
+    return _guarded(lambda: run_remediation(
+        _workspace_path(target), _workspace_path(report),
+        _workspace_path(out_dir, must_exist=False), provider=provider, model=model))
+
+
+def correct_behavior(target: str, cwe: str, out_dir: str = "corrections",
+                     provider: str = "ollama", model: str | None = None,
+                     max_attempts: int = 3) -> dict[str, Any]:
+    """Strengthen a contract per CWE and prove the corrected behavior with ESC."""
+    from pipeline.behavior_correction import correct_behavior as run_correction
+    return _guarded(lambda: run_correction(
+        _workspace_path(target), cwe, _workspace_path(out_dir, must_exist=False),
+        provider=provider, model=model, max_attempts=max_attempts))
+
+
+def apply_refactor(source: str, inspection: str, pattern: str, method: str,
+                   out: str) -> dict[str, Any]:
+    """Apply one hash-bound refactor profile and immediately run its proof gate."""
+    from pipeline.refactor_actions import apply_refactor as run_apply
+    return _guarded(lambda: run_apply(
+        _workspace_path(source), _workspace_path(inspection), pattern, method,
+        _workspace_path(out, must_exist=False)))
+
+
+def verify_refactor(baseline: str, refactored: str) -> dict[str, Any]:
+    """Prove a contract-preserving refactor (file -> single-file gate, dir -> multifile)."""
+    def run() -> dict[str, Any]:
+        from pipeline.refactor_gate import (
+            verify_contract_preserving_refactor, verify_multifile_contract_refactor)
+        base = _workspace_path(baseline)
+        target = _workspace_path(refactored)
+        if target.is_dir():
+            return verify_multifile_contract_refactor(base, target)
+        return verify_contract_preserving_refactor(base, target)
+    return _guarded(run)
+
+
+def verify_bisimulation(baseline: str, refactored: str, mapping: str) -> dict[str, Any]:
+    """Validate a bisimulation preflight mapping without claiming equivalence."""
+    from pipeline.bisimulation import verify_bisimulation_inputs as run_bisimulation
+    return _guarded(lambda: run_bisimulation(
+        _workspace_path(baseline), _workspace_path(refactored), _workspace_path(mapping)))
+
+
+def optimize_algorithm(source: str, out: str, strategy: str,
+                       provider: str = "ollama", model: str | None = None) -> dict[str, Any]:
+    """Request a constrained algorithm rewrite and re-run ESC plus the refactor gate."""
+    from pipeline.algorithm_optimization import optimize_algorithm as run_optimize
+    return _guarded(lambda: run_optimize(
+        _workspace_path(source), _workspace_path(out, must_exist=False),
+        strategy=strategy, provider=provider, model=model))
+
+
+def discover_algorithms(source: str, out_dir: str = "discovered",
+                        strategies: list[str] | None = None, provider: str = "ollama",
+                        model: str | None = None, max_workers: int = 3) -> dict[str, Any]:
+    """Fan a specification out across strategy prompts, keeping ESC-verified candidates."""
+    from pipeline.algorithm_discovery import discover_algorithms as run_discovery
+    return _guarded(lambda: run_discovery(
+        _workspace_path(source), _workspace_path(out_dir, must_exist=False),
+        strategies=strategies, provider=provider, model=model, max_workers=max_workers))
+
+
+def validate_domain(name: str, project_root: str = ".",
+                    timeout: int | None = None) -> dict[str, Any]:
+    """Validate a V2 domain candidate with the bounded traverser and real TLC."""
+    def run() -> dict[str, Any]:
+        from pipeline.domain_v2_validation import validate_domain as run_validation
+        try:
+            root = _workspace_path(project_root, must_exist=False)
+        except (ValueError, FileNotFoundError):
+            raise  # path violations stay path failures, not validation failures
+        try:
+            evidence = run_validation(name, project_root=str(root), timeout=timeout)
+        except Exception as exc:  # validation failures are evidence, not crashes
+            return {"status": "VALIDATION_FAILED", "claim": "NO_PROOF",
+                    "message": str(exc)[:400]}
+        return {"status": "VALIDATED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+                **evidence.model_dump(mode="json")}
+    return _guarded(run)
+
+
+def compose(artifact_path: str, v2_dir: str | None = None, run_esc: bool = True,
+            actors: list[str] | None = None) -> dict[str, Any]:
+    """Compose reviewed V2 domains and prove the glue with OpenJML ESC."""
+    def run() -> dict[str, Any]:
+        from pipeline.composition_render import verify_composition
+        value = json.loads(_workspace_path(artifact_path).read_text(encoding="utf-8"))
+        resolved = _workspace_path(v2_dir) if v2_dir else None
+        return verify_composition(json.dumps(value), resolved, run_esc=run_esc, actors=actors)
+    return _guarded(run)
+
+
+def reverify_composition(artifact_path: str, changed_module: str,
+                         v2_dir: str | None = None, run_esc: bool = True) -> dict[str, Any]:
+    """Re-prove composition after a reviewed module contract changed."""
+    def run() -> dict[str, Any]:
+        from pipeline.composition_render import reverify_composition as run_reverify
+        value = json.loads(_workspace_path(artifact_path).read_text(encoding="utf-8"))
+        resolved = _workspace_path(v2_dir) if v2_dir else None
+        return run_reverify(json.dumps(value), changed_module, resolved, run_esc=run_esc)
+    return _guarded(run)
+
+
+def unified_system(artifact_path: str, evidence_path: str, out_dir: str,
+                   language: str = "java") -> dict[str, Any]:
+    """Lower a validated unified architecture into sources and prove the core."""
+    from pipeline.unified_system_runner import run_unified_system as run_lowering
+    return _guarded(lambda: run_lowering(
+        _workspace_path(artifact_path), _workspace_path(evidence_path),
+        _workspace_path(out_dir, must_exist=False), language=language))
+
+
+def draft_canonical_contract(domain: str, lang: str = "java", out_file: str | None = None,
+                             project_root: str = ".", requirement: str = "") -> dict[str, Any]:
+    """Deterministically lower a reviewed V2 domain into Java/JML, Rust, C, or C++."""
+    def run() -> dict[str, Any]:
+        from pipeline.canonical_draft import canonical_draft
+        resolved_out = str(_workspace_path(out_file, must_exist=False)) if out_file else None
+        return canonical_draft(domain, lang=lang, out_file=resolved_out,
+                               project_root=str(_workspace_path(
+                                   project_root, must_exist=False)),
+                               requirement=requirement)
+    return _guarded(run)
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
     server = FastMCP("FormalSpecGen")
-    server.tool()(verify_code)
-    server.tool()(validate_architecture)
-    server.tool()(implement_code)
-    server.tool()(inspect_code)
+    for tool in (verify_code, validate_architecture, implement_code, inspect_code,
+                 analyze_codebase, document_code, assess_security, security_inspect,
+                 security_exploit, remediate_code, correct_behavior, apply_refactor,
+                 verify_refactor, verify_bisimulation, optimize_algorithm,
+                 discover_algorithms, validate_domain, compose, reverify_composition,
+                 unified_system, draft_canonical_contract):
+        server.tool()(tool)
     return server
 
 

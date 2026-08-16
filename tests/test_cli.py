@@ -111,7 +111,7 @@ class CliTests(unittest.TestCase):
             canonical_domain="traffic_light_controller", out_file=str(destination),
             fallback_provider=None, out=None, max_attempts=None,
             resample_budget=None, feedback_budget=None)
-        with patch.object(cli, "check_stub", return_value=(True, [])):
+        with patch("pipeline.validate.check_stub", return_value=(True, [])):
             self.assertEqual(cli.command_draft(
                 args, self.ui, self.store, self.state), 0)
         self.assertIn("public void turnNsYellow()", destination.read_text())
@@ -121,7 +121,7 @@ class CliTests(unittest.TestCase):
         self.assertTrue(evidence["human_acceptance_required"])
         self.assertFalse(evidence["source_refinement_proved"])
 
-        with patch.object(cli, "check_stub", return_value=(False, ["bad"])):
+        with patch("pipeline.validate.check_stub", return_value=(False, ["bad"])):
             self.assertEqual(cli.command_draft(
                 args, self.ui, self.store, self.state), 2)
 
@@ -150,7 +150,7 @@ class CliTests(unittest.TestCase):
             no_clarify=True, lang="java", canonical_domain="smart_lock",
             out_file=str(destination), fallback_provider=None, out=None,
             max_attempts=None, resample_budget=None, feedback_budget=None)
-        with patch.object(cli, "check_stub", return_value=(True, [])):
+        with patch("pipeline.validate.check_stub", return_value=(True, [])):
             self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 0)
         self.assertIn("public class SmartLock", destination.read_text())
         self.assertIn("private /*@ spec_public @*/ int door_state;", destination.read_text())
@@ -158,7 +158,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(evidence["transformation"], "DETERMINISTIC_V2_TO_JML")
         self.assertEqual(evidence["accepted_candidate_sha256"], "a" * 64)
         args.out_file = str(self.root / "WrongName.java")
-        with patch.object(cli, "check_stub", return_value=(True, [])):
+        with patch("pipeline.validate.check_stub", return_value=(True, [])):
             self.assertEqual(cli.command_draft(args, self.ui, self.store, self.state), 2)
         self.assertFalse(Path(args.out_file).exists())
 
@@ -267,8 +267,11 @@ class CliTests(unittest.TestCase):
                    return_value=(reviewed, "class Counter {};")), \
              patch("pipeline.cpp_support.check_cpp_syntax",
                    return_value={"status": "CPP_CHECKED"}):
-            self.assertEqual(cli._canonical_cpp_draft(args, self.ui, self.store,
-                                                       self.state, "counter"), 0)
+            from pipeline.canonical_draft import canonical_draft_cpp
+            result = canonical_draft_cpp("counter", "counter",
+                                         domains_root=self.root / "domains" / "v2",
+                                         out_file=args.out_file)
+            assert result["evidence"]["claim"] == "BOUNDED_CPP_EVIDENCE"
         assert destination.read_text() == "class Counter {};"
         evidence = json.loads(destination.with_suffix(".cpp.canonical.json").read_text())
         assert evidence["claim"] == "BOUNDED_CPP_EVIDENCE"
@@ -291,11 +294,12 @@ class CliTests(unittest.TestCase):
 
     def test_cpp_canonical_draft_rejects_invalid_domain_and_missing_tool(self):
         args = SimpleNamespace(canonical_domain="bad-name", out_file=None)
+        from pipeline.canonical_draft import canonical_draft_cpp
+        domains_root = self.root / "domains" / "v2"
         with self.assertRaisesRegex(ValueError, "safe module"):
-            cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
-        args.canonical_domain = "missing"
+            canonical_draft_cpp("bad-name", "counter", domains_root=domains_root)
         with self.assertRaisesRegex(ValueError, "reviewed V2 domain"):
-            cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
+            canonical_draft_cpp("missing", "counter", domains_root=domains_root)
         domain = self.root / "domains" / "v2" / "counter.json"
         domain.parent.mkdir(parents=True); domain.write_text("{}", encoding="utf-8")
         args.canonical_domain = "counter"
@@ -305,7 +309,7 @@ class CliTests(unittest.TestCase):
              patch("pipeline.cpp_support.check_cpp_syntax",
                    return_value={"status": "CPP_CHECK_FAILED", "output": "syntax"}):
             with self.assertRaisesRegex(ValueError, "syntax gate"):
-                cli._canonical_cpp_draft(args, self.ui, self.store, self.state, "counter")
+                canonical_draft_cpp("counter", "counter", domains_root=self.root / "domains" / "v2")
 
     def test_architecture_success_failure_and_artifacts(self):
         stub = self.root / "X.java"; stub.write_text("class X {}", encoding="utf-8")

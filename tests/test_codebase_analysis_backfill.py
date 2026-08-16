@@ -90,8 +90,8 @@ def test_java_canonical_draft_rejects_unsafe_domain_identifier(tmp_path):
 
 
 def test_canonical_rust_draft_requires_reviewed_domain_file(tmp_path):
-    args = _draft_args(lang="rust", canonical_domain="ghost",
-                       out_file=str(tmp_path / "Ghost.rs"))
-    store = cli.SessionStore(tmp_path)
+    from pipeline.canonical_draft import canonical_draft_rust
     with pytest.raises(ValueError, match="reviewed V2 domain"):
-        cli._canonical_rust_draft(args, _ui(), store, store.empty(), "ghost")
+        canonical_draft_rust("ghost", "ghost",
+                             domains_root=tmp_path / "domains" / "v2",
+                             out_file=tmp_path / "Ghost.rs")
