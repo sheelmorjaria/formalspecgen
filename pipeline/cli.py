@@ -839,6 +839,13 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
     if getattr(args, "mode", "implement") == "refactor":
         from .system_orchestrator import refactor_system
         verdict = refactor_system(value, out_dir=args.out_dir, max_workers=args.max_workers)
+    elif getattr(args, "mode", "implement") == "correct":
+        from .system_orchestrator import correct_system
+        verdict = correct_system(value, out_dir=args.out_dir,
+                                 max_workers=args.max_workers,
+                                 provider=args.provider, model=args.model,
+                                 max_attempts=args.max_attempts,
+                                 executable=args.executable)
     else:
         verdict = verify_system(value, out_dir=args.out_dir,
                                 max_workers=args.max_workers,
@@ -847,12 +854,16 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
         Path(args.json).write_text(
             json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8")
-    style = "green" if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED", "SYSTEM_REFACTOR_VERIFIED"} else "red"
+    style = "green" if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED",
+                                              "SYSTEM_REFACTOR_VERIFIED",
+                                              "SYSTEM_CORRECTION_VERIFIED"} else "red"
     ui.console.print(Panel(
         f"Status: {verdict['status']}\nClaim: {verdict.get('claim', 'NO_PROOF')}\n"
         f"Components: {len(verdict.get('components') or [])}",
         title="System verification", border_style=style))
-    return 0 if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED", "SYSTEM_REFACTOR_VERIFIED"} else 1
+    return 0 if verdict["status"] in {"SYSTEM_SYNTHESIS_VERIFIED",
+                                      "SYSTEM_REFACTOR_VERIFIED",
+                                      "SYSTEM_CORRECTION_VERIFIED"} else 1
 
 
 def command_unified_system(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -1086,8 +1097,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="isolated component verdict and evidence directory")
     system.add_argument("--max-workers", type=int, default=4,
                         help="maximum concurrent component subprocesses")
-    system.add_argument("--mode", choices=["implement", "refactor"], default="implement",
-                        help="run isolated implementation proofs or contract-preserving refactors")
+    system.add_argument("--mode", choices=["implement", "refactor", "correct"], default="implement",
+                        help="isolated implementation proofs, contract-preserving refactors, "
+                             "or parallel behavior-correction sub-agents")
+    system.add_argument("--provider", default="ollama",
+                        help="LLM provider for correct-behavior sub-agents")
+    system.add_argument("--model", default=None)
+    system.add_argument("--max-attempts", type=int, default=3,
+                        help="ESC repair attempts per correcting sub-agent")
     system.add_argument("--executable", default="formalspecgen",
                         help=argparse.SUPPRESS)
     system.add_argument("--json", help="aggregate machine-readable verdict destination")

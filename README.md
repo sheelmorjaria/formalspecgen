@@ -1092,6 +1092,8 @@ code, automatic design-pattern rewrites, private behavior, reflection, concurren
 topology equivalence remain outside this first profile. Any changed contract/API surface or failed
 baseline/refactored proof produces `NO_PROOF`.
 
+
+
 ### AST-based modernization inspection
 
 Before changing legacy Java, the read-only inspection command parses exactly one concrete class
@@ -1182,6 +1184,37 @@ On success, `refactor-verdict.json` reports
 the baseline and refactored contracts independently with OpenJML; it intentionally keeps
 `behavior_equivalence_proved: false` because full heap/bisimulation equivalence is outside this
 profile.
+
+### Parallel architectural behavior correction
+
+`system --mode correct` hardens a flawed component architecture with isolated
+correct-behavior sub-agents instead of one overloaded context window:
+
+```bash
+formalspecgen system correction-plan.json --mode correct \
+  --out-dir corrected-system --max-workers 4 --provider ollama \
+  --json corrected-system-verdict.json
+```
+
+The correction artifact lists each flawed component (`{"component", "file"}`), optionally with
+an explicit `"cwe"`; without one, the orchestrator security-inspects the file and selects the
+highest-severity actionable CWE. The master writes
+`architecture_correction_plan.json`, then spawns at most `--max-workers` independent
+`formalspecgen correct-behavior` subprocesses — each sub-agent sees exactly one component and
+one CWE (context isolation), strengthens the local contract, repairs the code, and proves the
+result with OpenJML ESC. Any sub-agent that does not return
+`BEHAVIOR_CORRECTION_VERIFIED` fails that branch closed without corrupting the others.
+
+Only when every component is corrected does the orchestrator re-run the composition gate
+against the corrected copies (`composition` key optional in the artifact). Success reports
+`SYSTEM_CORRECTION_VERIFIED` with claim `SYSTEM_COMPOSITION_PROOF`
+(`ISOLATED_BEHAVIOR_CORRECTIONS_VERIFIED` without a composition), a hash-bound certificate
+over the plan and component verdicts, and the scope limits:
+`global_behavior_equivalence_proved: false` — hardening *intentionally* changes behavior, so
+equivalence with the vulnerable system is neither claimed nor provable; what is proven is each
+corrected component's strengthened contract plus the composition of those contracts.
+`concurrent_component_execution_proved: false` — the worker pool is orchestration, not a
+verified property.
 
 ### Parallel system refactoring
 
