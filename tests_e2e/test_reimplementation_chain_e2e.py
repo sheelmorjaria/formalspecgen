@@ -109,3 +109,64 @@ def test_unbounded_c_state_fails_closed_without_a_candidate(tmp_path):
     assert any(warning["code"] == "UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW"
                for warning in result["warnings"])
     monkeypatch.undo()
+
+
+def test_lwip_style_c_to_rust_reimplementation_chain(tmp_path, monkeypatch,
+                                                     tlc_tool):
+    """Enum + switch dialect: the shape real stacks (lwIP/TinyUSB/mbedTLS) use."""
+    if not _prusti_available():
+        pytest.skip("Prusti unavailable")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "legacy_c").mkdir()
+    (tmp_path / "legacy_c" / "tcp_state.c").write_text(
+        (REPO_ROOT / "legacy_c" / "tcp_state.c").read_text(encoding="utf-8"),
+        encoding="utf-8")
+
+    # 1. Extract: enum resolution + switch segmentation.
+    assert cli.main(["analyze-codebase", "legacy_c", "--out-dir", "extracted",
+                     "--project-root", "."]) == 0
+    import yaml
+    payload = yaml.safe_load(
+        (tmp_path / "domains" / "candidates" / "tcp_pcb.v2.yaml").read_text())
+    assert payload["state_variables"][0]["bound"] == [0, 4]
+    assert {op["name"] for op in payload["operations"]} == {
+        "tcp_connect", "tcp_process_syn_sent", "tcp_process_established",
+        "tcp_process_fin_wait_1", "tcp_process_last_ack"}
+    extracted = json.loads(
+        (tmp_path / "extracted" / "extracted_architecture.json").read_text())
+    # flags conditions are parameters, not state: dropped with a reviewer note.
+    assert sum(1 for w in extracted["warnings"]
+               if w["code"] == "INPUT_CONDITION_DROPPED") == 2
+
+    # 2. Validate: real TLC explores the extracted TCP state machine.
+    from pipeline.domain_v2_validation import validate_domain
+    evidence = validate_domain("tcp_pcb", project_root=tmp_path,
+                               tlc_jar=tlc_tool)
+    assert evidence.validation_status == "VALIDATED", str(evidence)
+    envelope = json.loads(
+        (tmp_path / "domains" / "candidates" / "tcp_pcb.v2.validation.json")
+        .read_text(encoding="utf-8"))
+    assert envelope["evidence"]["reachable_state_count"] == 5
+    assert envelope["evidence"]["reachable_transition_count"] == 5
+
+    # 3. Promote + lower + prove with real Prusti and the refinement gate.
+    candidate_hash = envelope["evidence"]["candidate_sha256"]
+    from pipeline.domain_v2_promotion import promote_domain
+    promote_domain("tcp_pcb", accept_candidate_sha256=candidate_hash,
+                   project_root=tmp_path)
+    reviewed = tmp_path / "domains" / "v2" / "tcp_pcb.json"
+    assert cli.main(["draft", "tcp port", "--canonical-domain", "tcp_pcb",
+                     "--lang", "rust", "--no-clarify",
+                     "--out-file", "TcpPcb.rs"]) == 0
+    stub = (tmp_path / "TcpPcb.rs").read_text(encoding="utf-8")
+    assert "pub fn tcp_process_syn_sent" in stub
+
+    from pipeline.polyglot_implementation import synthesize_polyglot_implementation
+    result = synthesize_polyglot_implementation(
+        stub, "rust", provider="ollama", candidate=stub,
+        v2_reviewed_domain=str(reviewed),
+        v2_validation_evidence=str(
+            tmp_path / "domains" / "candidates" / "tcp_pcb.v2.validation.json"))
+    assert result["final_status"] == "VERIFIED", json.dumps(result, default=str)[:1200]
+    assert result["claim"] == "SOURCE_MODEL_REFINEMENT"
+    assert result["verification_backend"] == "prusti"

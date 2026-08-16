@@ -18,21 +18,26 @@ _TS_LANGUAGES = {
     ".java": tree_sitter_java.language() if Parser else None,
     ".rs": tree_sitter_rust.language() if Parser else None,
     ".c": tree_sitter_c.language() if Parser else None,
+    ".h": tree_sitter_c.language() if Parser else None,
     ".cpp": tree_sitter_cpp.language() if Parser else None,
 }
 
 
-def _tree_sitter_declarations(source: Path, text: str) -> list[dict] | None:
+def _tree_sitter_declarations(source: Path, text: str) -> tuple[list[dict] | None, bool]:
+    """(declarations, had_parse_errors); None only without a grammar."""
     language = _TS_LANGUAGES.get(source.suffix.lower())
     if language is None:
-        return None
+        return None, False
     parser = Parser(); parser.language = Language(language)
     tree = parser.parse(text.encode("utf-8"))
-    if tree.root_node.has_error:
-        return None
+    # Error-tolerant: production sources routinely contain one or two
+    # constructs the grammar flags, but the well-formed struct/class nodes
+    # elsewhere in the tree are still sound extraction targets. The error
+    # flag is still reported so reviewers see the parse was not clean.
     types = {".java": {"class_declaration": False, "interface_declaration": True},
              ".rs": {"struct_item": False},
              ".c": {"struct_specifier": False},
+             ".h": {"struct_specifier": False},
              ".cpp": {"class_specifier": False, "struct_specifier": False}}[source.suffix.lower()]
     declarations = []
     def walk(node):
@@ -56,15 +61,16 @@ def _tree_sitter_declarations(source: Path, text: str) -> list[dict] | None:
                                         names.extend(n for n in item.children if n.type in {"identifier", "field_identifier"})
                                     pending.extend(item.children)
                                 type_text = current.text.decode("utf-8")
-                                for n in names:
-                                    fields.append((n.text.decode(), "boolean" if "bool" in type_text else "int"))
+                                if "*" not in type_text:  # pointers are not scalar state
+                                    for n in names:
+                                        fields.append((n.text.decode(), "boolean" if "bool" in type_text else "int"))
                             stack.extend(current.children)
                 unique_fields = list(dict.fromkeys(fields))
                 declarations.append({"name": name_node.text.decode(), "interface": types[node.type], "fields": unique_fields})
         for child in node.children:
             walk(child)
     walk(tree.root_node)
-    return declarations
+    return declarations, tree.root_node.has_error
 
 
 def _polyglot_declarations(source: Path, text: str) -> list[dict]:
@@ -97,13 +103,17 @@ def extract_components_ts(file_path: str | Path) -> list[dict] | None:
     """Public Tree-sitter extraction entry point."""
     path = Path(file_path)
     try:
-        return _tree_sitter_declarations(path, path.read_text(encoding="utf-8"))
+        return _tree_sitter_declarations(path, path.read_text(encoding="utf-8"))[0]
     except (OSError, UnicodeError):
         return None
 
 
 def _snake_name(value: str) -> str:
     return re.sub(r"(?<!^)([A-Z])", r"_\1", value).lower()
+
+
+def _pascal_name(value: str) -> str:
+    return "".join(part[:1].upper() + part[1:] for part in value.split("_") if part)
 
 
 def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]:
@@ -129,31 +139,155 @@ def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[di
     return transitions
 
 
-_C_ACCESS = r"\w+(?:->|\.)"
+_C_ACCESS = r"\w+\s*(?:->|\.)\s*"
 
 
-def _infer_c_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]:
+def _resolve_c_constant(token: str, enums: dict[str, int]) -> str | None:
+    """Integer literal or enum identifier -> canonical integer string."""
+    token = token.strip()
+    try:
+        return str(int(token, 0))
+    except ValueError:
+        return str(enums[token]) if token in enums else None
+
+
+def _brace_matched(text: str, start: int) -> str:
+    """Body text between the brace at ``start`` and its match."""
+    depth, index = 1, start
+    while index < len(text) and depth:
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+        index += 1
+    return text[start:index - 1]
+
+
+_C_FUNCTION = re.compile(
+    r"(?m)^[ \t]*(?:static\s+|const\s+|inline\s+)*"
+    r"(?:void|err_t|int|u8_t|s8_t|u16_t|u16_t|s16_t|u32_t|s32_t|char|size_t)"
+    r"\s+(\w+)\s*\([^;{}]*\)\s*\{")
+
+
+def _c_void_functions(text: str) -> list[tuple[str, str]]:
+    """(name, brace-matched body) for every scalar-returning function definition.
+
+    Production state mutators usually return a status code (lwIP's
+    ``tcp_process`` is ``static err_t``); the return value is orthogonal to
+    the state write, so scalar-status returns are accepted alongside void.
+    Pointer-returning functions stay outside the boundary.
+    """
+    functions = []
+    for header in _C_FUNCTION.finditer(text):
+        functions.append((header.group(1), _brace_matched(text, header.end())))
+    return functions
+
+
+_SWITCH = re.compile(r"switch\s*\(\s*\w+\s*(?:->|\.)\s*(?P<field>\w+)\s*\)\s*\{")
+_CASE_LABEL = re.compile(r"(?:case\s+(?P<const>\w+)|default)\s*:")
+
+
+def _switch_case_transitions(body: str, function_name: str, names: set[str],
+                             enums: dict[str, int], notes: list[str]) -> list[dict]:
+    """Translate ``switch (x->state)`` dispatch into one transition per case.
+
+    Fail-closed per case: fall-through (no ``break``), unknown case constants,
+    unknown effect constants, and case bodies without a single state write are
+    skipped with a note for the human reviewer.
+    """
+    transitions = []
+    for switch in _SWITCH.finditer(body):
+        field = switch.group("field")
+        if field not in names:
+            continue
+        switch_body = _brace_matched(body, switch.end())
+        labels = list(_CASE_LABEL.finditer(switch_body))
+        for index, label in enumerate(labels):
+            constant = label.group("const")
+            if constant is None:  # default:
+                continue
+            end = labels[index + 1].start() if index + 1 < len(labels) else len(switch_body)
+            segment = switch_body[label.end():end]
+            if re.search(r"\bbreak\b", segment) is None:
+                notes.append(f"{function_name} case {constant}: "
+                             "fall-through case skipped")
+                continue
+            case_value = _resolve_c_constant(constant, enums)
+            if case_value is None:
+                notes.append(f"{function_name} case {constant}: "
+                             "unknown case constant skipped")
+                continue
+            assignment = None
+            for candidate_assignment in re.finditer(
+                    rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>\w+)\s*;", segment):
+                # Real case bodies assign other fields first; take the write
+                # that targets the state field itself.
+                if candidate_assignment.group("target") == field:
+                    assignment = candidate_assignment
+                    break
+            if assignment is None:
+                continue
+            effect_value = _resolve_c_constant(assignment.group("value"), enums)
+            if effect_value is None:
+                notes.append(f"{function_name} case {constant}: "
+                             "unknown effect constant skipped")
+                continue
+            guard_text = f"{field} == {case_value}"
+            inner = re.search(r"if\s*\((?P<cond>[^)]+)\)\s*\{", segment)
+            if inner is not None and assignment.start() > inner.start():
+                condition = re.sub(
+                    rf"\w+\s*(?:->|\.)\s*{re.escape(field)}\b", field,
+                    inner.group("cond").strip())
+                try:
+                    parse_jml_expression(condition, fields={field})
+                except Exception:
+                    # The condition references a parameter or unknown name:
+                    # TLA has no parameters, so the input condition is dropped
+                    # and the over-approximation is reported for review.
+                    notes.append(f"{function_name} case {constant}: "
+                                 f"input condition dropped ({condition})")
+                else:
+                    guard_text = f"{guard_text} && ({condition})"
+            try:
+                guard_ast = parse_jml_expression(guard_text, fields=names)
+                value_ast = parse_jml_expression(effect_value, fields=names)
+            except Exception:
+                continue
+            transitions.append({"name": f"{function_name}_{constant.lower()}",
+                                "guard": guard_ast, "target": field,
+                                "value": value_ast})
+    return transitions
+
+
+def _infer_c_transitions(text: str, fields: list[tuple[str, str]],
+                         enums: dict[str, int] | None = None,
+                         notes: list[str] | None = None) -> list[dict]:
     """Guarded scalar assignments over ``ptr->field`` / ``value.field`` receivers.
 
-    Mirrors the Java lane's narrow boundary: one void function, one guarded
-    assignment whose field is declared state. Guards accept the comparison
-    family (==, !=, <=, >=, <, >) and effects are either literal state writes
-    (``c->state = 2``) or bounded increments (``c->state = c->state + 1``).
+    Two dialects, both deterministic: guarded writes (``if (c->state == A)
+    { c->state = B; }``) and switch dispatch (``case A: ... c->state = B;
+    break;``) over enum-resolved constants. Guards accept the comparison
+    family (==, !=, <=, >=, <, >); effects are literal state writes or
+    bounded increments. Everything else is skipped with a reviewer note.
     """
+    enums = enums or {}
+    notes = [] if notes is None else notes
     names = {name for name, _ in fields}
-    transitions = []
-    functions = re.compile(r"\bvoid\s+(\w+)\s*\([^)]*\)\s*\{(?P<body>.*?)\}", re.S)
+    transitions: list[dict] = []
     literal = re.compile(
         rf"if\s*\(\s*{_C_ACCESS}(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
-        rf"(?P<limit>-?\d+)\s*\).*?"
-        rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>-?\d+)\s*;", re.S)
+        rf"(?P<limit>\w+)\s*\).*?"
+        rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>\w+)\s*;", re.S)
     incremental = re.compile(
         rf"if\s*\(\s*{_C_ACCESS}(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
-        rf"(?P<limit>-?\d+)\s*\).*?"
+        rf"(?P<limit>\w+)\s*\).*?"
         rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*{_C_ACCESS}(?P<rhs>\w+)\s*"
         rf"(?P<op2>[+-])\s*(?P<amount>\d+)\s*;", re.S)
-    for function in functions.finditer(text):
-        name, body = function.group(1), function.group("body")
+    for name, body in _c_void_functions(text):
+        switch_transitions = _switch_case_transitions(body, name, names, enums, notes)
+        if switch_transitions:
+            transitions.extend(switch_transitions)
+            continue
         increment = incremental.search(body)
         if increment is not None:
             match = increment
@@ -162,12 +296,18 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]
             match = literal.search(body)
             if match is None:
                 continue
-            value_text = match["value"]
+            resolved = _resolve_c_constant(match["value"], enums)
+            if resolved is None:
+                continue
+            value_text = resolved
         if match["field"] not in names or match["target"] != match["field"]:
             continue
         if increment is not None and match["rhs"] != match["field"]:
             continue
-        guard_text = f"{match['field']} {match['op']} {match['limit']}"
+        limit = _resolve_c_constant(match["limit"], enums)
+        if limit is None:
+            continue
+        guard_text = f"{match['field']} {match['op']} {limit}"
         try:
             guard_ast = parse_jml_expression(guard_text, fields=names)
             value_ast = parse_jml_expression(value_text, fields=names)
@@ -178,14 +318,63 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]
     return transitions
 
 
-def infer_field_bounds(text: str, fields: list[tuple[str, str]]) -> dict[str, tuple[int, int] | None]:
-    """Infer a [0, N] bound per int field from `<=`/`<` comparisons; None when unbounded."""
+def parse_c_enums(text: str) -> dict[str, int]:
+    """Flat identifier -> integer map over every enum block in the source."""
+    values: dict[str, int] = {}
+    for block in re.finditer(r"enum\s+\w*\s*\{(?P<body>[^}]*)\}", text):
+        current = -1
+        for item in block.group("body").split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if "=" in item:
+                name, _, raw = item.partition("=")
+                try:
+                    current = int(raw.strip(), 0)
+                except ValueError:
+                    continue  # non-integer enumerator value: skip
+            else:
+                name, current = item, current + 1
+            if re.fullmatch(r"\w+", name.strip()):
+                values[name.strip()] = current
+    return values
+
+
+def _enum_tag_bounds(text: str) -> dict[str, tuple[int, int]]:
+    """Tag -> (min, max) per named enum block, for enum-typed field bounds."""
+    extents: dict[str, tuple[int, int]] = {}
+    for block in re.finditer(r"enum\s+(?P<tag>\w+)\s*\{(?P<body>[^}]*)\}", text):
+        values = [value for name, value in parse_c_enums(block.group(0)).items()]
+        if values:
+            extents[block.group("tag")] = (min(values), max(values))
+    return extents
+
+
+def infer_field_bounds(text: str, fields: list[tuple[str, str]],
+                       enums: dict[str, int] | None = None
+                       ) -> dict[str, tuple[int, int] | None]:
+    """Infer a [0, N] bound per int field; None when unbounded.
+
+    Order: explicit `<=`/`<` comparisons win; then an enum-typed declaration
+    (``enum tag field;``) bounds the field to its enum's extent.
+    """
+    enums = enums or {}
+    tag_bounds = _enum_tag_bounds(text) if enums else {}
     bounds: dict[str, tuple[int, int] | None] = {}
     for name, field_type in fields:
         if field_type != "int":
             continue
         match = re.search(rf"\b{re.escape(name)}\s*(?:<=|<)\s*(\d+)", text)
-        bounds[name] = (0, int(match.group(1))) if match else None
+        if match:
+            bounds[name] = (0, int(match.group(1)))
+            continue
+        typed = re.search(rf"enum\s+(?:(?P<tag>\w+)\s+)?{re.escape(name)}\s*;", text)
+        if typed and typed.group("tag") in tag_bounds:
+            bounds[name] = tag_bounds[typed.group("tag")]
+        elif typed and len(tag_bounds) == 1:
+            bounds[name] = next(iter(tag_bounds.values()))
+        else:
+            bounds[name] = None
     return bounds
 
 
@@ -233,7 +422,8 @@ def build_v2_candidate_payload(class_name: str, fields: list[tuple[str, str]],
                 "left": {"kind": "gte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][0]}},
                 "right": {"kind": "lte", "left": {"kind": "field", "name": item["name"]}, "right": {"kind": "integer", "value": item["bound"][1]}}}})
     return {"schema_version": 2, "review_status": "unreviewed",
-            "domain_name": class_name, "module_name": _snake_name(class_name), "actors": 1,
+            "domain_name": _pascal_name(class_name),
+            "module_name": _snake_name(class_name), "actors": 1,
             "state_variables": state, "operations": operations, "tlc_invariants": invariants}
 
 
@@ -257,14 +447,29 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
         return {"status": "FAIL", "claim": "NO_PROOF", "code": "input_unavailable", "message": str(root)}
     destination.mkdir(parents=True, exist_ok=True)
     components, domains, warnings = [], [], []
-    for source in sorted(path for ext in ("*.java", "*.rs", "*.c", "*.cpp", "*.cc", "*.cxx") for path in root.rglob(ext)):
+    c_structs: dict[str, list[tuple[str, str]]] = {}
+    c_texts: dict[str, str] = {}
+    sources = sorted(path for ext in ("*.java", "*.rs", "*.c", "*.h", "*.cpp", "*.cc", "*.cxx")
+                     for path in root.rglob(ext))
+    # Production C keeps its enums and structs in headers while transitions
+    # live in .c files: share one enum map across the analyzed C-family tree.
+    c_enums: dict[str, int] = {}
+    for source in sources:
+        if source.suffix.lower() in {".c", ".h"}:
+            try:
+                c_enums.update(parse_c_enums(source.read_text(encoding="utf-8")))
+            except (OSError, UnicodeError):
+                continue
+    for source in sources:
         try:
             text = source.read_text(encoding="utf-8")
-            declarations = extract_components_ts(source)
+            declarations, had_parse_errors = _tree_sitter_declarations(source, text)
             if declarations is None:
                 declarations = _polyglot_declarations(source, text)
-                if source.suffix.lower() == ".java" and not declarations:
-                    warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE", "message": "Tree-sitter parse error"})
+            elif had_parse_errors:
+                warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE",
+                                 "message": "tree-sitter reported parse errors; "
+                                            "well-formed declarations were still extracted"})
         except (OSError, UnicodeError) as exc:
             warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE", "message": str(exc)})
             continue
@@ -276,14 +481,18 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
             component = {"name": name, "type": "interface" if is_interface else "core",
                          "external": is_interface, "domain": None if is_interface else domain_name,
                          "file": source.name, "review_status": "unreviewed",
-                         "lang": "java" if source.suffix.lower() == ".java" else source.suffix[1:],
-                         "language": "java" if source.suffix.lower() == ".java" else source.suffix[1:],
+                         "lang": "c" if source.suffix.lower() == ".h" else
+                         "java" if source.suffix.lower() == ".java" else source.suffix[1:],
+                         "language": "c" if source.suffix.lower() == ".h" else
+                         "java" if source.suffix.lower() == ".java" else source.suffix[1:],
                          "fields": [{"name": field, "type": field_type} for field, field_type in fields]}
             components.append(component)
             if fields and not is_interface:
                 state = []
                 unbounded = False
-                inferred = infer_field_bounds(text, fields)
+                suffix = source.suffix.lower()
+                enums = c_enums if suffix in {".c", ".h"} else {}
+                inferred = infer_field_bounds(text, fields, enums=enums or None)
                 for field_name, field_type in fields:
                     item = {"name": field_name, "type": field_type}
                     if field_type == "int":
@@ -303,12 +512,49 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
                 domains.append(str(path))
                 suffix = source.suffix.lower()
-                if suffix in {".java", ".c"}:
-                    transitions = (_infer_java_transitions(text, fields) if suffix == ".java"
-                                   else _infer_c_transitions(text, fields))
+                if suffix == ".java":
+                    notes: list[str] = []
+                    transitions = _infer_java_transitions(text, fields)
                     registered = _register_candidate(Path(project_root), name, fields,
                                                       transitions, bounds=inferred)
                     domains.append(str(registered))
+                elif suffix in {".c", ".h"}:
+                    c_structs.setdefault(name, fields)
+                    c_texts.setdefault(name, text)
+    # Production C splits the struct (header) from its transitions (.c files):
+    # register C candidates only after the whole tree is known, attributing
+    # each transition to every struct that declares its target field.
+    if c_structs:
+        union_fields = sorted({name for fields in c_structs.values()
+                               for name, _ in fields})
+        typed_fields = [(field, "int") for field in union_fields]
+        combined = "\n".join(c_texts.values())
+        all_transitions: list[dict] = []
+        for source in sources:
+            if source.suffix.lower() != ".c":
+                continue
+            try:
+                text = source.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
+            notes: list[str] = []
+            all_transitions.extend(_infer_c_transitions(
+                text, typed_fields, enums=c_enums, notes=notes))
+            for note in notes:
+                warnings.append({
+                    "file": str(source),
+                    "code": ("INPUT_CONDITION_DROPPED"
+                             if "input condition dropped" in note
+                             else "EXTRACTION_NOTE"),
+                    "message": note})
+        for name, fields in c_structs.items():
+            field_names = {field for field, _ in fields}
+            transitions = [item for item in all_transitions
+                           if item["target"] in field_names]
+            inferred = infer_field_bounds(combined, fields, enums=c_enums or None)
+            registered = _register_candidate(Path(project_root), name, fields,
+                                              transitions, bounds=inferred)
+            domains.append(str(registered))
     architecture = {"name": "ExtractedSystem", "components": components, "use_cases": [],
                     "review_status": "unreviewed", "warnings": warnings}
     architecture_path = destination / "extracted_architecture.json"

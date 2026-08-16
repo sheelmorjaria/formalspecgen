@@ -706,12 +706,24 @@ writes:
 For Java and C sources, guarded scalar assignments — `if (count < LIMIT) { count += N; }`
 inside a void method (Java) or `if (c->state == 1) { c->state = 2; }` inside a void
 function (C, over `ptr->field`/`value.field` receivers) — are inferred deterministically
-into typed transitions. The guard and effect are compiled through the strict JML
-expression parser into the recursive V2 expression AST; no LLM infix text is stored in the
+into typed transitions. The C lane also speaks the dialect real stacks use: **enum
+constants** are resolved to their integer values (implicit and explicit counters, hex
+literals), **enum-typed fields** are bounded to the enum's extent, and **switch
+dispatch** (`switch (pcb->state) { case SYN_SENT: ... pcb->state = ESTABLISHED; break; }`)
+is segmented one transition per `break`-terminated case. The guard and effect are
+compiled through the strict JML expression parser into the recursive V2
+expression AST; no LLM infix text is stored in the
 candidate. Guards accept `==`, `!=`, `<=`, `>=`, `<`, `>`; effects are literal state
 writes or bounded increments. Bounds read from `<=`/`<` comparisons produce automatic
 `0..N` invariants, and fields whose bound cannot be inferred are flagged
 `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`.
+
+Two conservative behaviors are reported, never silently applied: fall-through cases and
+unknown enum constants are skipped (`EXTRACTION_NOTE`), and an inner `if` that conditions
+a case on a *parameter* (e.g. `if (flags == 0x10)`) is extracted with that input
+condition dropped (`INPUT_CONDITION_DROPPED`) — TLA has no parameters, so the model
+over-approximates when the transition may fire, and the human reviewer sees exactly
+which input conditions must be re-asserted before promotion.
 
 The result claim is `UNREVIEWED_EXTRACTION_CANDIDATE` with validation deliberately `NOT_RUN`.
 Extraction is an input to the normal V2 lifecycle, not a shortcut around it: review the
@@ -758,6 +770,22 @@ the extractor flags `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`, and no candidate i
 without manual domain modeling. The refinement claim covers the reviewed state-machine
 semantics only; it says nothing about performance, I/O behavior, or the original C's
 unreviewed call graph.
+
+**Real-codebase proof (lwIP).** The full chain has been run against upstream lwIP
+(`lwip-tcpip/lwip` master). Preprocessing with `gcc -E -P` (plus minimal `arch/cc.h` and
+`lwipopts.h` stubs) flattens the `TCP_PCB_COMMON`/`IP_PCB` macros so `state` becomes a
+physical field; the analyzer then extracts **ten genuine TCP state transitions** from
+`tcp_process`/`tcp_close_shutdown_fin`/`tcp_pcb_remove` across two translation units
+(SYN_SENT/SYN_RCVD→ESTABLISHED, ESTABLISHED→FIN_WAIT_1/CLOSE_WAIT,
+FIN_WAIT_1/2 and CLOSING→TIME_WAIT, CLOSE_WAIT→LAST_ACK, any-open→CLOSED) with the
+`enum tcp_state` bound resolved to `[0,10]`. One flag-condition is honestly reported as
+dropped (`INPUT_CONDITION_DROPPED`) and `tcp_connect`'s CLOSED→SYN_SENT write is
+correctly NOT auto-extracted — its guard is a local variable, not state. The human
+reviewer prunes the 60-field pcb candidate to the state machine, adds `tcp_connect` from
+the review note, and the chain completes: real TLC (7 reachable states, 13 transitions,
+VALIDATED) → hash-bound promotion → deterministic Rust lowering → real Prusti
+`VERIFIED` + `SOURCE_MODEL_REFINEMENT`. The macro wall is gone: **preprocessing +
+review is the documented workflow for macro-heavy codebases.**
 
 ### Code-to-requirements documentation
 

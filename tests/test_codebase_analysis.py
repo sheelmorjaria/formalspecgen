@@ -72,6 +72,19 @@ def test_analyze_c_struct_metadata(tmp_path):
 
 def test_tree_sitter_fallback_extracts_java(tmp_path):
     (tmp_path / "Weird.java").write_text("class Weird { int x; }")
-    with patch("pipeline.codebase_analysis.extract_components_ts", return_value=None):
+    with patch("pipeline.codebase_analysis._tree_sitter_declarations",
+               return_value=(None, False)):
         result = analyze_codebase(tmp_path, project_root=tmp_path)
     assert result["components"][0]["name"] == "Weird"
+
+
+def test_java_nonnumeric_increment_is_skipped_not_mistranslated(tmp_path):
+    source = tmp_path / "legacy"; source.mkdir()
+    (source / "Odd.java").write_text(
+        "public class Odd { private int count; private int step; "
+        "public void bump() { if (count < 5) count = count + step; } }")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    import yaml
+    payload = yaml.safe_load((tmp_path / "domains" / "candidates" / "odd.v2.yaml").read_text())
+    # the unparseable effect is skipped rather than mistranslated
+    assert payload["operations"] == []
