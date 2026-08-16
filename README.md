@@ -232,6 +232,7 @@ FormalSpecGen covers five connected workflows:
 | Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
+| Verified reimplementation | `analyze-codebase` → `validate-domain` → `promote-domain` → `draft --canonical-domain --lang` → `implement` | `SOURCE_MODEL_REFINEMENT` for a Rust port of a reviewed, TLC-validated extracted state machine |
 
 ### Post-push roadmap progress
 
@@ -699,14 +700,18 @@ writes:
 - `extracted/extracted_architecture.json` — an unreviewed component map in which interfaces
   are recorded as external components without domain bindings;
 - `extracted/<domain>.v2.json` — a state-variable sketch per concrete type; and
-- `domains/candidates/<module>.v2.yaml` — a registered V2 candidate for Java classes.
+- `domains/candidates/<module>.v2.yaml` — a registered V2 candidate for Java classes and
+  C structs.
 
-For Java sources, guarded scalar assignments — `if (count < LIMIT) { count += N; }` inside a
-public void method — are inferred deterministically into typed transitions. The guard and
-effect are compiled through the strict JML expression parser into the recursive V2
-expression AST; no LLM infix text is stored in the candidate. Bounds read from `<`
-comparisons produce automatic `0..N` invariants, and fields whose bound cannot be inferred
-are flagged `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`.
+For Java and C sources, guarded scalar assignments — `if (count < LIMIT) { count += N; }`
+inside a void method (Java) or `if (c->state == 1) { c->state = 2; }` inside a void
+function (C, over `ptr->field`/`value.field` receivers) — are inferred deterministically
+into typed transitions. The guard and effect are compiled through the strict JML
+expression parser into the recursive V2 expression AST; no LLM infix text is stored in the
+candidate. Guards accept `==`, `!=`, `<=`, `>=`, `<`, `>`; effects are literal state
+writes or bounded increments. Bounds read from `<=`/`<` comparisons produce automatic
+`0..N` invariants, and fields whose bound cannot be inferred are flagged
+`UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`.
 
 The result claim is `UNREVIEWED_EXTRACTION_CANDIDATE` with validation deliberately `NOT_RUN`.
 Extraction is an input to the normal V2 lifecycle, not a shortcut around it: review the
@@ -714,6 +719,45 @@ candidate, correct its semantics, then run `validate-domain` and hash-bound `pro
 as usual. Extracted candidates never enter the reviewed registry by themselves. This closes
 the bidirectional loop — NL → contract → proof top-down, and Code → Math → Architecture
 candidates bottom-up.
+
+### Verified polyglot reimplementation (Code → Math → New Code)
+
+Combining bottom-up extraction with top-down polyglot synthesis turns the tool into a
+mathematical Rosetta Stone for legacy C: extract the bounded state machine, promote its
+math after human review, and lower a memory-safe Rust port that Prusti proves refines the
+*same reviewed model*:
+
+```bash
+# 1. Extract the legacy machine (registers domains/candidates/connection.v2.yaml).
+formalspecgen analyze-codebase legacy_c/ --out-dir extracted/
+
+# 2. Human gate: review the candidate, then TLC proves the extracted machine bounded.
+formalspecgen validate-domain connection --project-root .
+HASH=$(jq -r '.evidence.candidate_sha256' domains/candidates/connection.v2.validation.json)
+formalspecgen promote-domain connection --accept-candidate-sha256 "$HASH" --project-root .
+
+# 3. Lower the reviewed math into a deterministic Prusti contract and prove the port.
+formalspecgen draft "connection port" --canonical-domain connection --lang rust \
+  --no-clarify --out-file Connection.rs
+formalspecgen implement Connection.rs --provider ollama \
+  --v2-reviewed-domain domains/v2/connection.json \
+  --v2-validation-evidence domains/candidates/connection.v2.validation.json
+```
+
+A successful run mints `SOURCE_MODEL_REFINEMENT`: the Rust implementation carries a native
+`DEDUCTIVE_PROOF` from Prusti, and the refinement gate binds that proof to the exact
+candidate hash extracted from the C — the port did not just translate syntax, it ported
+the mathematical proof of safety. The full chain runs against real TLC and real Prusti in
+`tests_e2e/test_reimplementation_chain_e2e.py` (the LLM body-fill seam is the only
+deterministically injected step).
+
+**Boundary.** The tool supports verified polyglot reimplementation of bounded state
+machines (e.g., protocol parsers, connection states, replication handshakes). Dynamic
+heap structures (e.g., linked lists, hash maps) fail closed — their state is unbounded,
+the extractor flags `UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`, and no candidate is minted
+without manual domain modeling. The refinement claim covers the reviewed state-machine
+semantics only; it says nothing about performance, I/O behavior, or the original C's
+unreviewed call graph.
 
 ### Code-to-requirements documentation
 

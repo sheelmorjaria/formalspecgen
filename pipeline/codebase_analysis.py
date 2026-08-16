@@ -129,13 +129,62 @@ def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[di
     return transitions
 
 
+_C_ACCESS = r"\w+(?:->|\.)"
+
+
+def _infer_c_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]:
+    """Guarded scalar assignments over ``ptr->field`` / ``value.field`` receivers.
+
+    Mirrors the Java lane's narrow boundary: one void function, one guarded
+    assignment whose field is declared state. Guards accept the comparison
+    family (==, !=, <=, >=, <, >) and effects are either literal state writes
+    (``c->state = 2``) or bounded increments (``c->state = c->state + 1``).
+    """
+    names = {name for name, _ in fields}
+    transitions = []
+    functions = re.compile(r"\bvoid\s+(\w+)\s*\([^)]*\)\s*\{(?P<body>.*?)\}", re.S)
+    literal = re.compile(
+        rf"if\s*\(\s*{_C_ACCESS}(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
+        rf"(?P<limit>-?\d+)\s*\).*?"
+        rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>-?\d+)\s*;", re.S)
+    incremental = re.compile(
+        rf"if\s*\(\s*{_C_ACCESS}(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
+        rf"(?P<limit>-?\d+)\s*\).*?"
+        rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*{_C_ACCESS}(?P<rhs>\w+)\s*"
+        rf"(?P<op2>[+-])\s*(?P<amount>\d+)\s*;", re.S)
+    for function in functions.finditer(text):
+        name, body = function.group(1), function.group("body")
+        increment = incremental.search(body)
+        if increment is not None:
+            match = increment
+            value_text = f"{match['field']} {match['op2']} {match['amount']}"
+        else:
+            match = literal.search(body)
+            if match is None:
+                continue
+            value_text = match["value"]
+        if match["field"] not in names or match["target"] != match["field"]:
+            continue
+        if increment is not None and match["rhs"] != match["field"]:
+            continue
+        guard_text = f"{match['field']} {match['op']} {match['limit']}"
+        try:
+            guard_ast = parse_jml_expression(guard_text, fields=names)
+            value_ast = parse_jml_expression(value_text, fields=names)
+        except Exception:
+            continue
+        transitions.append({"name": name, "guard": guard_ast,
+                            "target": match["field"], "value": value_ast})
+    return transitions
+
+
 def infer_field_bounds(text: str, fields: list[tuple[str, str]]) -> dict[str, tuple[int, int] | None]:
-    """Infer a [0, N] bound per int field from `<` comparisons; None when unbounded."""
+    """Infer a [0, N] bound per int field from `<=`/`<` comparisons; None when unbounded."""
     bounds: dict[str, tuple[int, int] | None] = {}
     for name, field_type in fields:
         if field_type != "int":
             continue
-        match = re.search(rf"\b{re.escape(name)}\s*<\s*(\d+)", text)
+        match = re.search(rf"\b{re.escape(name)}\s*(?:<=|<)\s*(\d+)", text)
         bounds[name] = (0, int(match.group(1))) if match else None
     return bounds
 
@@ -253,9 +302,12 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 path = destination / f"{domain_name}.v2.json"
                 path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
                 domains.append(str(path))
-                if source.suffix.lower() == ".java":
-                    transitions = _infer_java_transitions(text, fields)
-                    registered = _register_candidate(Path(project_root), name, fields, transitions)
+                suffix = source.suffix.lower()
+                if suffix in {".java", ".c"}:
+                    transitions = (_infer_java_transitions(text, fields) if suffix == ".java"
+                                   else _infer_c_transitions(text, fields))
+                    registered = _register_candidate(Path(project_root), name, fields,
+                                                      transitions, bounds=inferred)
                     domains.append(str(registered))
     architecture = {"name": "ExtractedSystem", "components": components, "use_cases": [],
                     "review_status": "unreviewed", "warnings": warnings}
