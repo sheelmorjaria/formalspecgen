@@ -53,3 +53,14 @@ def test_security_exploit_reports_unsupported_finding(tmp_path):
     target = tmp_path / "Service.java"; target.write_text("class Service {}")
     result = generate_pocs(report, target, tmp_path / "pocs")
     assert result["status"] == "NO_SUPPORTED_POC"
+
+
+def test_hardcoded_credential_poc_template_is_review_only(tmp_path):
+    target = tmp_path / "Vault.java"
+    target.write_text("public class Vault { private String password = \"x\"; "
+                      "public String get() { return password; } }", encoding="utf-8")
+    finding = {"cwe": "CWE-798", "severity": "CRITICAL"}
+    name, code = _poc_for(finding, target, 1)
+    assert name == "HardcodedCredentialPoC1"
+    assert "review" in code.lower()
+    assert "@Test" in code

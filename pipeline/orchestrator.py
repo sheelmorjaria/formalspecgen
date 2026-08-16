@@ -128,9 +128,10 @@ def run_implementation_loop(file_path: str | Path, provider: str = "ollama",
         return run_assured_implementation(code, assurance_level=assurance_level,
             provider=provider, v2_reviewed_domain=v2_reviewed_domain,
             v2_validation_evidence=v2_validation_evidence, **kwargs)
-    if suffix in {".rs", ".c"}:
+    if suffix in {".rs", ".c", ".cpp", ".cc", ".cxx"}:
         from .polyglot_implementation import synthesize_polyglot_implementation
-        language = "rust" if suffix == ".rs" else "c"
+        language = {".rs": "rust", ".c": "c", ".cpp": "cpp", ".cc": "cpp",
+                    ".cxx": "cpp"}[suffix]
         mode = "esc" if assurance_level == "critical" else "check"
         kwargs.pop("clarifications", None)
         kwargs.pop("abstraction", None)

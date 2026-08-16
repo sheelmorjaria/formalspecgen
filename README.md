@@ -634,8 +634,13 @@ Rust error-level safety lint findings block Prusti/Kani execution. `--mode check
 known Prusti attributes and invokes `rustc`, reporting only `STATIC_CHECK`. Kani requires an
 explicit human-reviewed `#[kani::proof]` harness and reports bounded evidence, not deductive proof.
 C/ACSL direct verification currently supports `--mode esc` only; Frama-C runs after ACSL lint and a
-strict C11 compiler gate. Implementation synthesis supports `.java`/`.jml`, `.rs`, and `.c`;
-unsupported file types fail explicitly.
+strict C11 compiler gate. Implementation synthesis supports `.java`/`.jml`, `.rs`, `.c`, and
+`.cpp`/`.cc`/`.cxx`; unsupported file types fail explicitly. The C++ lane mirrors the Rust/C
+generate→lint→verify→repair loop with ESBMC as its native prover: repair prompts carry the
+structured `file:line category` VC list parsed from ESBMC counterexamples, a verified critical
+run mints the bounded ceiling `BOUNDED_CPP_PROOF` (never `DEDUCTIVE_PROOF`), and
+standard/lightweight stop at `check_cpp_syntax` → `STATIC_CHECK`. The Rust and C repair prompts
+now carry the same structured Prusti/Frama-C VC lists ahead of the raw output tail.
 
 Direct `verify` is non-mutating: it verifies the supplied source rather than applying speculative
 repairs or proof-relevant postprocessor passes. Use `implement` for the controlled synthesis and
@@ -1091,6 +1096,17 @@ the same incomplete contract while behaving differently. Contract inference from
 code, automatic design-pattern rewrites, private behavior, reflection, concurrency, I/O, and heap
 topology equivalence remain outside this first profile. Any changed contract/API surface or failed
 baseline/refactored proof produces `NO_PROOF`.
+
+`verify-refactor` also covers **Rust, C, and C++** single-file refactors. The surface comparison
+uses Tree-sitter public signatures (`pub fn`/trait items for Rust, function definitions for C,
+class and method declarations for C++) plus the native contract set — Prusti
+`#[requires]/#[ensures]` attributes, ACSL blocks, or C++ assertion checks — and both revisions are
+re-proved with their native prover (Prusti, Frama-C WP, or ESBMC). Rust and C mint
+`REFACTOR_CONTRACT_PRESERVED` with `baseline_deductive_proof: true`; C++ mints the bounded ceiling
+`BOUNDED_REFACTOR_CONTRACT_PRESERVED` because ESBMC is a bounded model checker. Demoting a Rust
+`pub fn` to a private `fn`, weakening a Prusti attribute, or editing an ACSL block fails closed
+with `method_surface_changed`/`contract_surface_changed`. The gate is proven end to end against
+real Prusti and Frama-C in `tests_e2e/test_polyglot_refactor_gate_e2e.py`.
 
 
 

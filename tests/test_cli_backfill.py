@@ -216,3 +216,63 @@ def test_repl_continues_after_argparse_error():
     store = cli.SessionStore(Path(store_dir))
     with patch.object(cli, "PromptSession", BadFlagThenQuit):
         assert cli.repl(parser, _ui(), store, store.empty()) == 0
+
+
+def test_canonical_draft_dispatcher_routes_all_languages_and_rejects_unknown(tmp_path):
+    from pipeline.canonical_draft import canonical_draft
+
+    domains = tmp_path / "domains" / "v2"
+    domains.mkdir(parents=True)
+    (domains / "counter.json").write_text("{}", encoding="utf-8")
+    rust = SimpleNamespace(module_name="counter", domain_name="Counter",
+                           accepted_candidate_sha256="a" * 64,
+                           accepted_evidence_sha256="b" * 64,
+                           execution_model="atomic", concurrency=None)
+    with patch("pipeline.v2_prusti_serializer.render_reviewed_v2_prusti_file",
+               return_value=(rust, "pub struct Counter {}")), \
+         patch("pipeline.rust_support.lint_rust", return_value=[]), \
+         patch("pipeline.rust_support.check_rust_syntax",
+               return_value={"status": "RUST_CHECKED"}):
+        result = canonical_draft("counter", lang="rust",
+                                 out_file=tmp_path / "Counter.rs", project_root=tmp_path)
+        assert result["evidence"]["transformation"] == "DETERMINISTIC_V2_TO_PRUSTI"
+
+    c_ns = SimpleNamespace(module_name="counter", domain_name="counter",
+                           accepted_candidate_sha256="a" * 64,
+                           accepted_evidence_sha256="b" * 64)
+    with patch("pipeline.v2_acsl_serializer.render_reviewed_v2_acsl_file",
+               return_value=(c_ns, "typedef struct { int c; } counter;")), \
+         patch("pipeline.c_support.lint_acsl", return_value=[]), \
+         patch("pipeline.c_support.check_c_syntax", return_value={"status": "C_CHECKED"}):
+        result = canonical_draft("counter", lang="c",
+                                 out_file=tmp_path / "counter.c", project_root=tmp_path)
+        assert result["evidence"]["transformation"] == "DETERMINISTIC_V2_TO_ACSL"
+
+    cpp_ns = SimpleNamespace(module_name="counter", domain_name="Counter",
+                             accepted_candidate_sha256="a" * 64,
+                             accepted_evidence_sha256="b" * 64)
+    with patch("pipeline.v2_cpp_serializer.render_reviewed_v2_cpp_file",
+               return_value=(cpp_ns, "class Counter {};")), \
+         patch("pipeline.cpp_support.check_cpp_syntax",
+               return_value={"status": "CPP_CHECKED"}):
+        result = canonical_draft("counter", lang="cpp",
+                                 out_file=tmp_path / "Counter.cpp", project_root=tmp_path)
+        assert result["evidence"]["claim"] == "BOUNDED_CPP_EVIDENCE"
+
+    with patch("pipeline.v2_jml_serializer.render_reviewed_v2_file",
+               return_value=(SimpleNamespace(module_name="counter", domain_name="Counter",
+                                             accepted_candidate_sha256="a" * 64,
+                                             accepted_evidence_sha256="b" * 64,
+                                             concurrency=None),
+                             "public class Counter {}")), \
+         patch("pipeline.validate.check_stub", return_value=(True, [])):
+        result = canonical_draft("counter", lang="java",
+                                 out_file=tmp_path / "Counter.java", project_root=tmp_path)
+        assert result["evidence"]["claim"] == "REVIEWED_TRANSFORMATION"
+
+    try:
+        canonical_draft("counter", lang="python", project_root=tmp_path)
+    except ValueError as exc:
+        assert "unsupported canonical draft language" in str(exc)
+    else:
+        raise AssertionError("unknown language must be rejected")

@@ -61,7 +61,10 @@ def _run_esbmc(command: list[str], timeout: int, *, language: str, unwind: int =
                 "exit_code": 124, "message": f"ESBMC timed out after {timeout}s"}
     output = ((result.stdout or "") + (result.stderr or "")).strip()
     success = result.returncode == 0 and "verification successful" in output.lower()
+    from .parse_esbmc import parse_esbmc_vcs
+    vcs = [] if success else [vc.__dict__ for vc in parse_esbmc_vcs(output)]
     return {"status": "VERIFIED" if success else "VERIFY_FAILED",
             "claim": "BOUNDED_CPP_PROOF" if success else "NO_PROOF",
             "language": language, "exit_code": result.returncode,
+            "vcs": vcs,
             "unbounded_loop_proved": False, "unwind": unwind, "output": output[-12000:]}

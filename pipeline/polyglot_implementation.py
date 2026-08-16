@@ -32,6 +32,7 @@ _C_SIGNATURE = re.compile(
 _SOURCE_FENCE = {
     "rust": re.compile(r"```rust\s*\n(.*?)```", re.DOTALL | re.IGNORECASE),
     "c": re.compile(r"```c\s*\n(.*?)```", re.DOTALL | re.IGNORECASE),
+    "cpp": re.compile(r"```(?:cpp|c\+\+)\s*\n(.*?)```", re.DOTALL | re.IGNORECASE),
 }
 
 RUST_IMPLEMENT_SYSTEM = r"""You implement a complete Rust source scaffold verified by Prusti.
@@ -46,6 +47,12 @@ Output exactly one complete C file in a ```c block. Do not use allocation, recur
 pointer arithmetic, unsafe library calls, compiler extensions, or concurrency. Add ACSL loop
 invariant, loop assigns, and loop variant annotations when loops require induction. Never weaken a
 contract or add assumptions."""
+
+CPP_IMPLEMENT_SYSTEM = r"""You implement a complete C++17 source scaffold verified by ESBMC.
+Preserve every class, public method signature, and assertion-based invariant/guard check exactly.
+Change method bodies only. Output exactly one complete C++ file in a ```cpp block. Do not use
+exceptions, RTTI, raw new/delete, unchecked pointer arithmetic, or unbounded loops; keep every
+loop bounded so the bounded model checker can discharge it. Never weaken an assertion."""
 
 
 def _normalized(values) -> list[str]:
@@ -77,23 +84,51 @@ def c_trusted_surface(code: str) -> dict:
             "contracts": _c_function_contracts(code)}
 
 
+_CPP_CLASS = re.compile(r"(?m)^\s*(?:class|struct)\s+[A-Za-z_]\w*\s*(?::[^{;]*)?\{")
+_CPP_METHOD = re.compile(
+    r"(?m)^\s*(?:public:|private:|protected:|\s)*"
+    r"(?:virtual\s+|static\s+|inline\s+)*[A-Za-z_][\w:<>,\s*&]*\s+"
+    r"[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?(?:override\s*)?(?:;|\{)")
+_CPP_ASSERT = re.compile(r"(?m)\bassert\s*\([^;]+\)\s*;")
+
+
+def cpp_trusted_surface(code: str) -> dict:
+    return {"signatures": _normalized(_CPP_METHOD.finditer(code)),
+            "classes": _normalized(_CPP_CLASS.finditer(code)),
+            "contracts": _normalized(_CPP_ASSERT.finditer(code))}
+
+
+_SURFACE_EXTRACTORS = {"rust": rust_trusted_surface, "c": c_trusted_surface,
+                       "cpp": cpp_trusted_surface}
+
+
 def trusted_surface_matches(stub: str, candidate: str, language: str) -> tuple[bool, dict]:
-    extractor = rust_trusted_surface if language == "rust" else c_trusted_surface
+    extractor = _SURFACE_EXTRACTORS[language]
     expected, actual = extractor(stub), extractor(candidate)
     differences = {key: {"expected": expected[key], "actual": actual[key]}
                    for key in expected if expected[key] != actual[key]}
     return not differences, differences
 
 
+_IMPLEMENT_SYSTEMS = {"rust": RUST_IMPLEMENT_SYSTEM, "c": C_IMPLEMENT_SYSTEM,
+                      "cpp": CPP_IMPLEMENT_SYSTEM}
+
+
 def _generate(stub: str, language: str, provider: str, model: str | None,
-              previous: str | None = None, diagnostics: str = ""):
-    system = RUST_IMPLEMENT_SYSTEM if language == "rust" else C_IMPLEMENT_SYSTEM
+              previous: str | None = None, diagnostics: str = "",
+              vcs: list[VC] | None = None):
+    system = _IMPLEMENT_SYSTEMS[language]
     prompt = f"Trusted {language} scaffold:\n```{language}\n{stub}\n```\n"
     if previous is None:
         prompt += "Implement every body and return the complete source file."
     else:
-        prompt += (f"Previous candidate:\n```{language}\n{previous}\n```\n"
-                   f"Verifier diagnostics:\n```text\n{diagnostics[-12000:]}\n```\n"
+        prompt += (f"Previous candidate:\n```{language}\n{previous}\n```\n")
+        if vcs:
+            prompt += "Structured verification failures (file:line category detail):\n"
+            for vc in vcs:
+                prompt += f"- {vc.file}:{vc.line} {vc.category}: {vc.detail or vc.raw}\n"
+            prompt += "\n"
+        prompt += (f"Verifier diagnostics:\n```text\n{diagnostics[-12000:]}\n```\n"
                    "Repair the implementation and return the complete source file.")
     return _chat_fn(provider)([{"role": "system", "content": system},
                                {"role": "user", "content": prompt}], model, 0.2)
@@ -121,19 +156,20 @@ def synthesize_polyglot_implementation(
         v2_reviewed_domain: str | Path | None = None,
         v2_validation_evidence: str | Path | None = None) -> dict:
     """Synthesize bodies while treating contracts and APIs as immutable trusted input."""
-    if language not in {"rust", "c"}:
-        raise ValueError("language must be rust or c")
+    if language not in {"rust", "c", "cpp"}:
+        raise ValueError("language must be rust, c, or cpp")
     if verification_mode not in {"esc", "check"}:
         raise ValueError("verification_mode must be esc or check")
     if bool(v2_reviewed_domain) != bool(v2_validation_evidence):
         raise ValueError("V2 refinement requires both reviewed domain and validation evidence")
-    surface = rust_trusted_surface(stub) if language == "rust" else c_trusted_surface(stub)
+    surface = _SURFACE_EXTRACTORS[language](stub)
     if not surface["signatures"] or not surface["contracts"]:
         return {"final_status": "INVALID_STUB", "claim": "NO_PROOF", "attempts": [],
                 "stop_reason": f"{language} scaffold has no recognized contract/signature"}
 
-    name = "RustImplementation" if language == "rust" else "c-implementation"
-    suffix = ".rs" if language == "rust" else ".c"
+    name = {"rust": "RustImplementation", "c": "c-implementation",
+            "cpp": "cpp-implementation"}[language]
+    suffix = {"rust": ".rs", "c": ".c", "cpp": ".cpp"}[language]
     root = Path(out_dir) if out_dir else config.ROOT / "runs" / name / time.strftime("%Y%m%d-%H%M%S-impl")
     root.mkdir(parents=True, exist_ok=True)
     publish = on_event or (lambda _event: None)
@@ -165,7 +201,8 @@ def synthesize_polyglot_implementation(
                 samples += 1
             else:
                 raw, used_model, usage = _generate(stub, language, provider, model,
-                                                   history[-1][0], history[-1][2])
+                                                   history[-1][0], history[-1][2],
+                                                   vcs=history[-1][1])
                 generated = _source_from_response(raw, language)
                 feedback += 1
         except LLMError as exc:
@@ -196,14 +233,20 @@ def synthesize_polyglot_implementation(
             postprocess["accepted"] = True
             transformed = postprocess["code"]
 
-        findings = lint_rust(transformed) if language == "rust" else lint_acsl(transformed)
+        if language == "rust":
+            findings = lint_rust(transformed)
+        elif language == "cpp":
+            findings = []
+        else:
+            findings = lint_acsl(transformed)
         blockers = [item for item in findings if item.get("severity") == "error"]
         runtime = None
         if not blockers and runtime_gate:
             runtime = collect_polyglot_runtime_evidence(
                 transformed, language, provider, test_code=runtime_test_code)
         if blockers:
-            verification = {"status": "RUST_LINT_FAILED" if language == "rust" else "ACSL_LINT_FAILED",
+            lint_status = {"rust": "RUST_LINT_FAILED", "c": "ACSL_LINT_FAILED"}.get(language)
+            verification = {"status": lint_status or "CPP_LINT_FAILED",
                             "exit_code": 2, "warnings": findings, "vcs": []}
         elif runtime and runtime["status"] != "NO_RUNTIME_FAILURE_FOUND":
             verification = {"status": runtime["status"],
@@ -211,13 +254,25 @@ def synthesize_polyglot_implementation(
                             "output": runtime.get("log", ""), "vcs": []}
         elif language == "rust":
             verification = verify_rust(transformed, mode=verification_mode, backend="prusti")
+        elif language == "cpp":
+            from .verify_cpp import verify_cpp
+            if verification_mode == "check":
+                from .cpp_support import check_cpp_syntax
+                syntax = check_cpp_syntax(transformed)
+                verification = {"status": "CPP_CHECKED" if syntax.get("status") == "CPP_CHECKED"
+                                else "CPP_CHECK_FAILED",
+                                "exit_code": 0 if syntax.get("status") == "CPP_CHECKED" else 1,
+                                "output": syntax.get("output", ""), "vcs": []}
+            else:
+                candidate_path = attempt_dir / f"candidate{suffix}"
+                candidate_path.write_text(transformed, encoding="utf-8")
+                verification = verify_cpp(candidate_path)
         else:
             verification = verify_c(transformed, mode=verification_mode)
         status = verification.get("status", "VERIFY_FAILED")
-        if verification_mode == "check" and language == "rust" and status == "RUST_CHECKED":
-            status = "STATIC_CHECKED"
-        if verification_mode == "check" and language == "c" and status == "C_CHECKED":
-            status = "STATIC_CHECKED"
+        if verification_mode == "check":
+            if status in {"RUST_CHECKED", "C_CHECKED", "CPP_CHECKED"}:
+                status = "STATIC_CHECKED"
         output = str(verification.get("output") or verification.get("message") or
                      json.dumps(verification.get("warnings", [])))
         source = attempt_dir / f"candidate{suffix}"
@@ -239,13 +294,16 @@ def synthesize_polyglot_implementation(
     runtime_evidence = attempts[-1].get("runtime_evidence") if attempts else None
     runtime_passed = bool(runtime_evidence and
                           runtime_evidence.get("status") == "NO_RUNTIME_FAILURE_FOUND")
-    claim = ("DEDUCTIVE_PROOF" if final_status == "VERIFIED" and verification_mode == "esc"
+    claim = ("BOUNDED_CPP_PROOF" if final_status == "VERIFIED" and language == "cpp"
+             and verification_mode == "esc" else
+             "DEDUCTIVE_PROOF" if final_status == "VERIFIED" and verification_mode == "esc"
              else "STATIC_CHECKED_RUNTIME_TESTED" if final_status == "STATIC_CHECKED" and runtime_passed
              else "STATIC_CHECK" if final_status == "STATIC_CHECKED" else "NO_PROOF")
     result = {"final_status": final_status, "stop_reason": stop_reason,
               "language": language, "attempts": attempts, "implementation_code": final_code,
               "implementation_path": str(root / f"implementation{suffix}") if final_code else "",
-              "verification_backend": "prusti" if language == "rust" else "frama-c-wp",
+              "verification_backend": {"rust": "prusti", "c": "frama-c-wp",
+                                       "cpp": "esbmc"}[language],
               "verification_mode": verification_mode, "claim": claim,
               "trusted_contract_hash": sha256_text(json.dumps(surface, sort_keys=True)),
               "native_synthesis": True, "external_handoff_used": False}

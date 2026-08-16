@@ -57,6 +57,76 @@ def _verification(path: Path, extra_files: list[Path] | None = None) -> dict:
     return {"status": "VERIFIED", "gate": "esc", "tool_status": "VERIFIED"}
 
 
+def _polyglot_verification(source_file: Path, language: str) -> dict:
+    """Re-verify one non-Java revision with its native prover (esc equivalent)."""
+    code = source_file.read_text(encoding="utf-8")
+    if language == "rust":
+        from .verify_rust import verify_rust
+        result = verify_rust(code, mode="esc", backend="prusti")
+    elif language == "c":
+        from .verify_c import verify_c
+        result = verify_c(code, mode="esc")
+    else:  # cpp: bounded evidence, never deductive
+        from .verify_cpp import verify_cpp
+        result = verify_cpp(source_file)
+    if result.get("status") == "VERIFIED":
+        return {"status": "VERIFIED", "output": result.get("output", ""), "result": result,
+                "claim": result.get("claim")}
+    return {"status": result.get("status", "VERIFY_FAILED"),
+            "output": result.get("output", result.get("message", "")), "result": result}
+
+
+def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
+                              language: str) -> dict:
+    """Contract-preserving gate for rust (Prusti), c (Frama-C), and cpp (ESBMC)."""
+    from .polyglot_surface import contract_clauses, public_api_surface
+
+    baseline = baseline_file.read_text(encoding="utf-8")
+    refactored = refactored_file.read_text(encoding="utf-8")
+    baseline_contract = contract_clauses(baseline, language)
+    refactored_contract = contract_clauses(refactored, language)
+    if not baseline_contract:
+        return _fail("missing_trusted_contract",
+                     f"Baseline contains no {language} contract clauses")
+    if baseline_contract != refactored_contract:
+        return _fail("contract_surface_changed", "Normalized native contract clauses differ")
+    baseline_api = public_api_surface(baseline, language)
+    refactored_api = public_api_surface(refactored, language)
+    if not baseline_api:
+        return _fail("method_surface_changed", "Baseline exposes no public API surface")
+    if baseline_api != refactored_api:
+        return _fail("method_surface_changed", "Public API surface differs")
+    if baseline == refactored:
+        return _fail("source_unchanged", "No refactoring change was detected")
+    baseline_proof = _polyglot_verification(baseline_file, language)
+    if baseline_proof["status"] != "VERIFIED":
+        return _fail("baseline_not_verified",
+                     f"Baseline failed native {language} verification", baseline_proof)
+    refactored_proof = _polyglot_verification(refactored_file, language)
+    if refactored_proof["status"] != "VERIFIED":
+        return _fail("refactored_not_verified",
+                     f"Refactored source failed native {language} verification",
+                     refactored_proof)
+    bounded = language == "cpp"
+    return {
+        "status": "VERIFIED",
+        "claim": "BOUNDED_REFACTOR_CONTRACT_PRESERVED" if bounded
+                 else "REFACTOR_CONTRACT_PRESERVED",
+        "scope": ("bounded_native_contract_check_same_api_surface" if bounded else
+                  "same_normalized_native_contract_and_public_api_surface_with_independent_proofs"),
+        "language": language, "verifier": {"rust": "prusti", "c": "frama-c-wp",
+                                           "cpp": "esbmc"}[language],
+        "baseline_sha256": _sha256(baseline),
+        "refactored_sha256": _sha256(refactored),
+        "contract_sha256": _sha256("\n".join(sorted(baseline_contract))),
+        "method_surface_sha256": _sha256("\n".join(baseline_api)),
+        "baseline_deductive_proof": not bounded,
+        "refactored_deductive_proof": not bounded,
+        "contract_surface_preserved": True, "behavior_equivalence_proved": False,
+        "refactor_verified": False,
+    }
+
+
 def verify_contract_preserving_refactor(baseline_path: str | Path,
                                         refactored_path: str | Path) -> dict:
     """Verify both revisions and bind an unchanged public contract/API surface to their hashes.
@@ -71,6 +141,13 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
         refactored = refactored_file.read_text(encoding="utf-8")
     except OSError as exc:
         return _fail("source_unavailable", str(exc))
+    from .polyglot_surface import language_for
+    baseline_language = language_for(baseline_file.suffix.lower())
+    refactored_language = language_for(refactored_file.suffix.lower())
+    if baseline_language != refactored_language:
+        return _fail("unsupported_language", "Baseline and refactored languages must match")
+    if baseline_language in {"rust", "c", "cpp"}:
+        return _verify_polyglot_refactor(baseline_file, refactored_file, baseline_language)
     if baseline_file.suffix.lower() not in {".java", ".jml"} or \
             refactored_file.suffix.lower() not in {".java", ".jml"}:
         return _fail("unsupported_language", "This profile supports Java/JML only")

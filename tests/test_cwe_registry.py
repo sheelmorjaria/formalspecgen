@@ -117,3 +117,14 @@ def test_remediation_and_correction_guidance_fall_back_cleanly():
     assert correction_guidance("CWE-NOPE") == cwe_registry.DEFAULT_CORRECTION_GUIDANCE
     assert "CWE-125" in mitigated_formal_cwes()
     assert "CWE-22" not in mitigated_formal_cwes()
+
+
+def test_malformed_entries_and_unknown_variants_fail_closed(tmp_path):
+    broken = tmp_path / "broken.json"
+    broken.write_text(json.dumps([{"cwe_id": "CWE-1", "severity": "HIGH"}]),
+                      encoding="utf-8")  # missing name + detection
+    with pytest.raises(ManifestError, match="malformed CWE entry"):
+        load_manifest(broken)
+    from pipeline.cwe_registry import variant_entry
+    assert variant_entry("CWE-NOPE", "underflow") is None
+    assert variant_entry("CWE-835", "underflow") is None  # exists but declares no variants
