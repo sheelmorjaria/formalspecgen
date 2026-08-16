@@ -439,3 +439,138 @@ void step(struct m *x) {
 }
 """
     assert _infer_c_transitions(unknown, [("state", "int")]) == []
+
+
+# ------------------------------------------------ M8: TinyUSB dialect ---
+
+TINYUSB_SHAPE = """typedef struct {
+    volatile uint8_t connected;
+    volatile uint8_t addressed;
+    volatile uint8_t suspended;
+    volatile uint8_t cfg_num;
+} usbd_dev_t;
+
+static usbd_dev_t _usbd_dev;
+
+void dcd_event_handler(int event_id) {
+    if (_usbd_dev.connected) {
+        _usbd_dev.suspended = 1;
+    }
+    if (_usbd_dev.connected) {
+        _usbd_dev.suspended = 0;
+    }
+    if (!_usbd_dev.suspended) {
+        _usbd_dev.cfg_num = 0;
+    }
+}
+"""
+
+TINYUSB_FIELDS = [("connected", "int"), ("addressed", "int"),
+                  ("suspended", "int"), ("cfg_num", "int")]
+
+
+def test_bare_boolean_cross_field_guards_extract():
+    transitions = _infer_c_transitions(TINYUSB_SHAPE, TINYUSB_FIELDS)
+    by_name = {item["name"]: item for item in transitions}
+    # one operation per guard; same (fn, target) pairs get deterministic suffixes
+    assert set(by_name) == {"dcd_event_handler_suspended",
+                            "dcd_event_handler_suspended_2",
+                            "dcd_event_handler_cfg_num"}
+    fields = {name for name, _ in TINYUSB_FIELDS}
+    assert _dump(by_name["dcd_event_handler_suspended"]["guard"]) == _dump(
+        parse_jml_expression("connected != 0", fields=fields))      # user shape 1
+    assert _dump(by_name["dcd_event_handler_suspended"]["value"]) == _dump(
+        parse_jml_expression("1", fields=fields))
+    assert _dump(by_name["dcd_event_handler_cfg_num"]["guard"]) == _dump(
+        parse_jml_expression("suspended == 0", fields=fields))      # negated form
+    assert all(item["target"] in fields for item in transitions)
+
+
+def test_boolean_guard_never_pairs_across_blocks():
+    """tud_task trap: a guard block with only callbacks must not steal a
+    later assignment elsewhere in the function."""
+    trap = """typedef struct { int connected; int suspended; } dev_t;
+static dev_t _dev;
+void tud_task(void) {
+    if (_dev.connected) {
+        tud_suspend_cb(_dev.connected);
+    }
+    _dev.suspended = 1;
+}
+"""
+    assert _infer_c_transitions(trap,
+                                [("connected", "int"), ("suspended", "int")]) == []
+
+
+def test_boolean_guard_fails_closed_on_nested_braces():
+    """SOF shape: the write is fine but the guard block contains a nested
+    initializer — extraction refuses rather than mis-pairing."""
+    nested = """typedef struct { int suspended; int resumed; } dev_t;
+static dev_t _dev;
+void dcd_event_handler(int event_id) {
+    if (_dev.suspended) {
+        _dev.resumed = 1;
+        int local = event_id;
+        (void) local;
+    }
+}
+"""
+    assert _infer_c_transitions(nested,
+                                [("suspended", "int"), ("resumed", "int")]) == [
+        {"name": "dcd_event_handler_resumed",
+         "guard": parse_jml_expression("suspended != 0",
+                                       fields={"suspended", "resumed"}),
+         "target": "resumed",
+         "value": parse_jml_expression("1", fields={"suspended", "resumed"})}]
+
+
+def test_anonymous_typedef_struct_registers_candidate(tmp_path):
+    source = tmp_path / "tinyusb"; source.mkdir()
+    (source / "usbd.c").write_text(TINYUSB_SHAPE, encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "extracted", project_root=tmp_path)
+    assert result["status"] == "EXTRACTED"
+    registered = tmp_path / "domains" / "candidates" / "usbd_dev_t.v2.yaml"
+    assert registered.exists(), "anonymous typedef structs must register candidates"
+    import yaml
+    payload = yaml.safe_load(registered.read_text(encoding="utf-8"))
+    assert payload["domain_name"] == "UsbdDevT"
+    names = {var["name"] for var in payload["state_variables"]}
+    assert {"connected", "addressed", "suspended", "cfg_num"} <= names
+    assert {op["name"] for op in payload["operations"]} == {
+        "dcd_event_handler_suspended", "dcd_event_handler_suspended_2",
+        "dcd_event_handler_cfg_num"}
+
+
+def test_tagged_typedef_struct_registers_tag_only(tmp_path):
+    source = tmp_path / "lwip"; source.mkdir()
+    (source / "tcp.c").write_text(
+        "typedef struct tcp_pcb { int state; } tcp_pcb_t;\n"
+        "void tcp_open(tcp_pcb_t *pcb) {\n"
+        "    if (pcb->state == 0) { pcb->state = 1; }\n"
+        "}\n", encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    names = {item["name"] for item in result["components"]}
+    assert "tcp_pcb" in names
+    assert "tcp_pcb_t" not in names      # no duplicate component from the typedef
+    assert (tmp_path / "domains" / "candidates" / "tcp_pcb.v2.yaml").exists()
+    assert not (tmp_path / "domains" / "candidates" / "tcp_pcb_t.v2.yaml").exists()
+
+
+def test_boolean_guards_fail_closed_on_foreign_guard_and_constants():
+    """A bare guard on a NON-state field, or an unresolvable effect constant,
+    mints nothing."""
+    foreign_guard = """typedef struct { int state; } dev_t;
+static dev_t _dev;
+void step(void) {
+    if (_dev.busy) { _dev.state = 1; }
+}
+"""
+    assert _infer_c_transitions(foreign_guard, [("state", "int")]) == []
+    unknown_effect = """typedef struct { int connected; int suspended; } dev_t;
+static dev_t _dev;
+void step(void) {
+    if (_dev.connected) { _dev.suspended = NOT_AN_ENUM_CONST; }
+}
+"""
+    assert _infer_c_transitions(
+        unknown_effect, [("connected", "int"), ("suspended", "int")]) == []

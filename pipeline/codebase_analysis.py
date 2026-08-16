@@ -40,33 +40,50 @@ def _tree_sitter_declarations(source: Path, text: str) -> tuple[list[dict] | Non
              ".h": {"struct_specifier": False},
              ".cpp": {"class_specifier": False, "struct_specifier": False}}[source.suffix.lower()]
     declarations = []
+
+    def collect_fields(node):
+        fields = []
+        for child in node.children:
+            if child.type in {"class_body", "field_declaration_list", "declaration_list"}:
+                stack = [child]
+                while stack:
+                    current = stack.pop()
+                    if current.type in {"field_declaration", "field_declaration_list"}:
+                        names = []
+                        pending = list(current.children)
+                        while pending:
+                            item = pending.pop()
+                            if item.type == "field_identifier":
+                                names.append(item)
+                            elif item.type == "variable_declarator":
+                                names.extend(n for n in item.children if n.type in {"identifier", "field_identifier"})
+                            pending.extend(item.children)
+                        type_text = current.text.decode("utf-8")
+                        if "*" not in type_text:  # pointers are not scalar state
+                            for n in names:
+                                fields.append((n.text.decode(), "boolean" if "bool" in type_text else "int"))
+                    stack.extend(current.children)
+        return fields
+
     def walk(node):
         if node.type in types:
             name_node = next((child for child in node.children if child.type in {"identifier", "type_identifier"}), None)
             if name_node:
-                fields = []
-                for child in node.children:
-                    if child.type in {"class_body", "field_declaration_list", "declaration_list"}:
-                        stack = [child]
-                        while stack:
-                            current = stack.pop()
-                            if current.type in {"field_declaration", "field_declaration_list"}:
-                                names = []
-                                pending = list(current.children)
-                                while pending:
-                                    item = pending.pop()
-                                    if item.type == "field_identifier":
-                                        names.append(item)
-                                    elif item.type == "variable_declarator":
-                                        names.extend(n for n in item.children if n.type in {"identifier", "field_identifier"})
-                                    pending.extend(item.children)
-                                type_text = current.text.decode("utf-8")
-                                if "*" not in type_text:  # pointers are not scalar state
-                                    for n in names:
-                                        fields.append((n.text.decode(), "boolean" if "bool" in type_text else "int"))
-                            stack.extend(current.children)
-                unique_fields = list(dict.fromkeys(fields))
+                unique_fields = list(dict.fromkeys(collect_fields(node)))
                 declarations.append({"name": name_node.text.decode(), "interface": types[node.type], "fields": unique_fields})
+        if node.type == "type_definition" and "struct_specifier" in types:
+            # Anonymous typedef structs (``typedef struct { ... } dev_t;``) name
+            # their type on the typedef declarator, not on the struct itself —
+            # the dominant shape in embedded stacks (TinyUSB, mbedTLS). Tagged
+            # typedefs keep registering under the struct tag only, so lwIP's
+            # ``typedef struct tcp_pcb {...} tcp_pcb_t;`` still yields exactly
+            # one component.
+            struct = next((child for child in node.children if child.type == "struct_specifier"), None)
+            if struct is not None and not any(child.type == "type_identifier" for child in struct.children):
+                name_node = next((child for child in node.children if child.type == "type_identifier"), None)
+                if name_node:
+                    unique_fields = list(dict.fromkeys(collect_fields(struct)))
+                    declarations.append({"name": name_node.text.decode(), "interface": False, "fields": unique_fields})
         for child in node.children:
             walk(child)
     walk(tree.root_node)
@@ -283,11 +300,47 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]],
         rf"(?P<limit>\w+)\s*\).*?"
         rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*{_C_ACCESS}(?P<rhs>\w+)\s*"
         rf"(?P<op2>[+-])\s*(?P<amount>\d+)\s*;", re.S)
+    # TinyUSB dialect: bare/negated boolean guards whose effect targets a
+    # DIFFERENT state field — ``if (dev->connected) { dev->suspended = 1; }``.
+    # The effect must live inside the guard's own brace block (no nested
+    # braces), so a guard block that only calls callbacks never pairs with a
+    # later assignment elsewhere in the function.
+    boolean_guard = re.compile(
+        rf"if\s*\(\s*(?P<neg>!\s*)?{_C_ACCESS}(?P<gfield>\w+)\s*\)\s*\{{"
+        rf"(?P<gbody>[^{{}}]*?)\}}")
+    boolean_effect = re.compile(
+        rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>\w+)\s*;")
+    used_names: set[str] = set()
     for name, body in _c_void_functions(text):
         switch_transitions = _switch_case_transitions(body, name, names, enums, notes)
         if switch_transitions:
             transitions.extend(switch_transitions)
+            used_names.update(item["name"] for item in switch_transitions)
             continue
+        for guard_match in boolean_guard.finditer(body):
+            if guard_match["gfield"] not in names:
+                continue
+            effect = boolean_effect.search(guard_match["gbody"])
+            if effect is None or effect["target"] not in names:
+                continue
+            resolved = _resolve_c_constant(effect["value"], enums)
+            if resolved is None:
+                continue
+            guard_text = (f"{guard_match['gfield']} == 0" if guard_match["neg"]
+                          else f"{guard_match['gfield']} != 0")
+            # guard_text ("<state field> == 0") and resolved (a canonical
+            # integer string) are internally constructed, so parsing cannot
+            # fail here — no defensive except is needed.
+            guard_ast = parse_jml_expression(guard_text, fields=names)
+            value_ast = parse_jml_expression(resolved, fields=names)
+            label = f"{name}_{effect['target']}"
+            counter = 2
+            while label in used_names:
+                label = f"{name}_{effect['target']}_{counter}"
+                counter += 1
+            used_names.add(label)
+            transitions.append({"name": label, "guard": guard_ast,
+                                "target": effect["target"], "value": value_ast})
         increment = incremental.search(body)
         if increment is not None:
             match = increment
@@ -313,6 +366,7 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]],
             value_ast = parse_jml_expression(value_text, fields=names)
         except Exception:
             continue
+        used_names.add(name)
         transitions.append({"name": name, "guard": guard_ast,
                             "target": match["field"], "value": value_ast})
     return transitions

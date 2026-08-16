@@ -766,9 +766,16 @@ inside a void method (Java) or `if (c->state == 1) { c->state = 2; }` inside a v
 function (C, over `ptr->field`/`value.field` receivers) — are inferred deterministically
 into typed transitions. The C lane also speaks the dialect real stacks use: **enum
 constants** are resolved to their integer values (implicit and explicit counters, hex
-literals), **enum-typed fields** are bounded to the enum's extent, and **switch
+literals), **enum-typed fields** are bounded to the enum's extent, **switch
 dispatch** (`switch (pcb->state) { case SYN_SENT: ... pcb->state = ESTABLISHED; break; }`)
-is segmented one transition per `break`-terminated case. The guard and effect are
+is segmented one transition per `break`-terminated case, **anonymous typedef structs**
+(`typedef struct { ... } usbd_device_t;` — the dominant embedded shape; tagged
+`typedef struct tcp_pcb {...} tcp_pcb_t;` still registers once, under the tag) are
+extracted under their typedef name, and **bare or negated boolean guards**
+(`if (dev->connected) { dev->suspended = 1; }` → guard `connected != 0`, effect on a
+*different* field) are extracted only when the write lives inside the guard's own brace
+block — a guard block containing only callbacks never pairs with a later assignment
+elsewhere in the function. The guard and effect are
 compiled through the strict JML expression parser into the recursive V2
 expression AST; no LLM infix text is stored in the
 candidate. Guards accept `==`, `!=`, `<=`, `>=`, `<`, `>`; effects are literal state
