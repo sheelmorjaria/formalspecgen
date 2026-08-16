@@ -223,7 +223,7 @@ The governing rule is:
 
 ### Full-lifecycle capability map
 
-FormalSpecGen now covers three connected workflows:
+FormalSpecGen covers five connected workflows:
 
 | Workflow | Entry point | Strongest scoped evidence |
 | --- | --- | --- |
@@ -239,7 +239,8 @@ The following milestones were added after the v1.0.0 tag push:
 
 Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `c367d3a`,
 `692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`, then `90f7015`, `fcb2767`, and
-`ff97364`.
+`ff97364` (v2.3.0), `84175b3`, `24f552e`, `2c94f02`, `61c4f61` (v2.3.1), and `99623a8`
+(v2.4.0).
 
 - Narrow deterministic State, Decorator, and Facade profiles now emit multifile candidates with
   explicit heap-topology and callback/state limitations. Their outputs still require the
@@ -1429,6 +1430,8 @@ repair validated IR rather than generated TLA+ text.
 ```text
 pipeline/              CLI, orchestration, language lanes, assurance policy, and tool adapters
 pipeline/verify_*.py    Normalized Java, Rust, and C formal-tool judges
+pipeline/cwe_registry.py  Config-driven CWE manifest loader (see security/cwe_manifest.json)
+pipeline/pattern_registry.py  Categorized design-pattern detector registry
 pipeline/domains/      Reviewed and scaffolded semantic-domain plugins
 formalspec_core/       Shared deterministic postprocessor and proof-support core
 domains/               Declarative domain specifications (V2 candidates under candidates/)
@@ -1468,9 +1471,11 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.06% combined statement/branch coverage and enforces a
-minimum of 99%. Real-toolchain and optional live-Ollama checks remain in `tests_e2e/` and can be run
-with:
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 972
+tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
+`tests_e2e/` — including the chained-CLI platform tests
+(`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
+`analyze-codebase → document-code`) — and can be run with:
 
 ```bash
 scripts/run_e2e.sh
