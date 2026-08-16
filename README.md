@@ -230,7 +230,7 @@ FormalSpecGen covers five connected workflows:
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
 | Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
-| Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
+| Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 
 ### Post-push roadmap progress
@@ -1010,8 +1010,9 @@ proving arbitrary dynamic dispatch. Exit-0 compositions that discharge no obliga
 reported as `VACUOUS_COMPOSITION`, not proof. The polyglot lanes add two of their own
 boundaries: the C and C++ orchestrators currently render external-Port steps only (mixed
 core+Port use cases return `UNSUPPORTED_BOUNDARY` on those lanes; Rust renders both), and
-polyglot `apply-refactor` remains future work — the modernization chain (`inspect` →
-`apply-refactor` → `verify-refactor`) is still Java-only. An unreviewed example artifact
+polyglot `apply-refactor` supports extract-method only, via AST-guided byte splicing
+(see Modernization below); the other refactor profiles and C++ out-of-line method
+definitions remain Java-only or future work. An unreviewed example artifact
 lives at `domains/examples/composition/secure_entry.composition.json`.
 
 ### System decomposition
@@ -1387,6 +1388,33 @@ conventions and C++ adapters with libcurl; each dependency is gated to its langu
 suffix, and C adapters have no SDK lane yet (`unsupported_dependency`).
 
 ### Restricted Factory Method application
+
+#### Polyglot extract-method (rust / c / cpp)
+
+For `.rs`, `.c`, `.cpp`, `.cc`, and `.cxx` sources, `apply-refactor --pattern
+extract-method` performs **AST-guided string splicing**: Tree-sitter locates the target
+function and its exact byte range, and the transformation cuts and pastes the RAW source —
+no AST is ever re-rendered, so formatting, comments, and native contracts (Prusti
+attributes, ACSL blocks, C++ assertions) move verbatim. The supported shape is whole-body
+delegation: a non-public `{name}_helper` receives the original signature, the original
+body moves into it untouched (locals move with it — no hoisting), and the original
+function becomes a one-line call. The preceding contract block is duplicated onto both
+the helper and the wrapper so each can be reasoned about modularly:
+
+```bash
+formalspecgen apply-refactor baseline/lib.rs \
+  --pattern extract-method --method process \
+  --out refactored/lib.rs --json extract-verdict.json
+```
+
+The splice runs the existing polyglot refactor gate immediately: every baseline public
+signature must survive verbatim (additions such as the helper are allowed), the
+normalized contract set must be unchanged, and BOTH revisions are re-proved by the native
+prover (Prusti / Frama-C WP / ESBMC) before `REFACTOR_CONTRACT_PRESERVED`
+(`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) is minted. C++ supports in-class method
+definitions only — out-of-line qualified definitions, partial-body extraction, and
+free-variable hoisting fail closed. Java sources keep requiring hash-bound `--inspection`
+evidence and the full profile set.
 
 After the cross-file gate, `apply-refactor` admits one narrow Factory Method shape:
 

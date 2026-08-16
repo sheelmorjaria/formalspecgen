@@ -94,8 +94,11 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
     refactored_api = public_api_surface(refactored, language)
     if not baseline_api:
         return _fail("method_surface_changed", "Baseline exposes no public API surface")
-    if baseline_api != refactored_api:
-        return _fail("method_surface_changed", "Public API surface differs")
+    # An extracted helper may ADD a signature; contract preservation requires
+    # every baseline signature to survive verbatim (subset, not equality).
+    if not set(baseline_api) <= set(refactored_api):
+        return _fail("method_surface_changed",
+                     "Every baseline public signature must survive the refactor")
     if baseline == refactored:
         return _fail("source_unchanged", "No refactoring change was detected")
     baseline_proof = _polyglot_verification(baseline_file, language)

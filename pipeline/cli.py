@@ -455,6 +455,20 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
+    suffix = Path(args.source).suffix.lower()
+    if suffix in {".rs", ".c", ".cpp", ".cc", ".cxx"}:
+        if args.pattern != "extract-method":
+            ui.console.print("[bold red]Polyglot refactoring currently supports "
+                             "extract-method only[/bold red]")
+            return 2
+        from .polyglot_extract_method import apply_extract_method_polyglot
+        result = apply_extract_method_polyglot(args.source, args.method, args.out)
+        _write_json(result, args.json, ui.console)
+        return 0 if result.get("status") == "VERIFIED" else 1
+    if not getattr(args, "inspection", None):
+        ui.console.print("[bold red]Java refactoring requires hash-bound "
+                         "--inspection evidence[/bold red]")
+        return 2
     from .refactor_actions import apply_refactor
     result = apply_refactor(args.source, args.inspection, args.pattern,
                             args.method, args.out)
@@ -1057,8 +1071,8 @@ def build_parser() -> argparse.ArgumentParser:
     apply_refactor = sub.add_parser(
         "apply-refactor", help="apply a hash-bound deterministic Java refactoring profile")
     apply_refactor.add_argument("source", help="baseline Java/JML source")
-    apply_refactor.add_argument("--inspection", required=True,
-                                help="hash-bound inspect JSON evidence")
+    apply_refactor.add_argument("--inspection",
+                                help="hash-bound inspect JSON evidence (Java lanes)")
     apply_refactor.add_argument("--pattern", choices=["extract-method", "factory-method", "state", "decorator", "facade", "null-object", "strategy"],
                                 default="extract-method")
     apply_refactor.add_argument("--method", required=True, help="inspected long method name")
