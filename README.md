@@ -94,8 +94,32 @@ assurance, taint-flow proof, external-I/O safety, or regulatory certification.
 
 The bundled [`security/java_custom.yml`](security/java_custom.yml) rules supplement Semgrep's
 Java rules with CWE-22 path traversal, CWE-502 unsafe deserialization, CWE-327 weak cryptography,
-and CWE-209 exception-detail exposure. Formal evidence additionally recognizes CWE-131 invalid
+CWE-209 exception-detail exposure, CWE-798 hard-coded credentials, and CWE-330 insecure
+randomness; [`security/c_custom.yml`](security/c_custom.yml) adds CWE-415 double-free checking
+for C/C++. Formal evidence additionally recognizes CWE-131 invalid
 array sizes, CWE-190/CWE-191 overflow and underflow, and CWE-835 termination failures.
+
+#### The CWE manifest
+
+The entire security vocabulary is configuration-driven through
+[`security/cwe_manifest.json`](security/cwe_manifest.json): one JSON block per CWE carries the
+formal VC labels (`PossiblyNegativeIndex` → CWE-125), native-verifier diagnostic triggers
+(OpenJML/Prusti/Frama-C/ESBMC), the Semgrep rule ids, the remediation prompt, and the
+`correct-behavior` strengthening guidance. `pipeline/cwe_registry.py` loads the manifest once,
+validates it strictly (duplicates, malformed ids, unknown languages, or invalid detection
+methods raise `ManifestError` — the lane fails closed rather than silently losing rules), and
+exposes the lookups every consumer uses. **Adding a CWE is one JSON block** — optionally
+paired with a Semgrep rule and a PoC template — with zero orchestrator changes; the registry
+tests pin that extension path. Semgrep rule ids that no manifest entry declares are surfaced
+with `unmapped_rule_id: true` instead of silently mapping to no CWE, and SAST config selection
+is language-scoped (`java_custom.yml` for Java, `c_custom.yml` for C/C++, other languages skip
+SAST).
+
+The pattern-detector catalog is likewise registry-driven
+(`pipeline/pattern_registry.py`): each plugin declares a name, a GoF category
+(Creational/Structural/Behavioral/Concurrency), its detector, and the optional
+`apply-refactor` action profile it feeds. Proxy, Command, and Producer-Consumer are
+inspection-only recommendations — detection never implies an admissible transformation.
 
 For vulnerability triage, `security-inspect` writes a report combining Semgrep findings and
 recognized OpenJML counterexample labels:

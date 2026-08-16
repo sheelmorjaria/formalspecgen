@@ -8,7 +8,7 @@ def _inspect(tmp_path, source):
 
 
 def test_detector_registry_is_explicit_and_base_is_abstract_by_contract():
-    assert len(DETECTOR_REGISTRY) == 10
+    assert len(DETECTOR_REGISTRY) == 13
     try:
         PatternDetector("", None).detect()
     except NotImplementedError:

@@ -94,3 +94,22 @@ def test_security_assessment_blocks_high_severity_sast_and_maps_unknowns(tmp_pat
     assert map_formal_failure_to_cwe("unknown", "unrecognized diagnostic")["cwe"] == "UNKNOWN"
     assert map_formal_failure_to_cwe("openjml", "ArithmeticOperationRange underflow")["cwe"] == "CWE-191"
     assert map_formal_failure_to_cwe("openjml", "PossiblyNull dereference")["cwe"] == "CWE-476"
+
+
+def test_sast_configs_are_language_scoped_and_unknown_rules_are_visible(tmp_path):
+    from pipeline.security_assessment import run_semgrep, sast_config_for
+    java = tmp_path / "S.java"; java.write_text("class S {}", encoding="utf-8")
+    rust = tmp_path / "s.rs"; rust.write_text("fn s() {}", encoding="utf-8")
+    assert sast_config_for(java).endswith("java_custom.yml")
+    assert sast_config_for(tmp_path / "x.c").endswith("c_custom.yml")
+    assert sast_config_for(rust) is None
+    skipped = run_semgrep(rust)
+    assert skipped["status"] == "SKIPPED"
+    process = type("P", (), {"stdout": '{"results": [{"check_id": "MYSTERY-RULE", '
+                                      '"start": {"line": 3}, "extra": '
+                                      '{"severity": "ERROR", "message": "m"}}]}',
+                        "stderr": "", "returncode": 0})()
+    with patch("pipeline.security_assessment.subprocess.run", return_value=process):
+        result = run_semgrep(java)
+    finding = result["findings"][0]
+    assert finding["cwe"] is None and finding["unmapped_rule_id"] is True

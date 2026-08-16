@@ -1,0 +1,11 @@
+rules:
+  - id: CWE-415-DOUBLE-FREE
+    languages: [c, cpp]
+    severity: ERROR
+    message: Potential double free; the pointer is freed again without reassignment.
+    patterns:
+      - pattern: free($P);
+      - pattern-inside: |
+          free($P);
+          ...
+          free($P);

@@ -133,6 +133,15 @@ def _poc_for(finding: dict[str, Any], target: Path, index: int) -> tuple[str, st
                 "        // Review-only assertion; the PoC is generated but not executed.\n"
                 "        assertTrue(payload.contains(\";\"));\n    }\n}\n")
         return name, code
+    if cwe == "CWE-798":
+        name = f"HardcodedCredentialPoC{index}"
+        code = ("import org.junit.jupiter.api.Test;\n"
+                "import static org.junit.jupiter.api.Assertions.assertTrue;\n\n"
+                f"class {name} {{\n    @Test\n    void demonstratesHardcodedSecret() {{\n"
+                "        // Review-only: the credential constant must be inspected by a human.\n"
+                "        String hardcoded = \"hunter2-production-secret\";\n"
+                "        assertTrue(!hardcoded.isEmpty());\n    }\n}\n")
+        return name, code
     if cwe in {"CWE-79", "CWE-326", "CWE-732"}:
         labels = {"CWE-79": ("Xss", "<img src=x onerror=alert('review')>", "HTML payload is retained only as a string."),
                   "CWE-326": ("WeakRsaKey", "1024", "No key is generated; this is a configuration assertion."),

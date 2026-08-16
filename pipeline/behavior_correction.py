@@ -15,12 +15,8 @@ def _digest(text: str) -> str:
 
 
 def _strengthening_guidance(cwe: str) -> str:
-    if cwe == "CWE-125":
-        return ("Add conditional postconditions: valid indices return arr[index]; invalid "
-                "indices return -1. Add the runtime bounds guard required to satisfy them.")
-    if cwe == "CWE-476":
-        return "Specify and implement explicit null handling, or a signals (NullPointerException) clause."
-    return "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+    from .cwe_registry import correction_guidance
+    return correction_guidance(cwe)
 
 
 def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "corrections",

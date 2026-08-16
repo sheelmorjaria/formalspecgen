@@ -15,8 +15,14 @@ GOD_METHOD_THRESHOLD = 15
 LONG_METHOD_LINES = 60
 CONSTRUCTOR_DEPENDENCY_THRESHOLD = 5
 BUILDER_ARGUMENT_THRESHOLD = 6
+PROXY_MIN_PUBLIC_METHODS = 2
+PROXY_GUARDED_DELEGATION_RATIO = 0.5
+COMMAND_BRANCH_THRESHOLD = 3
 
 def inspect_java_file(path: str | Path) -> dict:
+    # Local import: pattern_registry imports the detector classes defined below,
+    # so importing it at module scope would create an import cycle.
+    from .pattern_registry import PATTERN_REGISTRY
     source_path = Path(path)
     if source_path.suffix.lower() not in {".java", ".jml"}:
         return _fail("unsupported_language", "Java/JML source is required")
@@ -38,8 +44,8 @@ def inspect_java_file(path: str | Path) -> dict:
     methods = list(declaration.constructors) + list(declaration.methods)
     fields = list(declaration.fields)
     findings = []
-    for detector_type in DETECTOR_REGISTRY:
-        findings.extend(detector_type(source, declaration).detect())
+    for plugin in PATTERN_REGISTRY:
+        findings.extend(plugin.detector(source, declaration).detect())
 
     return {"status": "INSPECTED", "claim": "STATIC_INSPECTION",
             "scope": "deterministic_token_aware_java_structure_heuristics",
@@ -325,10 +331,118 @@ class NullObjectDetector(PatternDetector):
                          "Provide a safe no-op implementation to eliminate repeated null checks and preserve CWE-476 safety.")]
 
 
+class ProxyDetector(PatternDetector):
+    """Detect guarded delegation to a wrapped interface (Proxy vs plain Adapter)."""
+    def detect(self) -> list[dict]:
+        interfaces = {_type_name(item) for item in self.declaration.implements or []}
+        if not interfaces:
+            return []
+        wrapped = {declarator.name for field in self.declaration.fields
+                   if _type_name(field.type) in interfaces
+                   for declarator in field.declarators}
+        if not wrapped:
+            return []
+        public_methods = [method for method in self.declaration.methods
+                          if "public" in method.modifiers and method.body]
+        if len(public_methods) < PROXY_MIN_PUBLIC_METHODS:
+            return []
+        guarded = [method for method in public_methods
+                   if _has_guard(method) and _contains_delegation(method, wrapped)]
+        if not guarded or len(guarded) / len(public_methods) < PROXY_GUARDED_DELEGATION_RATIO:
+            return []
+        finding = _finding(_line(guarded[0]), "guard-delegation", "info",
+            f"{len(guarded)}/{len(public_methods)} public methods guard access before "
+            "delegating to the wrapped interface.", "Proxy",
+            "Make the guard (access control, caching, or lazy acquisition) explicit and "
+            "verify it preserves the wrapped contract.")
+        finding["methods"] = sorted(method.name for method in guarded)
+        finding["wrapped_fields"] = sorted(wrapped)
+        return [finding]
+
+
+class CommandDetector(PatternDetector):
+    """Detect string-keyed command dispatch suitable for Command objects."""
+    def detect(self) -> list[dict]:
+        findings = []
+        for method in self.declaration.methods:
+            string_params = {parameter.name for parameter in method.parameters
+                             if _type_name(parameter.type) == "String"}
+            if not string_params:
+                continue
+            for _, switch in method.filter(javalang.tree.SwitchStatement):
+                if (len(_switch_cases_with_work(switch)) >= COMMAND_BRANCH_THRESHOLD and
+                        _references_name(switch.expression, string_params)):
+                    finding = _finding(_line(switch), "string-command-dispatch", "warning",
+                        f"Method {method.name} dispatches commands through a switch on a "
+                        "String parameter.", "Command",
+                        "Replace string-keyed dispatch with command objects and keep "
+                        "unknown-command behavior explicit.")
+                    finding["method"] = method.name
+                    findings.append(finding)
+                    break
+            branch_counts: dict[str, int] = {}
+            for _, branch in method.filter(javalang.tree.IfStatement):
+                parameter = _string_equality_parameter(branch.condition, string_params)
+                if parameter and _branch_performs_work(branch.then_statement):
+                    branch_counts[parameter] = branch_counts.get(parameter, 0) + 1
+            for parameter in sorted(branch_counts):
+                if branch_counts[parameter] < COMMAND_BRANCH_THRESHOLD:
+                    continue
+                finding = _finding(_line(method), "string-command-dispatch", "warning",
+                    f"Method {method.name} dispatches {branch_counts[parameter]} branches "
+                    f"on String parameter {parameter}.", "Command",
+                    "Replace string-keyed dispatch with command objects and keep "
+                    "unknown-command behavior explicit.")
+                finding["method"] = method.name
+                findings.append(finding)
+        return findings
+
+
+class ProducerConsumerDetector(PatternDetector):
+    """Detect bounded-buffer storage needing overflow/underflow review."""
+    _PUT_PREFIXES = ("put", "produce")
+    _GET_PREFIXES = ("get", "consume", "take")
+    _MONITOR_MEMBERS = {"wait", "notifyAll"}
+
+    def detect(self) -> list[dict]:
+        if not any(_is_array_field(field) for field in self.declaration.fields):
+            return []
+        put_methods = [method for method in self.declaration.methods
+                       if method.name.startswith(self._PUT_PREFIXES)]
+        get_methods = [method for method in self.declaration.methods
+                       if method.name.startswith(self._GET_PREFIXES)]
+        if not put_methods or not get_methods:
+            return []
+        occupancy_fields = {declarator.name for field in self.declaration.fields
+                            if _type_name(field.type) in {"int", "Integer"}
+                            for declarator in field.declarators
+                            if _is_occupancy_name(declarator.name)}
+        tracked_occupancy = (any(_assigns_field(method, occupancy_fields)
+                                 for method in put_methods) and
+                             any(_assigns_field(method, occupancy_fields)
+                                 for method in get_methods))
+        uses_monitor = any(node.member in self._MONITOR_MEMBERS
+                           for _, node in self.declaration.filter(
+                               javalang.tree.MethodInvocation))
+        if not (tracked_occupancy or uses_monitor):
+            return []
+        finding = _finding(_line(self.declaration), "bounded-buffer", "info",
+            f"Array storage with paired {put_methods[0].name}/{get_methods[0].name} "
+            "operations forms a bounded buffer.", "Producer-Consumer",
+            "Model the buffer as a bounded TLC specification and check overflow/underflow "
+            "(put on full, get on empty) before refactoring.")
+        finding.update({"put_methods": sorted(method.name for method in put_methods),
+                        "get_methods": sorted(method.name for method in get_methods)})
+        return [finding]
+
+
+# Kept as the explicit detector order for direct imports; pipeline.pattern_registry
+# derives its registry copy from PATTERN_REGISTRY and tests pin both together.
 DETECTOR_REGISTRY = (CoreStructureDetector, SingletonDetector, ObserverDetector,
                      BuilderOpportunityDetector, RepositoryDetector, AdapterDetector,
                      FactoryMethodDetector, StatePatternDetector, DecoratorDetector,
-                     NullObjectDetector)
+                     NullObjectDetector, ProxyDetector, CommandDetector,
+                     ProducerConsumerDetector)
 
 
 def _type_name(node) -> str:
@@ -349,6 +463,81 @@ def _delegates_to(method, field_names: set[str]) -> bool:
 def _contains_delegation(method, field_names: set[str]) -> bool:
     return any(node.qualifier in field_names for _, node in method.filter(
         javalang.tree.MethodInvocation))
+
+
+def _has_guard(method) -> bool:
+    return next(method.filter(javalang.tree.IfStatement), None) is not None
+
+
+def _walk_nodes(node):
+    # Iterates Node.__iter__ directly would re-yield each node as its own first
+    # item and recurse forever, so descend through the raw children property.
+    if isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _walk_nodes(item)
+    elif isinstance(node, javalang.ast.Node):
+        yield node
+        for child in node.children:
+            yield from _walk_nodes(child)
+
+
+def _references_name(node, names: set[str]) -> bool:
+    for walked in _walk_nodes(node):
+        if isinstance(walked, javalang.tree.MemberReference) and walked.member in names:
+            return True
+        if (isinstance(walked, javalang.tree.MethodInvocation) and
+                walked.qualifier in names):
+            return True
+    return False
+
+
+def _is_null_literal(node) -> bool:
+    return isinstance(node, javalang.tree.Literal) and str(node.value).lower() == "null"
+
+
+def _string_equality_parameter(condition, string_params: set[str]) -> str | None:
+    for node in _walk_nodes(condition):
+        if (isinstance(node, javalang.tree.BinaryOperation) and node.operator == "=="
+                and not _is_null_literal(node.operandl)
+                and not _is_null_literal(node.operandr)):
+            for operand in (node.operandl, node.operandr):
+                if (isinstance(operand, javalang.tree.MemberReference) and
+                        operand.member in string_params):
+                    return operand.member
+        elif (isinstance(node, javalang.tree.MethodInvocation) and
+                node.member == "equals"):
+            qualifier = node.qualifier
+            if isinstance(qualifier, str) and qualifier in string_params:
+                return qualifier
+            if (isinstance(qualifier, javalang.tree.MemberReference) and
+                    qualifier.member in string_params):
+                return qualifier.member
+            for argument in node.arguments or []:
+                if (isinstance(argument, javalang.tree.MemberReference) and
+                        argument.member in string_params):
+                    return argument.member
+    return None
+
+
+def _branch_performs_work(then_statement) -> bool:
+    if isinstance(then_statement, javalang.tree.BlockStatement):
+        return bool(getattr(then_statement, "statements", None))
+    return then_statement is not None
+
+
+def _switch_cases_with_work(switch) -> list:
+    return [case for case in switch.cases
+            if any(not isinstance(statement, javalang.tree.BreakStatement)
+                   for statement in (case.statements or []))]
+
+
+def _is_array_field(field) -> bool:
+    return bool(getattr(field.type, "dimensions", None))
+
+
+def _is_occupancy_name(name: str) -> bool:
+    lowered = name.lower()
+    return "count" in lowered or lowered in {"size", "occupancy"}
 
 
 def _assigns_field(constructor, field_names: set[str]) -> bool:

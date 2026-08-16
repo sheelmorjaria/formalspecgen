@@ -6,81 +6,76 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from . import cwe_registry
 from .verify import verify
 
-
-FORMAL_CWE_MAP = {
-    "ArithmeticOperationRange": ("CWE-190", "HIGH", "Integer Overflow or Wraparound"),
-    "NegativeArraySize": ("CWE-131", "HIGH", "Incorrect Calculation of Buffer Size"),
-    "LoopTermination": ("CWE-835", "MEDIUM", "Infinite Loop"),
-    "PossiblyNegativeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
-    "PossiblyTooLargeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
-    "UndefinedNegativeIndex": ("CWE-125", "HIGH", "Out-of-bounds Read"),
-    "ArrayStore": ("CWE-787", "HIGH", "Out-of-bounds Write"),
-    "NullPointer": ("CWE-476", "HIGH", "NULL Pointer Dereference"),
-    "PossiblyNull": ("CWE-476", "HIGH", "NULL Pointer Dereference"),
-}
+_SECURITY_DIR = Path(__file__).resolve().parents[1] / "security"
+_SAST_CONFIGS = {".java": _SECURITY_DIR / "java_custom.yml",
+                 ".c": _SECURITY_DIR / "c_custom.yml",
+                 ".h": _SECURITY_DIR / "c_custom.yml",
+                 ".cpp": _SECURITY_DIR / "c_custom.yml",
+                 ".cc": _SECURITY_DIR / "c_custom.yml"}
 
 
 def map_formal_failure_to_cwe(verifier: str, failure_text: str) -> dict[str, str]:
-    """Map native prover diagnostics to the language-independent CWE taxonomy."""
-    text = failure_text.lower()
-    if verifier == "openjml":
-        if "possiblynegativeindex" in text or "possiblytoolargeindex" in text:
-            return {"cwe": "CWE-125", "severity": "HIGH"}
-        if ("possiblynull" in text or "nullpointer" in text or
-                "null dereference" in text or "null" in text and "derefer" in text):
-            return {"cwe": "CWE-476", "severity": "HIGH"}
-        if "arithmeticoperationrange" in text:
-            return {"cwe": "CWE-191" if "underflow" in text else "CWE-190", "severity": "HIGH"}
-    elif verifier == "framac":
-        if "pointer_dereference" in text or "null_pointer" in text:
-            return {"cwe": "CWE-476", "severity": "HIGH"}
-        if "signed_overflow" in text or "unsigned_overflow" in text:
-            return {"cwe": "CWE-190", "severity": "HIGH"}
-    elif verifier == "prusti":
-        if "precondition" in text and "index" in text:
-            return {"cwe": "CWE-125", "severity": "HIGH"}
-    elif verifier == "esbmc":
-        if "array bounds" in text or "out of bounds" in text:
-            return {"cwe": "CWE-125", "severity": "HIGH"}
-        if "overflow" in text:
-            return {"cwe": "CWE-190", "severity": "HIGH"}
-    return {"cwe": "UNKNOWN", "severity": "LOW"}
+    """Map native prover diagnostics through the CWE manifest's trigger table."""
+    return cwe_registry.native_trigger_findings(verifier, failure_text)
 
 
 def map_formal_vcs(output: str) -> list[dict[str, str]]:
-    """Map recognized formal verification-condition labels to CWE evidence."""
+    """Map recognized formal verification-condition labels through the CWE manifest."""
     findings: list[dict[str, str]] = []
-    for label, (cwe, severity, description) in FORMAL_CWE_MAP.items():
-        if label in output:
-            findings.append({"source": "openjml_esc", "vc": label, "cwe": cwe,
-                             "severity": severity, "description": description})
-    if "ArithmeticOperationRange" in output and "underflow" in output.lower():
-        findings.append({"source": "openjml_esc", "vc": "ArithmeticOperationRange",
-                         "cwe": "CWE-191", "severity": "HIGH",
-                         "description": "Integer Underflow"})
-    if "decreases" in output.lower() and not any(item["cwe"] == "CWE-835" for item in findings):
-        findings.append({"source": "openjml_esc", "vc": "LoopTermination",
-                         "cwe": "CWE-835", "severity": "MEDIUM",
-                         "description": "Infinite Loop"})
+    for entry in cwe_registry.entries().values():
+        for label in entry.vc_labels:
+            if label in output:
+                findings.append(entry.formal_finding(label))
+        if (entry.synthesis_trigger and entry.synthesis_trigger in output.lower()
+                and not any(item["cwe"] == entry.cwe_id for item in findings)):
+            findings.append(entry.formal_finding(
+                next(iter(entry.vc_labels), "LoopTermination")))
+        if (entry.variants and any(label in output for label in entry.vc_labels)):
+            for variant_name in entry.variants:
+                variant = cwe_registry.variant_entry(entry.cwe_id, variant_name)
+                marker = {"underflow": "underflow"}.get(variant_name)
+                if variant is not None and marker and marker in output.lower():
+                    findings.append({"source": "openjml_esc",
+                                     "vc": next(iter(entry.vc_labels)),
+                                     "cwe": variant.cwe_id, "severity": variant.severity,
+                                     "description": variant.name})
     # OpenJML versions differ in the exact null-dereference label. Preserve the
     # security classification when the diagnostic is phrased descriptively.
     lowered = output.lower()
-    if ("possiblynull" in lowered or "nullpointer" in lowered or
-            "null dereference" in lowered) and not any(item["cwe"] == "CWE-476" for item in findings):
-        findings.append({"source": "openjml_esc", "vc": "PossiblyNull",
-                         "cwe": "CWE-476", "severity": "HIGH",
-                         "description": "NULL Pointer Dereference"})
+    for entry in cwe_registry.entries().values():
+        if (entry.fuzzy_diagnostics
+                and any(marker in lowered for marker in entry.fuzzy_diagnostics)
+                and not any(item["cwe"] == entry.cwe_id for item in findings)):
+            findings.append({"source": "openjml_esc", "vc": "PossiblyNull",
+                             "cwe": entry.cwe_id, "severity": entry.severity,
+                             "description": entry.name})
     return findings
+
+
+def sast_config_for(source: str | Path) -> str | None:
+    """Language-scoped Semgrep config; unsupported languages skip SAST."""
+    suffix = Path(source).suffix.lower()
+    config = _SAST_CONFIGS.get(suffix)
+    if config is None or not config.exists():
+        return None
+    return str(config)
 
 
 def run_semgrep(source: str | Path, *, timeout: int = 60,
                 config: str | Path | None = None) -> dict[str, Any]:
-    """Run Semgrep's Java rules and normalize JSON output."""
-    selected_config = str(config or Path(__file__).resolve().parents[1] / "security" / "java_custom.yml")
-    if not Path(selected_config).exists():
-        selected_config = "p/java"
+    """Run the language-scoped Semgrep rules and normalize JSON output."""
+    if config is not None:
+        selected_config = str(config)
+        if not Path(selected_config).exists():
+            selected_config = "p/java"  # preserve the explicit-config registry fallback
+    else:
+        selected_config = sast_config_for(source)
+        if not selected_config:
+            return {"status": "SKIPPED", "tool": "semgrep",
+                    "message": "no SAST rules configured for this language"}
     try:
         process = subprocess.run(["semgrep", "--config", selected_config, "--json", str(source)],
                                  capture_output=True, text=True, timeout=timeout)
@@ -98,18 +93,13 @@ def run_semgrep(source: str | Path, *, timeout: int = 60,
     for result in data.get("results", []):
         extra = result.get("extra", {})
         rule_id = result.get("check_id", "")
-        cwe = {"CWE-22-PATH-TRAVERSAL": "CWE-22",
-               "CWE-502-DESERIALIZATION": "CWE-502",
-               "CWE-327-WEAK-CRYPTO": "CWE-327",
-               "CWE-209-EXCEPTION-EXPOSURE": "CWE-209",
-               "CWE-78-COMMAND-INJECTION": "CWE-78",
-               "CWE-79-XSS-CONCATENATION": "CWE-79",
-               "CWE-326-WEAK-RSA-KEY": "CWE-326",
-               "CWE-732-WORLD-WRITABLE-PERMISSIONS": "CWE-732"}.get(rule_id)
+        entry = cwe_registry.by_rule_id(rule_id)
         findings.append({"tool": "semgrep", "rule_id": result.get("check_id"),
                          "line": result.get("start", {}).get("line"),
                          "severity": extra.get("severity", "INFO"),
-                         "message": extra.get("message", ""), "cwe": cwe})
+                         "message": extra.get("message", ""),
+                         "cwe": entry.cwe_id if entry else None,
+                         "unmapped_rule_id": entry is None})
     return {"status": "CLEAN" if not findings else "FINDINGS", "tool": "semgrep",
             "findings": findings, "exit_code": process.returncode}
 
@@ -139,7 +129,7 @@ def assess_security(source: str | Path, *, run_sast: bool = True) -> dict[str, A
             "formal_verification": {"exit_code": exit_code, "verified": formal_verified,
                                      "output": output[-4000:]},
             "formal_findings": formal_findings,
-            "formal_cwes_mitigated": ["CWE-125", "CWE-190", "CWE-476"]
+            "formal_cwes_mitigated": cwe_registry.mitigated_formal_cwes()
             if formal_verified else [],
             "sast": sast, "sast_findings": sast_findings,
             "security_scope": "Formal memory/arithmetic obligations plus configured Semgrep rules; external I/O and unmodeled vulnerabilities are not assessed.",

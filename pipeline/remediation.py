@@ -34,15 +34,9 @@ def remediate(target: str | Path, report: str | Path, out_dir: str | Path = "rem
                     target_path.suffix.lower(), "the source language's supported contract syntax")
     details = "\n".join(f"- {item.get('cwe', 'UNKNOWN')}: {item.get('message', item.get('description', ''))}"
                          for item in findings)
-    guidance = ""
-    if any(item.get("cwe") == "CWE-78" for item in findings):
-        guidance = " For CWE-78, avoid shell interpretation, use a fixed executable plus an argument list, and whitelist arguments."
-    if any(item.get("cwe") == "CWE-79" for item in findings):
-        guidance += " For CWE-79, HTML-escape untrusted output before rendering."
-    if any(item.get("cwe") == "CWE-326" for item in findings):
-        guidance += " For CWE-326, enforce RSA key sizes of at least 2048 bits."
-    if any(item.get("cwe") == "CWE-732" for item in findings):
-        guidance += " For CWE-732, use least-privilege file permissions and avoid world-writable modes."
+    from .cwe_registry import remediation_prompt
+    guidance = remediation_prompt(sorted({item.get("cwe") for item in findings
+                                          if item.get("cwe")}))
     prompt = (f"You are a defensive security engineer. Patch this {language} source to address "
               "the listed findings. Preserve the public class and method signatures. Add precise "
               "JML requires/ensures clauses and safe handling where appropriate. Do not use "

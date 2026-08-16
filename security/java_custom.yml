@@ -63,3 +63,24 @@ rules:
     pattern-either:
       - pattern: Files.createFile($PATH, ..., PosixFilePermissions.fromString("rwxrwxrwx"), ...)
       - pattern: chmod($PATH, 0777)
+
+  - id: CWE-798-HARDCODED-CREDENTIALS
+    languages: [java]
+    severity: ERROR
+    message: Hard-coded credential assigned to a password/secret/token field.
+    patterns:
+      - pattern: $TYPE $FIELD = $VALUE;
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: (?i).*(password|passwd|secret|token|apikey|api_key).*
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^"[^"]+"$
+
+  - id: CWE-330-INSECURE-RANDOMNESS
+    languages: [java]
+    severity: WARNING
+    message: Insecure random source used; security decisions need SecureRandom.
+    pattern-either:
+      - pattern: new java.util.Random(...)
+      - pattern: Math.random()

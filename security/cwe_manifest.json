@@ -1,0 +1,301 @@
+[
+  {
+    "cwe_id": "CWE-125",
+    "name": "Out-of-bounds Read",
+    "severity": "HIGH",
+    "languages": ["java", "rust", "c", "cpp"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["PossiblyNegativeIndex", "PossiblyTooLargeIndex", "UndefinedNegativeIndex"],
+      "native_triggers": {
+        "openjml": ["possiblynegativeindex", "possiblytoolargeindex"],
+        "prusti": ["precondition and index"],
+        "esbmc": ["array bounds", "out of bounds"]
+      },
+      "semgrep_rule_ids": []
+    },
+    "poc_supported": ["java", "rust", "c"],
+    "remediation_prompt": "Add strict contract bounds for index parameters so every array access is provably in range.",
+    "correction_guidance": "Add conditional postconditions: valid indices return arr[index]; invalid indices return -1. Add the runtime bounds guard required to satisfy them."
+  },
+  {
+    "cwe_id": "CWE-190",
+    "name": "Integer Overflow or Wraparound",
+    "severity": "HIGH",
+    "languages": ["java", "c", "cpp"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["ArithmeticOperationRange"],
+      "native_triggers": {
+        "openjml": ["arithmeticoperationrange"],
+        "framac": ["signed_overflow", "unsigned_overflow"],
+        "esbmc": ["overflow"]
+      },
+      "semgrep_rule_ids": []
+    },
+    "variants": {"underflow": "CWE-191"},
+    "poc_supported": ["java"],
+    "remediation_prompt": "Bound arithmetic inputs with contract preconditions so intermediate results cannot wrap.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-191",
+    "name": "Integer Underflow",
+    "severity": "HIGH",
+    "languages": ["java", "c", "cpp"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": [],
+      "native_triggers": {"openjml": ["arithmeticoperationrange underflow"]},
+      "semgrep_rule_ids": []
+    },
+    "poc_supported": [],
+    "remediation_prompt": "Bound arithmetic inputs with contract preconditions so intermediate results cannot wrap below the type minimum.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-131",
+    "name": "Incorrect Calculation of Buffer Size",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["NegativeArraySize"],
+      "native_triggers": {},
+      "semgrep_rule_ids": []
+    },
+    "poc_supported": [],
+    "remediation_prompt": "Derive buffer sizes from validated inputs and prove the size calculation is non-negative.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-787",
+    "name": "Out-of-bounds Write",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["ArrayStore"],
+      "native_triggers": {},
+      "semgrep_rule_ids": []
+    },
+    "poc_supported": [],
+    "remediation_prompt": "Add contract bounds for index parameters on every writing array access.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-835",
+    "name": "Infinite Loop",
+    "severity": "MEDIUM",
+    "languages": ["java"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["LoopTermination"],
+      "native_triggers": {},
+      "semgrep_rule_ids": []
+    },
+    "diagnostic_synthesis": {"when_output_contains": "decreases"},
+    "poc_supported": [],
+    "remediation_prompt": "Add loop invariants and decreases clauses so termination is checkable.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-476",
+    "name": "NULL Pointer Dereference",
+    "severity": "HIGH",
+    "languages": ["java", "c", "cpp"],
+    "detection": {
+      "method": "formal",
+      "vc_labels": ["NullPointer", "PossiblyNull"],
+      "native_triggers": {
+        "openjml": ["possiblynull", "nullpointer", "null dereference", "null and derefer"],
+        "framac": ["pointer_dereference", "null_pointer"]
+      },
+      "semgrep_rule_ids": []
+    },
+    "fuzzy_diagnostics": ["possiblynull", "nullpointer", "null dereference"],
+    "poc_supported": ["java"],
+    "remediation_prompt": "Specify non-null obligations explicitly and guard or reject null inputs.",
+    "correction_guidance": "Specify and implement explicit null handling, or a signals (NullPointerException) clause."
+  },
+  {
+    "cwe_id": "CWE-22",
+    "name": "Path Traversal",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-22-PATH-TRAVERSAL"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "Canonicalize the path and reject any that escapes the allowed base directory.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-89",
+    "name": "SQL Injection",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": []
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "Use parameterized queries or prepared statements; never concatenate input into SQL text.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-502",
+    "name": "Deserialization of Untrusted Data",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-502-DESERIALIZATION"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "Validate or sign serialized streams before deserialization; prefer data-only formats.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-327",
+    "name": "Use of a Broken or Risky Cryptographic Algorithm",
+    "severity": "MEDIUM",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-327-WEAK-CRYPTO"]
+    },
+    "poc_supported": [],
+    "remediation_prompt": "Replace broken algorithms (MD5/SHA1/DES) with current standard primitives.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-209",
+    "name": "Generation of Error Message Containing Sensitive Information",
+    "severity": "MEDIUM",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-209-EXCEPTION-EXPOSURE"]
+    },
+    "poc_supported": [],
+    "remediation_prompt": "Return generic error messages to external callers and log details internally.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-78",
+    "name": "Improper Neutralization of Special Elements used in an OS Command",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-78-COMMAND-INJECTION"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "For CWE-78, avoid shell interpretation, use a fixed executable plus an argument list, and whitelist arguments.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-79",
+    "name": "Cross-site Scripting (XSS)",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-79-XSS-CONCATENATION"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "For CWE-79, HTML-escape untrusted output before rendering.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-326",
+    "name": "Inadequate Encryption Strength",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-326-WEAK-RSA-KEY"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "For CWE-326, enforce RSA key sizes of at least 2048 bits.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-732",
+    "name": "Incorrect Permission Assignment for Critical Resource",
+    "severity": "HIGH",
+    "languages": ["java", "c", "cpp"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-732-WORLD-WRITABLE-PERMISSIONS"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "For CWE-732, use least-privilege file permissions and avoid world-writable modes.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-798",
+    "name": "Use of Hard-coded Credentials",
+    "severity": "CRITICAL",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-798-HARDCODED-CREDENTIALS"]
+    },
+    "poc_supported": ["java"],
+    "remediation_prompt": "For CWE-798, load credentials from environment variables or a secrets store instead of hardcoding them.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-330",
+    "name": "Use of Insufficiently Random Values",
+    "severity": "HIGH",
+    "languages": ["java"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-330-INSECURE-RANDOMNESS"]
+    },
+    "poc_supported": [],
+    "remediation_prompt": "For CWE-330, use a cryptographically secure random source (SecureRandom) for security decisions.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  },
+  {
+    "cwe_id": "CWE-415",
+    "name": "Double Free",
+    "severity": "CRITICAL",
+    "languages": ["c", "cpp"],
+    "detection": {
+      "method": "sast",
+      "vc_labels": [],
+      "native_triggers": {},
+      "semgrep_rule_ids": ["CWE-415-DOUBLE-FREE"]
+    },
+    "poc_supported": [],
+    "remediation_prompt": "For CWE-415, set the pointer to NULL after the first free call and guard subsequent frees.",
+    "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+  }
+]
