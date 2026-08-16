@@ -240,8 +240,10 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
         return 2
     dependency = getattr(args, "dependencies", None)
     if dependency:
-        if suffix not in {".java", ".jml"}:
-            ui.console.print("[bold red]Dependencies can only fill Java external adapters[/bold red]")
+        allowed = {".java": {"stripe"}, ".jml": {"stripe"},
+                   ".rs": {"aws"}, ".cpp": {"curl"}, ".cc": {"curl"}, ".cxx": {"curl"}}
+        if dependency not in allowed.get(suffix, set()):
+            ui.console.print(f"[bold red]Dependency {dependency!r} cannot fill {suffix} adapters[/bold red]")
             return 2
         from .dependency_injection import inject_dependency
         result = inject_dependency(args.stub, dependency, provider=args.provider, model=args.model)
@@ -781,6 +783,27 @@ def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]Composition artifact unreadable:[/bold red] {escape(str(exc))}")
         return 2
+    if getattr(args, "lang", "java") != "java":
+        from .polyglot_composition import verify_polyglot_composition
+        verdict = verify_polyglot_composition(
+            value, args.v2_dir, language=args.lang, run_esc=not args.no_esc)
+        if args.out_dir and verdict.get("files"):
+            destination = Path(args.out_dir)
+            destination.mkdir(parents=True, exist_ok=True)
+            for name, source in verdict["files"].items():
+                (destination / name).write_text(source, encoding="utf-8")
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
+                encoding="utf-8")
+        style = "green" if verdict["status"] in {"COMPOSITION_VERIFIED"} else "yellow"
+        ui.console.print(Panel(
+            f"Status: {verdict['status']}\nClaim: {verdict.get('claim', 'NO_PROOF')}\n"
+            f"Scope: {verdict.get('scope', 'n/a')}",
+            title="Polyglot composition verification", border_style=style))
+        if verdict.get("disclaimer"):
+            ui.console.print(verdict["disclaimer"], style="dim")
+        return 0 if verdict["status"] == "COMPOSITION_VERIFIED" else 1
     verdict = composition_render.verify_composition(
         value, args.v2_dir, run_esc=not args.no_esc,
         actors=getattr(args, "actors", None).split(",") if getattr(args, "actors", None) else None)
@@ -867,6 +890,24 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_unified_system(args: argparse.Namespace, ui: TerminalUI) -> int:
+    if args.lang != "java":
+        from .polyglot_composition import verify_polyglot_composition
+        try:
+            value = json.loads(Path(args.artifact).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            ui.console.print(f"[bold red]Artifact unreadable:[/bold red] {escape(str(exc))}")
+            return 2
+        verdict = verify_polyglot_composition(
+            value, getattr(args, "v2_dir", None), language=args.lang)
+        if verdict.get("files"):
+            destination = Path(args.out_dir)
+            destination.mkdir(parents=True, exist_ok=True)
+            for name, source in verdict["files"].items():
+                (destination / name).write_text(source, encoding="utf-8")
+        if args.json:
+            _write_json(verdict, args.json, ui.console)
+        ui.console.print(f"Status: {verdict.get('status')}\nClaim: {verdict.get('claim')}")
+        return 0 if verdict.get("status") in {"LOWERED", "COMPOSITION_VERIFIED"} else 1
     from .unified_system_runner import run_unified_system
     verdict = run_unified_system(args.artifact, args.evidence, args.out_dir, args.lang)
     if args.json:
@@ -939,7 +980,7 @@ def build_parser() -> argparse.ArgumentParser:
     implement.add_argument("--parallel-kernel", default="process_chunk",
                            help="proved Rust kernel name for --parallel-wrapper")
     implement.add_argument("--parallel-out", help="generated parallel Rust destination")
-    implement.add_argument("--dependencies", choices=["stripe"],
+    implement.add_argument("--dependencies", choices=["stripe", "aws", "curl"],
                            help="fill a generated external adapter using a dependency SDK")
 
     check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
@@ -1083,6 +1124,9 @@ def build_parser() -> argparse.ArgumentParser:
     compose.add_argument("--no-esc", action="store_true",
                          help="stop after the check gate; claims only STATIC_CHECK")
     compose.add_argument("--actors", help="comma-separated actor names for concurrent model preflight")
+    compose.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java",
+                         help="composition lane: java renders JML + OpenJML; rust/c/cpp render"
+                              " one native compilation unit proved by Prusti/Frama-C/ESBMC")
     reverify = sub.add_parser(
         "reverify", help="re-prove composition after a reviewed module changed")
     reverify.add_argument("artifact")
@@ -1113,6 +1157,8 @@ def build_parser() -> argparse.ArgumentParser:
     unified.add_argument("--evidence", required=True)
     unified.add_argument("--out-dir", required=True)
     unified.add_argument("--lang", choices=["java", "rust", "c", "cpp"], default="java")
+    unified.add_argument("--v2-dir", default=None,
+                         help="reviewed V2 directory for non-java composition lowering")
     unified.add_argument("--json")
     analyze = sub.add_parser("analyze-codebase", help="extract unreviewed architecture/domain candidates")
     analyze.add_argument("target_dir")

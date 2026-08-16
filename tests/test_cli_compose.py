@@ -138,3 +138,86 @@ class ComposeCliTests(unittest.TestCase):
         self.assertEqual(args.changed_module, "smart_lock")
         self.assertIn("compose", cli._REPL_COMMANDS)
         self.assertIn("reverify", cli._REPL_COMMANDS)
+
+
+class PolyglotComposeCliTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.artifact = self.root / "composition.json"
+        self.artifact.write_text(json.dumps(composition_value()), encoding="utf-8")
+        self.output = io.StringIO()
+        self.ui = cli.TerminalUI(
+            Console(file=self.output, force_terminal=False, width=120),
+            lambda _prompt: "answer")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def _args(self, **overrides):
+        values = {"artifact": str(self.artifact), "v2_dir": None, "out_dir": None,
+                  "json": None, "no_esc": False, "lang": "rust", "actors": None}
+        values.update(overrides)
+        return SimpleNamespace(**values)
+
+    def test_compose_lang_rust_routes_to_polyglot_verifier(self):
+        verdict = {"status": "COMPOSITION_VERIFIED",
+                   "claim": "SYSTEM_COMPOSITION_PROOF",
+                   "scope": "single_compilation_unit_native_contract_composition",
+                   "disclaimer": "unproved boundaries remain",
+                   "files": {"GateSystem.rs": "pub struct GateSystem;"}}
+        out_dir = self.root / "out"
+        json_path = self.root / "verdict.json"
+        with patch("pipeline.polyglot_composition.verify_polyglot_composition",
+                   return_value=verdict) as verify:
+            code = cli.command_compose(
+                self._args(out_dir=str(out_dir), json=str(json_path)), self.ui)
+        self.assertEqual(code, 0)
+        self.assertEqual(verify.call_args.kwargs["language"], "rust")
+        self.assertTrue(verify.call_args.kwargs["run_esc"])
+        self.assertEqual((out_dir / "GateSystem.rs").read_text(encoding="utf-8"),
+                         "pub struct GateSystem;")
+        self.assertEqual(
+            json.loads(json_path.read_text(encoding="utf-8"))["claim"],
+            "SYSTEM_COMPOSITION_PROOF")
+        self.assertIn("SYSTEM_COMPOSITION_PROOF", self.output.getvalue())
+
+    def test_compose_lang_failure_exits_nonzero_without_writing(self):
+        verdict = {"status": "UNSUPPORTED_BOUNDARY", "claim": "NO_PROOF",
+                   "message": "unsupported composition language: cobol"}
+        out_dir = self.root / "out"
+        with patch("pipeline.polyglot_composition.verify_polyglot_composition",
+                   return_value=verdict):
+            code = cli.command_compose(self._args(lang="cobol"), self.ui)
+        self.assertEqual(code, 1)
+        self.assertFalse(out_dir.exists())
+
+    def test_unified_system_lang_rust_lowers_through_polyglot_composition(self):
+        verdict = {"status": "COMPOSITION_VERIFIED",
+                   "claim": "SYSTEM_COMPOSITION_PROOF",
+                   "files": {"GateSystem.rs": "pub struct GateSystem;"}}
+        out_dir = self.root / "src"
+        json_path = self.root / "unified.json"
+        with patch("pipeline.polyglot_composition.verify_polyglot_composition",
+                   return_value=verdict) as verify:
+            code = cli.command_unified_system(SimpleNamespace(
+                artifact=str(self.artifact), evidence=str(self.root / "evidence.json"),
+                out_dir=str(out_dir), lang="rust", v2_dir=None,
+                json=str(json_path)), self.ui)
+        self.assertEqual(code, 0)
+        self.assertEqual(verify.call_args.kwargs["language"], "rust")
+        self.assertEqual((out_dir / "GateSystem.rs").read_text(encoding="utf-8"),
+                         "pub struct GateSystem;")
+
+        with patch("pipeline.polyglot_composition.verify_polyglot_composition",
+                   return_value={"status": "RESOLUTION_FAILED", "claim": "NO_PROOF"}):
+            code = cli.command_unified_system(SimpleNamespace(
+                artifact=str(self.artifact), evidence=str(self.root / "evidence.json"),
+                out_dir=str(self.root / "src2"), lang="c", v2_dir=None,
+                json=None), self.ui)
+        self.assertEqual(code, 1)
+
+        code = cli.command_unified_system(SimpleNamespace(
+            artifact=str(self.root / "missing.json"), evidence="e",
+            out_dir=str(out_dir), lang="rust", v2_dir=None, json=None), self.ui)
+        self.assertEqual(code, 2)

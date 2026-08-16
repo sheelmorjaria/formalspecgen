@@ -229,7 +229,7 @@ FormalSpecGen covers five connected workflows:
 | --- | --- | --- |
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
-| Hexagonal integration | `compose` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use; `external_io_safety_proved: false` |
+| Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 
@@ -964,6 +964,29 @@ formalspecgen compose composition.json --out-dir out/ --json verdict.json
 formalspecgen reverify composition.json --changed-module smart_lock --json reverify.json
 ```
 
+The same artifact can be lowered onto the native lanes with `--lang rust|c|cpp`
+(`pipeline/polyglot_composition.py`): Ports become Rust `#[requires]`/`#[ensures]` traits,
+C function-pointer structs (`struct PaymentGateway { bool (*charge)(int); }`), or C++ pure
+virtual classes; orchestrators inject the port (a generic `P: Trait` parameter for Rust —
+Prusti 0.2 cannot reason about `Box<dyn Trait>` fields — a `struct` pointer for C, a raw
+pointer member for C++) and call through it. The language-neutral core — parsing, binding
+resolution, SOLID lint, coupling analysis — is the same code the Java lane uses; only
+rendering and the judging prover differ:
+
+```bash
+formalspecgen compose composition.json --lang rust --out-dir out/ --json verdict.json
+```
+
+Each composition renders into ONE verified compilation unit per language (`.rs`, `.c`,
+`.cpp`) because Prusti, Frama-C WP, and ESBMC verify single files here; multi-crate and
+multi-translation-unit orchestration are out of scope. Generated external adapters are
+written as sibling scaffolding files and never enter the prover input. A successful rust/c
+run reports `SYSTEM_COMPOSITION_PROOF` under scope
+`single_compilation_unit_native_contract_composition`; C++ is bounded-model-checked, so its
+ceiling is `BOUNDED_SYSTEM_COMPOSITION_PROOF` with `bounded_only: true`. Exit-0 units that
+carry no native obligation are `VACUOUS_COMPOSITION`. Real-Prusti coverage lives in
+`tests_e2e/test_polyglot_composition_e2e.py`.
+
 A successful run reports `COMPOSITION_VERIFIED` with claim `SCOPED_COMPOSITION_PROOF` and
 scope `single_threaded_atomic_contract_composition`. Because the reviewed V2 effects fully
 determine component behavior, composition transcribes them into deterministic Java method
@@ -984,8 +1007,12 @@ linearizability (a `lock_protocol` abstraction and a separate linearizability pr
 required) nor distributed asynchrony (message queues, duplication, and eventual consistency
 are not modeled), and it binds the single reviewed implementation per component rather than
 proving arbitrary dynamic dispatch. Exit-0 compositions that discharge no obligation are
-reported as `VACUOUS_COMPOSITION`, not proof. An unreviewed example artifact lives at
-`domains/examples/composition/secure_entry.composition.json`.
+reported as `VACUOUS_COMPOSITION`, not proof. The polyglot lanes add two of their own
+boundaries: the C and C++ orchestrators currently render external-Port steps only (mixed
+core+Port use cases return `UNSUPPORTED_BOUNDARY` on those lanes; Rust renders both), and
+polyglot `apply-refactor` remains future work — the modernization chain (`inspect` →
+`apply-refactor` → `verify-refactor`) is still Java-only. An unreviewed example artifact
+lives at `domains/examples/composition/secure_entry.composition.json`.
 
 ### System decomposition
 
@@ -1343,13 +1370,21 @@ Generated adapter stubs can receive a provider-backed SDK implementation pass:
 ```bash
 formalspecgen implement StripePaymentGateway.java --dependencies stripe \
   --provider ollama --json stripe-injection.json
+formalspecgen implement AwsUploader.rs --dependencies aws \
+  --provider ollama --json aws-injection.json
+formalspecgen implement HttpClient.cpp --dependencies curl \
+  --provider ollama --json curl-injection.json
 ```
 
 This pass is restricted to files carrying the `UNVERIFIED EXTERNAL BOUNDARY` marker. It preserves
-the adapter's class/interface and JML surface, changes only method bodies, and records
+the adapter's class/interface and JML surface (Rust: the trait impl signature plus every
+`#[requires]`/`#[ensures]`; C++: the virtual signatures and assertion guards), changes only
+method bodies, and records
 `UNVERIFIED_EXTERNAL_ADAPTER` with `external_io_safety_proved: false`. Provider output that removes
 the marker or changes the trusted surface fails closed; the adapter remains excluded from
-composition ESC even after SDK calls are injected.
+composition ESC even after SDK calls are injected. Rust adapters are filled with `aws-sdk-s3`
+conventions and C++ adapters with libcurl; each dependency is gated to its language's file
+suffix, and C adapters have no SDK lane yet (`unsupported_dependency`).
 
 ### Restricted Factory Method application
 

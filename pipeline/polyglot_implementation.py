@@ -86,7 +86,8 @@ def c_trusted_surface(code: str) -> dict:
 
 _CPP_CLASS = re.compile(r"(?m)^\s*(?:class|struct)\s+[A-Za-z_]\w*\s*(?::[^{;]*)?\{")
 _CPP_METHOD = re.compile(
-    r"(?m)^\s*(?:public:|private:|protected:|\s)*"
+    r"(?m)^(?!\s*(?:return|throw|delete|goto|co_return|co_await)\b)\s*"
+    r"(?:public:|private:|protected:|\s)*"
     r"(?:virtual\s+|static\s+|inline\s+)*[A-Za-z_][\w:<>,\s*&]*\s+"
     r"[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?(?:override\s*)?(?:;|\{)")
 _CPP_ASSERT = re.compile(r"(?m)\bassert\s*\([^;]+\)\s*;")
