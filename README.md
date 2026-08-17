@@ -3,6 +3,10 @@
 FormalSpecGen is a terminal-first, human-in-the-loop tool for turning natural-language requirements
 into reviewed formal contracts, bounded architecture evidence, and deductively verified code.
 
+The design thesis — the LLM proposes, deterministic compilers transform, formal tools judge, and
+humans control trusted assumptions — is written up with the full six-port production evidence in
+[`docs/THE_ENCODING_ARTIFACT.md`](docs/THE_ENCODING_ARTIFACT.md).
+
 ### Optional MCP server
 
 FormalSpecGen exposes an optional Model Context Protocol façade for structured agent access:
@@ -393,12 +397,19 @@ FormalSpecGen covers five connected workflows:
 
 ### Post-push roadmap progress
 
-The following milestones were added after the v1.0.0 tag push:
+The following milestones were added after the v1.0.0 tag push. Release lineage:
+v1.0.0 → v2.1.0 → v2.3.0 → v2.3.1 → v2.4.0 → v2.4.1 → v3.0.0 → v3.3.0 → v3.5.0 →
+v3.6.0 → v3.7.0 → v3.8.0 → v3.9.0 → v3.10.0 → v3.11.0 (Tomcat, the first Java
+production port) → v3.12.0 (the six-CWE hardening agent) → v4.0.0 (the Encoding
+Artifact paper and release).
 
 Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `c367d3a`,
 `692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`, then `90f7015`, `fcb2767`, and
-`ff97364` (v2.3.0), `84175b3`, `24f552e`, `2c94f02`, `61c4f61` (v2.3.1), and `99623a8`
-(v2.4.0).
+`ff97364` (v2.3.0), `84175b3`, `24f552e`, `2c94f02`, `61c4f61` (v2.3.1), `99623a8`
+(v2.4.0), `47dc680` (v3.3.0, lwIP), `f790111` (v3.6.0, Redis), `17d3e78` (v3.7.0,
+postfix counters), `41f7c84` (v3.8.0, LevelDB/C++), `e1372be` (v3.9.0, bounded-pool),
+`be6c9d1` (v3.10.0, auto-strategy router), `bd82e45` (v3.11.0, Tomcat), and `3cad3bb`
+(v3.12.0, hardening strategies).
 
 - Narrow deterministic State, Decorator, and Facade profiles now emit multifile candidates with
   explicit heap-topology and callback/state limitations. Their outputs still require the
@@ -1870,7 +1881,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 972
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1158
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
