@@ -621,3 +621,67 @@ def test_lock_timeout_without_trylock_fails_closed(tmp_path):
     assert result["code"] == "strategy_not_satisfied"
     assert "tryLock" in result["message"]
     verify.assert_not_called()
+
+
+# --------------------------------- M17: reject-by-exception at the boundary ---
+
+POOL_EXCEPTION_REWRITE = """public class Server {
+    public static class CapacityReachedException extends Exception {
+        //@ assignable \\nothing;
+        //@ ensures true;
+        public CapacityReachedException() { super(); }
+    }
+
+    public int acquired;
+    public int capacity;
+
+    //@ requires capacity > 0 && capacity <= 5529;
+    public Server(int capacity) { this.capacity = capacity; this.acquired = 0; }
+
+    //@ requires acquired >= 0;
+    //@ ensures acquired >= 0 && acquired <= capacity;
+    //@ signals (CapacityReachedException e) acquired == capacity;
+    //@ assignable acquired;
+    public void accept(int s) throws CapacityReachedException {
+        if (acquired == capacity) { throw new CapacityReachedException(); }
+        acquired = acquired + 1;
+    }
+}
+"""
+
+
+def test_bounded_pool_exception_rejection_flows_to_prover(tmp_path):
+    """The reject-when-full boundary may be either a boolean false return or
+    a dedicated exception whose JML signals clause pins the throw to the
+    capacity boundary — Z3 judges which paths can throw."""
+    result, verify, chat = _run_strategy(
+        tmp_path, DYNAMIC_QUEUE, "CWE-400", "bounded-pool",
+        POOL_EXCEPTION_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "bounded-pool"
+    prompt = chat.return_value.call_args_list[0].args[0][1]["content"]
+    assert "CapacityReachedException" in prompt
+    verify.assert_called()
+
+
+def test_unguarded_capacity_throw_fails_closed(tmp_path):
+    """A rewrite that throws the capacity exception without a capacity guard
+    (an unconditional or unrelated-condition throw) never reaches the
+    prover."""
+    sneaky = """public class Server {
+    public static class CapacityReachedException extends Exception {}
+
+    public int acquired;
+    public int capacity;
+
+    //@ requires acquired >= 0 && acquired <= capacity;
+    public void accept(int s) throws CapacityReachedException {
+        throw new CapacityReachedException();
+    }
+}
+"""
+    result, verify, _ = _run_strategy(
+        tmp_path, DYNAMIC_QUEUE, "CWE-400", "bounded-pool", sneaky)
+    assert result["code"] == "strategy_not_satisfied"
+    assert "unguarded" in result["message"]
+    verify.assert_not_called()

@@ -32,7 +32,11 @@ _STRATEGY_GUIDANCE = {
         "(LinkedList, ArrayList, HashMap, HashSet, new Node) with a pre-allocated "
         "fixed-size array or object pool of at most 1000 entries plus integer "
         "indices (next_index, head, free_list). No heap allocation may remain in "
-        "the corrected code except fixed-size array creation."),
+        "the corrected code except fixed-size array creation. When the pool is "
+        "full, either return an explicit failure value or throw a dedicated "
+        "CapacityReachedException ONLY under a capacity guard, with a JML "
+        "signals clause pinning the throw to the boundary "
+        "(signals (CapacityReachedException e) acquired == capacity)."),
     "bounded-cache": (
         "Strategy bounded-cache: replace unbounded maps with parallel fixed-size "
         "arrays (String[] keys, int[] values, capacity 100) and a count field. "
@@ -47,7 +51,12 @@ _STRATEGY_GUIDANCE = {
         "requires capacity > 0 && capacity <= CAP and ensures count <= CAP, and "
         "give acquire the explicit reject-when-full postcondition "
         "\\result == (old count < CAP). Objects may be allocated on demand; the "
-        "BOUND is what must be fixed."),
+        "BOUND is what must be fixed. The rejection may equally be a dedicated "
+        "CapacityReachedException thrown ONLY under the capacity guard, with the "
+        "signals postcondition signals (CapacityReachedException e) "
+        "acquired == capacity pinning the throw to the boundary; whether the "
+        "caller then applies backpressure, enters a fail-safe mode, or spills "
+        "to a queue is a deployment decision outside this correction."),
     # Hardening strategies: each targets its own weakness class rather than
     # capacity. Same rule as the bounding set — the residual check is a
     # NECESSARY condition only; the prover still judges the contract.
@@ -97,6 +106,13 @@ _POOL_WITHOUT_CAPACITY = re.compile(
     r"new\s+(?:[\w.$]+\.)*BoundedPool\s*(?:<[^>]*>)?\s*\(\s*\)")
 _CAPACITY_ARGUED = re.compile(r"<=?\s*capacity\b|\bcapacity\s*[<>=]")
 _COLLECTION_API = re.compile(r"\.\s*(?:add|remove)\s*\(")
+# M17: reject-by-exception is a legitimate boundary behavior, but the throw
+# must live under a capacity-arguing guard (the signals clause then pins it
+# to the boundary; Z3 judges the exceptional paths).
+_THROW = re.compile(r"throw\s+new\s+\w*(?:Exception|Error)")
+_CAPACITY_GUARDED_THROW = re.compile(
+    r"if\s*\([^)]*\b(?:capacity|acquired|count|size|next_index)\b[^)]*\)\s*"
+    r"\{[^{}]*?throw\s+new", re.S)
 
 # Hardening-strategy shape evidence. Each residual set is a NECESSARY
 # condition: the rewrite must carry its strategy's idiom and must not keep
@@ -130,6 +146,11 @@ def _strategy_residuals(strategy: str, source: str) -> list[str]:
         residuals = [pattern for pattern in _DYNAMIC_STRUCTURES if pattern in source]
         residuals += [match for match in re.findall(r"new\s+\w+\s*\(", source)
                       if not re.match(r"new\s+\w+\s*\[\s*\d*\s*\]", match)]
+        if _THROW.search(source) and not _CAPACITY_GUARDED_THROW.search(source):
+            residuals.append("unguarded capacity throw (a reject-by-exception "
+                             "rewrite must throw only under a capacity guard, "
+                             "with a signals clause pinning the throw to the "
+                             "boundary)")
     elif strategy == "bounded-pool":
         # On-demand allocation is the POINT of a pool, so non-array `new` is
         # allowed — but the collection must be gone, the collection API must
@@ -144,6 +165,11 @@ def _strategy_residuals(strategy: str, source: str) -> list[str]:
             residuals.append("no explicit capacity bound (a bounded-pool "
                              "rewrite must argue a capacity: requires/"
                              "ensures count <= capacity or a < capacity guard)")
+        if _THROW.search(source) and not _CAPACITY_GUARDED_THROW.search(source):
+            residuals.append("unguarded capacity throw (a reject-by-exception "
+                             "rewrite must throw only under a capacity guard, "
+                             "with a signals clause pinning the throw to the "
+                             "boundary)")
     elif strategy == "checked-math":
         if not _OVERFLOW_CHECKED.search(source):
             residuals.append("no checked arithmetic (a checked-math rewrite "

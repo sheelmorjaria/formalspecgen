@@ -231,3 +231,55 @@ public class Server {
     assert "acquired < capacity" in corrected
     assert "sockets.add" not in corrected
     assert result["memory_footprint_bytes"] == 76 * 12
+
+
+DYNAMIC_POOL_SRC = """import java.util.LinkedList;
+
+public class Server {
+    private LinkedList<Integer> sockets = new LinkedList<>();
+    public void accept(int s) { sockets.add(s); }
+}
+"""
+
+POOL_EXCEPTION = """public class Server {
+    public static class CapacityReachedException extends Exception {
+        //@ assignable \\nothing;
+        //@ ensures true;
+        public CapacityReachedException() { super(); }
+    }
+
+    public int acquired;
+    public int capacity;
+
+    //@ requires capacity > 0;
+    //@ ensures capacity == \\old(capacity) && acquired == 0;
+    public Server(int capacity) { this.capacity = capacity; this.acquired = 0; }
+
+    //@ requires acquired >= 0 && acquired <= capacity;
+    //@ ensures acquired >= 0 && acquired <= capacity;
+    //@ ensures \\old(acquired) < capacity ==> acquired == \\old(acquired) + 1;
+    //@ signals (CapacityReachedException e) \\old(acquired) == capacity;
+    //@ assignable acquired;
+    public void accept(int s) throws CapacityReachedException {
+        if (acquired == capacity) { throw new CapacityReachedException(); }
+        acquired = acquired + 1;
+    }
+}
+"""
+
+
+def test_exception_rejection_at_capacity_proves_with_real_openjml(tmp_path):
+    """M17: the reject-by-exception boundary — Z3 proves the acquire throws
+    CapacityReachedException ONLY at the capacity boundary (the signals
+    clause) and advances otherwise."""
+    if not _openjml_available():
+        pytest.skip("OpenJML unavailable")
+    source = tmp_path / "Server.java"
+    source.write_text(DYNAMIC_POOL_SRC, encoding="utf-8")
+    with patch("pipeline.behavior_correction._chat_fn") as chat:
+        chat.return_value.return_value = (POOL_EXCEPTION, "fixture", {})
+        result = correct_behavior(source, "CWE-400", tmp_path / "out",
+                                  strategy="bounded-pool")
+    assert result["status"] == "BEHAVIOR_CORRECTION_VERIFIED", result
+    assert result["strategy"] == "bounded-pool"
+    assert result["formal_proof"] == "DEDUCTIVE_PROOF"

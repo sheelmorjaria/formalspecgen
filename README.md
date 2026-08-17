@@ -211,12 +211,28 @@ contract-preserving refactor. Three strategies are supported:
   a count field and `requires count < 100` on mutation
 - `--strategy bounded-pool` — dynamic collections become a bounded object pool
   (`BoundedPool<T>(capacity)` with `acquire`/`release`): the Linux-kernel/HFT middle
-  ground. Objects are allocated on demand — only the **bound** is fixed — and `acquire`
-  returns `false` when the pool is full (the reject-when-full postcondition
-  `\result == (\old(count) < capacity)` is what Z3 proves). The pre-prover check fails
-  closed if the rewrite keeps a dynamic collection, still calls the collection API
-  (`.add`/`.remove` must map to `acquire`/`release`), constructs `new BoundedPool()`
-  with no capacity, or never argues an explicit capacity bound
+  ground. Objects are allocated on demand — only the **bound** is fixed — and the
+  rejection at capacity is part of the *proof*: either `acquire` returns `false` (the
+  reject-when-full postcondition `\result == (\old(count) < capacity)` is what Z3
+  proves) **or** a dedicated `CapacityReachedException` is thrown under the capacity
+  guard with the boundary pinned by `signals (CapacityReachedException e)
+  \old(acquired) == capacity` — Z3 proves the exception fires exactly at the boundary
+  and the count advances otherwise (the exception's constructor needs an explicit
+  `assignable \nothing` frame for the caller's frame condition to verify). The
+  pre-prover check fails closed if the rewrite keeps a dynamic collection, still calls
+  the collection API (`.add`/`.remove` must map to `acquire`/`release`), constructs
+  `new BoundedPool()` with no capacity, never argues an explicit capacity bound, or
+  throws the capacity exception **unguarded** (not under a capacity comparison).
+
+What the caller does at the boundary is a deployment decision the correction
+deliberately leaves to the human — the proven fact is only *that* work beyond capacity
+is rejected, never silently absorbed:
+
+| Deployment | Boundary handling |
+| --- | --- |
+| Cloud/enterprise | **Backpressure** — catch at the API boundary, return 503/429, emit `pool_full_total` so an autoscaler reacts |
+| Embedded/RTOS (DO-178C / ISO 26262) | **Fail-safe mode** — propagate to the safety supervisor, which halts the task and transitions to a safe deterministic state |
+| Stream processing | **Spill** — write the rejected item to a disk-backed queue for later processing |
 
 #### Hardening strategies (the wider correction vocabulary)
 
@@ -1881,7 +1897,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1158
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1160
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
