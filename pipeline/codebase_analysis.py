@@ -182,7 +182,7 @@ def _brace_matched(text: str, start: int) -> str:
 
 _C_FUNCTION = re.compile(
     r"(?m)^[ \t]*(?:static\s+|const\s+|inline\s+)*"
-    r"(?P<ret>\w+)\s+(?P<name>\w+)\s*\([^;{}]*\)\s*\{")
+    r"(?P<ret>\w+)\s+(?P<name>\w+(?:::\w+)*)\s*\([^;{}]*\)\s*\{")
 
 
 def _c_void_functions(text: str) -> list[tuple[str, str]]:
@@ -195,7 +195,10 @@ def _c_void_functions(text: str) -> list[tuple[str, str]]:
     """
     functions = []
     for header in _C_FUNCTION.finditer(text):
-        functions.append((header.group("name"), _brace_matched(text, header.end())))
+        # C++ out-of-line methods qualify the name (Reader::ReadPhysicalRecord);
+        # op names use the unqualified method tail.
+        functions.append((header.group("name").split("::")[-1],
+                          _brace_matched(text, header.end())))
     return functions
 
 
@@ -616,7 +619,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
     # live in .c files: share one enum map across the analyzed C-family tree.
     c_enums: dict[str, int] = {}
     for source in sources:
-        if source.suffix.lower() in {".c", ".h"}:
+        if source.suffix.lower() in {".c", ".h", ".cc", ".cpp", ".cxx"}:
             try:
                 c_enums.update(parse_c_enums(source.read_text(encoding="utf-8")))
             except (OSError, UnicodeError):
@@ -654,7 +657,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 state = []
                 unbounded = False
                 suffix = source.suffix.lower()
-                enums = c_enums if suffix in {".c", ".h"} else {}
+                enums = c_enums if suffix in {".c", ".h", ".cc", ".cpp", ".cxx"} else {}
                 inferred = infer_field_bounds(text, fields, enums=enums or None,
                                               _index=file_bounds_index)
                 for field_name, field_type in fields:
@@ -682,7 +685,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                     registered = _register_candidate(Path(project_root), name, fields,
                                                       transitions, bounds=inferred)
                     domains.append(str(registered))
-                elif suffix in {".c", ".h"}:
+                elif suffix in {".c", ".h", ".cc", ".cpp", ".cxx"}:
                     c_structs.setdefault(name, fields)
                     c_texts.setdefault(name, text)
     # Production C splits the struct (header) from its transitions (.c files):
@@ -695,7 +698,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
         combined = "\n".join(c_texts.values())
         all_transitions: list[dict] = []
         for source in sources:
-            if source.suffix.lower() != ".c":
+            if source.suffix.lower() not in {".c", ".cc", ".cpp", ".cxx"}:
                 continue
             try:
                 text = source.read_text(encoding="utf-8")

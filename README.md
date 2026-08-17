@@ -815,7 +815,11 @@ the increment is a side effect of evaluating the condition, so both branch value
 increment), postfix effects inside boolean guards (`if (dev->flag) { dev->count++; }`),
 comparison-guarded counters (`if (dev->count < N) { dev->count++; }`), and
 `while (dev->field) { ... field--; }` loops (abstracted to an unconditional transition,
-reported as an over-approximation). The guard and effect are
+reported as an over-approximation). **C++ sources participate fully**: `.cc`/`.cpp`/`.cxx`
+translation units are preprocessed with `g++ -E` and join the same C-family two-pass —
+structs/classes register as candidates, enums resolve, switch dispatch and postfix
+counters infer, and out-of-line method definitions (`Status Reader::ReadPhysicalRecord`)
+match with their unqualified name. The guard and effect are
 compiled through the strict JML expression parser into the recursive V2
 expression AST; no LLM infix text is stored in the
 candidate. Guards accept `==`, `!=`, `<=`, `>=`, `<`, `>`; effects are literal state

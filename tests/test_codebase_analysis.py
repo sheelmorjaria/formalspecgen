@@ -48,9 +48,12 @@ def test_analyze_codebase_extracts_rust_c_and_cpp_components(tmp_path):
     names = {item["name"] for item in result["components"]}
     assert names == {"Counter", "Meter", "Gauge"}
     assert {item["language"] for item in result["components"]} == {"rs", "c", "cpp"}
-    # skeletons for all three languages, plus the C V2 candidate registration
-    assert len(result["domains"]) == 4
+    # skeletons for all three languages, plus C AND C++ V2 candidate
+    # registrations (the C-family transition pass covers cpp since M12)
+    assert len(result["domains"]) == 5
     assert any(str(path).endswith("domains/candidates/meter.v2.yaml")
+               for path in result["domains"])
+    assert any(str(path).endswith("domains/candidates/gauge.v2.yaml")
                for path in result["domains"])
 
 

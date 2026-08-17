@@ -598,6 +598,61 @@ void bump(void) {
                                 [("level", "int"), ("other", "int")]) == []
 
 
+# ------------------------------------------------- M12: C++ transition inference ---
+
+LEVELDB_SHAPE = """enum RecordType { kZeroType = 0, kFullType = 1, kFirstType = 2,
+                 kMiddleType = 3, kLastType = 4 };
+
+struct Reader {
+    int record_state;
+    int eof_counter;
+};
+
+Status Reader::ReadPhysicalRecord(Reader* r) {
+    switch (r->record_state) {
+        case kZeroType:
+            r->record_state = kFullType;
+            break;
+        case kFirstType:
+            r->record_state = kMiddleType;
+            break;
+        case kMiddleType:
+            r->record_state = kLastType;
+            break;
+        case kLastType:
+            r->record_state = kZeroType;
+            break;
+        default:
+            break;
+    }
+    if (r->eof_counter < 3) { r->eof_counter++; }
+    return Status();
+}
+"""
+
+
+def test_cc_source_registers_candidate_with_switch_transitions(tmp_path):
+    source = tmp_path / "wal"; source.mkdir()
+    (source / "log_reader.cc").write_text(LEVELDB_SHAPE, encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    assert result["status"] == "EXTRACTED"
+    registered = tmp_path / "domains" / "candidates" / "reader.v2.yaml"
+    assert registered.exists(), "C++ sources must register V2 candidates"
+    import yaml
+    payload = yaml.safe_load(registered.read_text(encoding="utf-8"))
+    assert payload["domain_name"] == "Reader"
+    names = {op["name"] for op in payload["operations"]}
+    # switch dispatch fires (the switch-first rule subsumes the trailing
+    # postfix counter for the same function, as in the lwIP lane)
+    assert {"ReadPhysicalRecord_kzerotype", "ReadPhysicalRecord_kfirsttype",
+            "ReadPhysicalRecord_kmiddletype", "ReadPhysicalRecord_klasttype"} <= names
+    state = next(v for v in payload["state_variables"]
+                 if v["name"] == "record_state")
+    # register-time inference conservatively bounds at max transition
+    # constant + 1 (kLastType=4); the reviewer tightens to the enum extent
+    assert state["bound"] == [0, 5]
+
+
 # ------------------------------------------------ M8: TinyUSB dialect ---
 
 TINYUSB_SHAPE = """typedef struct {
