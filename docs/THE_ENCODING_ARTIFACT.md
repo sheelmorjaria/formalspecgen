@@ -216,6 +216,22 @@ the lane refuses allocations that cannot physically fit (`hardware_bound_exceede
 deterministically — no LLM — to V2 candidate YAMLs, clamping state bounds to the
 derived capacity; proof stays downstream with TLC and promotion.
 
+**The proven rejection boundary.** Rejecting work beyond the capacity is not a
+runtime convention bolted on after the fact — it is the proof obligation. The
+boundary is proved in whichever native idiom the lane speaks: Java pins a dedicated
+exception to the boundary with `signals (CapacityReachedException e)
+\old(acquired) == capacity` (Z3 proves the throw fires exactly at
+`acquired == capacity` and the count advances otherwise; the exception constructor
+needs an explicit `assignable \nothing` frame or the caller's frame check fails);
+Rust proves `Result::is_err()` at the boundary and the advance otherwise under
+Prusti; C proves the errno-style `-1` return through two complete-and-disjoint ACSL
+behaviors under Frama-C WP; C++ checks the throw path under ESBMC's bounded
+exploration. What the caller does at the boundary — backpressure (503/429 plus an
+autoscaler metric), a fail-safe mode under a safety supervisor, or spill to a
+disk-backed queue — is a deployment decision the correction deliberately leaves to
+the human. The proven fact is only *that* work beyond capacity is rejected, never
+silently absorbed.
+
 ### 6.2 Hardening strategies (CWE-190/667/79/617/362)
 
 Five further strategies give the lane a vocabulary beyond capacity: `checked-math`
