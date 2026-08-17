@@ -994,3 +994,20 @@ void connection_recycle(struct Connection *c) {
     _infer_c_transitions(source, [("conn_state", "int")], notes=notes)
     assert any("POTENTIAL_LIFECYCLE_RESET" in n and "connection_recycle" in n
                and "conn_state" in n for n in notes)
+
+
+def test_lifecycle_notes_without_channel_and_ctor_skip():
+    """The notes channel is optional (no-op without it) and constructors
+    never contribute lifecycle functions."""
+    from pipeline.codebase_analysis import _lifecycle_notes
+    _lifecycle_notes([("recycle", "x = 0;")], {"x"})   # notes=None: silent
+    from pipeline.codebase_analysis import _infer_java_transitions
+    with_ctor = """public class B {
+        public int x;
+        public B() { x = 0; }
+        void recycle() { x = 0; }
+    }
+"""
+    notes = []
+    _infer_java_transitions(with_ctor, [("x", "int")], notes=notes)
+    assert any("recycle" in n and "POTENTIAL_LIFECYCLE_RESET" in n for n in notes)

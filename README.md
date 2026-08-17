@@ -16,13 +16,19 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 21 tools covering the full verification surface: `verify_code`,
+The server exposes 23 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
 `verify_bisimulation`, `optimize_algorithm`, `discover_algorithms`,
-`validate_domain`, `compose`, `reverify_composition`, `unified_system`, and
-`draft_canonical_contract`. Inputs **and** outputs are restricted to the current
+`validate_domain`, `compose`, `reverify_composition`, `unified_system`,
+`draft_canonical_contract`, `architecture`, and `system`. `correct_behavior`
+accepts the full correction surface (`strategy`, `hardware`,
+`struct_size_bytes`, `auto_strategy`), `implement_code` accepts the
+`v2_reviewed_domain`/`v2_validation_evidence` refinement pair (and can mint
+`SOURCE_MODEL_REFINEMENT`), and `system` exposes all three orchestrator modes
+(`implement`, `refactor`, `correct` — the isolated one-CWE-per-subagent
+hardening pool). Inputs **and** outputs are restricted to the current
 workspace, and responses are structured verdict objects; the server never converts a
 tool failure into a success claim. LLM-backed tools (`remediate_code`,
 `correct_behavior`, `optimize_algorithm`, `discover_algorithms`, and the optional
@@ -1932,7 +1938,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1174
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1179
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

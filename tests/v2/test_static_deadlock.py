@@ -224,6 +224,9 @@ def test_three_valued_evaluator_branches():
     assert isinstance(_evaluate3(
         NotExpr(kind="not", expression=field("mystery")), env), type(UNKNOWN))
     assert isinstance(_evaluate3(field("absent"), env), type(UNKNOWN))
+    # OldExpr evaluates through to its inner expression
+    from pipeline.domain_v2 import OldExpr
+    assert _evaluate3(OldExpr(kind="old", expression=field("known")), env) == 3
     # unsupported nodes fail closed
     with pytest.raises(V2ValidationError):
         _evaluate3(object(), env)

@@ -198,3 +198,87 @@ def test_mcp_unified_system_and_canonical_draft_guarded(tmp_path, monkeypatch):
         result = mcp_server.draft_canonical_contract("smart_lock")
         draft.assert_called_once()
     assert result["evidence"]["claim"] == "REVIEWED_TRANSFORMATION"
+
+
+# --------------------------------------------------- M21: full MCP parity ---
+
+def test_mcp_architecture_tool_runs_the_bounded_tlc_gate(tmp_path, monkeypatch):
+    """Milestone 1: the `architecture` command (JML -> TLA+ -> TLC) exposed."""
+    source = _workspace(tmp_path, monkeypatch)
+    with patch("pipeline.tla_backend.generate_and_check",
+               return_value={"status": "VERIFIED",
+                             "claim": "BOUNDED_ARCHITECTURE_EVIDENCE"}) as gate:
+        result = mcp_server.architecture(str(source),
+                                         abstraction="atomic_operations")
+    assert result["claim"] == "BOUNDED_ARCHITECTURE_EVIDENCE"
+    gate.assert_called_once()
+    assert gate.call_args.kwargs["abstraction"] == "atomic_operations"
+
+
+def test_mcp_system_tool_dispatches_all_three_modes(tmp_path, monkeypatch):
+    """Milestone 1: the `system` orchestrator (implement/refactor/correct)."""
+    _workspace(tmp_path, monkeypatch)
+    plan = Path("plan.json")
+    plan.write_text('{"components": []}', encoding="utf-8")
+
+    with patch("pipeline.system_orchestrator.verify_system",
+               return_value={"status": "SYSTEM_SYNTHESIS_VERIFIED"}) as verify:
+        assert mcp_server.system("plan.json", out_dir="out")[
+            "status"] == "SYSTEM_SYNTHESIS_VERIFIED"
+        verify.assert_called_once()
+
+    with patch("pipeline.system_orchestrator.refactor_system",
+               return_value={"status": "SYSTEM_REFACTOR_VERIFIED"}) as refactor:
+        assert mcp_server.system("plan.json", mode="refactor",
+                                 out_dir="refactored")[
+            "status"] == "SYSTEM_REFACTOR_VERIFIED"
+        refactor.assert_called_once()
+
+    with patch("pipeline.system_orchestrator.correct_system",
+               return_value={"status": "SYSTEM_CORRECTION_VERIFIED"}) as correct:
+        assert mcp_server.system("plan.json", mode="correct",
+                                 out_dir="corrected")[
+            "status"] == "SYSTEM_CORRECTION_VERIFIED"
+        correct.assert_called_once()
+
+    assert mcp_server.system("plan.json", mode="teleport",
+                             out_dir="out")["code"] == "invalid_request"
+    assert mcp_server.system("plan.json", out_dir="../escape")[
+        "code"] == "path_outside_workspace"
+
+
+def test_mcp_correct_behavior_accepts_strategy_and_hardware(tmp_path, monkeypatch):
+    """Milestone 2: the M13-M17 hardening flags reach the correction lane."""
+    source = _workspace(tmp_path, monkeypatch)
+    hardware = Path("stm32.json")
+    hardware.write_text('{"total_sram_bytes": 1}', encoding="utf-8")
+    with patch("pipeline.behavior_correction.correct_behavior",
+               return_value={"status": "BEHAVIOR_CORRECTION_VERIFIED",
+                             "claims": ["HARDWARE_MEMORY_BOUND_PROVEN"]}) as correct:
+        result = mcp_server.correct_behavior(
+            str(source), "CWE-400", strategy="bounded-pool",
+            hardware="stm32.json", struct_size_bytes=16, auto_strategy=True)
+    assert result["status"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert "HARDWARE_MEMORY_BOUND_PROVEN" in result["claims"]
+    correct.assert_called_once()
+    kwargs = correct.call_args.kwargs
+    assert kwargs["strategy"] == "bounded-pool"
+    assert kwargs["hardware"].name == "stm32.json"
+    assert kwargs["struct_size_bytes"] == 16 and kwargs["auto_strategy"] is True
+
+
+def test_mcp_implement_code_accepts_v2_refinement_evidence(tmp_path, monkeypatch):
+    """Milestone 3: the SOURCE_MODEL_REFINEMENT gate is reachable."""
+    source = _workspace(tmp_path, monkeypatch)
+    domain = Path("domain.json"); domain.write_text("{}", encoding="utf-8")
+    evidence = Path("evidence.json"); evidence.write_text("{}", encoding="utf-8")
+    with patch("pipeline.orchestrator.run_implementation_loop",
+               return_value={"claim": "SOURCE_MODEL_REFINEMENT"}) as run:
+        result = mcp_server.implement_code(
+            str(source), v2_reviewed_domain="domain.json",
+            v2_validation_evidence="evidence.json")
+    assert result["claim"] == "SOURCE_MODEL_REFINEMENT"
+    run.assert_called_once()
+    kwargs = run.call_args.kwargs
+    assert kwargs["v2_reviewed_domain"].name == "domain.json"
+    assert kwargs["v2_validation_evidence"].name == "evidence.json"

@@ -92,10 +92,26 @@ def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, A
 
 
 def implement_code(spec_path: str, provider: str = "ollama",
-                   assurance_level: str = "critical") -> dict[str, Any]:
-    """Run the native implementation loop for a workspace source/spec scaffold."""
-    path = _workspace_path(spec_path)
-    return run_implementation_loop(path, provider=provider, assurance_level=assurance_level)
+                   assurance_level: str = "critical",
+                   v2_reviewed_domain: str | None = None,
+                   v2_validation_evidence: str | None = None) -> dict[str, Any]:
+    """Run the native implementation loop for a workspace source/spec scaffold.
+
+    Passing the reviewed-domain and validation-evidence pair enters the V2
+    refinement gate: a native proof then binds to the promoted candidate
+    hash and can mint SOURCE_MODEL_REFINEMENT.
+    """
+    from pipeline.orchestrator import run_implementation_loop
+    def run() -> dict[str, Any]:
+        domain = (_workspace_path(v2_reviewed_domain)
+                  if v2_reviewed_domain is not None else None)
+        evidence = (_workspace_path(v2_validation_evidence)
+                    if v2_validation_evidence is not None else None)
+        return run_implementation_loop(
+            _workspace_path(spec_path), provider=provider,
+            assurance_level=assurance_level,
+            v2_reviewed_domain=domain, v2_validation_evidence=evidence)
+    return _guarded(run)
 
 
 def inspect_code(file_path: str) -> dict[str, Any]:
@@ -155,12 +171,60 @@ def remediate_code(target: str, report: str, out_dir: str = "remediated",
 
 def correct_behavior(target: str, cwe: str, out_dir: str = "corrections",
                      provider: str = "ollama", model: str | None = None,
-                     max_attempts: int = 3) -> dict[str, Any]:
-    """Strengthen a contract per CWE and prove the corrected behavior with ESC."""
+                     max_attempts: int = 3, strategy: str | None = None,
+                     hardware: str | None = None,
+                     struct_size_bytes: int | None = None,
+                     auto_strategy: bool = False) -> dict[str, Any]:
+    """Strengthen a contract per CWE and prove the corrected behavior with ESC.
+
+    ``strategy`` selects one of the nine deterministic corrections (four
+    capacity-bounding strategies for CWE-400 plus the five hardening
+    strategies); ``hardware`` + ``struct_size_bytes`` derive the capacity
+    from silicon; ``auto_strategy`` routes the strategy from the code's
+    own shape (CWE-scoped, explicit opt-in).
+    """
     from pipeline.behavior_correction import correct_behavior as run_correction
+    profile = _workspace_path(hardware) if hardware is not None else None
     return _guarded(lambda: run_correction(
         _workspace_path(target), cwe, _workspace_path(out_dir, must_exist=False),
-        provider=provider, model=model, max_attempts=max_attempts))
+        provider=provider, model=model, max_attempts=max_attempts,
+        strategy=strategy, hardware=profile,
+        struct_size_bytes=struct_size_bytes, auto_strategy=auto_strategy))
+
+
+def architecture(stub_path: str, abstraction: str = "atomic_operations",
+                 clarifications: str = "") -> dict[str, Any]:
+    """Check a bounded JML architecture abstraction with the real TLC gate."""
+    from pipeline.tla_backend import generate_and_check
+    code = _workspace_path(stub_path).read_text(encoding="utf-8")
+    return _guarded(lambda: generate_and_check(
+        code, clarifications=clarifications, abstraction=abstraction))
+
+
+def system(plan_path: str, mode: str = "implement", out_dir: str = "runs/system",
+           max_workers: int = 4) -> dict[str, Any]:
+    """Run the parallel system orchestrator over an architecture artifact.
+
+    Modes mirror the CLI: ``implement`` (isolated component proofs plus the
+    composition gate), ``refactor`` (bounded extract-method modernization),
+    and ``correct`` (isolated one-CWE-per-subagent hardening sub-agents).
+    """
+    from pipeline import system_orchestrator
+    def dispatch() -> dict[str, Any]:
+        plan = _workspace_path(plan_path)
+        destination = _workspace_path(out_dir, must_exist=False)
+        if mode == "implement":
+            return system_orchestrator.verify_system(plan, out_dir=destination,
+                                                     max_workers=max_workers)
+        if mode == "refactor":
+            return system_orchestrator.refactor_system(plan, out_dir=destination,
+                                                       max_workers=max_workers)
+        if mode == "correct":
+            return system_orchestrator.correct_system(plan, out_dir=destination,
+                                                      max_workers=max_workers)
+        raise ValueError(f"unknown system mode {mode!r}: expected implement, "
+                         "refactor, or correct")
+    return _guarded(dispatch)
 
 
 def apply_refactor(source: str, inspection: str, pattern: str, method: str,
@@ -283,7 +347,7 @@ def create_server():
                  security_exploit, remediate_code, correct_behavior, apply_refactor,
                  verify_refactor, verify_bisimulation, optimize_algorithm,
                  discover_algorithms, validate_domain, compose, reverify_composition,
-                 unified_system, draft_canonical_contract):
+                 unified_system, draft_canonical_contract, architecture, system):
         server.tool()(tool)
     return server
 
