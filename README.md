@@ -227,6 +227,24 @@ the strengthened `requires/ensures` capacity bounds. A successful run mints
 `BEHAVIOR_CORRECTION_VERIFIED` with `mitigated_cwe: CWE-400` and `strategy` recorded in
 the evidence; real-OpenJML coverage lives in `tests_e2e/test_capacity_bounding_e2e.py`.
 
+#### Auto-strategy routing (the shape picks the correction)
+
+`--auto-strategy` is an explicit opt-in that replaces the human's `--strategy` choice with
+a deterministic router (`pipeline/correction_router.py` — no LLM, a pure function of the
+source text plus the optional hardware profile):
+
+| Detected shape | Routed strategy |
+| --- | --- |
+| `while (true)` / `while(1)` / `for (;;)` | `bound-loop` |
+| `new HashMap` / `HashSet` / `TreeMap` / … | `bounded-cache` |
+| `new LinkedList` / `ArrayList` / `ArrayDeque` / … or an injected collection's `.add`/`.put`/`.offer`/`.push` API | `bounded-pool` (collapses to `static-pool` when the profile-derived capacity is under 16 — the on-demand-allocation advantage is noise that small) |
+| none of the above | `no_routable_strategy` — fails closed to manual review |
+
+Routing only picks the strategy; it never weakens the downstream gates — the routed run
+passes through the same strategy residuals, hardware residuals, and ESC as an explicit
+`--strategy`, and the verdict records `strategy_routed: true` so reviewers can
+distinguish a router-chosen strategy from a human one.
+
 #### Hardware-aware bounding (physical SRAM limits drive the number)
 
 A bound of 1000 pulled from thin air is a heuristic. On DO-178C / ISO 26262 class

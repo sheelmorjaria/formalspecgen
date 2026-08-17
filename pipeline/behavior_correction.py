@@ -298,8 +298,16 @@ def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "correc
                      max_attempts: int = 3, strategy: str | None = None,
                      hardware: str | Path | None = None,
                      struct_size_bytes: int | None = None,
-                     safety_margin: float = 0.9) -> dict[str, Any]:
+                     safety_margin: float = 0.9,
+                     auto_strategy: bool = False) -> dict[str, Any]:
     source_path = Path(target)
+    if auto_strategy and source_path.suffix.lower() not in {".yaml", ".yml"}:
+        from .correction_router import auto_route_correction
+        return auto_route_correction(source_path, cwe, out_dir,
+                                     hardware=hardware,
+                                     struct_size_bytes=struct_size_bytes,
+                                     provider=provider, model=model,
+                                     max_attempts=max_attempts)
     if source_path.suffix.lower() in {".yaml", ".yml"}:
         return _correct_v2_candidate(source_path, cwe, out_dir, strategy,
                                      hardware, struct_size_bytes, safety_margin)

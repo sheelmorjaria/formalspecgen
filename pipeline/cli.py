@@ -435,7 +435,8 @@ def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
                               max_attempts=args.max_attempts,
                               strategy=getattr(args, "strategy", None),
                               hardware=getattr(args, "hardware", None),
-                              struct_size_bytes=getattr(args, "struct_size_bytes", None))
+                              struct_size_bytes=getattr(args, "struct_size_bytes", None),
+                              auto_strategy=getattr(args, "auto_strategy", False))
     _write_json(result, args.json or str(Path(args.out_dir) / "correction_verdict.json"), ui.console)
     ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
     return 0 if result["status"] in {"BEHAVIOR_CORRECTION_VERIFIED",
@@ -1064,6 +1065,10 @@ def build_parser() -> argparse.ArgumentParser:
                                 "(SRAM/stack limits; mints HARDWARE_MEMORY_BOUND_PROVEN)")
     correction.add_argument("--struct-size-bytes", type=int,
                            help="explicit element size for --hardware capacity derivation")
+    correction.add_argument("--auto-strategy", action="store_true",
+                           help="route the correction strategy from the code's own "
+                                "shape (deterministic; fails closed when nothing "
+                                "matches)")
     correction.add_argument("--out-dir", default="corrections")
     correction.add_argument("--max-attempts", type=int, default=3)
     correction.add_argument("--json")
