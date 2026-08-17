@@ -126,8 +126,8 @@ def resolve_bindings(spec: CompositionSpec,
             raise CompositionError(
                 f"reviewed V2 artifact for module {binding.module_name!r} not found at {path}")
         if os.getenv("FORMALSPECGEN_REQUIRE_SIGNATURES", "").lower() in {"1", "true", "yes"}:
-            authorized = {item.strip() for item in os.getenv("AUTHORIZED_REVIEWER_KEYS", "").split(",")
-                          if item.strip()} or None
+            from .trust import authorized_keys
+            authorized = authorized_keys()
             signature_result = verify_artifact_signature(
                 path, Path(str(path) + ".promotion.sig"), authorized)
             if signature_result["status"] != "SIGNATURE_VERIFIED":

@@ -438,8 +438,13 @@ postfix counters), `41f7c84` (v3.8.0, LevelDB/C++), `e1372be` (v3.9.0, bounded-p
   multifile refactor gate.
 - V2 promotions and refactor verdicts support optional detached GPG signatures. Signature
   verification, authorized-key policy, composition binding checks, and unified-system domain
-  loading are opt-in through `FORMALSPECGEN_REQUIRE_SIGNATURES=1` and
-  `AUTHORIZED_REVIEWER_KEYS`.
+  loading are opt-in through `FORMALSPECGEN_REQUIRE_SIGNATURES=1`; the authorized key set
+  comes from the legacy `AUTHORIZED_REVIEWER_KEYS` variable AND the managed
+  `trusted_keys.json` registry (`manage-trust --add-key alice.pub` extracts the key id via
+  `gpg --show-keys`, dedupes, and records provenance; `--remove-key`/`--list` round out the
+  lifecycle). `sign-artifact domains/v2/bank.json --key alice` writes the detached
+  `bank.json.sig` over any evidence artifact. A digest alone establishes artifact identity —
+  a verified signature from a registry-authorized key establishes who reviewed it.
 - Rust/C/C++ standard assurance now mints `STATIC_CHECKED_RUNTIME_TESTED` only after a passing
   instrumented runtime sample (generated tests under `rustc --test` with overflow checks for Rust,
   ASan+UBSan for C and C++). C proof-support includes indexed `\\valid` and `\\separated`
@@ -1938,7 +1943,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1179
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1187
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

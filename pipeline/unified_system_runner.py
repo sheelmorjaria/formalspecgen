@@ -15,6 +15,13 @@ def _sha(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _signature_gate_keys(registry: str | Path = "trusted_keys.json"):
+    """The authorized key set for the signature gate: the managed registry
+    merged with the legacy environment variable (None = any valid signer)."""
+    from .trust import authorized_keys
+    return authorized_keys(registry)
+
+
 def load_bound_artifact(artifact_path: str | Path, evidence_path: str | Path):
     artifact = json.loads(Path(artifact_path).read_text(encoding="utf-8"))
     evidence = json.loads(Path(evidence_path).read_text(encoding="utf-8"))
@@ -39,8 +46,7 @@ def _load_reviewed_domain(domain_name: str, domains_dir: Path):
     if value.get("review_status") != "reviewed":
         raise ValueError(f"DOMAIN_NOT_REVIEWED: {domain_name}")
     if os.getenv("FORMALSPECGEN_REQUIRE_SIGNATURES", "").lower() in {"1", "true", "yes"}:
-        authorized = {item.strip() for item in os.getenv("AUTHORIZED_REVIEWER_KEYS", "").split(",")
-                      if item.strip()} or None
+        authorized = _signature_gate_keys()
         result = verify_artifact_signature(path, Path(str(path) + ".promotion.sig"), authorized)
         if result["status"] != "SIGNATURE_VERIFIED":
             raise ValueError(f"CRITICAL: Cryptographic signature verification failed: {result['status']}")

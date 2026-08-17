@@ -721,6 +721,40 @@ def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0
 
 
+def command_sign_artifact(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Create a detached GPG signature over any evidence artifact."""
+    from .domain_v2_promotion import sign_artifact
+    try:
+        signature = sign_artifact(args.artifact, args.key)
+    except (ValueError, FileNotFoundError) as exc:
+        ui.console.print(f"[red]Signing failed:[/red] {exc}")
+        return 2
+    ui.console.print(f"Signature written to [path]{signature}[/path]")
+    return 0
+
+
+def command_manage_trust(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Add, remove, or list authorized reviewer keys in the trust registry."""
+    from . import trust
+    try:
+        if args.add_key:
+            result = trust.add_trusted_key(args.add_key, args.registry)
+        elif args.remove_key:
+            result = trust.remove_trusted_key(args.remove_key, args.registry)
+        else:
+            args.list_keys = True
+            result = None
+    except ValueError as exc:
+        ui.console.print(f"[red]Trust operation failed:[/red] {exc}")
+        return 2
+    if result is not None:
+        ui.console.print(f"{result['status']}: {result['key_id']} "
+                         f"({result['registry']})")
+    for item in trust.list_trusted_keys(args.registry):
+        ui.console.print(f"  trusted: {item['key_id']}  (from {item.get('source', '?')})")
+    return 0
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1145,6 +1179,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate_domain.add_argument("--project-root", default=".")
     validate_domain.add_argument("--emit-tla")
     promote = sub.add_parser("promote-domain", help="promote a reviewed candidate domain")
+    sign_cmd = sub.add_parser("sign-artifact",
+                              help="create a detached GPG signature over an artifact")
+    sign_cmd.add_argument("artifact")
+    sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    trust_cmd = sub.add_parser("manage-trust",
+                               help="manage the authorized-reviewer key registry")
+    trust_cmd.add_argument("--add-key", help="path to an exported public key")
+    trust_cmd.add_argument("--remove-key", help="key id to remove")
+    trust_cmd.add_argument("--list", dest="list_keys", action="store_true",
+                           help="list trusted keys (default when no action given)")
+    trust_cmd.add_argument("--registry", default="trusted_keys.json")
     promote.add_argument("name")
     promote.add_argument("--project-root", default=".")
     promote.add_argument("--replace-reviewed-domain", action="store_true")
@@ -1236,6 +1281,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
     if args.command == "promote-domain": return command_promote_domain(args, ui)
+    if args.command == "sign-artifact": return command_sign_artifact(args, ui)
+    if args.command == "manage-trust": return command_manage_trust(args, ui)
     if args.command == "compose": return command_compose(args, ui)
     if args.command == "reverify": return command_reverify(args, ui)
     if args.command == "system": return command_system(args, ui)
@@ -1247,7 +1294,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
-                  "validate-domain", "promote-domain", "compose", "reverify", "system",
+                  "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
+                  "compose", "reverify", "system",
                   "document-code"}
 
 
