@@ -771,6 +771,18 @@ def command_generate_traceability(args: argparse.Namespace, ui: TerminalUI) -> i
     return 0
 
 
+def command_prove_equivalence(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Prove bounded behavioral bisimulation between two V2 machines."""
+    from .equivalence import prove_equivalence
+    result = prove_equivalence(args.baseline, args.refactored, args.mapping)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "EQUIVALENCE_PROVED" else "red"
+    ui.console.print(f"[{style}]{result['status']}[/{style}]: "
+                     f"{result.get('reason', result.get('scope', ''))}")
+    return 0 if result["status"] == "EQUIVALENCE_PROVED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1199,6 +1211,13 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    equiv = sub.add_parser("prove-equivalence",
+                           help="prove bounded bisimulation between two V2 machines")
+    equiv.add_argument("baseline", help="baseline V2 domain (yaml/json)")
+    equiv.add_argument("refactored", help="refactored V2 domain (yaml/json)")
+    equiv.add_argument("--mapping", required=True,
+                       help="state mapping JSON (baseline_state/refactored_state pairs)")
+    equiv.add_argument("--json", dest="json_out", default=None)
     trace = sub.add_parser("generate-traceability-matrix",
                            help="map requirements to V2 invariants and source lines")
     trace.add_argument("domain", help="V2 candidate/reviewed domain YAML")
@@ -1307,6 +1326,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "prove-equivalence":
+        return command_prove_equivalence(args, ui)
     if args.command == "generate-traceability-matrix":
         return command_generate_traceability(args, ui)
     if args.command == "compose": return command_compose(args, ui)
@@ -1321,7 +1342,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "generate-traceability-matrix",
+                  "prove-equivalence", "generate-traceability-matrix",
                   "compose", "reverify", "system",
                   "document-code"}
 

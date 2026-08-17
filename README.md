@@ -461,8 +461,6 @@ postfix counters), `41f7c84` (v3.8.0, LevelDB/C++), `e1372be` (v3.9.0, bounded-p
   [Bottom-up codebase extraction](#bottom-up-codebase-extraction).
 
 The following roadmap claims remain intentionally incomplete:
-
-- `BEHAVIORAL_EQUIVALENCE_PROVED`: requires a genuine relational/bisimulation proof backend.
 - `CONCURRENT_COMPOSITION_LINEARIZABILITY_PROVED`: requires TLC interleaving verification plus
   discharged Java lock-acquisition/release correspondence.
 - Broad semantic Strategy/State/Decorator/Facade decomposition: the narrow literal-dispatch
@@ -568,6 +566,31 @@ contract scaffold; C lock-protocol lowering remains unsupported. Reproducible in
 [`domains/candidates/concurrent_bank_account.v2.yaml`](domains/candidates/concurrent_bank_account.v2.yaml),
 [`domains/v2/concurrent_bank_account.json`](domains/v2/concurrent_bank_account.json), and
 [`ConcurrentBankAccount.rs`](ConcurrentBankAccount.rs).
+
+### Behavioral equivalence (bounded bisimulation)
+
+`prove-equivalence` proves two V2 state machines behaviorally identical under a
+reviewer-supplied state mapping — the relational claim `verify-refactor`
+deliberately does not make:
+
+```bash
+formalspecgen prove-equivalence baseline.v2.yaml refactored.v2.yaml \
+  --mapping states.json --json equivalence.json
+# mapping: {"states": [{"baseline_state": {"conn": 1},
+#                       "refactored_state": {"mode": 1}}, ...]}
+```
+
+The checker enumerates both machines' finite reachable state spaces (the same
+bounded evaluator the traverser uses, same 100k cap) and verifies the mapping is
+a bisimulation: every reachable baseline state is mapped, and for every related
+pair the mapped successor sets coincide in both directions. Exhaustive over the
+reachable spaces, this is a *complete* proof for the two bounded machines — not
+an induction. A missing counterpart fails closed
+(`EQUIVALENCE_FAILED: Missing transition for state mode=1 ...`); a reachable
+state absent from the mapping is rejected outright. The minted
+`BEHAVIORAL_EQUIVALENCE_PROVED` carries scope `bounded_state_space_bisimulation`
+and `heap_equivalence_proved: false`: the machines are equivalent, Java heap
+topology, timing, and I/O are not claimed.
 
 ### Certification traceability
 
@@ -1962,7 +1985,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1193
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1200
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
