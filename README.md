@@ -775,7 +775,13 @@ extracted under their typedef name, and **bare or negated boolean guards**
 (`if (dev->connected) { dev->suspended = 1; }` → guard `connected != 0`, effect on a
 *different* field) are extracted only when the write lives inside the guard's own brace
 block — a guard block containing only callbacks never pairs with a later assignment
-elsewhere in the function. The guard and effect are
+elsewhere in the function. **Postfix counters** are extracted in four shapes:
+`if (!dev->field++)` mints the pair (guard `field == 0` → +1, guard `field != 0` → +1 —
+the increment is a side effect of evaluating the condition, so both branch values
+increment), postfix effects inside boolean guards (`if (dev->flag) { dev->count++; }`),
+comparison-guarded counters (`if (dev->count < N) { dev->count++; }`), and
+`while (dev->field) { ... field--; }` loops (abstracted to an unconditional transition,
+reported as an over-approximation). The guard and effect are
 compiled through the strict JML expression parser into the recursive V2
 expression AST; no LLM infix text is stored in the
 candidate. Guards accept `==`, `!=`, `<=`, `>=`, `<`, `>`; effects are literal state

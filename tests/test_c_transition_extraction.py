@@ -442,6 +442,162 @@ void step(struct m *x) {
     assert _infer_c_transitions(unknown, [("state", "int")]) == []
 
 
+# ------------------------------------------------ M10: postfix counters ---
+
+CURL_SHAPE = """typedef struct {
+    bool header;
+    int headerline;
+} SingleRequest;
+
+void Curl_http_readwrite_headers(SingleRequest *k) {
+    if(!k->headerline++) {
+        k->header = 1;
+    }
+}
+"""
+
+
+def test_condition_postfix_counter_extracts_both_branches():
+    """curl http.c:4310 - `if(!k->headerline++)`: the increment is a side
+    effect of evaluating the condition, so BOTH branch values increment."""
+    transitions = _infer_c_transitions(
+        CURL_SHAPE, [("header", "boolean"), ("headerline", "int")])
+    by_name = {item["name"]: item for item in transitions}
+    assert set(by_name) == {
+        "Curl_http_readwrite_headers_headerline_increment_zero",
+        "Curl_http_readwrite_headers_headerline_increment_nonzero"}
+    zero = by_name["Curl_http_readwrite_headers_headerline_increment_zero"]
+    assert _dump(zero["guard"]) == _dump(
+        parse_jml_expression("headerline == 0",
+                             fields={"header", "headerline"}))
+    assert _dump(zero["value"]) == _dump(
+        parse_jml_expression("headerline + 1",
+                             fields={"header", "headerline"}))
+    nonzero = by_name["Curl_http_readwrite_headers_headerline_increment_nonzero"]
+    assert _dump(nonzero["guard"]) == _dump(
+        parse_jml_expression("headerline != 0",
+                             fields={"header", "headerline"}))
+
+
+def test_boolean_guard_with_postfix_effect():
+    cross = """typedef struct { int connected; int count; } dev_t;
+static dev_t _dev;
+void on_connect(void) {
+    if (_dev.connected) { _dev.count++; }
+}
+"""
+    transitions = _infer_c_transitions(
+        cross, [("connected", "int"), ("count", "int")])
+    assert len(transitions) == 1
+    assert _dump(transitions[0]["guard"]) == _dump(
+        parse_jml_expression("connected != 0",
+                             fields={"connected", "count"}))
+    assert _dump(transitions[0]["value"]) == _dump(
+        parse_jml_expression("count + 1", fields={"connected", "count"}))
+    assert transitions[0]["target"] == "count"
+
+
+def test_comparison_guard_with_postfix_effect():
+    counter = """struct Meter { int count; };
+void meter_tick(struct Meter *m) {
+    if (m->count < 5) { m->count++; }
+}
+"""
+    transitions = _infer_c_transitions(counter, [("count", "int")])
+    assert [item["name"] for item in transitions] == ["meter_tick"]
+    assert _dump(transitions[0]["guard"]) == _dump(
+        parse_jml_expression("count < 5", fields={"count"}))
+    assert _dump(transitions[0]["value"]) == _dump(
+        parse_jml_expression("count + 1", fields={"count"}))
+
+
+def test_while_state_guard_with_postfix_decrement():
+    """Redis networking.c consume loop: `while(c->multibulklen) { ...
+    c->multibulklen--; }` - the decrement fires on SOME paths through the
+    body, so the transition over-approximates (reported via note)."""
+    redis = """struct client { int multibulklen; long bulklen; };
+void processMultibulkBuffer(struct client *c) {
+    while(c->multibulklen) {
+        if (c->bulklen == -1) { c->bulklen = 0; }
+        c->bulklen = -1;
+        c->multibulklen--;
+    }
+}
+"""
+    notes = []
+    transitions = _infer_c_transitions(
+        redis, [("multibulklen", "int"), ("bulklen", "int")], notes=notes)
+    names = {item["name"] for item in transitions}
+    assert "processMultibulkBuffer_multibulklen_decrement" in names
+    dec = next(item for item in transitions
+               if item["name"] == "processMultibulkBuffer_multibulklen_decrement")
+    assert _dump(dec["guard"]) == _dump(
+        parse_jml_expression("multibulklen != 0",
+                             fields={"multibulklen", "bulklen"}))
+    assert _dump(dec["value"]) == _dump(
+        parse_jml_expression("multibulklen - 1",
+                             fields={"multibulklen", "bulklen"}))
+    assert any("over-approx" in note for note in notes)
+
+
+def test_postfix_effects_fail_closed():
+    """Foreign guard field, non-state target, and cross-block postfix are
+    all refused."""
+    foreign = """typedef struct { int state; } dev_t;
+static dev_t _dev;
+void step(void) {
+    if (_dev.busy) { _dev.state++; }
+}
+"""
+    assert _infer_c_transitions(foreign, [("state", "int")]) == []
+    cross_block = """typedef struct { int connected; int count; } dev_t;
+static dev_t _dev;
+void tud_task(void) {
+    if (_dev.connected) { note_something(); }
+    _dev.count++;
+}
+"""
+    assert _infer_c_transitions(
+        cross_block, [("connected", "int"), ("count", "int")]) == []
+
+
+def test_postfix_shapes_fail_closed_on_foreign_and_partial_matches():
+    """A postfix condition / while-guard on a NON-state field, a while loop
+    whose body never touches the guarded counter, a comparison-postfix with
+    an unresolvable limit, and an incremental effect on a foreign field all
+    mint nothing."""
+    foreign_postfix = """typedef struct { int state; } dev_t;
+static dev_t _dev;
+void step(void) {
+    if (!_dev.busy++) { _dev.state = 1; }
+    while (_dev.busy) { _dev.state = 2; }
+}
+"""
+    assert _infer_c_transitions(foreign_postfix, [("state", "int")]) == []
+    no_counter_loop = """typedef struct { int multibulklen; } c_t;
+static c_t _c;
+void drain(void) {
+    while (_c.multibulklen) { handle_arg(); }
+}
+"""
+    assert _infer_c_transitions(no_counter_loop, [("multibulklen", "int")]) == []
+    unknown_limit = """typedef struct { int count; } dev_t;
+static dev_t _dev;
+void tick(void) {
+    if (_dev.count < MAX_LIMIT) { _dev.count++; }
+}
+"""
+    assert _infer_c_transitions(unknown_limit, [("count", "int")]) == []
+    foreign_rhs = """typedef struct { int level; int other; } m_t;
+static m_t _m;
+void bump(void) {
+    if (_m.level < 5) { _m.level = _m.other + 1; }
+}
+"""
+    assert _infer_c_transitions(foreign_rhs,
+                                [("level", "int"), ("other", "int")]) == []
+
+
 # ------------------------------------------------ M8: TinyUSB dialect ---
 
 TINYUSB_SHAPE = """typedef struct {

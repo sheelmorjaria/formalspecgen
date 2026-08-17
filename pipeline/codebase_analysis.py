@@ -182,8 +182,7 @@ def _brace_matched(text: str, start: int) -> str:
 
 _C_FUNCTION = re.compile(
     r"(?m)^[ \t]*(?:static\s+|const\s+|inline\s+)*"
-    r"(?:void|err_t|int|u8_t|s8_t|u16_t|u16_t|s16_t|u32_t|s32_t|char|size_t)"
-    r"\s+(\w+)\s*\([^;{}]*\)\s*\{")
+    r"(?P<ret>\w+)\s+(?P<name>\w+)\s*\([^;{}]*\)\s*\{")
 
 
 def _c_void_functions(text: str) -> list[tuple[str, str]]:
@@ -196,7 +195,7 @@ def _c_void_functions(text: str) -> list[tuple[str, str]]:
     """
     functions = []
     for header in _C_FUNCTION.finditer(text):
-        functions.append((header.group(1), _brace_matched(text, header.end())))
+        functions.append((header.group("name"), _brace_matched(text, header.end())))
     return functions
 
 
@@ -310,37 +309,118 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]],
         rf"(?P<gbody>[^{{}}]*?)\}}")
     boolean_effect = re.compile(
         rf"{_C_ACCESS}(?P<target>\w+)\s*=\s*(?P<value>\w+)\s*;")
+    # M10: postfix counters. Protocol parsers count with `f++`/`f--` rather
+    # than `f = f + 1`. When the postfix sits in the if-CONDITION itself
+    # (curl's `if(!k->headerline++)`) the increment is a side effect of
+    # evaluating the condition, so BOTH branch values increment: the pair
+    # (guard == 0 -> +1, guard != 0 -> +1) models the statement faithfully.
+    postfix_condition = re.compile(
+        rf"if\s*\(\s*(?:!\s*)?{_C_ACCESS}(?P<pcfield>\w+)\s*"
+        rf"(?P<pop>\+\+|--)\s*\)")
+    postfix_effect = re.compile(
+        rf"{_C_ACCESS}(?P<target>\w+)\s*(?P<pop>\+\+|--)\s*;")
+    postfix_under_comparison = re.compile(
+        rf"if\s*\(\s*{_C_ACCESS}(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
+        rf"(?P<limit>\w+)\s*\)\s*\{{(?P<gbody>[^{{}}]*?)\}}")
+    while_state_guard = re.compile(
+        rf"while\s*\(\s*{_C_ACCESS}(?P<wfield>\w+)\s*\)\s*\{{")
     used_names: set[str] = set()
+
+    def _unique(base: str) -> str:
+        label, counter = base, 2
+        while label in used_names:
+            label, counter = f"{base}_{counter}", counter + 1
+        used_names.add(label)
+        return label
+
     for name, body in _c_void_functions(text):
         switch_transitions = _switch_case_transitions(body, name, names, enums, notes)
         if switch_transitions:
             transitions.extend(switch_transitions)
             used_names.update(item["name"] for item in switch_transitions)
             continue
+        for cond_match in postfix_condition.finditer(body):
+            field = cond_match["pcfield"]
+            if field not in names:
+                continue
+            verb = "increment" if cond_match["pop"] == "++" else "decrement"
+            delta = f"{field} + 1" if cond_match["pop"] == "++" else f"{field} - 1"
+            for branch, comparison in (("_zero", "=="), ("_nonzero", "!=")):
+                # guard/delta are internally constructed ("<field> == 0",
+                # "<field> + 1"); parsing cannot fail.
+                guard_ast = parse_jml_expression(
+                    f"{field} {comparison} 0", fields=names)
+                value_ast = parse_jml_expression(delta, fields=names)
+                transitions.append({"name": _unique(f"{name}_{field}_{verb}{branch}"),
+                                    "guard": guard_ast, "target": field,
+                                    "value": value_ast})
+        for while_match in while_state_guard.finditer(body):
+            field = while_match["wfield"]
+            if field not in names:
+                continue
+            loop_body = _brace_matched(body, while_match.end())
+            counter = postfix_effect.search(loop_body)
+            # The postfix fires on only SOME paths through the loop body, so
+            # the transition over-approximates; the note makes that visible.
+            if counter is None or counter["target"] != field:
+                continue
+            verb = "increment" if counter["pop"] == "++" else "decrement"
+            delta = f"{field} + 1" if counter["pop"] == "++" else f"{field} - 1"
+            guard_ast = parse_jml_expression(f"{field} != 0", fields=names)
+            value_ast = parse_jml_expression(delta, fields=names)
+            notes.append(f"{name}: while({field}) loop-body {counter['pop']} "
+                         f"abstracted to an unconditional transition (over-approximation)")
+            transitions.append({"name": _unique(f"{name}_{field}_{verb}"),
+                                "guard": guard_ast, "target": field,
+                                "value": value_ast})
         for guard_match in boolean_guard.finditer(body):
             if guard_match["gfield"] not in names:
                 continue
+            guard_text = (f"{guard_match['gfield']} == 0" if guard_match["neg"]
+                          else f"{guard_match['gfield']} != 0")
+            counter = postfix_effect.search(guard_match["gbody"])
             effect = boolean_effect.search(guard_match["gbody"])
+            if counter is not None and counter["target"] in names:
+                delta = (f"{counter['target']} + 1" if counter["pop"] == "++"
+                         else f"{counter['target']} - 1")
+                guard_ast = parse_jml_expression(guard_text, fields=names)
+                value_ast = parse_jml_expression(delta, fields=names)
+                label = _unique(f"{name}_{counter['target']}")
+                transitions.append({"name": label, "guard": guard_ast,
+                                    "target": counter["target"], "value": value_ast})
+                continue
             if effect is None or effect["target"] not in names:
                 continue
             resolved = _resolve_c_constant(effect["value"], enums)
             if resolved is None:
                 continue
-            guard_text = (f"{guard_match['gfield']} == 0" if guard_match["neg"]
-                          else f"{guard_match['gfield']} != 0")
             # guard_text ("<state field> == 0") and resolved (a canonical
             # integer string) are internally constructed, so parsing cannot
             # fail here — no defensive except is needed.
             guard_ast = parse_jml_expression(guard_text, fields=names)
             value_ast = parse_jml_expression(resolved, fields=names)
-            label = f"{name}_{effect['target']}"
-            counter = 2
-            while label in used_names:
-                label = f"{name}_{effect['target']}_{counter}"
-                counter += 1
-            used_names.add(label)
+            label = _unique(f"{name}_{effect['target']}")
             transitions.append({"name": label, "guard": guard_ast,
                                 "target": effect["target"], "value": value_ast})
+        # comparison-guarded postfix counter: `if (f < N) { f++; }` — the
+        # classic bounded-counter shape, effect confined to the guard block.
+        for cmp_match in postfix_under_comparison.finditer(body):
+            if cmp_match["field"] not in names:
+                continue
+            counter = postfix_effect.search(cmp_match["gbody"])
+            if (counter is None or counter["target"] != cmp_match["field"]
+                    or counter["target"] not in names):
+                continue
+            limit = _resolve_c_constant(cmp_match["limit"], enums)
+            if limit is None:
+                continue
+            delta = (f"{cmp_match['field']} + 1" if counter["pop"] == "++"
+                     else f"{cmp_match['field']} - 1")
+            guard_ast = parse_jml_expression(
+                f"{cmp_match['field']} {cmp_match['op']} {limit}", fields=names)
+            value_ast = parse_jml_expression(delta, fields=names)
+            transitions.append({"name": _unique(name), "guard": guard_ast,
+                                "target": cmp_match["field"], "value": value_ast})
         increment = incremental.search(body)
         if increment is not None:
             match = increment
