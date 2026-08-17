@@ -434,8 +434,9 @@ postfix counters), `41f7c84` (v3.8.0, LevelDB/C++), `e1372be` (v3.9.0, bounded-p
   verification, authorized-key policy, composition binding checks, and unified-system domain
   loading are opt-in through `FORMALSPECGEN_REQUIRE_SIGNATURES=1` and
   `AUTHORIZED_REVIEWER_KEYS`.
-- Rust/C standard assurance now mints `STATIC_CHECKED_RUNTIME_TESTED` only after a passing
-  instrumented runtime sample. C proof-support includes indexed `\\valid` and `\\separated`
+- Rust/C/C++ standard assurance now mints `STATIC_CHECKED_RUNTIME_TESTED` only after a passing
+  instrumented runtime sample (generated tests under `rustc --test` with overflow checks for Rust,
+  ASan+UBSan for C and C++). C proof-support includes indexed `\\valid` and `\\separated`
   passes.
 - Bisimulation preflight validates state mappings, resolves target classes, hashes sources, and
   rejects public-surface drift. Concurrent composition preflight emits bounded `Actors`,
@@ -688,10 +689,12 @@ their diagnostics enter the same bounded resample-first, feedback-second repair 
 VC evidence schema as Java.
 
 Before the expensive formal backend, Rust executes generated `#[test]` samples through `rustc
---test` with overflow checks, while C executes a bounded harness under ASan+UBSan. Concrete failures
-are counterexample evidence for regeneration and skip Prusti/Frama-C for that candidate. Passing
-samples are runtime evidence only. The detailed gate ordering and encoding boundaries are documented
-in [`DESIGN.md`](DESIGN.md).
+--test` with overflow checks, while C and C++ execute a bounded assert harness under ASan+UBSan
+(the C++ prompt forbids `std::string` and string-carrying exceptions — string operations burn the
+sanitizer budget that should be spent on the boundary obligations). Concrete failures
+are counterexample evidence for regeneration and skip Prusti/Frama-C/ESBMC for that candidate.
+Passing samples are runtime evidence only. The detailed gate ordering and encoding boundaries are
+documented in [`DESIGN.md`](DESIGN.md).
 
 Rust and C also expose conservative, opt-in proof-support passes:
 
@@ -1897,7 +1900,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1160
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1164
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

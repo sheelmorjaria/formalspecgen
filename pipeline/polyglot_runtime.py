@@ -16,6 +16,7 @@ from .rust_support import _PRUSTI_ATTRIBUTE
 _FENCE = {
     "rust": re.compile(r"```rust\s*\n(.*?)```", re.I | re.S),
     "c": re.compile(r"```c\s*\n(.*?)```", re.I | re.S),
+    "cpp": re.compile(r"```cpp\s*\n(.*?)```", re.I | re.S),
 }
 
 _PROMPTS = {
@@ -26,6 +27,11 @@ tests, or change production code. Print FORMALSPEC_INPUT: before each case. Retu
 Use deterministic boundary examples satisfying ACSL requires. Use assert, no dynamic allocation,
 randomness, threads, or production-code changes. Print FORMALSPEC_INPUT: before each case. Return
 one c fence.""",
+    "cpp": """Generate only a bounded C++17 test harness with int main() for the public API below.
+Use deterministic boundary examples satisfying the assertion guards. Use assert from <cassert>, no
+dynamic allocation, no std::string, no exceptions with message strings, no randomness, threads, or
+production-code changes — string operations burn the sanitizer budget and hide the boundary
+obligations. Print FORMALSPEC_INPUT: before each case. Return one cpp fence.""",
 }
 
 
@@ -44,8 +50,8 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
                                       test_code: str | None = None,
                                       runner=subprocess.run) -> dict:
     """Compile and execute generated tests under native safety instrumentation."""
-    if language not in {"rust", "c"}:
-        raise ValueError("runtime evidence language must be rust or c")
+    if language not in {"rust", "c", "cpp"}:
+        raise ValueError("runtime evidence language must be rust, c, or cpp")
     model = "provided"
     if test_code is None:
         try:
@@ -65,12 +71,15 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
             compile_command = [compiler, "--edition", "2021", "--test", "-C", "overflow-checks=yes",
                                str(source), "-o", str(executable)]
         else:
-            compiler = shutil.which(config.CC_BIN)
+            compiler = shutil.which("g++" if language == "cpp" else config.CC_BIN)
             if not compiler:
-                return _result("TOOL_MISSING", 127, f"C compiler not found: {config.CC_BIN}", model)
-            source = root / "runtime_sample.c"; executable = root / "runtime_sample"
+                return _result("TOOL_MISSING", 127,
+                               f"{'C++' if language == 'cpp' else 'C'} compiler not found", model)
+            suffix = ".cpp" if language == "cpp" else ".c"
+            standard = "-std=c++17" if language == "cpp" else "-std=c11"
+            source = root / f"runtime_sample{suffix}"; executable = root / "runtime_sample"
             source.write_text(code + "\n" + test_code, encoding="utf-8")
-            compile_command = [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+            compile_command = [compiler, standard, "-Wall", "-Wextra", "-Werror",
                                "-fsanitize=address,undefined", "-fno-sanitize-recover=all",
                                str(source), "-o", str(executable)]
         try:
@@ -95,6 +104,7 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
             "claim": "COUNTEREXAMPLE_EVIDENCE" if failed else "RUNTIME_SAMPLE",
             "proof": False, "regeneration_recommended": failed,
             "instrumentation": ("rustc --test with overflow checks" if language == "rust" else
+                                "ASan+UBSan (g++)" if language == "cpp" else
                                 "ASan+UBSan"),
             "disclaimer": "Runtime samples can expose failures; passing samples are not proof."}
 

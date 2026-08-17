@@ -182,3 +182,49 @@ def test_empty_generation_is_bounded(tmp_path):
         result = implementation.synthesize_polyglot_implementation(
             C, "c", out_dir=tmp_path / "empty", max_attempts=1)
     assert result["final_status"] == "GEN_EMPTY"
+
+
+def test_cpp_standard_profile_mints_runtime_tested_claim(tmp_path):
+    """M19: the C++ standard assurance profile runs the same generated-test
+    gate as Rust/C — previously it crashed on an unsupported-language
+    ValueError instead of executing the sample."""
+    cpp_source = """#include <cassert>
+
+class Counter {
+public:
+    int count;
+    Counter() : count(0) {}
+    void increment() {
+        assert(count >= 0);
+        count = count + 1;
+    }
+};
+"""
+    runtime_pass = {"status": "NO_RUNTIME_FAILURE_FOUND", "exit_code": 0,
+                    "claim": "RUNTIME_SAMPLE"}
+    with patch.object(implementation, "collect_polyglot_runtime_evidence",
+                      return_value=runtime_pass) as collected, \
+         patch("pipeline.cpp_support.check_cpp_syntax",
+               return_value={"status": "CPP_CHECKED", "exit_code": 0}):
+        result = implementation.synthesize_polyglot_implementation(
+            cpp_source, "cpp", out_dir=tmp_path / "cppstd",
+            candidate=cpp_source, max_attempts=1,
+            verification_mode="check", runtime_gate=True)
+    assert result["final_status"] == "STATIC_CHECKED"
+    assert result["claim"] == "STATIC_CHECKED_RUNTIME_TESTED"
+    collected.assert_called_once()
+    assert collected.call_args.args[1] == "cpp"
+
+    # without a passing sample the claim stays at the static ceiling
+    with patch.object(implementation, "collect_polyglot_runtime_evidence",
+                      return_value={"status": "RUNTIME_FAILURES_FOUND",
+                                    "exit_code": 1,
+                                    "claim": "COUNTEREXAMPLE_EVIDENCE"}), \
+         patch("pipeline.cpp_support.check_cpp_syntax",
+               return_value={"status": "CPP_CHECKED", "exit_code": 0}):
+        failed = implementation.synthesize_polyglot_implementation(
+            cpp_source, "cpp", out_dir=tmp_path / "cppstd2",
+            candidate=cpp_source, max_attempts=1,
+            verification_mode="check", runtime_gate=True)
+    assert failed["final_status"] == "RUNTIME_FAILURES_FOUND"
+    assert failed["claim"] == "NO_PROOF"
