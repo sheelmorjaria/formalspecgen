@@ -404,29 +404,56 @@ def _enum_tag_bounds(text: str) -> dict[str, tuple[int, int]]:
     return extents
 
 
+def _bounds_index(text: str) -> dict:
+    """One-pass name -> bound evidence over ``text``.
+
+    ``infer_field_bounds`` used to re-scan the whole text per field; on a
+    monolith-size preprocessed unit (Redis networking.c: ~600 KB, hundreds of
+    structs) that is quadratic and effectively hangs. This index preserves the
+    exact first-match-wins semantics of the original per-field searches.
+    """
+    leq: dict[str, tuple[int, int]] = {}
+    for match in re.finditer(r"\b(\w+)\s*(?:<=|<)\s*(\d+)", text):
+        name = match.group(1)
+        if name not in leq:                      # first comparison wins
+            leq[name] = (0, int(match.group(2)))
+    tagged: dict[str, str | None] = {}
+    for match in re.finditer(r"\benum\s+(?:(\w+)\s+)?(\w+)\s*;", text):
+        name = match.group(2)
+        if name not in tagged:
+            tagged[name] = match.group(1)
+    return {"leq": leq, "tagged": tagged, "tag_bounds": _enum_tag_bounds(text)}
+
+
 def infer_field_bounds(text: str, fields: list[tuple[str, str]],
-                       enums: dict[str, int] | None = None
+                       enums: dict[str, int] | None = None,
+                       _index: dict | None = None,
                        ) -> dict[str, tuple[int, int] | None]:
     """Infer a [0, N] bound per int field; None when unbounded.
 
     Order: explicit `<=`/`<` comparisons win; then an enum-typed declaration
-    (``enum tag field;``) bounds the field to its enum's extent.
+    (``enum tag field;``) bounds the field to its enum's extent. ``_index`` is
+    the precomputed :func:`_bounds_index` for ``text`` so monolithic units can
+    share one pass across every struct.
     """
-    enums = enums or {}
-    tag_bounds = _enum_tag_bounds(text) if enums else {}
+    index = _bounds_index(text) if _index is None else _index
+    leq, tagged = index["leq"], index["tagged"]
+    tag_bounds = index["tag_bounds"] if enums else {}
     bounds: dict[str, tuple[int, int] | None] = {}
     for name, field_type in fields:
         if field_type != "int":
             continue
-        match = re.search(rf"\b{re.escape(name)}\s*(?:<=|<)\s*(\d+)", text)
-        if match:
-            bounds[name] = (0, int(match.group(1)))
+        if name in leq:
+            bounds[name] = leq[name]
             continue
-        typed = re.search(rf"enum\s+(?:(?P<tag>\w+)\s+)?{re.escape(name)}\s*;", text)
-        if typed and typed.group("tag") in tag_bounds:
-            bounds[name] = tag_bounds[typed.group("tag")]
-        elif typed and len(tag_bounds) == 1:
-            bounds[name] = next(iter(tag_bounds.values()))
+        if name in tagged:
+            tag = tagged[name]
+            if tag in tag_bounds:
+                bounds[name] = tag_bounds[tag]
+            elif len(tag_bounds) == 1:
+                bounds[name] = next(iter(tag_bounds.values()))
+            else:
+                bounds[name] = None
         else:
             bounds[name] = None
     return bounds
@@ -527,6 +554,8 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
         except (OSError, UnicodeError) as exc:
             warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE", "message": str(exc)})
             continue
+        # one bounds pass per file, shared by every declaration in it
+        file_bounds_index = _bounds_index(text) if declarations else None
         for declaration in declarations:
             name = declaration["name"]
             is_interface = declaration.get("interface", False)
@@ -546,7 +575,8 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 unbounded = False
                 suffix = source.suffix.lower()
                 enums = c_enums if suffix in {".c", ".h"} else {}
-                inferred = infer_field_bounds(text, fields, enums=enums or None)
+                inferred = infer_field_bounds(text, fields, enums=enums or None,
+                                              _index=file_bounds_index)
                 for field_name, field_type in fields:
                     item = {"name": field_name, "type": field_type}
                     if field_type == "int":
@@ -601,11 +631,13 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                              if "input condition dropped" in note
                              else "EXTRACTION_NOTE"),
                     "message": note})
+        combined_index = _bounds_index(combined)
         for name, fields in c_structs.items():
             field_names = {field for field, _ in fields}
             transitions = [item for item in all_transitions
                            if item["target"] in field_names]
-            inferred = infer_field_bounds(combined, fields, enums=c_enums or None)
+            inferred = infer_field_bounds(combined, fields, enums=c_enums or None,
+                                          _index=combined_index)
             registered = _register_candidate(Path(project_root), name, fields,
                                               transitions, bounds=inferred)
             domains.append(str(registered))

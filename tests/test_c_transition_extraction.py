@@ -6,6 +6,7 @@ import json
 import pytest
 
 from pipeline.codebase_analysis import (
+    _bounds_index,
     _infer_c_transitions,
     analyze_codebase,
     infer_field_bounds,
@@ -554,6 +555,23 @@ def test_tagged_typedef_struct_registers_tag_only(tmp_path):
     assert "tcp_pcb_t" not in names      # no duplicate component from the typedef
     assert (tmp_path / "domains" / "candidates" / "tcp_pcb.v2.yaml").exists()
     assert not (tmp_path / "domains" / "candidates" / "tcp_pcb_t.v2.yaml").exists()
+
+
+def test_bounds_index_first_match_wins_and_shared_index_is_equivalent():
+    text = ("int f(struct m *x) { return x->level < 9; }\n"
+            "int g(struct m *x) { return x->level < 3; }\n"      # second < ignored
+            "enum t { A = 0, B = 4 };\n"
+            "enum u { C = 0, D = 6 };\n"
+            "struct s { enum t state; };\n"
+            "struct s2 { enum t state; };\n"                      # second decl ignored
+            "struct s3 { enum q mystery; };\n")                   # undefined tag
+    fields = [("level", "int"), ("state", "int"), ("mystery", "int")]
+    enums = parse_c_enums(text)
+    direct = infer_field_bounds(text, fields, enums=enums)
+    shared = infer_field_bounds(text, fields, enums=enums,
+                                _index=_bounds_index(text))
+    assert direct == shared == {"level": (0, 9), "state": (0, 4),
+                                "mystery": None}
 
 
 def test_boolean_guards_fail_closed_on_foreign_guard_and_constants():
