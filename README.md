@@ -567,6 +567,34 @@ contract scaffold; C lock-protocol lowering remains unsupported. Reproducible in
 [`domains/v2/concurrent_bank_account.json`](domains/v2/concurrent_bank_account.json), and
 [`ConcurrentBankAccount.rs`](ConcurrentBankAccount.rs).
 
+### Unbounded loop verification (k-induction)
+
+`verify-unbounded` proves a loop invariant INDUCTIVE — lifting the ESBMC
+bounded ceiling without unrolling the loop:
+
+```bash
+formalspecgen verify-unbounded Counter.cpp --invariant "i >= 0 && (n <= 0 || i <= n)" \
+  --json unbounded.json
+# omit --invariant and the provider proposes one (recorded as llm_proposed)
+```
+
+Two loop-free harnesses are generated deterministically per simple `while`
+loop: **establishment** (the invariant holds for the program's own entry state
+— the counter's literal initialization) and **step** (assume invariant + loop
+guard over nondeterministic state, execute ONE body copy, assert the
+invariant). ESBMC checks each with a single unwind; both passing means the
+invariant is inductive — an unbounded result for the fragment. The claim is
+`DEDUCTIVE_PROOF` with scope `unbounded_loop_induction`, and the epistemic
+division is recorded in the verdict: `inductiveness_machine_proved: true` but
+`sufficiency_for_property: human_accepted_assumption` — the machine proves
+the induction; whether the invariant is strong enough for the property you
+care about is the reviewer's accepted assumption. Nested-loop bodies,
+constant guards, and invariants that never mention the loop counter fail
+closed before the prover runs. A non-inductive invariant is refused with the
+failing harness named (`establishment` vs `step`) — `i <= n` on
+`while (i < n)` genuinely fails establishment for negative `n`, and the lane
+says so.
+
 ### Behavioral equivalence (bounded bisimulation)
 
 `prove-equivalence` proves two V2 state machines behaviorally identical under a
@@ -1985,7 +2013,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1200
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1211
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

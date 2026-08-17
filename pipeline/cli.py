@@ -783,6 +783,19 @@ def command_prove_equivalence(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "EQUIVALENCE_PROVED" else 1
 
 
+def command_verify_unbounded(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Prove an invariant inductive over the source's loops (k-induction)."""
+    from .unbounded import verify_unbounded
+    result = verify_unbounded(args.source, invariant=args.invariant,
+                              provider=args.provider)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "UNBOUNDED_VERIFIED" else "red"
+    detail = result.get("message") or f"invariant: {result.get('invariant', '')}"
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "UNBOUNDED_VERIFIED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1211,6 +1224,13 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    unbounded = sub.add_parser("verify-unbounded",
+                               help="prove a loop invariant inductive (k-induction)")
+    unbounded.add_argument("source", help="C/C++ source with simple while-loops")
+    unbounded.add_argument("--invariant", default=None,
+                           help="invariant expression; the provider proposes one when omitted")
+    unbounded.add_argument("--provider", default="ollama")
+    unbounded.add_argument("--json", dest="json_out", default=None)
     equiv = sub.add_parser("prove-equivalence",
                            help="prove bounded bisimulation between two V2 machines")
     equiv.add_argument("baseline", help="baseline V2 domain (yaml/json)")
@@ -1326,6 +1346,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "verify-unbounded":
+        return command_verify_unbounded(args, ui)
     if args.command == "prove-equivalence":
         return command_prove_equivalence(args, ui)
     if args.command == "generate-traceability-matrix":
@@ -1342,7 +1364,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "prove-equivalence", "generate-traceability-matrix",
+                  "verify-unbounded", "prove-equivalence",
+                  "generate-traceability-matrix",
                   "compose", "reverify", "system",
                   "document-code"}
 
