@@ -371,3 +371,253 @@ def test_unreadable_profile_fails_closed(tmp_path):
     result = correct_behavior(source, "CWE-400", tmp_path / "out",
                              strategy="static-pool", hardware=garbage)
     assert result["code"] == "hardware_profile_unreadable"
+
+
+# ------------------------------------------------- M16: hardening strategies ---
+
+def _run_strategy(tmp_path, source_text, cwe, strategy, rewrite):
+    """Shared harness: mocked provider rewrite + mocked clean ESC."""
+    source = tmp_path / "Target.java"
+    source.write_text(source_text)
+    with patch("pipeline.behavior_correction._chat_fn") as chat, \
+         patch("pipeline.behavior_correction.verify",
+               side_effect=[(0, ""), (0, "")]) as verify:
+        chat.return_value.return_value = (rewrite, "fixture", {})
+        result = correct_behavior(source, cwe, tmp_path / "out",
+                                  strategy=strategy)
+    return result, verify, chat
+
+
+OVERFLOW_SOURCE = """public class Meter {
+    public int total;
+
+    public void add(int n) { total = total * 3 + n; }
+}
+"""
+
+CHECKED_MATH_REWRITE = """public class Meter {
+    public int total;
+
+    //@ requires n >= 0 && total >= 0 && total <= 2147483647 / 3;
+    //@ ensures total >= 0 && total <= 2147483647;
+    public void add(int n) {
+        total = Math.addExact(Math.multiplyExact(total, 3), n);
+    }
+}
+"""
+
+
+def test_checked_math_strategy_flows_to_prover(tmp_path):
+    result, verify, chat = _run_strategy(
+        tmp_path, OVERFLOW_SOURCE, "CWE-190", "checked-math",
+        CHECKED_MATH_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "checked-math"
+    prompt = chat.return_value.call_args_list[0].args[0][1]["content"]
+    assert "checked-math" in prompt
+    verify.assert_called()
+
+
+def test_checked_math_without_overflow_bound_fails_closed(tmp_path):
+    lazy = "public class Meter { public int total; public void add(int n) { total = total * 3 + n; } }\n"
+    result, verify, _ = _run_strategy(
+        tmp_path, OVERFLOW_SOURCE, "CWE-190", "checked-math", lazy)
+    assert result["code"] == "strategy_not_satisfied"
+    assert result["strategy"] == "checked-math"
+    verify.assert_not_called()
+
+
+LOCK_SOURCE = """public class Counter {
+    private int count = 0;
+
+    public synchronized void tick() { count = count + 1; }
+    public int value() { return count; }
+}
+"""
+
+LOCK_TIMEOUT_REWRITE = """import java.util.concurrent.locks.ReentrantLock;
+
+public class Counter {
+    private int count = 0;
+    private final ReentrantLock lock = new ReentrantLock();
+
+    //@ ensures \\result == count || \\result == -1;
+    public int tick() {
+        try {
+            if (!lock.tryLock(100, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                return -1;
+            }
+            try { count = count + 1; return count; }
+            finally { lock.unlock(); }
+        } catch (InterruptedException e) { return -1; }
+    }
+
+    public int value() { return count; }
+}
+"""
+
+
+def test_lock_timeout_strategy_flows_to_prover(tmp_path):
+    result, verify, _ = _run_strategy(
+        tmp_path, LOCK_SOURCE, "CWE-667", "lock-timeout", LOCK_TIMEOUT_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "lock-timeout"
+    verify.assert_called()
+
+
+def test_lock_timeout_with_surviving_synchronized_fails_closed(tmp_path):
+    sneaky = LOCK_TIMEOUT_REWRITE.replace(
+        "public int tick() {", "public synchronized int tick() {")
+    result, verify, _ = _run_strategy(
+        tmp_path, LOCK_SOURCE, "CWE-667", "lock-timeout", sneaky)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
+def test_lock_timeout_without_finally_unlock_fails_closed(tmp_path):
+    sneaky = LOCK_TIMEOUT_REWRITE.replace(
+        "finally { lock.unlock(); }", "lock.unlock();")
+    result, verify, _ = _run_strategy(
+        tmp_path, LOCK_SOURCE, "CWE-667", "lock-timeout", sneaky)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
+XSS_SOURCE = """public class Greeter {
+    public String greet(String name) { return "<h1>" + name + "</h1>"; }
+}
+"""
+
+CANONICALIZE_REWRITE = """import org.owasp.encoder.Encode;
+
+public class Greeter {
+    //@ ensures \\result != null;
+    public String greet(String name) {
+        return "<h1>" + Encode.forHtml(name) + "</h1>";
+    }
+}
+"""
+
+
+def test_canonicalize_strategy_flows_to_prover(tmp_path):
+    result, verify, _ = _run_strategy(
+        tmp_path, XSS_SOURCE, "CWE-79", "canonicalize", CANONICALIZE_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "canonicalize"
+    verify.assert_called()
+
+
+def test_canonicalize_without_encoding_fails_closed(tmp_path):
+    result, verify, _ = _run_strategy(
+        tmp_path, XSS_SOURCE, "CWE-79", "canonicalize", XSS_SOURCE)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
+ASSERT_SOURCE = """public class Validator {
+    public int check(int value) {
+        assert value > 0;
+        return value;
+    }
+}
+"""
+
+FAIL_SAFE_REWRITE = """public class Validator {
+    //@ requires value > 0 || value == -1;
+    //@ ensures \\result == value || \\result == -1;
+    public int check(int value) {
+        if (!(value > 0)) { return -1; }
+        return value;
+    }
+}
+"""
+
+
+def test_fail_safe_strategy_flows_to_prover(tmp_path):
+    result, verify, _ = _run_strategy(
+        tmp_path, ASSERT_SOURCE, "CWE-617", "fail-safe", FAIL_SAFE_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "fail-safe"
+    verify.assert_called()
+
+
+def test_fail_safe_with_surviving_assert_fails_closed(tmp_path):
+    sneaky = FAIL_SAFE_REWRITE.replace(
+        "if (!(value > 0)) { return -1; }",
+        "if (!(value > 0)) { return -1; }\n        assert value < 100;")
+    result, verify, _ = _run_strategy(
+        tmp_path, ASSERT_SOURCE, "CWE-617", "fail-safe", sneaky)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
+RACE_SOURCE = """import java.util.ArrayList;
+import java.util.List;
+
+public class Registry {
+    public List<String> names = new ArrayList<>();
+    public int active = 0;
+
+    public void add(String name) { names.add(name); }
+    public List<String> view() { return names; }
+}
+"""
+
+IMMUTABLE_SNAPSHOT_REWRITE = """import java.util.ArrayList;
+import java.util.List;
+
+public class Registry {
+    private List<String> names;
+    private int active;
+
+    //@ requires name != null;
+    //@ ensures active == old.active + 1;
+    public Registry(List<String> initial) {
+        this.names = List.copyOf(initial);
+        this.active = 0;
+    }
+
+    public List<String> view() { return names; }
+}
+"""
+
+
+def test_immutable_snapshot_strategy_flows_to_prover(tmp_path):
+    result, verify, _ = _run_strategy(
+        tmp_path, RACE_SOURCE, "CWE-362", "immutable-snapshot",
+        IMMUTABLE_SNAPSHOT_REWRITE)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert result["strategy"] == "immutable-snapshot"
+    verify.assert_called()
+
+
+def test_immutable_snapshot_without_copy_fails_closed(tmp_path):
+    sneaky = IMMUTABLE_SNAPSHOT_REWRITE.replace(
+        "List.copyOf(initial)", "initial").replace(
+        "private List<String> names;", "public List<String> names;")
+    result, verify, _ = _run_strategy(
+        tmp_path, RACE_SOURCE, "CWE-362", "immutable-snapshot", sneaky)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
+def test_new_strategies_reject_unknown_names_and_reach_manifest_guidance(tmp_path):
+    from pipeline.cwe_registry import correction_guidance, entries
+    # the three new manifest CWEs load and resolve to real guidance
+    for cwe in ("CWE-190", "CWE-667", "CWE-617", "CWE-362"):
+        assert cwe in entries()
+        assert correction_guidance(cwe)        # non-empty guidance
+    result = correct_behavior(tmp_path / "no.java", "CWE-190",
+                              tmp_path / "out", strategy="not-a-strategy")
+    assert result["code"] == "unknown_strategy"
+
+
+def test_lock_timeout_without_trylock_fails_closed(tmp_path):
+    """No surviving synchronized, no bare lock(), but also no tryLock: the
+    rewrite simply dropped the lock instead of bounding the wait."""
+    lockless = "public class Counter { private int count = 0; public int tick() { count = count + 1; return count; } }\n"
+    result, verify, _ = _run_strategy(
+        tmp_path, LOCK_SOURCE, "CWE-667", "lock-timeout", lockless)
+    assert result["code"] == "strategy_not_satisfied"
+    assert "tryLock" in result["message"]
+    verify.assert_not_called()

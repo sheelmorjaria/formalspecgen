@@ -463,5 +463,58 @@
   "poc_supported": [],
   "remediation_prompt": "Bound every unbounded loop and dynamically growing structure with an explicit capacity.",
   "correction_guidance": "Strengthen the contract with an explicit capacity bound (for example requires count < 1000 and ensures count <= 1000), then rewrite the implementation so the bound is enforced: replace unbounded while(true) loops with counter-bounded iteration, and replace dynamically growing structures (LinkedList, ArrayList, HashMap) with pre-allocated fixed-size arrays or object pools. The corrected code must REJECT work beyond the capacity instead of consuming unbounded memory."
+ },
+ {
+  "cwe_id": "CWE-667",
+  "name": "Poor Locking Practice",
+  "severity": "MEDIUM",
+  "languages": [
+   "java"
+  ],
+  "detection": {
+   "method": "manual",
+   "vc_labels": [],
+   "native_triggers": {},
+   "semgrep_rule_ids": []
+  },
+  "poc_supported": [],
+  "remediation_prompt": "For CWE-667, bound lock waits with tryLock and a timeout instead of blocking indefinitely.",
+  "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+ },
+ {
+  "cwe_id": "CWE-617",
+  "name": "Reachable Assertion",
+  "severity": "MEDIUM",
+  "languages": [
+   "java",
+   "c",
+   "cpp"
+  ],
+  "detection": {
+   "method": "manual",
+   "vc_labels": [],
+   "native_triggers": {},
+   "semgrep_rule_ids": []
+  },
+  "poc_supported": [],
+  "remediation_prompt": "For CWE-617, replace reachable assertions with explicit validated error handling.",
+  "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
+ },
+ {
+  "cwe_id": "CWE-362",
+  "name": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+  "severity": "HIGH",
+  "languages": [
+   "java"
+  ],
+  "detection": {
+   "method": "manual",
+   "vc_labels": [],
+   "native_triggers": {},
+   "semgrep_rule_ids": []
+  },
+  "poc_supported": [],
+  "remediation_prompt": "For CWE-362, publish immutable snapshots of shared state instead of exposing mutable references.",
+  "correction_guidance": "Define explicit safe behavior for the reported weakness and preserve the public method signatures."
  }
 ]

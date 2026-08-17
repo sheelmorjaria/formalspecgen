@@ -48,6 +48,44 @@ _STRATEGY_GUIDANCE = {
         "give acquire the explicit reject-when-full postcondition "
         "\\result == (old count < CAP). Objects may be allocated on demand; the "
         "BOUND is what must be fixed."),
+    # Hardening strategies: each targets its own weakness class rather than
+    # capacity. Same rule as the bounding set — the residual check is a
+    # NECESSARY condition only; the prover still judges the contract.
+    "checked-math": (
+        "Strategy checked-math: rewrite every unguarded arithmetic operation on "
+        "int-typed values as overflow-checked arithmetic — Math.addExact, "
+        "Math.subtractExact, Math.multiplyExact, or an explicit pre-test "
+        "against Integer.MAX_VALUE/Integer.MIN_VALUE — and strengthen the "
+        "contract with the range that forbids wrapping (requires total >= 0 "
+        "&& total <= Integer.MAX_VALUE - n, ensures the result stays in range "
+        "or a failure value is returned)."),
+    "lock-timeout": (
+        "Strategy lock-timeout: replace every synchronized method/block and "
+        "every bare lock() with ReentrantLock.tryLock(timeout, TimeUnit). On "
+        "timeout, return an explicit failure value (do NOT block or spin), and "
+        "always release in finally { lock.unlock(); }. Strengthen the contract "
+        "with the failure postcondition ensures \\result == failureValue on the "
+        "timeout path."),
+    "canonicalize": (
+        "Strategy canonicalize: never concatenate an untrusted value into "
+        "output. Encode every untrusted string before it reaches a response or "
+        "markup — org.owasp.encoder.Encode.forHtml (or an equivalent escape "
+        "helper) around each interpolated parameter — and strengthen the "
+        "contract so the returned markup contains only escaped parameter text."),
+    "fail-safe": (
+        "Strategy fail-safe: remove every assert statement — a reachable "
+        "assertion is a crash under attacker control. Replace each with "
+        "explicit validation that returns a failure value or throws a checked, "
+        "documented exception, and mirror that behavior in the contract "
+        "(ensures \\result == failureValue when the precondition on the value "
+        "does not hold)."),
+    "immutable-snapshot": (
+        "Strategy immutable-snapshot: stop sharing mutable state. Make shared "
+        "fields private and publish immutable snapshots — construct with "
+        "List.copyOf/Arrays.copyOf, return Collections.unmodifiable views or "
+        "fresh copies from accessors — so no caller can mutate another "
+        "thread's view. Strengthen the contract with ensures that returned "
+        "references cannot alias internal mutable state."),
 }
 
 _DYNAMIC_STRUCTURES = ("new HashMap", "new HashSet", "new LinkedList",
@@ -59,6 +97,23 @@ _POOL_WITHOUT_CAPACITY = re.compile(
     r"new\s+(?:[\w.$]+\.)*BoundedPool\s*(?:<[^>]*>)?\s*\(\s*\)")
 _CAPACITY_ARGUED = re.compile(r"<=?\s*capacity\b|\bcapacity\s*[<>=]")
 _COLLECTION_API = re.compile(r"\.\s*(?:add|remove)\s*\(")
+
+# Hardening-strategy shape evidence. Each residual set is a NECESSARY
+# condition: the rewrite must carry its strategy's idiom and must not keep
+# the vulnerable shape it was asked to remove.
+_OVERFLOW_CHECKED = re.compile(
+    r"Math\s*\.\s*(?:add|subtract|multiply)Exact\s*\(|"
+    r"Integer\s*\.\s*(?:MAX|MIN)_VALUE")
+_BARE_LOCK = re.compile(r"\.\s*lock\s*\(\s*\)")
+_FINALLY_UNLOCK = re.compile(r"finally\s*\{[^}]*unlock\s*\(", re.S)
+_ENCODING = re.compile(r"Encode\s*\.\s*for\w+|escape\w*\s*\(|encode\w*\s*\(")
+_REACHABLE_ASSERT = re.compile(r"(?m)^\s*assert\b")
+_SNAPSHOT_IDIOM = re.compile(
+    r"List\s*\.\s*copyOf\s*\(|Arrays\s*\.\s*copyOf\s*\(|"
+    r"Collections\s*\.\s*unmodifiable\w+|Map\s*\.\s*copyOf\s*\(")
+_PUBLIC_MUTABLE_FIELD = re.compile(
+    r"public\s+(?!final\b|static\s+final\b)[\w.<>\[\], ]*?"
+    r"(?:\[\]|List|Map|Set)(?:<[^>]*>)?\s+\w+\s*[;=]")
 
 
 def _strategy_residuals(strategy: str, source: str) -> list[str]:
@@ -89,6 +144,41 @@ def _strategy_residuals(strategy: str, source: str) -> list[str]:
             residuals.append("no explicit capacity bound (a bounded-pool "
                              "rewrite must argue a capacity: requires/"
                              "ensures count <= capacity or a < capacity guard)")
+    elif strategy == "checked-math":
+        if not _OVERFLOW_CHECKED.search(source):
+            residuals.append("no checked arithmetic (a checked-math rewrite "
+                             "must use Math.addExact/subtractExact/"
+                             "multiplyExact or an explicit Integer.MAX_VALUE/"
+                             "MIN_VALUE bound)")
+    elif strategy == "lock-timeout":
+        if "synchronized" in source:
+            residuals.append("synchronized still present (lock-timeout "
+                             "replaces blocking locks with tryLock)")
+        residuals += [f"{match}) bare lock() must become tryLock(timeout)"
+                      for match in _BARE_LOCK.findall(source)]
+        if "tryLock" not in source:
+            residuals.append("no tryLock (a lock-timeout rewrite must bound "
+                             "the wait with tryLock(timeout, TimeUnit))")
+        if not _FINALLY_UNLOCK.search(source):
+            residuals.append("no finally { unlock(); } (every acquired lock "
+                             "must be released on all paths)")
+    elif strategy == "canonicalize":
+        if not _ENCODING.search(source):
+            residuals.append("no output encoding (a canonicalize rewrite "
+                             "must encode untrusted values with "
+                             "Encode.forHtml or an equivalent escape helper "
+                             "before they reach output)")
+    elif strategy == "fail-safe":
+        residuals += [f"{match.strip()} removed-check still reachable"
+                      for match in _REACHABLE_ASSERT.findall(source)]
+    elif strategy == "immutable-snapshot":
+        if not _SNAPSHOT_IDIOM.search(source):
+            residuals.append("no snapshot idiom (an immutable-snapshot "
+                             "rewrite must publish copies with List.copyOf/"
+                             "Arrays.copyOf/Collections.unmodifiable)")
+        residuals += [f"{match.strip()} mutable shared field must be private "
+                      "final or replaced by a snapshot"
+                      for match in _PUBLIC_MUTABLE_FIELD.findall(source)]
     return residuals
 
 

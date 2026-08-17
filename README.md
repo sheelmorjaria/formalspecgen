@@ -214,6 +214,37 @@ contract-preserving refactor. Three strategies are supported:
   (`.add`/`.remove` must map to `acquire`/`release`), constructs `new BoundedPool()`
   with no capacity, or never argues an explicit capacity bound
 
+#### Hardening strategies (the wider correction vocabulary)
+
+Beyond capacity, `correct-behavior` speaks five weakness-specific strategies. Each is a
+contract *strengthening* plus a deterministic pre-prover residual check — the residual
+is a necessary condition only, Z3 still judges the strengthened contract:
+
+- `--strategy checked-math` (CWE-190) — unguarded `int` arithmetic becomes
+  overflow-checked: `Math.addExact`/`multiplyExact` or an explicit
+  `Integer.MAX_VALUE`/`MIN_VALUE` pre-test, with `requires`/`ensures` ranges that
+  forbid wrapping. A rewrite that never argues an overflow bound fails closed
+  `strategy_not_satisfied`.
+- `--strategy lock-timeout` (CWE-667) — `synchronized` and bare `lock()` become
+  `tryLock(timeout, TimeUnit)` returning an explicit failure value on timeout, with
+  `finally { unlock(); }`. Surviving `synchronized`, bare `.lock()`, a missing
+  `tryLock`, or a missing `finally`-release never reach the prover.
+- `--strategy canonicalize` (CWE-79) — untrusted values are encoded
+  (`Encode.forHtml` or an equivalent escape helper) before reaching markup or an
+  output sink; a rewrite with no encoding call fails closed.
+- `--strategy fail-safe` (CWE-617) — every reachable `assert` is replaced by explicit
+  validation returning a failure value or throwing a checked exception; any surviving
+  `assert` statement fails closed before verification.
+- `--strategy immutable-snapshot` (CWE-362) — shared mutable state stops being
+  shared: private final fields published through `List.copyOf`/`Arrays.copyOf`/
+  `Collections.unmodifiable*` snapshots. A rewrite with no snapshot idiom, or a
+  surviving public non-final array/collection field, fails closed.
+
+Real-OpenJML evidence for the new set lives in
+`tests_e2e/test_hardening_strategies_e2e.py` (Z3 proves the checked-math no-wrap
+contract, the fail-safe conditional postconditions, and the immutable-snapshot
+length contracts).
+
 ```bash
 formalspecgen correct-behavior src/BatchRunner.java --cwe CWE-400 \
   --strategy bound-loop --out-dir corrections --json corrections/bound.json
@@ -231,14 +262,22 @@ the evidence; real-OpenJML coverage lives in `tests_e2e/test_capacity_bounding_e
 
 `--auto-strategy` is an explicit opt-in that replaces the human's `--strategy` choice with
 a deterministic router (`pipeline/correction_router.py` — no LLM, a pure function of the
-source text plus the optional hardware profile):
+source text, the CWE, and the optional hardware profile). Routing is **CWE-scoped**:
+each weakness class owns its own shape table, and a shape from one class never routes a
+strategy from another — an unbounded loop under a CWE-190 request cannot be mis-routed
+to `bound-loop`:
 
-| Detected shape | Routed strategy |
-| --- | --- |
-| `while (true)` / `while(1)` / `for (;;)` | `bound-loop` |
-| `new HashMap` / `HashSet` / `TreeMap` / … | `bounded-cache` |
-| `new LinkedList` / `ArrayList` / `ArrayDeque` / … or an injected collection's `.add`/`.put`/`.offer`/`.push` API | `bounded-pool` (collapses to `static-pool` when the profile-derived capacity is under 16 — the on-demand-allocation advantage is noise that small) |
-| none of the above | `no_routable_strategy` — fails closed to manual review |
+| CWE | Detected shape | Routed strategy |
+| --- | --- | --- |
+| CWE-400 | `while (true)` / `while(1)` / `for (;;)` | `bound-loop` |
+| CWE-400 | `new HashMap` / `HashSet` / `TreeMap` / … | `bounded-cache` |
+| CWE-400 | `new LinkedList` / `ArrayList` / `ArrayDeque` / … or an injected collection's `.add`/`.put`/`.offer`/`.push` API | `bounded-pool` (collapses to `static-pool` when the profile-derived capacity is under 16 — the on-demand-allocation advantage is noise that small) |
+| CWE-190 | `int` arithmetic (`*`, `+=`, `*=`) | `checked-math` |
+| CWE-667 | `synchronized` or a bare `.lock()` | `lock-timeout` |
+| CWE-79 | markup built by concatenation, or an output-sink call with `+` inside | `canonicalize` |
+| CWE-617 | a line-leading `assert` | `fail-safe` |
+| CWE-362 | a public/protected/static non-final array or collection field | `immutable-snapshot` |
+| any | none of the above (or an unrecognized CWE) | `no_routable_strategy` — fails closed to manual review |
 
 Routing only picks the strategy; it never weakens the downstream gates — the routed run
 passes through the same strategy residuals, hardware residuals, and ESC as an explicit
