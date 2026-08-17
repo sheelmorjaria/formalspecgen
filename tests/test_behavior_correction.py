@@ -273,6 +273,96 @@ def test_non_positive_struct_size_fails_closed(tmp_path):
     chat.assert_not_called()
 
 
+# ------------------------------------------------- bounded-pool (M13) ---
+
+POOL_REWRITE = """public class Server {
+    public int acquired;
+    public int capacity;
+
+    //@ requires capacity > 0 && capacity <= 5529;
+    public Server(int capacity) { this.capacity = capacity; this.acquired = 0; }
+
+    //@ requires s != 0 && acquired >= 0;
+    //@ ensures acquired >= 0 && acquired <= capacity;
+    //@ ensures \\result == (old.Acquired < capacity);
+    public boolean accept(int s) {
+        if (acquired < capacity) { acquired = acquired + 1; return true; }
+        return false;
+    }
+}
+"""
+
+POOL_NO_LIMIT = """public class Server {
+    public int acquired;
+
+    public Server() { this.acquired = 0; }
+
+    public boolean accept(int s) {
+        acquired = acquired + 1;   // unbounded pool: no capacity check
+        return true;
+    }
+}
+"""
+
+
+def test_bounded_pool_rewrite_flows_to_prover(tmp_path):
+    """Test 1: the LLM rewrite becomes a capacity-checked pool (acquire
+    returns false when full) and the hardware bound enters the prompt."""
+    source = tmp_path / "Server.java"
+    source.write_text(DYNAMIC_QUEUE)
+    with patch("pipeline.behavior_correction._chat_fn") as chat, \
+         patch("pipeline.behavior_correction.verify",
+               side_effect=[(0, ""), (0, "")]) as verify:
+        chat.return_value.return_value = (POOL_REWRITE, "fixture", {})
+        result = correct_behavior(source, "CWE-400", tmp_path / "out",
+                                 strategy="bounded-pool",
+                                 hardware=_hardware(tmp_path),
+                                 struct_size_bytes=16)
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert "HARDWARE_MEMORY_BOUND_PROVEN" in result["claims"]
+    prompt = chat.return_value.call_args_list[0].args[0][1]["content"]
+    assert "bounded-pool" in prompt
+    assert "BoundedPool" in prompt and "acquire" in prompt
+    corrected = (tmp_path / "out" / "Server.java").read_text(encoding="utf-8")
+    assert "acquired < capacity" in corrected           # reject-when-full
+    verify.assert_called()
+
+
+def test_bounded_pool_without_capacity_fails_closed(tmp_path):
+    """Test 3: a pool rewrite with no capacity limit never reaches the
+    prover — strategy_not_satisfied fires first."""
+    source = tmp_path / "Server.java"
+    source.write_text(DYNAMIC_QUEUE)
+    with patch("pipeline.behavior_correction._chat_fn") as chat, \
+         patch("pipeline.behavior_correction.verify") as verify:
+        chat.return_value.return_value = (POOL_NO_LIMIT, "fixture", {})
+        result = correct_behavior(source, "CWE-400", tmp_path / "out",
+                                 strategy="bounded-pool",
+                                 hardware=_hardware(tmp_path),
+                                 struct_size_bytes=16)
+    assert result["code"] == "strategy_not_satisfied"
+    assert "capacity" in result["message"]
+    verify.assert_not_called()
+
+
+def test_bounded_pool_surviving_dynamic_collection_fails_closed(tmp_path):
+    """The pool rewrite must eliminate the dynamic collection, and a
+    capacity-ARGUED but pool-less rewrite (plain ArrayList) is refused."""
+    source = tmp_path / "Server.java"
+    source.write_text(DYNAMIC_QUEUE)
+    sneaky = POOL_REWRITE.replace("acquired = acquired + 1",
+                                  "orders.add(order); acquired = acquired + 1")
+    with patch("pipeline.behavior_correction._chat_fn") as chat, \
+         patch("pipeline.behavior_correction.verify") as verify:
+        chat.return_value.return_value = (sneaky, "fixture", {})
+        result = correct_behavior(source, "CWE-400", tmp_path / "out",
+                                 strategy="bounded-pool",
+                                 hardware=_hardware(tmp_path),
+                                 struct_size_bytes=16)
+    assert result["code"] == "strategy_not_satisfied"
+    verify.assert_not_called()
+
+
 def test_unreadable_profile_fails_closed(tmp_path):
     source = tmp_path / "OrderQueue.java"
     source.write_text(DYNAMIC_QUEUE)

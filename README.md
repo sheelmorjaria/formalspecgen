@@ -205,6 +205,14 @@ contract-preserving refactor. Three strategies are supported:
   fixed-size array or object pool with integer indices (`next_index`, `head`, `free_list`)
 - `--strategy bounded-cache` — unbounded `HashMap`s become parallel fixed-size arrays with
   a count field and `requires count < 100` on mutation
+- `--strategy bounded-pool` — dynamic collections become a bounded object pool
+  (`BoundedPool<T>(capacity)` with `acquire`/`release`): the Linux-kernel/HFT middle
+  ground. Objects are allocated on demand — only the **bound** is fixed — and `acquire`
+  returns `false` when the pool is full (the reject-when-full postcondition
+  `\result == (\old(count) < capacity)` is what Z3 proves). The pre-prover check fails
+  closed if the rewrite keeps a dynamic collection, still calls the collection API
+  (`.add`/`.remove` must map to `acquire`/`release`), constructs `new BoundedPool()`
+  with no capacity, or never argues an explicit capacity bound
 
 ```bash
 formalspecgen correct-behavior src/BatchRunner.java --cwe CWE-400 \

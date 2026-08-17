@@ -1056,7 +1056,7 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="strengthen a contract and prove a defensive behavior correction")
     correction.add_argument("target")
     correction.add_argument("--cwe", required=True)
-    correction.add_argument("--strategy", choices=["bound-loop", "static-pool", "bounded-cache"],
+    correction.add_argument("--strategy", choices=["bound-loop", "static-pool", "bounded-cache", "bounded-pool"],
                            help="capacity-bounding correction: rewrite unbounded loops or "
                                 "dynamic structures into static bounded code (CWE-400)")
     correction.add_argument("--hardware", metavar="PROFILE.json",

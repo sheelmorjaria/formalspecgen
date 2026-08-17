@@ -172,3 +172,62 @@ def test_hardware_bound_exceeding_budget_never_reaches_prover(tmp_path):
                                  hardware=profile_path, struct_size_bytes=4)
     assert result["code"] == "hardware_bound_exceeded"
     verify.assert_not_called()
+
+
+# ------------------------------------------------- bounded-pool (M13) ---
+
+POOL_SERVER = """public class Server {
+    public int acquired;
+    public int capacity;
+
+    //@ requires capacity > 0 && capacity <= 76;
+    public Server(int capacity) {
+        this.capacity = capacity;
+        this.acquired = 0;
+    }
+
+    //@ requires s != 0 && acquired >= 0 && acquired <= capacity;
+    //@ ensures acquired >= 0 && acquired <= capacity;
+    //@ ensures \\result <==> (\\old(acquired) < capacity);
+    //@ assignable acquired;
+    public boolean accept(int s) {
+        if (acquired < capacity) {
+            acquired = acquired + 1;
+            return true;
+        }
+        return false;   // pool full: reject without allocating (CWE-400)
+    }
+}
+"""
+
+
+def test_bounded_pool_capacity_enforced_by_real_openjml(tmp_path):
+    """User Test 2: Z3 proves pool.size() <= capacity and acquire()
+    returns false when full — through the correction lane, real ESC."""
+    if not _openjml_available():
+        pytest.skip("OpenJML unavailable")
+    import json
+    profile_path = tmp_path / "hardware_profile.json"
+    profile_path.write_text(json.dumps(HW_E2E_PROFILE), encoding="utf-8")
+    unbounded = """import java.util.LinkedList;
+
+public class Server {
+    private LinkedList<Integer> sockets = new LinkedList<>();
+    public void accept(int s) { sockets.add(s); }
+}
+"""
+    source = tmp_path / "Server.java"
+    source.write_text(unbounded, encoding="utf-8")
+    with patch("pipeline.behavior_correction._chat_fn") as chat:
+        chat.return_value.return_value = (POOL_SERVER, "fixture", {})
+        result = correct_behavior(source, "CWE-400", tmp_path / "out",
+                                 strategy="bounded-pool",
+                                 hardware=profile_path, struct_size_bytes=12)
+    assert result["status"] == "BEHAVIOR_CORRECTION_VERIFIED", result
+    assert result["claim"] == "BEHAVIOR_CORRECTION_VERIFIED"
+    assert "HARDWARE_MEMORY_BOUND_PROVEN" in result["claims"]
+    assert result["mitigated_cwe"] == "CWE-400"
+    corrected = (tmp_path / "out" / "Server.java").read_text(encoding="utf-8")
+    assert "acquired < capacity" in corrected
+    assert "sockets.add" not in corrected
+    assert result["memory_footprint_bytes"] == 76 * 12

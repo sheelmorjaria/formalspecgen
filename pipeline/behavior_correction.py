@@ -38,11 +38,27 @@ _STRATEGY_GUIDANCE = {
         "arrays (String[] keys, int[] values, capacity 100) and a count field. "
         "Strengthen put/get with requires count < 100 and reject or overwrite "
         "beyond capacity; allocation is limited to fixed-size array creation."),
+    "bounded-pool": (
+        "Strategy bounded-pool: replace every dynamic collection with a bounded "
+        "object pool BoundedPool<T> holding a fixed capacity, an acquired count, "
+        "and acquire(T)/release(T) operations. map list.add(x) to "
+        "pool.acquire(x) returning false when the pool is full and "
+        "list.remove(x) to pool.release(x). Strengthen the contract with "
+        "requires capacity > 0 && capacity <= CAP and ensures count <= CAP, and "
+        "give acquire the explicit reject-when-full postcondition "
+        "\\result == (old count < CAP). Objects may be allocated on demand; the "
+        "BOUND is what must be fixed."),
 }
 
 _DYNAMIC_STRUCTURES = ("new HashMap", "new HashSet", "new LinkedList",
                        "new ArrayList", "new ArrayDeque")
 _UNBOUNDED_LOOPS = ("while (true)", "while(true)", "for(;;)", "for (;;)")
+
+
+_POOL_WITHOUT_CAPACITY = re.compile(
+    r"new\s+(?:[\w.$]+\.)*BoundedPool\s*(?:<[^>]*>)?\s*\(\s*\)")
+_CAPACITY_ARGUED = re.compile(r"<=?\s*capacity\b|\bcapacity\s*[<>=]")
+_COLLECTION_API = re.compile(r"\.\s*(?:add|remove)\s*\(")
 
 
 def _strategy_residuals(strategy: str, source: str) -> list[str]:
@@ -59,6 +75,20 @@ def _strategy_residuals(strategy: str, source: str) -> list[str]:
         residuals = [pattern for pattern in _DYNAMIC_STRUCTURES if pattern in source]
         residuals += [match for match in re.findall(r"new\s+\w+\s*\(", source)
                       if not re.match(r"new\s+\w+\s*\[\s*\d*\s*\]", match)]
+    elif strategy == "bounded-pool":
+        # On-demand allocation is the POINT of a pool, so non-array `new` is
+        # allowed — but the collection must be gone, the collection API must
+        # be remapped to acquire/release, and a rewrite that never argues an
+        # explicit capacity is an unbounded pool and fails closed.
+        residuals = [pattern for pattern in _DYNAMIC_STRUCTURES if pattern in source]
+        residuals += [match + ")" for match in
+                      _POOL_WITHOUT_CAPACITY.findall(source)]
+        residuals += [f"{match}) collection API must map to pool.acquire/release"
+                      for match in _COLLECTION_API.findall(source)]
+        if not _CAPACITY_ARGUED.search(source):
+            residuals.append("no explicit capacity bound (a bounded-pool "
+                             "rewrite must argue a capacity: requires/"
+                             "ensures count <= capacity or a < capacity guard)")
     return residuals
 
 
@@ -177,7 +207,7 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                 "code": "unsupported_cwe_for_candidate",
                 "message": "V2 candidate correction currently supports only "
                            "CWE-400 capacity bounding"}
-    if strategy not in {"static-pool", "bounded-cache"}:
+    if strategy not in {"static-pool", "bounded-cache", "bounded-pool"}:
         return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
                 "code": "strategy_not_applicable",
                 "message": "state-machine candidates accept static-pool or "
