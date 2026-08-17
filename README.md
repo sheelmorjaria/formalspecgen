@@ -569,6 +569,25 @@ contract scaffold; C lock-protocol lowering remains unsupported. Reproducible in
 [`domains/v2/concurrent_bank_account.json`](domains/v2/concurrent_bank_account.json), and
 [`ConcurrentBankAccount.rs`](ConcurrentBankAccount.rs).
 
+### Certification traceability
+
+`generate-traceability-matrix` bridges NL requirements and the formal evidence for
+DO-178C/ISO 26262-style traceability objectives:
+
+```bash
+formalspecgen generate-traceability-matrix domains/v2/bounded_counter.json src/ \
+  --reqs requirements.req --out matrix.md
+```
+
+Matching is deterministic (no LLM): a requirement maps to a V2 invariant when they
+share a state-field mention and the requirement's numeric bound ("must not exceed 5",
+"at least 0") appears in the invariant's constants, and to the first source line
+mentioning the field and the bound. Both candidate and reviewed artifact formats are
+accepted. Unmapped requirements surface as UNMAPPED rows — never silently dropped —
+and the Markdown matrix plus JSON side-car record coverage
+(`{"mapped": 2, "total": 3}`). This is certification evidence plumbing with no proof
+claim of its own.
+
 ### Assurance claim disclaimer
 
 FormalSpecGen produces hash-bound, reviewable bounded-model evidence and scoped source/model
@@ -1943,7 +1962,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1187
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1193
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

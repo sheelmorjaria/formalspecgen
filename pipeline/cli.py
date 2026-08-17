@@ -755,6 +755,22 @@ def command_manage_trust(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0
 
 
+def command_generate_traceability(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Map requirements to V2 invariants and source lines (certification aid)."""
+    from .traceability import generate_traceability_matrix, write_matrix
+    try:
+        matrix = generate_traceability_matrix(args.domain, args.source,
+                                              args.requirements)
+        path = write_matrix(matrix, args.out, args.json_out)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[red]Traceability generation failed:[/red] {exc}")
+        return 2
+    coverage = matrix["coverage"]
+    ui.console.print(f"Traceability matrix written to [path]{path}[/path] "
+                     f"({coverage['mapped']}/{coverage['total']} requirements mapped)")
+    return 0
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1183,6 +1199,14 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    trace = sub.add_parser("generate-traceability-matrix",
+                           help="map requirements to V2 invariants and source lines")
+    trace.add_argument("domain", help="V2 candidate/reviewed domain YAML")
+    trace.add_argument("source", help="source file or directory to locate code lines")
+    trace.add_argument("--reqs", dest="requirements", required=True,
+                       help="requirements file with REQ-### lines")
+    trace.add_argument("--out", default="traceability-matrix.md")
+    trace.add_argument("--json", dest="json_out", default=None)
     trust_cmd = sub.add_parser("manage-trust",
                                help="manage the authorized-reviewer key registry")
     trust_cmd.add_argument("--add-key", help="path to an exported public key")
@@ -1283,6 +1307,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "generate-traceability-matrix":
+        return command_generate_traceability(args, ui)
     if args.command == "compose": return command_compose(args, ui)
     if args.command == "reverify": return command_reverify(args, ui)
     if args.command == "system": return command_system(args, ui)
@@ -1295,6 +1321,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
+                  "generate-traceability-matrix",
                   "compose", "reverify", "system",
                   "document-code"}
 
