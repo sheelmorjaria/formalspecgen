@@ -129,6 +129,50 @@ def _snake_name(value: str) -> str:
     return re.sub(r"(?<!^)([A-Z])", r"_\1", value).lower()
 
 
+# Lifecycle functions are bare (`recycle()`) or prefixed (`connection_recycle`,
+# `tcp_reset`) — both spellings mark a reset/recycle routine.
+_LIFECYCLE_NAMES = re.compile(r"^(?:\w+_)?(?:recycle|reset|clear|init)$", re.I)
+_NESTED_BLOCK = re.compile(r"\{[^{}]*\}")
+
+
+def _unguarded_writes(body: str, fields: set[str],
+                      access: str = r"(?:this\.)?") -> set[str]:
+    """State fields assigned OUTSIDE any nested block of the body.
+
+    Stripping nested ``{...}`` regions leaves exactly the statements that
+    run unconditionally — the shape of a recycle()/reset() that always
+    writes its fields. Guarded dialects never extract these, so they are
+    the classic source of a missing lifecycle transition.
+    """
+    stripped = body
+    while _NESTED_BLOCK.search(stripped):
+        stripped = _NESTED_BLOCK.sub("", stripped)
+    found: set[str] = set()
+    for field in fields:
+        if re.search(rf"\b{access}{re.escape(field)}\s*=\s*-?\w+\s*;", stripped):
+            found.add(field)
+    return found
+
+
+def _lifecycle_notes(functions: list[tuple[str, str]], fields: set[str],
+                     access: str = r"(?:this\.)?", notes: list[str] | None = None) -> None:
+    """POTENTIAL_LIFECYCLE_RESET for recycle/reset/clear/init functions
+    whose unguarded state writes the guarded dialects cannot extract."""
+    if notes is None:
+        return
+    for name, body in functions:
+        if not _LIFECYCLE_NAMES.match(name.split("::")[-1]):
+            continue
+        touched = _unguarded_writes(body, fields, access)
+        if touched:
+            notes.append(
+                f"POTENTIAL_LIFECYCLE_RESET: {name}() unconditionally writes "
+                f"{', '.join(sorted(touched))} but was not auto-extracted "
+                "(unguarded writes are outside the guarded-transition "
+                "dialect); verify whether it is a missing reset/recycle "
+                "transition")
+
+
 def _pascal_name(value: str) -> str:
     return "".join(part[:1].upper() + part[1:] for part in value.split("_") if part)
 
@@ -157,11 +201,13 @@ def _infer_java_transitions(text: str, fields: list[tuple[str, str]],
     guard_head = re.compile(
         r"if\s*\(\s*(?:this\.)?(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
         r"(?P<limit>-?\d+)\s*\)\s*\{")
+    functions: list[tuple[str, str]] = []
     for match in method_head.finditer(text):
         name = match.group(1)
         if name in {"<init>"}:
             continue
         body = _brace_matched(text, match.end())
+        functions.append((name, body))
         for hit in guard_head.finditer(body):
             if hit["field"] not in names:
                 continue
@@ -200,6 +246,7 @@ def _infer_java_transitions(text: str, fields: list[tuple[str, str]],
             used.add(label)
             transitions.append({"name": label, "guard": guard_ast,
                                "target": field_name, "value": value_ast})
+    _lifecycle_notes(functions, names, notes=notes)
     return transitions
 
 
@@ -383,7 +430,9 @@ def _infer_c_transitions(text: str, fields: list[tuple[str, str]],
         used_names.add(label)
         return label
 
-    for name, body in _c_void_functions(text):
+    c_functions = _c_void_functions(text)
+    _lifecycle_notes(c_functions, names, access=_C_ACCESS, notes=notes)
+    for name, body in c_functions:
         switch_transitions = _switch_case_transitions(body, name, names, enums, notes)
         if switch_transitions:
             transitions.extend(switch_transitions)

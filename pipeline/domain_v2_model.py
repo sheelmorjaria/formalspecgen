@@ -75,6 +75,102 @@ def state_space_upper_bound(spec: DomainSpecV2) -> int:
     return result
 
 
+class _Unknown:
+    """Three-valued logic marker: the guard depends on fields we have not
+    fixed, so its truth at this valuation is undecided."""
+
+
+UNKNOWN = _Unknown()
+
+
+def _evaluate3(node, env: dict[str, Any]):
+    """Partial (three-valued) evaluation of a typed expression.
+
+    ``env`` maps the field under analysis to a concrete value and every
+    other field to UNKNOWN; the result is True, False, or UNKNOWN.
+    """
+    if isinstance(node, FieldExpr):
+        return env.get(node.name, UNKNOWN)
+    if isinstance(node, (IntegerExpr, BooleanExpr)):
+        return node.value
+    if isinstance(node, OldExpr):
+        return _evaluate3(node.expression, env)
+    if isinstance(node, NotExpr):
+        value = _evaluate3(node.expression, env)
+        return UNKNOWN if isinstance(value, _Unknown) else (not value)
+    if isinstance(node, BinaryExpr):
+        op = node.kind                      # the operator IS the kind literal
+        left = _evaluate3(node.left, env)
+        right = _evaluate3(node.right, env)
+        if op in {"add", "sub"}:
+            if isinstance(left, _Unknown) or isinstance(right, _Unknown):
+                return UNKNOWN
+            return left + right if op == "add" else left - right
+        if isinstance(left, _Unknown) or isinstance(right, _Unknown):
+            if op == "and" and (left is False or right is False):
+                return False
+            if op == "or" and (left is True or right is True):
+                return True
+            if op == "implies" and left is False:
+                return True
+            if op == "implies" and right is True:
+                return True
+            return UNKNOWN
+        return {"eq": lambda: left == right, "neq": lambda: left != right,
+                "lt": lambda: left < right, "lte": lambda: left <= right,
+                "gt": lambda: left > right, "gte": lambda: left >= right,
+                "and": lambda: bool(left) and bool(right),
+                "or": lambda: bool(left) or bool(right),
+                "implies": lambda: (not left) or bool(right)}[op]()
+    raise V2ValidationError(f"unsupported expression node {type(node).__name__}")
+
+
+def static_deadlock_findings(spec: DomainSpecV2) -> list[str]:
+    """Pre-TLC graph analysis: values that can be entered but never left.
+
+    For each int state variable, a value is a DEADLOCK_RISK when
+      * it is the initial value or some effect assigns it as a literal, AND
+      * no operation's guards provably admit it (out-degree 0), AND
+      * it is not exempted via the variable's ``terminal_states`` list.
+    This is the cheap deterministic net for the missing-recycle()/reset()
+    class of review error (the Tomcat EOF state); TLC remains the judge for
+    values the static analysis cannot decide.
+    """
+    int_variables = [v for v in spec.state_variables if v.kind == "int"]
+    findings: list[str] = []
+    for variable in int_variables:
+        field = variable.name
+        reachable_values = {variable.initial}
+        for operation in spec.operations:
+            for effect in operation.effects:
+                if effect.target == field and isinstance(effect.value, IntegerExpr):
+                    reachable_values.add(effect.value.value)
+        terminal = set(variable.terminal_states or [])
+        for value in sorted(reachable_values):
+            if value in terminal:
+                continue
+            can_leave = any(
+                _operation_admits(operation, field, value, spec)
+                for operation in spec.operations)
+            if not can_leave:
+                findings.append(
+                    f"DEADLOCK_RISK: state {field} == {value} has no outgoing "
+                    "transition. Missing a 'recycle()' or 'reset()' transition? "
+                    "(If it is a legitimate end state, list it in "
+                    f"{field}'s terminal_states.)")
+    return findings
+
+
+def _operation_admits(operation: Operation, field: str, value: int,
+                      spec: DomainSpecV2) -> bool:
+    env = {v.name: UNKNOWN for v in spec.state_variables}
+    env[field] = value
+    for guard in operation.guards:
+        if _evaluate3(guard.expression, env) is False:
+            return False
+    return True
+
+
 def _check_bounds(spec: DomainSpecV2, state: dict[str, Any], operation: str) -> None:
     for variable in spec.state_variables:
         value = state[variable.name]

@@ -955,3 +955,42 @@ void step(void) {
 """
     assert _infer_c_transitions(
         unknown_effect, [("connected", "int"), ("suspended", "int")]) == []
+
+
+# ------------------------------------- M20: lifecycle idiom detection ---
+
+def test_java_recycle_idiom_reports_potential_lifecycle_reset(tmp_path):
+    """Tomcat's recycle() writes state unconditionally — the guarded dialect
+    correctly refuses it, but the reviewer now gets pointed at it."""
+    from pipeline.codebase_analysis import _infer_java_transitions
+    source = TOMCAT_SHAPE + """
+    class Extra {
+        void recycle() {
+            parsingRequestLinePhase = 0;
+        }
+        void reset(int mode) {
+            if (mode > 0) { parsingRequestLinePhase = 1; }
+        }
+        void unrelatedHelper() { parsingRequestLinePhase = 2; }
+    }
+"""
+    notes = []
+    _infer_java_transitions(
+        source, [("parsingRequestLinePhase", "int")], notes=notes)
+    lifecycle = [n for n in notes if "POTENTIAL_LIFECYCLE_RESET" in n]
+    assert len(lifecycle) == 1                 # recycle only
+    assert "recycle" in lifecycle[0] and "parsingRequestLinePhase" in lifecycle[0]
+    # reset's write is GUARDED (inside if) and unrelatedHelper is not a
+    # lifecycle name: neither is flagged
+
+
+def test_c_recycle_idiom_reports_potential_lifecycle_reset():
+    source = CONNECTION_C + """
+void connection_recycle(struct Connection *c) {
+    c->conn_state = 0;
+}
+"""
+    notes = []
+    _infer_c_transitions(source, [("conn_state", "int")], notes=notes)
+    assert any("POTENTIAL_LIFECYCLE_RESET" in n and "connection_recycle" in n
+               and "conn_state" in n for n in notes)

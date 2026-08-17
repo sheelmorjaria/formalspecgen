@@ -7,7 +7,10 @@ import hashlib
 import re
 from pathlib import Path
 
-from .domain_v2_model import state_space_upper_bound, validate_transitions_and_invariants
+from .domain_v2_model import (
+    state_space_upper_bound, static_deadlock_findings,
+    validate_transitions_and_invariants,
+)
 from .domain_v2_promotion import candidate_sha256, load_candidate
 from .domain_v2_publication import (
     TlcEvidence, ValidatedEvidence, publish_validation_failure, publish_validation_success,
@@ -33,6 +36,13 @@ def validate_v2_candidate(candidate_path: str | Path, validation_path: str | Pat
     gate = "schema"
     provenance: dict = {}
     try:
+        # Pre-TLC static net: values that can be entered but never left are
+        # the missing recycle()/reset() class of review error. Fail closed
+        # in milliseconds instead of paying for TLC's full exploration.
+        gate = "static_deadlock"
+        deadlock = static_deadlock_findings(candidate)
+        if deadlock:
+            raise RuntimeError("; ".join(deadlock))
         gate = "bounded_traversal"
         states, transitions = validate_transitions_and_invariants(candidate)
         gate = "tla_render"

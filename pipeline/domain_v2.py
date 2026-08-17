@@ -78,6 +78,10 @@ class IntStateVariable(_StrictModel):
     name: str
     bound: tuple[int, int]
     initial: int
+    # Values that are legitimate end states (an ERROR_SHUTDOWN or
+    # completion phase): the static deadlock gate exempts them, and TLC
+    # still checks they are reachable rather than dead.
+    terminal_states: list[int] | None = None
 
     @field_validator("name")
     @classmethod

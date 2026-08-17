@@ -1056,6 +1056,8 @@ and candidates remain compatible.
 ```text
 typed candidate
     ↓ schema and semantic validation
+static deadlock gate (pre-TLC graph analysis)
+    ↓ no enterable value without a provable exit, unless terminal
 bounded Python traversal
     ↓ measured reachable states and transitions
 deterministic TLA+ and TLC configuration
@@ -1064,6 +1066,36 @@ VALIDATED evidence envelope
     ↓ explicit acceptance of the exact candidate SHA-256
 reviewed canonical artifact
 ```
+
+#### The pre-TLC deadlock net
+
+Humans miss `recycle()`/`reset()` transitions, and TLC's full state-space
+exploration is the expensive way to find out. Three deterministic gates catch
+the class before the model checker is paid for:
+
+1. **Static deadlock gate** (`static_deadlock_findings`, gate
+   `static_deadlock` in `validate-domain`): for each int state variable, a
+   value that can be entered (it is the initial value or some effect assigns
+   it as a literal) but that **no operation's guards provably admit** fails
+   closed in milliseconds with
+   `DEADLOCK_RISK: state phase == -1 has no outgoing transition. Missing a
+   'recycle()' or 'reset()' transition?`. The analysis is a three-valued
+   partial evaluation of the typed guards — a guard conditioning on another
+   (undecided) field counts as admitting, so the gate only fires on what it
+   can prove, and TLC remains the judge for everything else. This is the
+   exact bug TLC caught in the Tomcat port, now caught statically.
+2. **Terminal-state marking**: `state_variables` accept an optional
+   `terminal_states: [7]` list for legitimate end states (an ERROR_SHUTDOWN
+   or completion phase); listed values are exempt from the deadlock gate, and
+   TLC still checks they are reachable rather than dead.
+3. **Lifecycle idiom detection** (extractor): a method named `recycle`,
+   `reset`, `clear`, or `init` (bare or `<thing>_reset`-prefixed) whose body
+   assigns state fields **outside any nested block** — the unconditional
+   write shape the guarded-transition dialect correctly refuses to extract —
+   is reported as `POTENTIAL_LIFECYCLE_RESET: recycle() unconditionally
+   writes <fields> but was not auto-extracted; verify whether it is a missing
+   reset/recycle transition`. On upstream Tomcat this flags `recycle()` in 11
+   classes with the exact fields each one resets.
 
 Generate a typed candidate from an interactive clarification session:
 
@@ -1900,7 +1932,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1164
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1174
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
