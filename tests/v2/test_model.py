@@ -31,12 +31,47 @@ def test_state_space_upper_bound_includes_per_actor_last_results():
 
 
 def test_oversized_state_space_fails_closed():
-    op={"name":"stay","return_type":"void","failure_semantics":"unavailable",
-        "guards":[],"effects":[],"frame":[]}
+    # Five independently incrementable counters: the reachable set itself
+    # (11^5 = 161,051) exceeds the exploration cap, not just the estimate.
+    operations=[{"name":f"inc{i}","return_type":"void","failure_semantics":"unavailable",
+                 "guards":[{"id":"g1","expression":{
+                     "kind":"lt","left":{"kind":"field","name":f"v{i}"},
+                     "right":{"kind":"integer","value":10}}}],
+                 "effects":[{"id":"e1","target":f"v{i}","value":{
+                     "kind":"add","left":{"kind":"field","name":f"v{i}"},
+                     "right":{"kind":"integer","value":1}}}],
+                 "frame":[f"v{i}"]} for i in range(5)]
     variables=[{"kind":"int","name":f"v{i}","bound":[0,10],"initial":0}
                for i in range(5)]
+    spec = DomainSpecV2.model_validate({"schema_version":2,"domain_name":"BigDomain",
+        "module_name":"big_domain","actors":1,"state_variables":variables,
+        "operations":operations,
+        "tlc_invariants":[{"id":"NonNegative","expression":{
+            "kind":"gte","left":{"kind":"field","name":"v0"},
+            "right":{"kind":"integer","value":0}}}]})
     with pytest.raises(UnsupportedV2Boundary):
-        validate_transitions_and_invariants(spec_with(op,variables=variables))
+        validate_transitions_and_invariants(spec)
+
+
+def test_wide_bounds_with_small_reachable_set_validate():
+    """Hardware capacities produce wide bounds but sparse reachable sets: a
+    counter set to a literal then decremented explores O(bound) states along
+    one axis, not the product. The cap must bind on exploration, not on the
+    worst-case estimate."""
+    operation={"name":"consume","return_type":"void","failure_semantics":"unavailable",
+               "guards":[{"id":"g1","expression":{
+                   "kind":"gt","left":{"kind":"field","name":"pending"},
+                   "right":{"kind":"integer","value":0}}}],
+               "effects":[{"id":"e1","target":"pending","value":{
+                   "kind":"sub","left":{"kind":"field","name":"pending"},
+                   "right":{"kind":"integer","value":1}}}],
+               "frame":["pending"]}
+    variables=[{"kind":"int","name":"pending","bound":[0,7372],"initial":7372},
+               {"kind":"int","name":"tag","bound":[0,7372],"initial":0}]
+    states, transitions = validate_transitions_and_invariants(
+        spec_with(operation, variables=variables))
+    assert states == 7373          # one axis, not 7373 * 7373
+    assert transitions == 7372
 
 
 def test_effects_are_evaluated_simultaneously_swap_regression():

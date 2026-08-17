@@ -146,6 +146,123 @@ def _strengthening_guidance(cwe: str, strategy: str | None = None,
     return guidance
 
 
+def _hw_invariant_ast(name: str, lo: int, hi: int) -> dict:
+    """`lo <= name && name <= hi` in the strict V2 expression schema."""
+    return {"kind": "and",
+            "left": {"kind": "gte", "left": {"kind": "field", "name": name},
+                     "right": {"kind": "integer", "value": lo}},
+            "right": {"kind": "lte", "left": {"kind": "field", "name": name},
+                      "right": {"kind": "integer", "value": hi}}}
+
+
+def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
+                          strategy: str | None, hardware: str | Path | None,
+                          struct_size_bytes: int | None,
+                          safety_margin: float) -> dict[str, Any]:
+    """Deterministic capacity bounding of a V2 candidate: the C/Rust lane.
+
+    No LLM: the silicon chooses the number. Int state-variable bounds are
+    clamped to the hardware-derived capacity (unbounded fields GAIN a bound),
+    hardware invariants are added, and a NEW `<module>_bounded.v2.yaml` is
+    written beside the original. Proof stays downstream — validate-domain
+    (TLC), hash-bound promotion, then Prusti on the deterministic Rust
+    lowering — so this command mints an APPLIED claim, never a PROVEN one.
+    """
+    candidate_path = Path(target)
+    if not candidate_path.is_file():
+        return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                "code": "input_unavailable", "target": str(candidate_path)}
+    if cwe != "CWE-400":
+        return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                "code": "unsupported_cwe_for_candidate",
+                "message": "V2 candidate correction currently supports only "
+                           "CWE-400 capacity bounding"}
+    if strategy not in {"static-pool", "bounded-cache"}:
+        return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                "code": "strategy_not_applicable",
+                "message": "state-machine candidates accept static-pool or "
+                           "bounded-cache (loop rewrites are a source-level "
+                           "correction, not a math-level one)"}
+    if hardware is None:
+        return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                "code": "hardware_profile_required",
+                "message": "candidate bounding derives the capacity from a "
+                           "hardware profile; pass --hardware PROFILE.json"}
+    from .hardware_profile import HardwareProfileError, load_profile, safe_capacity
+    import yaml as _yaml
+    try:
+        spec = _yaml.safe_load(candidate_path.read_text(encoding="utf-8"))
+        int_vars = [v for v in spec.get("state_variables", [])
+                    if v.get("kind") == "int"]
+        struct_size = (struct_size_bytes if struct_size_bytes is not None
+                       else len(int_vars) * load_profile(hardware).word_size_bytes)
+        profile = load_profile(hardware)
+        capacity = safe_capacity(profile, struct_size, safety_margin)
+    except HardwareProfileError as exc:
+        failure = {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                   "code": str(exc).split(":")[0], "message": str(exc)}
+        code = failure["code"]
+        if code not in {"hardware_profile_unreadable", "hardware_profile_invalid"}:
+            code = "HARDWARE_MEMORY_EXCEEDED"
+        failure["code"] = code
+        return failure
+    except (OSError, ValueError, _yaml.YAMLError) as exc:
+        return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                "code": "candidate_unreadable", "message": str(exc)}
+
+    module = spec["module_name"]
+    bounded = dict(spec)
+    bounded["module_name"] = f"{module}_bounded"
+    bounded["domain_name"] = "".join(
+        part[:1].upper() + part[1:]
+        for part in bounded["module_name"].split("_") if part)
+    bounded["state_variables"] = []
+    clamped, gained = [], []
+    for var in spec.get("state_variables", []):
+        var = dict(var)
+        if var.get("kind") == "int":
+            bound = var.get("bound")
+            if bound is None:
+                var["bound"] = [0, capacity]
+                gained.append(var["name"])
+            elif bound[1] > capacity:
+                var["bound"] = [bound[0], capacity]
+                clamped.append(var["name"])
+        bounded["state_variables"].append(var)
+    bounded["tlc_invariants"] = list(spec.get("tlc_invariants", [])) + [
+        {"id": f"inv_hw_bound_{v['name']}",
+         "expression": _hw_invariant_ast(v["name"], v["bound"][0], v["bound"][1])}
+        for v in bounded["state_variables"] if v.get("kind") == "int"]
+
+    destination = Path(out_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    bounded_path = destination / f"{module}_bounded.v2.yaml"
+    bounded_path.write_text(
+        _yaml.safe_dump(bounded, sort_keys=False, allow_unicode=True),
+        encoding="utf-8")
+    context = {"target": profile.target,
+               "usable_sram_bytes": profile.usable_sram_bytes,
+               "max_stack_depth_bytes": profile.max_stack_depth_bytes,
+               "word_size_bytes": profile.word_size_bytes,
+               "struct_size_bytes": struct_size,
+               "safety_margin": safety_margin,
+               "derived_capacity": capacity}
+    return {"status": "CAPACITY_BOUND_CANDIDATE_GENERATED", "claim": "NO_PROOF",
+            "claims": ["CAPACITY_BOUNDING_APPLIED"],
+            "mitigated_cwe": cwe, "strategy": strategy,
+            "target": str(candidate_path),
+            "bounded_candidate": str(bounded_path),
+            "hardware": context,
+            "struct_size_bytes": struct_size,
+            "clamped_fields": clamped, "gained_bounds": gained,
+            "memory_footprint_bytes": capacity * struct_size,
+            "next_steps": [
+                "validate-domain parser_bounded --project-root <root>",
+                "promote-domain parser_bounded --accept-candidate-sha256 <hash>",
+                "draft \"...\" --canonical-domain parser_bounded --lang rust",
+            ]}
+
+
 def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "corrections",
                      *, provider: str = "ollama", model: str | None = None,
                      max_attempts: int = 3, strategy: str | None = None,
@@ -153,6 +270,9 @@ def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "correc
                      struct_size_bytes: int | None = None,
                      safety_margin: float = 0.9) -> dict[str, Any]:
     source_path = Path(target)
+    if source_path.suffix.lower() in {".yaml", ".yml"}:
+        return _correct_v2_candidate(source_path, cwe, out_dir, strategy,
+                                     hardware, struct_size_bytes, safety_margin)
     if strategy is not None and strategy not in _STRATEGY_GUIDANCE:
         return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
                 "code": "unknown_strategy", "message": f"unknown strategy {strategy!r}"}

@@ -99,10 +99,10 @@ def _freeze(state: dict[str, Any]) -> tuple:
 
 def validate_transitions_and_invariants(
         spec: DomainSpecV2, *, max_states: int = MAX_STATE_SPACE) -> tuple[int, int]:
-    upper = state_space_upper_bound(spec)
-    if upper > max_states:
-        raise UnsupportedV2Boundary(
-            f"state space upper bound {upper} exceeds maximum {max_states}")
+    # The cap binds on ACTUAL exploration, not the worst-case estimate:
+    # hardware capacities produce wide bounds but sparse reachable sets (a
+    # counter set to a literal then decremented explores one axis, not the
+    # product). Genuinely exploding machines still fail closed here.
     initial = {item.name: item.initial for item in spec.state_variables}
     if (spec.concurrency is not None and
             spec.concurrency.linearization_points is not None):
@@ -120,6 +120,9 @@ def validate_transitions_and_invariants(
         if key in visited:
             continue
         visited.add(key)
+        if len(visited) > max_states:
+            raise UnsupportedV2Boundary(
+                f"reachable states exceed maximum {max_states}")
         if (spec.concurrency is not None and
                 spec.concurrency.linearization_points is not None):
             transitions += _enqueue_lock_protocol_successors(spec, state, queue)

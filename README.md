@@ -249,6 +249,40 @@ footprint, and neither is trusted alone. The struct-size estimate from scalar Ja
 is a lower bound only (references are not counted); exact sizes belong in
 `--struct-size-bytes`.
 
+#### Candidate capacity bounding (the C/Rust lane)
+
+`correct-behavior` also accepts a **V2 candidate YAML** as the target. This is the
+deterministic, LLM-free form of capacity bounding: the silicon picks the number, the
+pipeline clamps the math, and every proof obligation stays with the normal gates
+downstream:
+
+```bash
+formalspecgen correct-behavior domains/candidates/parser.v2.yaml --cwe CWE-400 \
+  --strategy static-pool --hardware hardware_profile.json --out-dir domains/candidates
+```
+
+Int state-variable bounds are clamped to the hardware-derived capacity (`1048576 → 7372`
+for an STM32F411-class profile over a 12-byte struct; `-1` sentinel lower bounds are
+preserved; fields already within capacity are untouched; unbounded fields **gain** a
+bound), `lo <= field <= capacity` hardware invariants are added, and a NEW
+`<module>_bounded.v2.yaml` is written beside the original — the input candidate is
+never modified. The verdict records the full derivation (usable SRAM, margin, struct
+size, capacity, `memory_footprint_bytes = capacity × struct_size`) and mints
+`CAPACITY_BOUNDING_APPLIED` with `claim: NO_PROOF` — deliberately not a PROVEN claim,
+because proof is downstream: `validate-domain <module>_bounded` (real TLC), hash-bound
+`promote-domain`, then `draft --canonical-domain <module>_bounded --lang rust` +
+Prusti. `bound-loop` is rejected (`strategy_not_applicable`: loop rewrites are a
+source-level correction, not a math-level one), non-CWE-400 targets fail closed
+(`unsupported_cwe_for_candidate`), and a missing profile is `hardware_profile_required`.
+Validated end to end against the Redis RESP machine with production bounds
+(multibulklen ≤ 1048576, bulklen ≤ 512 MB) bounded to a 7372-element capacity:
+real TLC 7 states / 14 transitions, Prusti 10/10, `SOURCE_MODEL_REFINEMENT`.
+
+The bounded traverser's state-space cap binds on **actual exploration**, not the
+worst-case bound product: hardware capacities legitimately produce wide bounds over
+sparse reachable sets (a counter set to a literal then decremented explores one axis,
+not the product), so the cap fires only when reachable states genuinely exceed it.
+
 A correction is deliberately a contract *change*, not a refactor. Output that strengthens a
 contract cannot mint `REFACTOR_CONTRACT_PRESERVED`: `verify-refactor` correctly rejects it as
 `primary_contract_surface_changed`, and the correction verdict is the evidence class that

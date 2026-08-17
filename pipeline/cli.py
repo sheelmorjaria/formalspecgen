@@ -438,7 +438,8 @@ def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
                               struct_size_bytes=getattr(args, "struct_size_bytes", None))
     _write_json(result, args.json or str(Path(args.out_dir) / "correction_verdict.json"), ui.console)
     ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
-    return 0 if result["status"] == "BEHAVIOR_CORRECTION_VERIFIED" else 1
+    return 0 if result["status"] in {"BEHAVIOR_CORRECTION_VERIFIED",
+                                      "CAPACITY_BOUND_CANDIDATE_GENERATED"} else 1
 
 
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
