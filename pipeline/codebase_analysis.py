@@ -133,26 +133,73 @@ def _pascal_name(value: str) -> str:
     return "".join(part[:1].upper() + part[1:] for part in value.split("_") if part)
 
 
-def _infer_java_transitions(text: str, fields: list[tuple[str, str]]) -> list[dict]:
+def _infer_java_transitions(text: str, fields: list[tuple[str, str]],
+                            notes: list[str] | None = None) -> list[dict]:
+    """Guarded scalar assignments inside Java methods, over this.field / field.
+
+    Parser methods usually return a status (Tomcat's parseRequestLine is
+    boolean — the classic incremental-parser shape), so the scanner accepts
+    any scalar return next to void; reference returns stay outside. Multiple
+    guarded writes per method each mint a transition (a phase counter's
+    if (phase == N) { phase = N+1; } chain is one machine, one method).
+    """
+    notes = [] if notes is None else notes
     names = {name for name, _ in fields}
-    transitions = []
-    pattern = re.compile(r"(?:public|protected)\s+void\s+(\w+)\s*\([^)]*\)\s*\{(?P<body>.*?)\}", re.S)
-    for method in pattern.finditer(text):
-        name, body = method.group(1), method.group("body")
+    transitions: list[dict] = []
+    used: set[str] = set()
+    method_head = re.compile(
+        r"(?:public|protected|private|static|\s)*?(?:void|boolean|int|long|short|byte)\s+"
+        r"(\w+)\s*\([^)]*\)(?:\s*throws\s+[\w.,\s]+)?\s*\{")
+    # The effect must live inside the guard's own brace block (nested
+    # braces refused, exactly like the C boolean-guard rule). Method
+    # bodies are brace-matched, not line-matched: a non-greedy body
+    # pattern would truncate at the first nested closing brace.
+    guard_head = re.compile(
+        r"if\s*\(\s*(?:this\.)?(?P<field>\w+)\s*(?P<op>==|!=|<=|>=|<|>)\s*"
+        r"(?P<limit>-?\d+)\s*\)\s*\{")
+    for match in method_head.finditer(text):
+        name = match.group(1)
         if name in {"<init>"}:
             continue
-        match = re.search(r"if\s*\(\s*(?:this\.)?(\w+)\s*(<=|>=|<|>)\s*(-?\d+)\s*\).*?\b(?:this\.)?\1\s*=\s*(?:this\.)?\1\s*([+-])\s*(\d+)", body, re.S)
-        if not match or match.group(1) not in names:
-            continue
-        field, operator, limit, arithmetic, amount = match.groups()
-        guard = f"{field} {operator} {limit}"
-        value = f"{field} {arithmetic} {amount}"
-        try:
-            guard_ast = parse_jml_expression(guard, fields=names)
-            value_ast = parse_jml_expression(value, fields=names)
-        except Exception:
-            continue
-        transitions.append({"name": name, "guard": guard_ast, "target": field, "value": value_ast})
+        body = _brace_matched(text, match.end())
+        for hit in guard_head.finditer(body):
+            if hit["field"] not in names:
+                continue
+            field_name = hit["field"]
+            # Brace-matched guard region; nested control flow (Tomcat's
+            # try/switch inside a phase arm) refuses auto-extraction but
+            # is reported so the reviewer knows exactly which phases to
+            # complete by hand.
+            region = _brace_matched(body, hit.end())
+            if "{" in region or "}" in region:
+                if re.search(rf"\b(?:this\.)?{re.escape(field_name)}\s*=\s*-?\d+\s*;", region):
+                    notes.append(f"{name} guard {field_name} {hit['op']} "
+                                 f"{hit['limit']}: nested control flow around "
+                                 "the state write skipped")
+                continue
+            bump = re.search(
+                rf"\b(?:this\.)?{re.escape(field_name)}\s*=\s*(?:this\.)?"
+                rf"{re.escape(field_name)}\s*(?P<arith>[+-])\s*(?P<amount>\d+)\s*;",
+                region)
+            assignment = re.search(
+                rf"\b(?:this\.)?{re.escape(field_name)}\s*=\s*"
+                rf"(?P<value>-?\d+)\s*;", region)
+            guard = f"{field_name} {hit['op']} {hit['limit']}"
+            value = (f"{field_name} {bump['arith']} {bump['amount']}"
+                     if bump else (assignment["value"] if assignment else None))
+            if value is None:
+                continue
+            try:
+                guard_ast = parse_jml_expression(guard, fields=names)
+                value_ast = parse_jml_expression(value, fields=names)
+            except Exception:
+                continue
+            label, counter = name, 2
+            while label in used:
+                label, counter = f"{name}_{counter}", counter + 1
+            used.add(label)
+            transitions.append({"name": label, "guard": guard_ast,
+                               "target": field_name, "value": value_ast})
     return transitions
 
 
@@ -591,14 +638,58 @@ def build_v2_candidate_payload(class_name: str, fields: list[tuple[str, str]],
             "state_variables": state, "operations": operations, "tlc_invariants": invariants}
 
 
+def _integer_constants(node) -> set[int]:
+    """Every integer literal in a dumped expression AST."""
+    found: set[int] = set()
+    if isinstance(node, dict):
+        if node.get("kind") == "integer":
+            found.add(node.get("value"))
+        for child in node.values():
+            found |= _integer_constants(child)
+    elif isinstance(node, list):
+        for child in node:
+            found |= _integer_constants(child)
+    return found
+
+
+def _transition_constant_bounds(transitions: list[dict]) -> dict[str, tuple[int, int]]:
+    """[0, max integer constant] per target field, from the transitions' own
+    guard/effect ASTs.
+
+    Sound for extracted literal-write machines: every reachable value is an
+    effect constant, a guard limit (which dominates its own increment), or the
+    initial 0 — all within [0, max constant]. This is the register-time
+    fallback for fields with no comparison/enum evidence (Tomcat's
+    `if (phase == N)` chain compares with `==`, never `<=`).
+    """
+    maxima: dict[str, int] = {}
+    for transition in transitions:
+        constants = _integer_constants(_ast_json(transition["guard"])) | \
+            _integer_constants(_ast_json(transition["value"]))
+        positive = max((c for c in constants if isinstance(c, int) and c >= 0),
+                       default=0)
+        target = transition["target"]
+        maxima[target] = max(maxima.get(target, 0), positive)
+    return {name: (0, hi) for name, hi in maxima.items()}
+
+
 def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
                         transitions: list[dict],
                         bounds: dict[str, tuple[int, int] | None] | None = None,
                         initials: dict[str, int | bool] | None = None) -> Path:
     candidate_dir = project_root / "domains" / "candidates"
     candidate_dir.mkdir(parents=True, exist_ok=True)
+    # Explicit comparison/enum evidence wins where it covers the machine; a
+    # field it left unbounded GAINS a bound from the transitions' own
+    # constants, and — soundness — a comparison bound the real writes EXCEED
+    # is widened to the write maximum (code that assigns 7 cannot be bounded
+    # at 2, whatever an earlier `< 2` comparison suggested).
+    merged = dict(bounds or {})
+    for name, (lo, hi) in _transition_constant_bounds(transitions).items():
+        existing = merged.get(name)
+        merged[name] = (existing[0], max(existing[1], hi)) if existing else (lo, hi)
     payload = build_v2_candidate_payload(class_name, fields, transitions,
-                                         bounds=bounds, initials=initials)
+                                         bounds=merged, initials=initials)
     path = candidate_dir / f"{_snake_name(class_name)}.v2.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
@@ -681,7 +772,10 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 suffix = source.suffix.lower()
                 if suffix == ".java":
                     notes: list[str] = []
-                    transitions = _infer_java_transitions(text, fields)
+                    transitions = _infer_java_transitions(text, fields, notes=notes)
+                    for note in notes:
+                        warnings.append({"file": str(source), "code": "EXTRACTION_NOTE",
+                                         "message": note})
                     registered = _register_candidate(Path(project_root), name, fields,
                                                       transitions, bounds=inferred)
                     domains.append(str(registered))

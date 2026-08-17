@@ -648,9 +648,161 @@ def test_cc_source_registers_candidate_with_switch_transitions(tmp_path):
             "ReadPhysicalRecord_kmiddletype", "ReadPhysicalRecord_klasttype"} <= names
     state = next(v for v in payload["state_variables"]
                  if v["name"] == "record_state")
-    # register-time inference conservatively bounds at max transition
-    # constant + 1 (kLastType=4); the reviewer tightens to the enum extent
-    assert state["bound"] == [0, 5]
+    # register-time inference bounds at the max transition constant
+    # (kLastType=4); the reviewer tightens to the enum extent if desired
+    assert state["bound"] == [0, 4]
+
+
+# ------------------------------------------------- M15: Java parser methods ---
+
+TOMCAT_SHAPE = """public class Http11InputBuffer {
+    private int parsingRequestLinePhase;
+
+    public boolean parseRequestLine(boolean useAvailableInput) {
+        if (parsingRequestLinePhase == 0) {
+            parsingRequestLinePhase = 1;
+        }
+        if (parsingRequestLinePhase == 1) {
+            parsingRequestLinePhase = 2;
+        }
+        if (parsingRequestLinePhase == 2) {
+            parsingRequestLinePhase = 3;
+        }
+        return true;
+    }
+}
+"""
+
+
+def test_boolean_returning_parser_methods_infer_transitions(tmp_path):
+    """Tomcat's parseRequestLine() returns boolean (the classic parser
+    shape), and the phase machine is guarded scalar assignment — the lane
+    must infer it, not just void methods."""
+    from pipeline.codebase_analysis import _infer_java_transitions
+    transitions = _infer_java_transitions(
+        TOMCAT_SHAPE, [("parsingRequestLinePhase", "int")])
+    assert len(transitions) == 3
+    assert {item["name"] for item in transitions} == {"parseRequestLine_2",
+                                                       "parseRequestLine_3",
+                                                       "parseRequestLine"}
+    first = transitions[0]
+    assert _dump(first["guard"]) == _dump(
+        parse_jml_expression("parsingRequestLinePhase == 0",
+                             fields={"parsingRequestLinePhase"}))
+    # the real method writes the next phase as a literal: `= 1`, not `+ 1`
+    assert _dump(first["value"]) == _dump(
+        parse_jml_expression("1", fields={"parsingRequestLinePhase"}))
+    assert first["target"] == "parsingRequestLinePhase"
+
+
+def test_tomcat_source_registers_candidate_with_phase_transitions(tmp_path):
+    source = tmp_path / "coyote"; source.mkdir()
+    (source / "Http11InputBuffer.java").write_text(TOMCAT_SHAPE,
+                                                    encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    assert result["status"] == "EXTRACTED"
+    import yaml
+    payload = yaml.safe_load(
+        (tmp_path / "domains" / "candidates" /
+         "http11_input_buffer.v2.yaml").read_text(encoding="utf-8"))
+    assert len(payload["operations"]) == 3
+    phase = next(v for v in payload["state_variables"]
+                 if v["name"] == "parsingRequestLinePhase")
+    assert phase["bound"] == [0, 3]
+
+
+TOMCAT_NESTED = """public class Http11InputBuffer {
+    private int parsingRequestLinePhase;
+
+    boolean parseRequestLine(boolean keptAlive) throws IOException {
+        if (parsingRequestLinePhase < 2) {
+            try {
+                fill();
+            } catch (IOException e) {
+                parsingRequestLinePhase = -1;
+            }
+        }
+        if (parsingRequestLinePhase == 2) {
+            try {
+                parsingRequestLinePhase = 3;
+            } finally {
+                recycle();
+            }
+        }
+    }
+}
+"""
+
+
+def test_nested_control_flow_around_java_state_write_reports_note():
+    """Tomcat's deep phase arms wrap the write in try/switch; extraction
+    refuses (TinyUSB trap) but reports exactly which guard to review."""
+    from pipeline.codebase_analysis import _infer_java_transitions
+    notes = []
+    transitions = _infer_java_transitions(
+        TOMCAT_NESTED, [("parsingRequestLinePhase", "int")], notes=notes)
+    assert transitions == []          # no brace-simple write exists
+    assert any("parsingRequestLinePhase == 2" in note and "nested" in note
+               for note in notes)
+
+
+def test_java_lane_fail_closed_branches_and_note_surfacing(tmp_path):
+    """<init> bodies, guards without a same-field write, nested guards whose
+    writes live elsewhere, and the analyze_codebase note channel."""
+    from pipeline.codebase_analysis import _infer_java_transitions
+    tricky = """public class Buffer {
+    private int phase;
+
+    public Buffer() {
+        if (phase == 0) { phase = 1; }
+    }
+
+    public void tick(int n) {
+        if (phase == 2) { int local = n; }
+        if (phase == 3) {
+            if (n > 0) { phase = 4; }
+        }
+    }
+}
+"""
+    notes = []
+    transitions = _infer_java_transitions(tricky, [("phase", "int")],
+                                          notes=notes)
+    assert transitions == []          # ctor skipped; no brace-simple write
+    assert any("phase == 3" in note and "nested" in note for note in notes)
+
+    source = tmp_path / "j"; source.mkdir()
+    (source / "Buffer.java").write_text(TOMCAT_NESTED, encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    assert any(w["code"] == "EXTRACTION_NOTE" and "nested control flow" in w["message"]
+               for w in result["warnings"])
+
+    # the constant collector walks list children too (defensive AST shape)
+    from pipeline.codebase_analysis import _integer_constants
+    assert _integer_constants(
+        [{"kind": "and", "parts": [{"kind": "integer", "value": 3}]}]) == {3}
+
+
+def test_real_write_constants_widen_a_stale_comparison_bound(tmp_path):
+    """Soundness: `phase < 2` suggests [0,2], but a machine that writes 5
+    cannot be bounded at 2 — the register-time bound widens to the write
+    maximum (real Tomcat: `< 2` at line 332, writes 4..7 elsewhere)."""
+    source = tmp_path / "coyote"; source.mkdir()
+    (source / "Http11InputBuffer.java").write_text(
+        TOMCAT_SHAPE.replace("public class", "public class").replace(
+            "private int parsingRequestLinePhase;",
+            "private int parsingRequestLinePhase;\n"
+            "    public int earlyCheck() { return parsingRequestLinePhase < 2 ? 1 : 0; }"),
+        encoding="utf-8")
+    result = analyze_codebase(source, tmp_path / "out", project_root=tmp_path)
+    assert result["status"] == "EXTRACTED"
+    import yaml
+    payload = yaml.safe_load(
+        (tmp_path / "domains" / "candidates" /
+         "http11_input_buffer.v2.yaml").read_text(encoding="utf-8"))
+    phase = next(v for v in payload["state_variables"]
+                 if v["name"] == "parsingRequestLinePhase")
+    assert phase["bound"] == [0, 3]   # write max 3 dominates the `< 2` hint
 
 
 # ------------------------------------------------ M8: TinyUSB dialect ---

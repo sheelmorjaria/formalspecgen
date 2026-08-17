@@ -822,9 +822,22 @@ writes:
   C structs.
 
 For Java and C sources, guarded scalar assignments — `if (count < LIMIT) { count += N; }`
-inside a void method (Java) or `if (c->state == 1) { c->state = 2; }` inside a void
+inside a method (Java) or `if (c->state == 1) { c->state = 2; }` inside a void
 function (C, over `ptr->field`/`value.field` receivers) — are inferred deterministically
-into typed transitions. The C lane also speaks the dialect real stacks use: **enum
+into typed transitions. The Java lane speaks the dialect real parsers use
+(proven on Tomcat's `Http11InputBuffer`): methods may be **package-private** and return
+**any scalar** (`boolean parseRequestLine(...) throws IOException`), method bodies are
+**brace-matched** (not line-matched), and a method may mint **multiple transitions**
+(phase-counter chains get collision-suffixed names: `parseRequestLine`,
+`parseRequestLine_2`, …). A guard whose state write is wrapped in **nested control
+flow** (try/switch inside the phase arm) is refused — the TinyUSB mis-pairing trap —
+but reported as an `EXTRACTION_NOTE` naming the exact guard, so the reviewer knows
+which phases to complete by hand. Register-time bounds fall back to the transitions'
+own constants (`[0, max integer constant]`) when no comparison/enum evidence exists,
+and — soundness — a comparison-derived bound that the machine's real writes exceed is
+**widened to the write maximum**: code that assigns 7 cannot be bounded at 2 because
+an earlier `phase < 2` comparison suggested it. The C lane also speaks the dialect
+real stacks use: **enum
 constants** are resolved to their integer values (implicit and explicit counters, hex
 literals), **enum-typed fields** are bounded to the enum's extent, **switch
 dispatch** (`switch (pcb->state) { case SYN_SENT: ... pcb->state = ESTABLISHED; break; }`)
@@ -921,6 +934,24 @@ the review note, and the chain completes: real TLC (7 reachable states, 13 trans
 VALIDATED) → hash-bound promotion → deterministic Rust lowering → real Prusti
 `VERIFIED` + `SOURCE_MODEL_REFINEMENT`. The macro wall is gone: **preprocessing +
 review is the documented workflow for macro-heavy codebases.**
+
+**Real-codebase proof (Apache Tomcat — the Java lane).** The same chain runs against
+real Java with no preprocessing at all: `analyze-codebase` over
+`java/org/apache/coyote/http11/` extracts Tomcat's request-line parser
+(`Http11InputBuffer.parseRequestLine` — package-private, `boolean`-returning,
+`throws IOException`) as the phase counter `parsingRequestLinePhase` with three
+transitions auto-inferred (0→1, 4→5, 7→0 — the brace-simple phase arms), seven
+`EXTRACTION_NOTE`s naming every deeper try/switch-nested guard the extractor refused,
+and a register-time bound widened to `[0, 7]` over the stale `phase < 2` comparison
+hint. The reviewer prunes the 22-field candidate to the phase machine, completes the
+cycle from the notes, and TLC itself catches the deadlock at the EOF state `phase = -1`
+— forcing the reviewer to add Tomcat's real `recycle()` reset. The chain completes:
+real TLC (9 states, 11 transitions, VALIDATED) → hash-bound promotion → deterministic
+Rust lowering (camelCase field normalized to `parsing_request_line_phase`) → real
+Prusti 0.2.2 **12/12 items VERIFIED** → `SOURCE_MODEL_REFINEMENT` under
+`v2_atomic_contract_refinement`. With lwIP/TinyUSB/Redis/curl (C), LevelDB (C++), and
+Tomcat (Java), every extraction lane has now carried a real production parser through
+the full Code → Math → Reviewed Model → Proven Port circle.
 
 ### Code-to-requirements documentation
 
