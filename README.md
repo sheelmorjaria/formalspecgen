@@ -16,7 +16,7 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 28 tools covering the full verification surface: `verify_code`,
+The server exposes 29 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
@@ -24,7 +24,7 @@ The server exposes 28 tools covering the full verification surface: `verify_code
 `validate_domain`, `compose`, `reverify_composition`, `unified_system`,
 `draft_canonical_contract`, `architecture`, `system`, `prove_equivalence`,
 `generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
-and `verify_distributed`. `correct_behavior`
+`verify_distributed`, and `verify_heap`. `correct_behavior`
 accepts the full correction surface (`strategy`, `hardware`,
 `struct_size_bytes`, `auto_strategy`), `implement_code` accepts the
 `v2_reviewed_domain`/`v2_validation_evidence` refinement pair (and can mint

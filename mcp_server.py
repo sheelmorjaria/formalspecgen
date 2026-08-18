@@ -396,6 +396,13 @@ def verify_distributed(domain: str, message_fields: str,
     return _guarded(run)
 
 
+def verify_heap(source: str, provider: str = "ollama") -> dict[str, Any]:
+    """Unbounded heap-shape verification via ghost predicates (Rust only)."""
+    from pipeline.heap import verify_heap as run_heap
+    return _guarded(lambda: run_heap(_workspace_path(source),
+                                     provider=provider))
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
@@ -407,7 +414,7 @@ def create_server():
                  discover_algorithms, validate_domain, compose, reverify_composition,
                  unified_system, draft_canonical_contract, architecture, system,
                  prove_equivalence, generate_traceability_matrix, verify_unbounded,
-                 verify_linearizability, verify_distributed):
+                 verify_linearizability, verify_distributed, verify_heap):
         server.tool()(tool)
     return server
 

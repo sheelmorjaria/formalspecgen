@@ -357,16 +357,31 @@ def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
 
 
 def test_mcp_create_server_registers_all_permitted_tools():
-    """28 tools registered; the trust actions and wizards stay out."""
+    """29 tools registered; the trust actions and wizards stay out."""
     import mcp_server as module
     import inspect, re
     source = inspect.getsource(module.create_server)
     registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
                             .split("):")[0])
-    assert len(registered) == 28
+    assert len(registered) == 29
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
-                 "verify_distributed"):
+                 "verify_distributed", "verify_heap"):
         assert name in registered
     for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
+
+
+def test_mcp_verify_heap_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "list.rs").write_text(
+        "pub struct Node { pub v: i32, pub next: Option<Box<Node>> }\n",
+        encoding="utf-8")
+    with patch("pipeline.heap.verify_heap",
+               return_value={"status": "HEAP_VERIFICATION_PROVED",
+                             "claim": "HEAP_REASONING_PROVED"}) as heap:
+        result = mcp_server.verify_heap("list.rs")
+    assert result["claim"] == "HEAP_REASONING_PROVED"
+    heap.assert_called_once()
+    non_rust = mcp_server.verify_heap("../escape.rs")
+    assert non_rust["code"] == "path_outside_workspace"
