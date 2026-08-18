@@ -16,13 +16,15 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 23 tools covering the full verification surface: `verify_code`,
+The server exposes 28 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
 `verify_bisimulation`, `optimize_algorithm`, `discover_algorithms`,
 `validate_domain`, `compose`, `reverify_composition`, `unified_system`,
-`draft_canonical_contract`, `architecture`, and `system`. `correct_behavior`
+`draft_canonical_contract`, `architecture`, `system`, `prove_equivalence`,
+`generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
+and `verify_distributed`. `correct_behavior`
 accepts the full correction surface (`strategy`, `hardware`,
 `struct_size_bytes`, `auto_strategy`), `implement_code` accepts the
 `v2_reviewed_domain`/`v2_validation_evidence` refinement pair (and can mint
@@ -35,8 +37,11 @@ tool failure into a success claim. LLM-backed tools (`remediate_code`,
 `document_code` narrative) fail closed when the provider is unreachable.
 
 Deliberately not exposed: `promote-domain` — hash-bound acceptance of a reviewed
-artifact is a human trust action that stays with the CLI — and the interactive
-clarification wizards (`domain`, non-canonical `draft`, `design-system`).
+artifact is a human trust action that stays with the CLI — the interactive
+clarification wizards (`domain`, non-canonical `draft`, `design-system`), and the
+reviewer trust actions `sign-artifact` / `manage-trust` — signing and key policy
+require the human reviewer's own GPG key, and an agent must never sign or
+authorize on a reviewer's behalf.
 Configure an MCP client with the server command and its absolute project path, for
 example:
 
@@ -647,6 +652,32 @@ state absent from the mapping is rejected outright. The minted
 `BEHAVIORAL_EQUIVALENCE_PROVED` carries scope `bounded_state_space_bisimulation`
 and `heap_equivalence_proved: false`: the machines are equivalent, Java heap
 topology, timing, and I/O are not claimed.
+
+### Distributed safety under an unreliable network
+
+`verify-distributed` proves a bounded async-message-passing domain's reviewed
+invariants hold under adversarial message loss, duplication, and reordering:
+
+```bash
+formalspecgen verify-distributed ping_pong.v2.yaml \
+  --message-fields cmd_slot,ack_slot \
+  --faults message_loss,duplication,reordering --json distributed.json
+```
+
+Message state in async V2 domains is bounded slot fields with an empty sentinel
+(the ABP encoding). The reviewer declares the message fields; the tool injects
+synthetic fault operations over them — `DropMsg` resets an occupied slot to its
+sentinel (a message leaves the network), `DuplicateMsg` copies an occupied slot
+into another empty one (the bounded-slots encoding of re-delivery; a single
+declared field is honestly refused as unmodelable), and `ReorderMsg` swaps two
+occupied slots (an over-approximation of intra-channel reordering). The bounded
+traverser then explores every fault-enabled interleaving: because faults only
+ADD behaviors, invariants holding under the full fault set hold under any subset
+the real network performs. A violation names the invariant, the fault, the
+operation, and the offending state. The minted `DISTRIBUTED_SAFETY_PROVED`
+carries scope `bounded_fault_injected_exploration` with `liveness_proved: false`
+and `eventual_delivery_proved: false` — loss can always fire, so safety is the
+claim and liveness never is.
 
 ### Certification traceability
 
@@ -2041,7 +2072,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1218
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1231
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

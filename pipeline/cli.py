@@ -808,6 +808,22 @@ def command_verify_linearizability(args: argparse.Namespace, ui: TerminalUI) -> 
     return 0 if result["status"] == "LINEARIZABILITY_PROVED" else 1
 
 
+def command_verify_distributed(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Safety under injected network faults (loss/duplication/reordering)."""
+    from .distributed import verify_distributed
+    faults = [item.strip() for item in args.faults.split(",") if item.strip()]
+    fields = [item.strip() for item in args.message_fields.split(",")
+              if item.strip()]
+    result = verify_distributed(args.domain, faults=faults,
+                               message_fields=fields)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "DISTRIBUTED_SAFETY_PROVED" else "red"
+    detail = result.get("message") or f"faults: {result.get('fault_model', [])}"
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "DISTRIBUTED_SAFETY_PROVED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1236,6 +1252,14 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    dist = sub.add_parser("verify-distributed",
+                          help="safety under injected network faults")
+    dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
+    dist.add_argument("--faults", default="message_loss,duplication,reordering",
+                      help="comma-separated: message_loss,duplication,reordering")
+    dist.add_argument("--message-fields", required=True,
+                      help="comma-separated message-slot state fields")
+    dist.add_argument("--json", dest="json_out", default=None)
     lin = sub.add_parser("verify-linearizability",
                          help="prove lock correspondence + bounded-history linearizability")
     lin.add_argument("source", help="Java source with lock sites")
@@ -1364,6 +1388,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "verify-distributed":
+        return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
         return command_verify_linearizability(args, ui)
     if args.command == "verify-unbounded":
@@ -1384,7 +1410,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "verify-linearizability", "verify-unbounded",
+                  "verify-distributed", "verify-linearizability",
+                  "verify-unbounded",
                   "prove-equivalence",
                   "generate-traceability-matrix",
                   "compose", "reverify", "system",
