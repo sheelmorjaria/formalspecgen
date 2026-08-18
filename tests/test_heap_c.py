@@ -165,16 +165,24 @@ def test_out_of_lane_sources_fail_closed(tmp_path, monkeypatch):
 
     # an .rs via the unified verify_heap entry routes to the Rust lane, a
     # .c routes here — the dispatch is in heap.py, both stay fail-closed
+    # (hermetic on CI runners without Frama-C: framac_unavailable)
     from pipeline.heap import verify_heap
     c_list = _write(tmp_path, "list.c", INTRUSIVE_LIST)
-    verdict = verify_heap(c_list)
-    assert verdict["claim"] == "HEAP_REASONING_PROVED"
+    if _framac_installed():
+        verdict = verify_heap(c_list)
+        assert verdict["claim"] == "HEAP_REASONING_PROVED"
+    else:
+        assert verify_heap(c_list)["code"] == "framac_unavailable"
 
-    # prover-availability and WP-output failure paths
+    # prover-availability and WP-output failure paths. The stub file makes
+    # the timeout/output paths hermetic: resolution succeeds (the file
+    # exists), subprocess.run is mocked — no Frama-C needed on the host.
     from pipeline import config
     monkeypatch.setattr(config, "FRAMAC_BIN", "/nonexistent/frama-c")
     assert verify_heap_c(c_list)["code"] == "framac_unavailable"
-    monkeypatch.undo()
+    stub = tmp_path / "frama-c"
+    stub.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(config, "FRAMAC_BIN", str(stub))
 
     from unittest.mock import patch
     bad_render = _write(

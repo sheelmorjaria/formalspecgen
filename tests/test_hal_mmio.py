@@ -208,14 +208,13 @@ def test_wp_residuals_fail_closed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config, "FRAMAC_BIN", "/nonexistent/frama-c")
     assert verify_hal(source)["code"] == "framac_unavailable"
-    monkeypatch.undo()
-
-    with patch("subprocess.run", side_effect=TimeoutError("slow")):
-        assert verify_hal(source)["code"] == "framac_timeout"
 
     stub = tmp_path / "frama-c"
     stub.write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setattr(config, "FRAMAC_BIN", str(stub))
+
+    with patch("subprocess.run", side_effect=TimeoutError("slow")):
+        assert verify_hal(source)["code"] == "framac_timeout"
 
     def _wp(out: str):
         return CompletedProcess(args=[], returncode=0, stdout=out, stderr="")
