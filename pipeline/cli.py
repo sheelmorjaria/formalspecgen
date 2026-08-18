@@ -824,6 +824,18 @@ def command_verify_distributed(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "DISTRIBUTED_SAFETY_PROVED" else 1
 
 
+def command_verify_heap(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Unbounded heap-shape verification via ghost predicates (Rust/Prusti)."""
+    from .heap import verify_heap
+    result = verify_heap(args.source, provider=args.provider)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "HEAP_VERIFICATION_PROVED" else "red"
+    detail = result.get("message") or result.get("scope", "")
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "HEAP_VERIFICATION_PROVED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1252,6 +1264,11 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    heap = sub.add_parser("verify-heap",
+                          help="unbounded heap-shape verification (ghost predicates)")
+    heap.add_argument("source", help="Rust source with Box-linked structs")
+    heap.add_argument("--provider", default="ollama")
+    heap.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1388,6 +1405,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "verify-heap":
+        return command_verify_heap(args, ui)
     if args.command == "verify-distributed":
         return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
@@ -1410,7 +1429,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "verify-distributed", "verify-linearizability",
+                  "verify-heap", "verify-distributed",
+                  "verify-linearizability",
                   "verify-unbounded",
                   "prove-equivalence",
                   "generate-traceability-matrix",

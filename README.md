@@ -679,6 +679,35 @@ carries scope `bounded_fault_injected_exploration` with `liveness_proved: false`
 and `eventual_delivery_proved: false` — loss can always fire, so safety is the
 claim and liveness never is.
 
+### Dynamic heap reasoning (unbounded, separation logic)
+
+`verify-heap` proves unbounded heap-shape properties on the Rust/Prusti lane —
+no bounding anywhere:
+
+```bash
+formalspecgen verify-heap LinkedList.rs --json heap.json
+```
+
+The shape predicate is a structurally recursive `#[pure]` ghost function over
+`Option<Box<Node>>` (reachability/membership — recursion over arbitrarily long
+chains), proposed by the provider or supplied by the reviewer. Three gates run:
+residuals demand a boolean ghost predicate and refuse arithmetic-recursive
+predicates (they cannot discharge overflow VCs over an unbounded chain); the
+framing gate is deterministic — aliased `&mut` references die at rustc's borrow
+check (`aliasing_rejected`) before Prusti is paid for; and Prusti/Viper's
+separation logic proves the predicate's inductiveness across every annotated
+operation. Rust's ownership makes acyclicity a *type-system* guarantee — a
+`Box` graph is a DAG by construction — recorded as
+`acyclicity_guarantee: rust_ownership_type_system`, not a solver result. The
+minted `HEAP_REASONING_PROVED` carries scope `separation_logic` with
+`unbounded_heap_reasoning: true` and the k-induction epistemics:
+`predicate_inductiveness_proved: true`, `predicate_adequacy:
+human_accepted_assumption`. A spec the implementation contradicts is rejected
+(`predicate_not_proved`); a predicate that merely "lies" consistently with its
+implementation is provable — which is exactly why adequacy stays a human
+assumption. Non-Rust targets fail closed `UNSUPPORTED_BOUNDARY` (heap reasoning
+requires Prusti/Viper).
+
 ### Certification traceability
 
 `generate-traceability-matrix` bridges NL requirements and the formal evidence for
@@ -2072,7 +2101,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1231
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1238
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
