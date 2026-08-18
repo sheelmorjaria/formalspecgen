@@ -786,7 +786,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
     components, domains, warnings = [], [], []
     c_structs: dict[str, list[tuple[str, str]]] = {}
     c_texts: dict[str, str] = {}
-    sources = sorted(path for ext in ("*.java", "*.rs", "*.c", "*.h", "*.cpp", "*.cc", "*.cxx")
+    sources = sorted(path for ext in ("*.java", "*.rs", "*.c", "*.h", "*.cpp", "*.cc", "*.cxx", "*.ll")
                      for path in root.rglob(ext))
     # Production C keeps its enums and structs in headers while transitions
     # live in .c files: share one enum map across the analyzed C-family tree.
@@ -800,6 +800,66 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
     for source in sources:
         try:
             text = source.read_text(encoding="utf-8")
+            if source.suffix.lower() == ".ll":
+                # M32: the IR lane. Transitions come from the CFG, not the
+                # source text; one candidate per (struct, field) machine in
+                # the module, correspondence-checked against the dispatch
+                # table that produced them.
+                from .llvm_ir import (extract_ir_transitions,
+                                      ir_cfg_correspondence, parse_llvm_ir)
+                from .jml_ast import parse_jml_expression
+                module = parse_llvm_ir(text)
+                if module.get("status") != "PARSED":
+                    warnings.append({"file": str(source),
+                                     "code": module.get("code",
+                                                        "ir_parse_error"),
+                                     "message": module.get("message", "")})
+                    continue
+                module_notes: list[str] = []
+                by_field: dict[str, list[dict]] = {}
+                for ir_function in module["functions"]:
+                    found, module_notes = extract_ir_transitions(
+                        ir_function, notes=module_notes)
+                    for item in found:
+                        by_field.setdefault(item["field"], []).append(item)
+                for note in module_notes:
+                    warnings.append({"file": str(source),
+                                     "code": "EXTRACTION_NOTE",
+                                     "message": note})
+                for field_name, items in sorted(by_field.items()):
+                    struct_name = field_name.rsplit("_f", 1)[0]
+                    # Same transition shape as the source dialect so the
+                    # candidate builder and bounds inference are shared.
+                    names = {field_name}
+                    converted = []
+                    for item in items:
+                        guard = parse_jml_expression(
+                            f"{field_name} == {item['case']}", fields=names)
+                        value = parse_jml_expression(
+                            str(item["value"]), fields=names)
+                        converted.append({"name": item["name"],
+                                          "guard": guard,
+                                          "target": field_name,
+                                          "value": value})
+                    correspondence = ir_cfg_correspondence(items, text)
+                    if correspondence.get("status") != "CORRESPONDENCE_PROVED":
+                        warnings.append({
+                            "file": str(source),
+                            "code": correspondence.get(
+                                "code", "ir_correspondence_failed"),
+                            "message": correspondence.get("message", "")})
+                        continue
+                    registered = _register_candidate(
+                        Path(project_root), struct_name,
+                        [(field_name, "int")], converted)
+                    domains.append(str(registered))
+                    warnings.append({
+                        "file": str(source), "code": "IR_MACHINE_EXTRACTED",
+                        "message": f"{len(items)} transitions for field "
+                                   f"{field_name} from the {source.name} "
+                                   "CFG (deterministic correspondence "
+                                   "proved)"})
+                continue
             warnings.extend(_unbounded_heap_warnings(text, source))
             declarations, had_parse_errors = _tree_sitter_declarations(source, text)
             if declarations is None:

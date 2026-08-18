@@ -458,7 +458,11 @@ postfix counters), `41f7c84` (v3.8.0, LevelDB/C++), `e1372be` (v3.9.0, bounded-p
   rejects public-surface drift. Concurrent composition preflight emits bounded `Actors`,
   `callResult`, and `history` state; lock correspondence checks require synchronized Java regions
   and a lock-protocol model.
-- Bottom-up codebase extraction (`analyze-codebase`, commits `90f7015`, `fcb2767`, `ff97364`)
+- Bottom-up codebase extraction (`analyze-codebase`, commits `90f7015`, `fcb2767`, `ff97364`) —
+  source-level (Tree-sitter polyglot) and **LLVM IR-level** (M32: `clang -S -emit-llvm` `.ll`
+  modules; CFG extraction from br/switch terminators, V2 transitions mined from switch
+  dispatch with getelementptr (struct, field) tracing, and a deterministic
+  `ir_cfg_correspondence` structural gate — deliberately not a solver claim)
   parses Java, Rust, C, and C++ with Tree-sitter — with a deterministic regex fallback for
   minimal installations — and infers guarded scalar assignments into typed V2 transitions that
   are compiled through the strict JML expression parser and registered as unreviewed candidates
