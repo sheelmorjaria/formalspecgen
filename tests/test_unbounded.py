@@ -66,7 +66,8 @@ def test_verify_unbounded_proves_with_supplied_invariant(tmp_path):
     source = tmp_path / "counter.cpp"
     source.write_text(COUNTER_LOOP, encoding="utf-8")
     with patch("pipeline.unbounded.run_esbmc",
-               return_value={"status": "VERIFIED"}) as esbmc:
+               return_value={"status": "VERIFIED"}) as esbmc, \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
         result = verify_unbounded(source, invariant="i >= 0 && i <= n")
     assert result["status"] == "UNBOUNDED_VERIFIED"
     assert result["claim"] == "DEDUCTIVE_PROOF"
@@ -83,7 +84,8 @@ def test_verify_unbounded_generates_invariant_when_absent(tmp_path):
     source.write_text(COUNTER_LOOP, encoding="utf-8")
     with patch("pipeline.llm._chat_fn") as chat, \
          patch("pipeline.unbounded.run_esbmc",
-               return_value={"status": "VERIFIED"}):
+               return_value={"status": "VERIFIED"}), \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
         chat.return_value.return_value = ("i >= 0 && i <= n", "fixture", {})
         result = verify_unbounded(source, provider="ollama")
     assert result["status"] == "UNBOUNDED_VERIFIED"
@@ -92,7 +94,8 @@ def test_verify_unbounded_generates_invariant_when_absent(tmp_path):
 
     # an invariant that never mentions the counter is refused pre-prover
     with patch("pipeline.llm._chat_fn") as chat, \
-         patch("pipeline.unbounded.run_esbmc") as esbmc:
+         patch("pipeline.unbounded.run_esbmc") as esbmc, \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
         chat.return_value.return_value = ("n > 100", "fixture", {})
         result = verify_unbounded(source, provider="ollama")
     assert result["code"] == "invariant_rejected"
@@ -111,7 +114,8 @@ def test_verify_unbounded_fails_closed_on_shapes_and_steps(tmp_path):
     # a NON-inductive invariant fails at the step harness
     with patch("pipeline.unbounded.run_esbmc",
                side_effect=[{"status": "VERIFIED"},
-                            {"status": "FAILED", "vcs": [{"detail": "assertion"}]}]):
+                            {"status": "FAILED", "vcs": [{"detail": "assertion"}]}]), \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
         result = verify_unbounded(good, invariant="i >= 0 && i <= n")
     assert result["status"] == "UNBOUNDED_FAILED"
     assert result["failed_harness"] == "step"
@@ -159,7 +163,10 @@ def test_cli_verify_unbounded_writes_evidence(tmp_path, monkeypatch):
     args = argparse.Namespace(source="counter.cpp",
                               invariant="i >= 0 && (n <= 0 || i <= n)",
                               provider="ollama", json_out="u.json")
-    assert command_verify_unbounded(args, _SilentUI()) == 0
+    with patch("pipeline.unbounded.run_esbmc",
+               return_value={"status": "VERIFIED"}), \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
+        assert command_verify_unbounded(args, _SilentUI()) == 0
     import json
     payload = json.loads((tmp_path / "u.json").read_text(encoding="utf-8"))
     assert payload["claim"] == "DEDUCTIVE_PROOF"
@@ -193,7 +200,7 @@ def test_extract_and_proposal_edge_branches(tmp_path):
     with patch("pipeline.llm._chat_fn", side_effect=RuntimeError("offline")), \
          patch("pipeline.unbounded.run_esbmc") as esbmc:
         result = verify_unbounded(source, provider="ollama")
-    assert result["code"] == "invariant_generation_failed"
+    assert result["code"] == "invariant_generation_failed"   # before any tool need
     esbmc.assert_not_called()
 
 
@@ -214,9 +221,12 @@ def test_brace_depth_and_main_dispatch(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["formalspecgen", "verify-unbounded",
                                       "c.cpp", "--invariant",
                                       "i >= 0 && (n <= 0 || i <= n)"])
-    try:
-        cli.main()
-        dispatched = True
-    except SystemExit as exc:
-        dispatched = exc.code == 0
+    with patch("pipeline.unbounded.run_esbmc",
+               return_value={"status": "VERIFIED"}), \
+         patch("pipeline.unbounded.ESBMC_AVAILABLE", True):
+        try:
+            cli.main()
+            dispatched = True
+        except SystemExit as exc:
+            dispatched = exc.code == 0
     assert dispatched

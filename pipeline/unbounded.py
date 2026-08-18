@@ -157,10 +157,6 @@ def verify_unbounded(source: str | Path, invariant: str | None = None, *,
     if not path.is_file():
         return {"status": "UNBOUNDED_FAILED", "claim": "NO_PROOF",
                 "code": "input_unavailable", "target": str(path)}
-    if not ESBMC_AVAILABLE:
-        return {"status": "UNBOUNDED_FAILED", "claim": "NO_PROOF",
-                "code": "esbmc_unavailable",
-                "message": "install ESBMC to run induction harnesses"}
     code = path.read_text(encoding="utf-8")
     loops = extract_loops(code)
     if not loops:
@@ -186,6 +182,13 @@ def verify_unbounded(source: str | Path, invariant: str | None = None, *,
                     "code": "invariant_rejected",
                     "message": f"invariant must mention the loop counter "
                                f"{loop['counter']!r} to be inductive"}
+
+    # tool availability last: input shape and invariant residuals are
+    # diagnosable without the prover and reported first
+    if not ESBMC_AVAILABLE:
+        return {"status": "UNBOUNDED_FAILED", "claim": "NO_PROOF",
+                "code": "esbmc_unavailable",
+                "message": "install ESBMC to run induction harnesses"}
 
     proven = []
     for loop in loops:
