@@ -1,6 +1,6 @@
 # The Encoding Artifact: Bidirectional Formal Synthesis with LLM Proposers and Mechanical Judges
 
-*A design paper and experience report on FormalSpecGen (v6.0.0), August 2026.*
+*A design paper and experience report on FormalSpecGen (v6.1.0), August 2026.*
 
 ## Abstract
 
@@ -27,8 +27,10 @@ correction lane covering six CWE classes with deterministic, CWE-scoped strategy
 and hardware-derived capacity bounds, where every hardening claim is discharged by Z3
 rather than asserted by the model that proposed the rewrite; a set of proof extensions
 — behavioral bisimulation between machines, k-induction for unbounded loops, lock
-correspondence for linearizability, and adversarial fault injection for distributed
-safety — each with its epistemic division recorded in the verdict; a
+correspondence for linearizability, adversarial fault injection for distributed
+safety, and unbounded heap reasoning via structurally recursive ghost predicates on
+the separation-logic lane — each with its epistemic division recorded in the
+verdict; a
 reviewer-non-repudiation layer binding promoted artifacts to authorized GPG keys; and
 an agent surface (28 tools) that exposes every machine-provable capability while
 keeping acceptance, signing, and key policy in human hands.
@@ -342,7 +344,41 @@ over-approximates by construction. Violations name the invariant, the fault, the
 operation, and the state. The claim is safety only — `liveness_proved: false` and
 `eventual_delivery_proved: false`, because loss can always fire.
 
-### 7.5 Certification traceability
+### 7.5 Dynamic heap reasoning (unbounded, separation logic)
+
+`verify-heap` proves heap-shape properties with **no bounding anywhere** — the
+frontier the bounded lattice deliberately refused in §5's extraction lane
+(`UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`). The key is Rust's ownership: two of
+the classic heap headaches become deterministic. *Acyclicity is a type-system
+guarantee* — a `Box` graph is a DAG by construction; a cycle cannot be built —
+recorded as `acyclicity_guarantee: rust_ownership_type_system`, never a solver
+result. *Aliasing is a rustc borrow error* — two live `&mut` to the same node
+die at the compile gate (`aliasing_rejected`) before the prover is paid for,
+which makes the framing side of the separation argument cheap.
+
+What remains for the solver is the *shape*: a structurally recursive `#[pure]`
+ghost predicate over `Option<Box<Node>>` — reachability encoded as membership,
+recursing over arbitrarily long chains. Prusti/Viper's separation logic proves
+the predicate inductive across every annotated operation (verified against the
+installed prover, 4/4, before the lane was written). One residual matters:
+**arithmetic-recursive predicates are refused pre-prover** (`1 + len(next)`
+cannot discharge its overflow VC over an unbounded chain — sound as generated
+evidence would be a lie), so only boolean structural recursion is admitted.
+
+The epistemic division is k-induction's, sharpened by an instructive failure.
+A first test fixture used a *lying* predicate — `list_contains := true` — and
+Prusti **verified it**, soundly: Prusti proves
+*implementation-satisfies-specification*, and a specification that lies
+consistently with its implementation is satisfiable. Validity is not adequacy.
+The machine proves the one thing that can be checked (every implementation
+step preserves the predicate; an `ensures !contains` after a push that links
+`v` at the head is rejected as a genuine contradiction), and the verdict
+records `predicate_inductiveness_proved: true` beside
+`predicate_adequacy: human_accepted_assumption`. This is the Coq/Lean
+division of labor — the proof checker checks, the human owns the statement —
+applied autonomously to LLM-proposed predicates.
+
+### 7.6 Certification traceability
 
 `generate-traceability-matrix` maps NL requirements to V2 invariants by shared
 state-field mention and numeric bound, then to the source line enforcing them —
@@ -377,7 +413,8 @@ The evidence taxonomy is small and non-interchangeable: `STATIC_CHECK`,
 specializations: `SOURCE_MODEL_REFINEMENT`, `SCOPED_COMPOSITION_PROOF`,
 `SYSTEM_COMPOSITION_PROOF`, `BEHAVIOR_CORRECTION_VERIFIED`,
 `HARDWARE_MEMORY_BOUND_PROVEN`, `BEHAVIORAL_EQUIVALENCE_PROVED`,
-`CONCURRENT_LINEARIZABILITY_PROVED`, `DISTRIBUTED_SAFETY_PROVED`). The deliberate
+`CONCURRENT_LINEARIZABILITY_PROVED`, `DISTRIBUTED_SAFETY_PROVED`,
+`HEAP_REASONING_PROVED`). The deliberate
 negatives are part of the design:
 
 - `SOURCE_MODEL_REFINEMENT` covers the reviewed state-machine semantics only — not
@@ -391,6 +428,11 @@ negatives are part of the design:
   `java_memory_model_proved: false`; scheduler properties are never implied.
 - `DISTRIBUTED_SAFETY_PROVED` covers bounded slot abstractions under the injected
   fault set; `liveness_proved: false` and `eventual_delivery_proved: false` always.
+- `HEAP_REASONING_PROVED` covers the Rust/ownership lane only: the predicate's
+  inductiveness is machine-proved, its *adequacy* is a human-accepted assumption
+  (a consistently-lying predicate is provable — validity is not adequacy), and
+  acyclicity is the type system's guarantee, not a solver result. Java/C heaps
+  fail closed `UNSUPPORTED_BOUNDARY`.
 - None of it constitutes DO-178C/ISO 26262 certification; the tool produces
   hash-bound bounded-model evidence *suitable for inclusion in* an assurance case,
   and the traceability matrix is the plumbing toward that objective — never proof.
@@ -425,8 +467,10 @@ the reviewer's accepted assumption.
 **Proof scope is the prover's scope.** Prusti/Frama-C/ESBMC verify the fragments
 they are given; weak memory and JDK internals are outside what was proved. Unbounded
 loops are covered only through reviewer-supplied (or LLM-proposed,
-inductiveness-checked) invariants, not by default. The claim names the scope; the
-scope names the boundary.
+inductiveness-checked) invariants, not by default; unbounded heap reasoning is
+Rust-only — the ownership discipline that makes acyclicity and aliasing
+deterministic has no counterpart on the Java/C lanes, which fail closed rather
+than approximating. The claim names the scope; the scope names the boundary.
 
 ## 11. Related work
 
@@ -443,11 +487,14 @@ and impossible to certify.
 Six production parsers from three languages now sit in one reviewed, hash-bound,
 provable artifact lattice — extended with behavioral equivalence between machines,
 unbounded loop induction, lock-correspondence linearizability, adversarial fault
-tolerance, certification traceability, and reviewer non-repudiation, all surfaced to
+tolerance, unbounded heap reasoning over ghost predicates, certification
+traceability, and reviewer non-repudiation, all surfaced to
 agents through 28 tools that expose every machine-provable capability and none of the
 human trust actions. Four times the mechanical judge corrected the human, and the
 static nets now catch that class before the judge is even paid for; every time the
-model tried to shortcut the lattice, a deterministic gate refused. The engineering
+model tried to shortcut the lattice, a deterministic gate refused — and when the
+judge *verified a lie*, the verdict said so by naming adequacy a human assumption.
+The engineering
 claim is narrow and checkable: **with the encoding artifact as the unit of trust,
 LLM-assisted development can produce evidence rather than assurance theater** — and
 the evidence says exactly how far it reaches and where it stops.
@@ -483,13 +530,16 @@ formalspecgen verify-linearizability ConcurrentBank.java --domain bank.v2.yaml
 formalspecgen verify-distributed ping_pong.v2.yaml \
   --message-fields cmd_slot,ack_slot --faults message_loss,duplication,reordering
 
+# Unbounded heap reasoning (separation logic, Rust only):
+formalspecgen verify-heap LinkedList.rs --json heap.json
+
 # Certification traceability and reviewer non-repudiation:
 formalspecgen generate-traceability-matrix bounded_counter.v2.yaml src/ --reqs requirements.req
 formalspecgen manage-trust --add-key alice.pub
 formalspecgen sign-artifact domains/v2/bank.json --key alice@example.com
 ```
 
-The full deterministic suite (1231 tests, 99.01% combined coverage) is
+The full deterministic suite (1238 tests, 99.00% combined coverage) is
 `python3 -m pytest -c pytest.ini`; the real-tool end-to-end suites live in
 `tests_e2e/` (`scripts/run_e2e.sh`). The agent surface is
 `pip install 'formalspecgen[mcp]' && python mcp_server.py` — 28 tools, workspace-
