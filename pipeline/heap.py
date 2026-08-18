@@ -110,13 +110,21 @@ def verify_heap(source: str | Path, predicates: str | None = None, *,
 
     predicate_source = "human_supplied" if predicates is not None else None
     if predicates is None:
-        try:
-            predicates = _propose_predicates(code, dynamic[0]["node_type"],
-                                             provider)
-            predicate_source = "llm_proposed"
-        except Exception as exc:
-            return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
-                    "code": "predicate_generation_failed", "message": str(exc)}
+        # A source that already carries a well-formed ghost predicate needs
+        # no proposal — the reviewer supplied it in-file. The provider is
+        # consulted ONLY when the predicate is genuinely absent, so a
+        # provider-less environment never blocks a fully-specified source.
+        if _predicate_residuals(code, dynamic[0]["node_type"]) is None:
+            predicates = code
+            predicate_source = "source_supplied"
+        else:
+            try:
+                predicates = _propose_predicates(code, dynamic[0]["node_type"],
+                                                 provider)
+                predicate_source = "llm_proposed"
+            except Exception as exc:
+                return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
+                        "code": "predicate_generation_failed", "message": str(exc)}
     residual = _predicate_residuals(predicates, dynamic[0]["node_type"])
     if residual is not None:
         return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
@@ -133,6 +141,15 @@ def verify_heap(source: str | Path, predicates: str | None = None, *,
 
     from .rust_support import verify_prusti
     result = verify_prusti(code)
+    if result.get("status") == "TOOL_MISSING":
+        # Availability, not proof: reported distinctly (and only here, after
+        # the diagnosable-input residuals and the framing gate) so a runner
+        # without Prusti says so instead of claiming the predicate failed.
+        return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
+                "code": "prusti_unavailable",
+                "message": result.get("message",
+                                      "Prusti executable not found; heap "
+                                      "reasoning was not attempted")}
     if result.get("status") != "VERIFIED":
         return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
                 "code": "predicate_not_proved",

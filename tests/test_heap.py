@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
+
 from pipeline.heap import (
     extract_dynamic_structs, verify_heap,
 )
@@ -186,6 +188,13 @@ def test_verify_heap_aliased_mutation_rejected(tmp_path):
     assert "borrow" in result["message"].lower()
 
 
+def _prusti_installed() -> bool:
+    from pipeline.rust_support import _prusti_binary
+    return _prusti_binary() is not None
+
+
+@pytest.mark.skipif(not _prusti_installed(),
+                    reason="real Prusti not installed")
 def test_cli_verify_heap_mints_and_fails(tmp_path, monkeypatch):
     """Test 4.1: the command mints HEAP_REASONING_PROVED, scope
     separation_logic; an unsatisfiable spec fails closed."""
@@ -233,6 +242,8 @@ def test_provider_failure_and_residual_violation_fail_closed(tmp_path):
     assert result["code"] == "no_ghost_predicate"
 
 
+@pytest.mark.skipif(not _prusti_installed(),
+                    reason="real Prusti not installed")
 def test_argparse_dispatch_reaches_verify_heap(tmp_path, monkeypatch):
     """The argparse-level dispatch line fires end to end."""
     import sys
@@ -247,3 +258,30 @@ def test_argparse_dispatch_reaches_verify_heap(tmp_path, monkeypatch):
     except SystemExit as exc:
         ok = exc.code == 0
     assert ok
+
+
+def test_source_supplied_predicate_needs_no_provider(tmp_path):
+    """A source that already carries a well-formed ghost predicate never
+    consults the LLM — the happy path is hermetic, so a provider-less
+    runner (CI) still reaches the framing gate and Prusti."""
+    source = _write(tmp_path, "supplied.rs", LINKED_LIST)
+    with patch("pipeline.llm._chat_fn",
+               side_effect=RuntimeError("no provider anywhere")):
+        with patch("pipeline.rust_support.verify_prusti",
+                   return_value={"status": "VERIFIED", "output": "4/4"}):
+            result = verify_heap(source, provider="ollama")
+    assert result["claim"] == "HEAP_REASONING_PROVED", result
+    assert result["predicate_source"] == "source_supplied"
+
+
+def test_prusti_unavailable_is_not_a_proof_failure(tmp_path):
+    """A runner without Prusti reports prusti_unavailable — distinctly from
+    predicate_not_proved, and only after the residuals and framing gate."""
+    source = _write(tmp_path, "supplied.rs", LINKED_LIST)
+    with patch("pipeline.rust_support.verify_prusti",
+               return_value={"status": "TOOL_MISSING", "exit_code": 127,
+                             "message": "Prusti executable not found"}):
+        result = verify_heap(source, provider="ollama")
+    assert result["code"] == "prusti_unavailable"
+    assert result["claim"] == "NO_PROOF"
+    assert "not found" in result["message"]
