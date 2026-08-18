@@ -88,8 +88,14 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
     if not baseline_contract:
         return _fail("missing_trusted_contract",
                      f"Baseline contains no {language} contract clauses")
-    if baseline_contract != refactored_contract:
-        return _fail("contract_surface_changed", "Normalized native contract clauses differ")
+    # Subset, not equality: every baseline clause must survive verbatim, and
+    # added clauses on new items (an extracted helper's copied contract, a
+    # strategy trait's method declaration) are permitted — mirroring the
+    # Java lane, where private helpers may repeat the public obligations,
+    # and this gate's own API rule (baseline signatures must survive).
+    if not baseline_contract <= refactored_contract:
+        return _fail("contract_surface_changed",
+                     "Every baseline contract clause must survive the refactor")
     baseline_api = public_api_surface(baseline, language)
     refactored_api = public_api_surface(refactored, language)
     if not baseline_api:

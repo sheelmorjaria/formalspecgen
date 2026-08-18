@@ -305,10 +305,19 @@ def test_cli_routes_polyglot_and_guards_java_inspection(tmp_path):
              "--pattern", "extract-method", "--out", str(tmp_path / "o.rs")])
         assert cli.command_apply_refactor(args, _ui()) == 1
 
-    # polyglot lane rejects non-extract-method patterns; java lane needs --inspection
+    # Rust strategy is a lane now (M31): an out-of-dialect method fails closed
+    # at exit 1 rather than being refused as an unsupported pattern
     args = cli.build_parser().parse_args(
         ["apply-refactor", str(baseline), "--method", "process",
          "--pattern", "strategy", "--out", str(tmp_path / "o.rs")])
+    assert cli.command_apply_refactor(args, _ui()) == 1
+
+    # non-Rust polyglot suffixes still reject the strategy pattern outright
+    csrc = tmp_path / "logic.c"
+    csrc.write_text("int f(void) { return 1; }\n", encoding="utf-8")
+    args = cli.build_parser().parse_args(
+        ["apply-refactor", str(csrc), "--method", "f",
+         "--pattern", "strategy", "--out", str(tmp_path / "o.c")])
     assert cli.command_apply_refactor(args, _ui()) == 2
 
     java = tmp_path / "Plain.java"

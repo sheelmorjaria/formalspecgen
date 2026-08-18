@@ -418,7 +418,7 @@ FormalSpecGen covers five connected workflows:
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
 | Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
-| Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method` | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
+| Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method`, plus the Rust strategy profile (`--pattern strategy`) on the probed static-dispatch shape | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 | Verified reimplementation | `analyze-codebase` → `validate-domain` → `promote-domain` → `draft --canonical-domain --lang` → `implement` | `SOURCE_MODEL_REFINEMENT` for a Rust port of a reviewed, TLC-validated extracted state machine |
 
@@ -1568,9 +1568,10 @@ proving arbitrary dynamic dispatch. Exit-0 compositions that discharge no obliga
 reported as `VACUOUS_COMPOSITION`, not proof. The polyglot lanes add two of their own
 boundaries: the C and C++ orchestrators currently render external-Port steps only (mixed
 core+Port use cases return `UNSUPPORTED_BOUNDARY` on those lanes; Rust renders both), and
-polyglot `apply-refactor` supports extract-method only, via AST-guided byte splicing
-(see Modernization below); the other refactor profiles and C++ out-of-line method
-definitions remain Java-only or future work. An unreviewed example artifact
+polyglot `apply-refactor` supports extract-method (all of Rust/C/C++, via AST-guided
+byte splicing) plus the Rust strategy profile (see Modernization below); the remaining
+refactor profiles and C++ out-of-line method definitions stay Java-only or future work.
+An unreviewed example artifact
 lives at `domains/examples/composition/secure_entry.composition.json`.
 
 ### System decomposition

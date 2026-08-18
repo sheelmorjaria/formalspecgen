@@ -462,9 +462,14 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     suffix = Path(args.source).suffix.lower()
     if suffix in {".rs", ".c", ".cpp", ".cc", ".cxx"}:
+        if suffix == ".rs" and args.pattern == "strategy":
+            from .rust_strategy_refactor import apply_strategy_rust
+            result = apply_strategy_rust(args.source, args.method, args.out)
+            _write_json(result, args.json, ui.console)
+            return 0 if result.get("status") == "VERIFIED" else 1
         if args.pattern != "extract-method":
             ui.console.print("[bold red]Polyglot refactoring currently supports "
-                             "extract-method only[/bold red]")
+                             "extract-method (and Rust strategy)[/bold red]")
             return 2
         from .polyglot_extract_method import apply_extract_method_polyglot
         result = apply_extract_method_polyglot(args.source, args.method, args.out)
