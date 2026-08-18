@@ -1,6 +1,6 @@
 # The Encoding Artifact: Bidirectional Formal Synthesis with LLM Proposers and Mechanical Judges
 
-*A design paper and experience report on FormalSpecGen (v4.0.0), August 2026.*
+*A design paper and experience report on FormalSpecGen (v6.0.0), August 2026.*
 
 ## Abstract
 
@@ -13,7 +13,7 @@ mechanical judges (Z3 via OpenJML ESC, Prusti/Viper, Frama-C WP, ESBMC, TLC) eit
 accept or reject. The contribution is not any single prover integration but the
 discipline: LLM output never becomes evidence, every claim has a named ceiling, every
 gate fails closed, and humans own exactly the trust assumptions (bounds, invariants,
-promotions) that machines cannot invent.
+promotions, signatures) that machines cannot invent.
 
 We report the strongest result of this discipline: six full-production parser state
 machines — lwIP TCP, TinyUSB USB device, Redis RESP, curl HTTP headers, LevelDB's WAL
@@ -21,10 +21,17 @@ reader, and Apache Tomcat's HTTP request-line parser — extracted from upstream
 and Java sources into reviewed TLA+ state machines, validated by real TLC, and lowered
 into memory-safe Rust that Prusti proves refines the *same reviewed model*
 (`SOURCE_MODEL_REFINEMENT`). In four of the six ports, the bounded traverser caught a
-genuine transcription error the human reviewer had made. We further report a correction
-lane covering six CWE classes with deterministic, CWE-scoped strategy routing and
-hardware-derived capacity bounds, where every hardening claim is discharged by Z3 rather
-than asserted by the model that proposed the rewrite.
+genuine transcription error the human reviewer had made — and a static pre-TLC gate now
+catches that same missing-`recycle()` class in milliseconds. We further report a
+correction lane covering six CWE classes with deterministic, CWE-scoped strategy routing
+and hardware-derived capacity bounds, where every hardening claim is discharged by Z3
+rather than asserted by the model that proposed the rewrite; a set of proof extensions
+— behavioral bisimulation between machines, k-induction for unbounded loops, lock
+correspondence for linearizability, and adversarial fault injection for distributed
+safety — each with its epistemic division recorded in the verdict; a
+reviewer-non-repudiation layer binding promoted artifacts to authorized GPG keys; and
+an agent surface (28 tools) that exposes every machine-provable capability while
+keeping acceptance, signing, and key policy in human hands.
 
 ## 1. Introduction
 
@@ -48,13 +55,15 @@ The paper proceeds as follows. Section 2 defines the artifact lattice. Section 3
 describes the top-down (natural language → proof) direction. Section 4 describes the
 bottom-up (legacy code → math → new code) direction and the extraction dialects that
 made six production ports possible. Section 5 reports the ports. Section 6 describes
-the hardening/correction lane. Section 7 states the evidence taxonomy and — as
-importantly — what is deliberately *not* claimed. Section 8 discusses limitations and
-threats to validity.
+the hardening/correction lane. Section 7 reports the proof extensions — behavioral
+equivalence, unbounded induction, linearizability, and distributed fault tolerance.
+Section 8 describes the non-repudiation layer and the agent boundary. Section 9 states
+the evidence taxonomy and — as importantly — what is deliberately *not* claimed.
+Section 10 discusses limitations and threats to validity.
 
 ## 2. The encoding artifact
 
-Every claim in the system is backed by one of five artifact kinds:
+Every claim in the system is backed by one of six artifact kinds:
 
 1. **The typed V2 candidate** — a Pydantic-validated YAML domain (state variables with
    bounds, operations with guards/effects/invariants as a strict recursive expression
@@ -77,6 +86,11 @@ Every claim in the system is backed by one of five artifact kinds:
    normalized into a shared schema with explicit vacuity guards (an exit-0 run with no
    real obligation is `VACUOUS_VERIFIED`, never `VERIFIED`; an empty file must never
    fake a pass).
+6. **The reviewer signature** — a detached GPG signature over a promoted artifact,
+   verified against a managed authorized-key registry (`trusted_keys.json`, merged with
+   the legacy environment variable). A digest establishes artifact identity; a verified
+   signature from a registry-authorized key establishes *who* accepted it — the
+   non-repudiation layer on top of integrity.
 
 The flow between artifacts is one-directional and compiled: candidate → TLA+ → TLC
 evidence → promotion → lowering → proof. At no point does LLM output enter this chain
@@ -172,6 +186,23 @@ model. The fourth catch is the important one — the reviewer knew about the fir
 three and still missed that "parsing is complete" is not the same state as "ready to
 parse again."
 
+### 4.3 The pre-TLC deadlock net
+
+The fourth catch motivated a deterministic net so that class of error never again
+needs the expensive judge to surface. Three gates run before TLC is paid for:
+a **static deadlock gate** performs three-valued partial evaluation of the typed
+guards — fix one field's value, mark every other field unknown, let Kleene logic
+decide — and flags any int value that can be entered (initial or literal-written)
+but that no operation provably admits, failing closed
+`DEADLOCK_RISK: state phase == -1 has no outgoing transition`; `terminal_states`
+mark legitimate end states, which TLC still checks for reachability; and
+**lifecycle idiom detection** reports `recycle`/`reset`/`clear`/`init` methods whose
+brace-stripped bodies contain unconditional state writes — the exact shape the
+guarded-transition dialect correctly refuses to extract — as
+`POTENTIAL_LIFECYCLE_RESET` notes naming the method and the fields it resets. On
+upstream Tomcat this flags `recycle()` in eleven classes. A canary test pins zero
+false positives across every candidate in the repository, on every suite run.
+
 ## 5. The six production ports
 
 All six ran against upstream sources with real tools end to end:
@@ -253,31 +284,123 @@ another: an unbounded loop under a CWE-190 request routes to `no_routable_strate
 stays, and the verdict records `strategy_routed: true` so a reviewer can always
 distinguish a router-chosen strategy from a human one.
 
-## 7. What is claimed — and what is not
+## 7. The proof extensions
+
+Four later capabilities extend the lattice beyond synthesis and correction. Each is a
+separate claim with its epistemic division recorded in the verdict itself.
+
+### 7.1 Behavioral equivalence (bounded bisimulation)
+
+`prove-equivalence` proves two V2 machines behaviorally identical under a
+reviewer-supplied state mapping — the relational claim `verify-refactor` deliberately
+does not make. Both machines' finite reachable spaces are enumerated (the same bounded
+evaluator and cap as the traverser); the mapping must be functional and injective,
+cover every reachable baseline state, and at every related pair the *mapped successor
+sets must coincide in both directions*. Exhaustive over the reachable spaces, this is a
+complete proof for the bounded machines — not an induction. The claim
+`BEHAVIORAL_EQUIVALENCE_PROVED` carries scope `bounded_state_space_bisimulation` and
+`heap_equivalence_proved: false`: the machines are equivalent; Java heap topology,
+timing, and I/O are not claimed.
+
+### 7.2 Unbounded loops (k-induction)
+
+`verify-unbounded` lifts the ESBMC bounded ceiling without unrolling the loop. Two
+loop-free harnesses are generated deterministically per simple `while` loop:
+*establishment* (the invariant holds for the program's own entry state — the counter's
+literal initialization extracted from source) and *step* (assume invariant and guard
+over nondeterministic state, execute one body copy, assert preservation). ESBMC
+verifies each at unwind 1; both passing means the invariant is inductive. The
+epistemic division is explicit: `inductiveness_machine_proved: true` but
+`sufficiency_for_property: human_accepted_assumption` — the machine proves the
+induction; whether the invariant is strong enough for the property the reviewer cares
+about is a human-accepted assumption. A naive invariant is refused at the failing
+harness, named: `i <= n` on `while (i < n)` genuinely fails establishment for
+negative `n`, and the lane says so.
+
+### 7.3 Concurrent linearizability (lock correspondence)
+
+`verify-linearizability` proves a Java source's lock discipline corresponds to a
+reviewed lock-protocol domain, then that every bounded concurrent history serializes
+through the reviewed `effect_commit` linearization points. The correspondence gate is
+deterministic: `synchronized` regions (brace-matched, acquire/release lines) on a
+single receiver map to the modeled lock; explicit `x.lock()` sites must carry the
+model's lock-variable name; anything else fails closed `LOCK_CORRESPONDENCE_FAILED`.
+Full linearization-point coverage is enforced by the domain schema itself — a spec
+with partial coverage never loads. The claim covers the model plus the lock
+correspondence (`java_memory_model_proved: false` records the rest).
+
+### 7.4 Distributed safety (adversarial fault injection)
+
+`verify-distributed` proves an async-message-passing domain's reviewed invariants
+hold under an unreliable network. The reviewer declares the message-slot fields;
+synthetic fault operations are injected over them — `DropMsg` resets an occupied slot
+to its sentinel, `DuplicateMsg` copies an occupied slot into an empty one,
+`ReorderMsg` swaps occupied slots — and the traverser explores every fault-enabled
+interleaving. Because faults only *add* behaviors, safety under the full fault set
+implies safety under any subset the real network performs: the exploration
+over-approximates by construction. Violations name the invariant, the fault, the
+operation, and the state. The claim is safety only — `liveness_proved: false` and
+`eventual_delivery_proved: false`, because loss can always fire.
+
+### 7.5 Certification traceability
+
+`generate-traceability-matrix` maps NL requirements to V2 invariants by shared
+state-field mention and numeric bound, then to the source line enforcing them —
+deterministic matching, no LLM. Unmapped requirements surface as `UNMAPPED` rows,
+never silently dropped; the matrix carries no proof claim of its own. It is the
+plumbing between the reviewed math and DO-178C/ISO 26262 traceability objectives.
+
+## 8. Non-repudiation and the agent boundary
+
+The trust layer binds *who* to *what*. `sign-artifact` writes a detached GPG
+signature over any evidence artifact; `manage-trust` maintains the authorized-key
+registry; the composition and unified-system gates, when
+`FORMALSPECGEN_REQUIRE_SIGNATURES` is set, fail closed against it. A rogue or
+compromised reviewer cannot inject a flawed domain into the Rosetta lane without a
+signature from an authorized key.
+
+The agent surface (a Model Context Protocol server, 28 tools) exposes every
+machine-provable capability: extraction, validation, drafting, refinement proofs,
+all nine correction strategies with silicon-derived bounds, equivalence, induction,
+linearizability, distributed safety, traceability, and system orchestration. Exactly
+three classes of action stay CLI-only, and the exclusion is the design:
+`promote-domain` (hash-bound acceptance), `sign-artifact` (signing), and
+`manage-trust` (key policy). Signing and authorization require the human reviewer's
+own GPG key — an agent must never accept, sign, or authorize on a reviewer's behalf.
+The division is the thesis in miniature: machine-provable work is delegated; human
+trust is not.
+
+## 9. What is claimed — and what is not
 
 The evidence taxonomy is small and non-interchangeable: `STATIC_CHECK`,
 `RUNTIME_SAMPLE`, `BOUNDED_ARCHITECTURE_EVIDENCE`, `DEDUCTIVE_PROOF` (and the scoped
 specializations: `SOURCE_MODEL_REFINEMENT`, `SCOPED_COMPOSITION_PROOF`,
 `SYSTEM_COMPOSITION_PROOF`, `BEHAVIOR_CORRECTION_VERIFIED`,
-`HARDWARE_MEMORY_BOUND_PROVEN`). The deliberate negatives are part of the design:
+`HARDWARE_MEMORY_BOUND_PROVEN`, `BEHAVIORAL_EQUIVALENCE_PROVED`,
+`CONCURRENT_LINEARIZABILITY_PROVED`, `DISTRIBUTED_SAFETY_PROVED`). The deliberate
+negatives are part of the design:
 
 - `SOURCE_MODEL_REFINEMENT` covers the reviewed state-machine semantics only — not
   performance, I/O behavior, or the original code's unreviewed call graph.
 - `REFACTOR_CONTRACT_PRESERVED` proves both revisions discharge the same normalized
-  contract surface; `behavior_equivalence_proved: false` is recorded in the same
-  breath.
+  contract surface; the relational strengthening lives in the separate
+  `BEHAVIORAL_EQUIVALENCE_PROVED` claim, scoped to the bounded machines.
 - Composition proves the core respects contracted ports;
   `external_io_safety_proved: false` for every generated adapter.
-- Concurrency evidence is restricted (`bounded_single_mutex_history_refinement`);
-  distributed semantics and scheduler properties are never implied.
+- Linearizability covers the bounded histories plus the lock correspondence —
+  `java_memory_model_proved: false`; scheduler properties are never implied.
+- `DISTRIBUTED_SAFETY_PROVED` covers bounded slot abstractions under the injected
+  fault set; `liveness_proved: false` and `eventual_delivery_proved: false` always.
 - None of it constitutes DO-178C/ISO 26262 certification; the tool produces
-  hash-bound bounded-model evidence *suitable for inclusion in* an assurance case.
+  hash-bound bounded-model evidence *suitable for inclusion in* an assurance case,
+  and the traceability matrix is the plumbing toward that objective — never proof.
 
 Fail-closed is the default posture at every seam: unknown AST nodes, unreviewed
 renderer mappings, missing tools, modified locked contracts, vacuous obligations,
-unmappable diagnostics — each dies with a named code rather than degrading the claim.
+unmappable diagnostics, unauthorized signers — each dies with a named code rather
+than degrading the claim.
 
-## 8. Limitations and threats to validity
+## 10. Limitations and threats to validity
 
 **Extraction is deliberately shallow.** Guarded scalar assignments, switch dispatch,
 postfix counters, and brace-simple boolean guards. Heap topologies, callbacks,
@@ -285,22 +408,27 @@ aliasing, and responsibility grouping are refused, not approximated. The 22-fiel
 Tomcat candidate yields a 1-field machine *because the other 21 fields were pointers
 and counters the extractor honestly declined to encode*.
 
-**The reviewer is the trust root.** Promotion binds a hash, not a person; the four
-traverser catches show the mechanical judges police transcription, but the choice of
-what to promote remains human. GPG signatures exist as an optional mechanism and are
-not a substitute for review.
+**The reviewer is the trust root.** Promotion binds a hash; the signature layer binds
+an authorized key to that hash — establishing who accepted what, and nothing more.
+The four traverser catches show the mechanical judges police transcription, but the
+choice of what to promote and which keys to authorize remains human, and a signature
+is not a substitute for review.
 
-**LLM dependence is real but bounded.** Contracts, bodies, and rewrites are proposed
-by models (locally hosted); when the provider is unreachable every LLM-backed verdict
-fails closed. The deterministic lanes (candidate bounding, routing, serialization,
-TLA+ rendering, refinement-gate re-rendering) do not consult models at all.
+**LLM dependence is real but bounded.** Contracts, bodies, rewrites, and loop
+invariant proposals come from models (locally hosted); when the provider is
+unreachable every LLM-backed verdict fails closed. The deterministic lanes (candidate
+bounding, routing, serialization, TLA+ rendering, refinement-gate re-rendering, fault
+injection, deadlock analysis) do not consult models at all — and where a model
+proposes an invariant, only its *inductiveness* is machine-proved; its sufficiency is
+the reviewer's accepted assumption.
 
-**Proof scope is the prover's scope.** Prusti/Frama-C/ESBMC verify the single
-compilation units they are given; weak memory, unbounded loops (outside ESBMC's
-bound), and JDK internals are outside what was proved. The claim names the scope; the
+**Proof scope is the prover's scope.** Prusti/Frama-C/ESBMC verify the fragments
+they are given; weak memory and JDK internals are outside what was proved. Unbounded
+loops are covered only through reviewer-supplied (or LLM-proposed,
+inductiveness-checked) invariants, not by default. The claim names the scope; the
 scope names the boundary.
 
-## 9. Related work
+## 11. Related work
 
 Verifying compilers (ESC/Java2, Dafny, Why3), model checkers (TLA+/TLC, SPIN), and
 bounded verifiers (CBMC, ESBMC) supply the judges; this work is about the *lattice*
@@ -310,14 +438,19 @@ acceptance rates; the encoding-artifact position inverts the question — it doe
 matter how often the model is right if the artifacts make wrongness cheap to detect
 and impossible to certify.
 
-## 10. Conclusion
+## 12. Conclusion
 
 Six production parsers from three languages now sit in one reviewed, hash-bound,
-provable artifact lattice. Four times the mechanical judge corrected the human; every
-time the model tried to shortcut the lattice, a deterministic gate refused. The
-engineering claim is narrow and checkable: **with the encoding artifact as the unit of
-trust, LLM-assisted development can produce evidence rather than assurance theater**
-— and the evidence says exactly how far it reaches and where it stops.
+provable artifact lattice — extended with behavioral equivalence between machines,
+unbounded loop induction, lock-correspondence linearizability, adversarial fault
+tolerance, certification traceability, and reviewer non-repudiation, all surfaced to
+agents through 28 tools that expose every machine-provable capability and none of the
+human trust actions. Four times the mechanical judge corrected the human, and the
+static nets now catch that class before the judge is even paid for; every time the
+model tried to shortcut the lattice, a deterministic gate refused. The engineering
+claim is narrow and checkable: **with the encoding artifact as the unit of trust,
+LLM-assisted development can produce evidence rather than assurance theater** — and
+the evidence says exactly how far it reaches and where it stops.
 
 ---
 
@@ -336,8 +469,29 @@ formalspecgen implement Connection.rs --provider ollama \
 
 # One hardening correction, judged by Z3:
 formalspecgen correct-behavior src/Meter.java --cwe CWE-190 --strategy checked-math
+
+# Behavioral equivalence between two machines (bounded bisimulation):
+formalspecgen prove-equivalence baseline.v2.yaml refactored.v2.yaml --mapping states.json
+
+# Unbounded loop verification (k-induction; the provider proposes when omitted):
+formalspecgen verify-unbounded Counter.cpp --invariant "i >= 0 && (n <= 0 || i <= n)"
+
+# Concurrent linearizability (lock correspondence + bounded histories):
+formalspecgen verify-linearizability ConcurrentBank.java --domain bank.v2.yaml
+
+# Distributed safety under an unreliable network:
+formalspecgen verify-distributed ping_pong.v2.yaml \
+  --message-fields cmd_slot,ack_slot --faults message_loss,duplication,reordering
+
+# Certification traceability and reviewer non-repudiation:
+formalspecgen generate-traceability-matrix bounded_counter.v2.yaml src/ --reqs requirements.req
+formalspecgen manage-trust --add-key alice.pub
+formalspecgen sign-artifact domains/v2/bank.json --key alice@example.com
 ```
 
-The full deterministic suite (1158 tests, 99.01% combined coverage) is
+The full deterministic suite (1231 tests, 99.01% combined coverage) is
 `python3 -m pytest -c pytest.ini`; the real-tool end-to-end suites live in
-`tests_e2e/` (`scripts/run_e2e.sh`).
+`tests_e2e/` (`scripts/run_e2e.sh`). The agent surface is
+`pip install 'formalspecgen[mcp]' && python mcp_server.py` — 28 tools, workspace-
+contained, fail-closed, and deliberately without `promote-domain`, `sign-artifact`,
+or `manage-trust`.
