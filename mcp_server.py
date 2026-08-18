@@ -6,9 +6,11 @@ module remain importable without the SDK, which keeps the CLI and test environme
 Every tool confines its inputs AND outputs to the current workspace and returns
 structured verdict objects; a tool failure is never converted into a success
 claim.  Deliberately NOT exposed: ``promote-domain`` (hash-bound human
-acceptance of reviewed artifacts is a trust action that stays with the CLI) and
+acceptance of reviewed artifacts is a trust action that stays with the CLI),
 the interactive clarification wizards (``domain``, non-canonical ``draft``,
-``design-system``).
+``design-system``), and the reviewer trust actions ``sign-artifact`` /
+``manage-trust`` (signing and key policy require the human reviewer's own
+GPG key — an agent must never sign or authorize on a reviewer's behalf).
 """
 from __future__ import annotations
 
@@ -338,6 +340,62 @@ def draft_canonical_contract(domain: str, lang: str = "java", out_file: str | No
     return _guarded(run)
 
 
+def prove_equivalence(baseline: str, refactored: str,
+                      mapping: str) -> dict[str, Any]:
+    """Prove bounded behavioral bisimulation between two V2 machines."""
+    from pipeline.equivalence import prove_equivalence as run_proof
+    return _guarded(lambda: run_proof(
+        _workspace_path(baseline), _workspace_path(refactored),
+        _workspace_path(mapping)))
+
+
+def generate_traceability_matrix(domain: str, source: str,
+                                 requirements: str,
+                                 out: str = "traceability-matrix.md") -> dict[str, Any]:
+    """Map REQ-### requirements to V2 invariants and source lines."""
+    from pipeline.traceability import (
+        generate_traceability_matrix as run_matrix, write_matrix,
+    )
+    def run() -> dict[str, Any]:
+        matrix = run_matrix(_workspace_path(domain),
+                            _workspace_path(source),
+                            _workspace_path(requirements))
+        path = write_matrix(matrix, _workspace_path(out, must_exist=False))
+        return {"status": "TRACEABILITY_GENERATED",
+                "matrix_file": str(path), **matrix}
+    return _guarded(run)
+
+
+def verify_unbounded(source: str, invariant: str | None = None,
+                     provider: str = "ollama") -> dict[str, Any]:
+    """Prove a loop invariant inductive (k-induction, no unrolling)."""
+    from pipeline.unbounded import verify_unbounded as run_unbounded
+    return _guarded(lambda: run_unbounded(
+        _workspace_path(source), invariant=invariant, provider=provider))
+
+
+def verify_linearizability(source: str, domain: str) -> dict[str, Any]:
+    """Java lock correspondence plus bounded-history linearizability."""
+    from pipeline.linearizability import (
+        verify_linearizability as run_linearizability,
+    )
+    return _guarded(lambda: run_linearizability(
+        _workspace_path(source), _workspace_path(domain)))
+
+
+def verify_distributed(domain: str, message_fields: str,
+                       faults: str = "message_loss,duplication,reordering"
+                       ) -> dict[str, Any]:
+    """Safety under injected network faults (comma-separated fields/faults)."""
+    from pipeline.distributed import verify_distributed as run_distributed
+    def run() -> dict[str, Any]:
+        fields = [item.strip() for item in message_fields.split(",") if item.strip()]
+        fault_list = [item.strip() for item in faults.split(",") if item.strip()]
+        return run_distributed(_workspace_path(domain),
+                               faults=fault_list, message_fields=fields)
+    return _guarded(run)
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
@@ -347,7 +405,9 @@ def create_server():
                  security_exploit, remediate_code, correct_behavior, apply_refactor,
                  verify_refactor, verify_bisimulation, optimize_algorithm,
                  discover_algorithms, validate_domain, compose, reverify_composition,
-                 unified_system, draft_canonical_contract, architecture, system):
+                 unified_system, draft_canonical_contract, architecture, system,
+                 prove_equivalence, generate_traceability_matrix, verify_unbounded,
+                 verify_linearizability, verify_distributed):
         server.tool()(tool)
     return server
 

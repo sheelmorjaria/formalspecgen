@@ -282,3 +282,91 @@ def test_mcp_implement_code_accepts_v2_refinement_evidence(tmp_path, monkeypatch
     kwargs = run.call_args.kwargs
     assert kwargs["v2_reviewed_domain"].name == "domain.json"
     assert kwargs["v2_validation_evidence"].name == "evidence.json"
+
+
+# ----------------------------- M28: full command parity (28 tools) ----------------
+
+def test_mcp_prove_equivalence_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    for name in ("b.v2.yaml", "r.v2.yaml"):
+        (Path.cwd() / name).write_text("{}", encoding="utf-8")
+    (Path.cwd() / "map.json").write_text('{"states": []}', encoding="utf-8")
+    with patch("pipeline.equivalence.prove_equivalence",
+               return_value={"status": "EQUIVALENCE_PROVED",
+                             "claim": "BEHAVIORAL_EQUIVALENCE_PROVED"}) as prove:
+        result = mcp_server.prove_equivalence("b.v2.yaml", "r.v2.yaml",
+                                              "map.json")
+    assert result["claim"] == "BEHAVIORAL_EQUIVALENCE_PROVED"
+    prove.assert_called_once()
+    escape = mcp_server.prove_equivalence("b.v2.yaml", "r.v2.yaml",
+                                          "../map.json")
+    assert escape["code"] == "path_outside_workspace"
+
+
+def test_mcp_generate_traceability_matrix_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "d.v2.yaml").write_text("{}", encoding="utf-8")
+    (Path.cwd() / "r.req").write_text("REQ-001: x\n", encoding="utf-8")
+    with patch("pipeline.traceability.generate_traceability_matrix",
+               return_value={"rows": [], "domain": "d.v2.yaml",
+                             "coverage": {"mapped": 0, "total": 1}}) as gen:
+        result = mcp_server.generate_traceability_matrix(
+            "d.v2.yaml", ".", "r.req", "matrix.md")
+    assert result["coverage"]["total"] == 1
+    gen.assert_called_once()
+
+
+def test_mcp_verify_unbounded_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "c.cpp").write_text("int f(int n){int i=0;while(i<n){i=i+1;}}",
+                                       encoding="utf-8")
+    with patch("pipeline.unbounded.verify_unbounded",
+               return_value={"status": "UNBOUNDED_VERIFIED",
+                             "claim": "DEDUCTIVE_PROOF"}) as unbounded:
+        result = mcp_server.verify_unbounded("c.cpp",
+                                             invariant="i >= 0 && i <= n")
+    assert result["claim"] == "DEDUCTIVE_PROOF"
+    unbounded.assert_called_once()
+
+
+def test_mcp_verify_linearizability_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "Bank.java").write_text("class B {}", encoding="utf-8")
+    (Path.cwd() / "d.v2.yaml").write_text("{}", encoding="utf-8")
+    with patch("pipeline.linearizability.verify_linearizability",
+               return_value={"status": "LINEARIZABILITY_PROVED",
+                             "claim": "CONCURRENT_LINEARIZABILITY_PROVED"}) as lin:
+        result = mcp_server.verify_linearizability("Bank.java", "d.v2.yaml")
+    assert result["claim"] == "CONCURRENT_LINEARIZABILITY_PROVED"
+    lin.assert_called_once()
+
+
+def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "pp.v2.yaml").write_text("{}", encoding="utf-8")
+    with patch("pipeline.distributed.verify_distributed",
+               return_value={"status": "DISTRIBUTED_SAFETY_PROVED",
+                             "claim": "DISTRIBUTED_SAFETY_PROVED"}) as dist:
+        result = mcp_server.verify_distributed(
+            "pp.v2.yaml", "cmd_slot,ack_slot",
+            "message_loss,duplication,reordering")
+    assert result["status"] == "DISTRIBUTED_SAFETY_PROVED"
+    kwargs = dist.call_args.kwargs
+    assert kwargs["message_fields"] == ["cmd_slot", "ack_slot"]
+    assert kwargs["faults"] == ["message_loss", "duplication", "reordering"]
+
+
+def test_mcp_create_server_registers_all_permitted_tools():
+    """28 tools registered; the trust actions and wizards stay out."""
+    import mcp_server as module
+    import inspect, re
+    source = inspect.getsource(module.create_server)
+    registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
+                            .split("):")[0])
+    assert len(registered) == 28
+    for name in ("prove_equivalence", "generate_traceability_matrix",
+                 "verify_unbounded", "verify_linearizability",
+                 "verify_distributed"):
+        assert name in registered
+    for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
+        assert excluded not in registered
