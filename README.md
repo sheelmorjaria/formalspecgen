@@ -567,6 +567,34 @@ contract scaffold; C lock-protocol lowering remains unsupported. Reproducible in
 [`domains/v2/concurrent_bank_account.json`](domains/v2/concurrent_bank_account.json), and
 [`ConcurrentBankAccount.rs`](ConcurrentBankAccount.rs).
 
+### Concurrent linearizability (lock correspondence + bounded histories)
+
+`verify-linearizability` proves a Java source's lock discipline corresponds to a
+reviewed V2 lock-protocol domain, then that every bounded concurrent history
+serializes through the reviewed linearization points:
+
+```bash
+formalspecgen verify-linearizability ConcurrentBank.java \
+  --domain concurrent_bank_account.v2.yaml --json linearizability.json
+```
+
+The gate is two-sided and deterministic. **Lock correspondence** extracts every
+acquisition site — `synchronized (expr) { ... }` regions (brace-matched, with
+acquire/release lines) and explicit `x.lock();`/`x.unlock();` statements — and
+requires each to map to the model's single lock: synchronized regions must share
+one receiver, explicit locks must carry the model's `lock_variable` name. An
+unmodeled `ReentrantLock` or a mixed-receiver discipline fails closed
+`LOCK_CORRESPONDENCE_FAILED`. **Bounded histories** reuse the traverser's
+lock-protocol exploration (invoke/acquire/effect_commit-or-reject/release/respond)
+— every bounded interleaving serializes through the reviewed `effect_commit`
+points. Full linearization-point coverage is enforced by the domain schema
+itself. The minted `CONCURRENT_LINEARIZABILITY_PROVED` carries scope
+`bounded_lock_history_plus_java_lock_correspondence` with
+`java_memory_model_proved: false`: the model plus the lock correspondence are
+proved; the Java memory model beyond those sites is not. (The
+composition-level `CONCURRENT_COMPOSITION_LINEARIZABILITY_PROVED` remains on
+the intentionally-incomplete list.)
+
 ### Unbounded loop verification (k-induction)
 
 `verify-unbounded` proves a loop invariant INDUCTIVE — lifting the ESBMC
@@ -2013,7 +2041,7 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1211
+The deterministic suite currently reports 99.01% combined statement/branch coverage across 1218
 tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,

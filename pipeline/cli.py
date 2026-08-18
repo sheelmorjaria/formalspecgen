@@ -796,6 +796,18 @@ def command_verify_unbounded(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "UNBOUNDED_VERIFIED" else 1
 
 
+def command_verify_linearizability(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Java lock correspondence + bounded-history linearizability."""
+    from .linearizability import verify_linearizability
+    result = verify_linearizability(args.source, args.domain)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "LINEARIZABILITY_PROVED" else "red"
+    detail = result.get("message") or result.get("scope", "")
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "LINEARIZABILITY_PROVED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1224,6 +1236,12 @@ def build_parser() -> argparse.ArgumentParser:
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
+    lin = sub.add_parser("verify-linearizability",
+                         help="prove lock correspondence + bounded-history linearizability")
+    lin.add_argument("source", help="Java source with lock sites")
+    lin.add_argument("--domain", required=True,
+                     help="V2 lock-protocol domain (yaml/json)")
+    lin.add_argument("--json", dest="json_out", default=None)
     unbounded = sub.add_parser("verify-unbounded",
                                help="prove a loop invariant inductive (k-induction)")
     unbounded.add_argument("source", help="C/C++ source with simple while-loops")
@@ -1346,6 +1364,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "promote-domain": return command_promote_domain(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
+    if args.command == "verify-linearizability":
+        return command_verify_linearizability(args, ui)
     if args.command == "verify-unbounded":
         return command_verify_unbounded(args, ui)
     if args.command == "prove-equivalence":
@@ -1364,7 +1384,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "verify-unbounded", "prove-equivalence",
+                  "verify-linearizability", "verify-unbounded",
+                  "prove-equivalence",
                   "generate-traceability-matrix",
                   "compose", "reverify", "system",
                   "document-code"}
