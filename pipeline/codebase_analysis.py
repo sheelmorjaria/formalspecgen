@@ -744,6 +744,39 @@ def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[
     return path
 
 
+def _unbounded_heap_warnings(text: str, source: Path) -> list[dict]:
+    """Named refusals for dynamic heap shapes: pointer-linked C structs and
+    collection-typed Java fields. The struct/class and the exact field are
+    reported so the reviewer knows what to model (or capacity-bound)."""
+    warnings = []
+    if source.suffix.lower() in {".c", ".h", ".cc", ".cpp", ".cxx"}:
+        for match in re.finditer(
+                r"(?:typedef\s+)?struct\s+(\w+)\s*\{(?P<body>[^}]*)\}", text):
+            for field_match in re.finditer(
+                    r"(?:struct\s+)?(\w+)\s*\*\s*(\w+)\s*[;,]", match.group("body")):
+                type_name, field_name = field_match.group(1), field_match.group(2)
+                if type_name in {"void", "char", "int", "long"} and \
+                        field_name.startswith(("fmt", "buf")):
+                    continue          # string/format buffers are not heap state
+                warnings.append({
+                    "file": str(source), "code": "UNBOUNDED_HEAP_DETECTED",
+                    "message": f"Field '{field_name}' in struct "
+                               f"'{match.group(1)}' is a dynamic pointer. "
+                               "Requires manual modeling or capacity bounding."})
+    elif source.suffix.lower() == ".java":
+        for match in re.finditer(
+                r"(?:private|protected|public)\s+"
+                r"(?:final\s+)?(?:[\w.]*?(?:List|ArrayList|LinkedList|Map|"
+                r"HashMap|TreeMap|Set|HashSet|Collection)"
+                r"(?:<[^;=]*>)?)\s+(\w+)\s*[;=]", text):
+            warnings.append({
+                "file": str(source), "code": "UNBOUNDED_HEAP_DETECTED",
+                "message": f"Field '{match.group(1)}' uses a dynamic "
+                           "collection. Requires manual modeling or capacity "
+                           "bounding."})
+    return warnings
+
+
 def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                      project_root: str | Path = ".") -> dict:
     root, destination = Path(target_dir), Path(out_dir)
@@ -767,6 +800,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
     for source in sources:
         try:
             text = source.read_text(encoding="utf-8")
+            warnings.extend(_unbounded_heap_warnings(text, source))
             declarations, had_parse_errors = _tree_sitter_declarations(source, text)
             if declarations is None:
                 declarations = _polyglot_declarations(source, text)
@@ -774,6 +808,21 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                 warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE",
                                  "message": "tree-sitter reported parse errors; "
                                             "well-formed declarations were still extracted"})
+            if source.suffix.lower() == ".java":
+                # A dynamic-collection field is occupancy, not scalar state:
+                # drop it from the declaration so it never becomes a bogus
+                # int (the named UNBOUNDED_HEAP_DETECTED warning documents
+                # exactly what the reviewer must model instead).
+                for declaration in declarations:
+                    declared = set(re.findall(
+                        r"(?:private|protected|public)\s+(?:final\s+)?"
+                        r"[\w.]*?(?:List|ArrayList|LinkedList|Map|HashMap|"
+                        r"TreeMap|Set|HashSet|Collection)(?:<[^;=]*>)?\s+(\w+)\s*[;=]",
+                        text))
+                    declaration["fields"] = [(name, field_type)
+                                             for name, field_type
+                                             in declaration.get("fields", [])
+                                             if name not in declared]
         except (OSError, UnicodeError) as exc:
             warnings.append({"file": str(source), "code": "UNPARSEABLE_SOURCE", "message": str(exc)})
             continue

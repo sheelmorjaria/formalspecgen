@@ -72,14 +72,29 @@ def polyglot_v2_refinement_gate(
     }
     certificate = hashlib.sha256(json.dumps(
         body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"status": "VERIFIED", "claim": "SOURCE_MODEL_REFINEMENT",
-            "scope": body["scope"], "language": language,
-            "source_refinement_proved": True,
-            "concurrent_linearizability_proved": False,
-            "obligations": obligations,
-            "trusted_contract_sha256": body["trusted_contract_sha256"],
-            "implementation_sha256": body["implementation_sha256"],
-            "certificate_sha256": certificate}
+    verdict = {"status": "VERIFIED", "claim": "SOURCE_MODEL_REFINEMENT",
+               "scope": body["scope"], "language": language,
+               "source_refinement_proved": True,
+               "concurrent_linearizability_proved": False,
+               "obligations": obligations,
+               "trusted_contract_sha256": body["trusted_contract_sha256"],
+               "implementation_sha256": body["implementation_sha256"],
+               "certificate_sha256": certificate}
+    if getattr(reviewed, "capacity_bound", None) is not None:
+        # The safe-porting chain's terminal claim: the native proof just
+        # discharged the reviewed capacity invariant (size <= CAP) and the
+        # growth guards (reject when full), so the ported artifact provably
+        # fits the silicon profile the capacity was derived from.
+        from .v2_prusti_serializer import _pool_counter
+        verdict["claims"] = ["SOURCE_MODEL_REFINEMENT",
+                             "HARDWARE_MEMORY_BOUND_PROVED"]
+        verdict["hardware_memory_bound_proved"] = True
+        verdict["capacity_bound"] = reviewed.capacity_bound
+        verdict["static_pool_materialized"] = _pool_counter(reviewed) is not None
+        if getattr(reviewed, "struct_size_bytes", None) is not None:
+            verdict["memory_footprint_bytes"] = (
+                reviewed.capacity_bound * reviewed.struct_size_bytes)
+    return verdict
 
 
 def _native_symbol(module: str, operation: str, language: str) -> str:

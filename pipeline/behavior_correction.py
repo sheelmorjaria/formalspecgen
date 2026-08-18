@@ -375,6 +375,38 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                 var["bound"] = [bound[0], capacity]
                 clamped.append(var["name"])
         bounded["state_variables"].append(var)
+    # Growth guards: a machine clamped to C whose growth op still fires at
+    # C would produce C+1 and fail the traverser (out of bounds) — the
+    # guard is semantically required, not documentation. Every +n effect on
+    # a bounded field gains `field < hi` so growth stops exactly at the
+    # capacity and push rejects when full.
+    bounded["operations"] = []
+    clamped_or_gained = set(clamped) | set(gained)
+    bounds_by_name = {v["name"]: v["bound"] for v in bounded["state_variables"]
+                      if v.get("kind") == "int"}
+    for op in spec.get("operations", []):
+        op = dict(op)
+        guards = list(op.get("guards", []))
+        for effect in op.get("effects", []):
+            value = effect.get("value", {})
+            if (value.get("kind") == "add"
+                    and isinstance(value.get("right"), dict)
+                    and value["right"].get("kind") == "integer"
+                    and value["right"].get("value", 0) > 0
+                    and effect.get("target") in clamped_or_gained):
+                field = effect["target"]
+                growth = {"id": f"g_hw_growth_{op['name']}_{field}",
+                          "expression": {"kind": "lt",
+                                         "left": {"kind": "field", "name": field},
+                                         "right": {"kind": "integer",
+                                                   "value": bounds_by_name[field][1]}}}
+                if growth["expression"] not in [g.get("expression")
+                                                for g in guards]:
+                    guards.append(growth)
+        op["guards"] = guards
+        bounded["operations"].append(op)
+    bounded["capacity_bound"] = capacity
+    bounded["struct_size_bytes"] = struct_size
     bounded["tlc_invariants"] = list(spec.get("tlc_invariants", [])) + [
         {"id": f"inv_hw_bound_{v['name']}",
          "expression": _hw_invariant_ast(v["name"], v["bound"][0], v["bound"][1])}
@@ -399,6 +431,7 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
             "target": str(candidate_path),
             "bounded_candidate": str(bounded_path),
             "hardware": context,
+            "derived_capacity": capacity,
             "struct_size_bytes": struct_size,
             "clamped_fields": clamped, "gained_bounds": gained,
             "memory_footprint_bytes": capacity * struct_size,

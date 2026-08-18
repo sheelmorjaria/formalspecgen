@@ -100,7 +100,7 @@ def canonical_draft_rust(domain: str, requirement: str, *, domains_root: Path,
                          out_file: str | Path | None = None) -> dict[str, Any]:
     """Lower a reviewed V2 domain into a Rust/Prusti contract deterministically."""
     from .rust_support import check_rust_syntax, lint_rust
-    from .v2_prusti_serializer import render_reviewed_v2_prusti_file
+    from .v2_prusti_serializer import _pool_counter, render_reviewed_v2_prusti_file
 
     requested = _requested(domain)
     reviewed_path = domains_root / f"{requested}.json"
@@ -160,6 +160,12 @@ def canonical_draft_rust(domain: str, requirement: str, *, domains_root: Path,
         "concurrent_linearizability_proved": False,
         "async_linearizability_proved": False,
     }
+    if getattr(reviewed, "capacity_bound", None) is not None:
+        # The safe-porting chain: record the silicon-derived capacity and
+        # whether this lowering materialized the static pool, so the Rust
+        # artifact carries its own footprint provenance.
+        evidence["capacity_bound"] = reviewed.capacity_bound
+        evidence["static_pool_materialized"] = _pool_counter(reviewed) is not None
     if reviewed.concurrency is not None:
         from .v2_lock_serializer import lock_discipline_gate
         discipline = lock_discipline_gate(reviewed, code, "rust")

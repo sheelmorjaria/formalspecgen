@@ -708,6 +708,56 @@ implementation is provable — which is exactly why adequacy stays a human
 assumption. Non-Rust targets fail closed `UNSUPPORTED_BOUNDARY` (heap reasoning
 requires Prusti/Viper).
 
+### Safe autonomous porting within hardware bounds
+
+The Rosetta Stone lane and the capacity-bounding lane composed into one chain:
+take an unbounded dynamic structure, refuse it by name, let the human model it,
+clamp it to the silicon, lower it to Rust, and prove the port fits the SRAM.
+
+Step 1 — the extractor refuses dynamic heap shapes by name:
+
+```console
+$ formalspecgen analyze-codebase legacy/
+warning UNBOUNDED_HEAP_DETECTED:
+  Field 'next' in struct 'Node' is a dynamic pointer. Requires manual modeling
+  or capacity bounding.        # Java: Field 'items' uses a dynamic collection.
+```
+
+A `struct Node* next` field or a `List`-typed Java field never becomes scalar
+state — the refusal names the exact field the reviewer must model (or
+capacity-bound); `char fmt[]`/`buf` scratch buffers are exempt.
+
+Step 2 — the human models the structure as a bounded counter machine (V2 YAML,
+`push`/`pop` over `size`) and the correction lane derives the capacity from a
+hardware profile — the silicon picks the number, deterministically, no LLM:
+
+```bash
+formalspecgen correct-behavior bounded_list.v2.yaml --cwe CWE-400 \
+  --strategy static-pool --hardware stm32f411.json --struct-size-bytes 16
+# derived_capacity 5529 = (131072-32768)*0.9 // 16; size clamps to [0, 5529];
+# push gains requires size < 5529 (growth guards are semantically required —
+# without them the clamped machine produces size=5530 and fails its own
+# traverser); writes bounded_list_bounded.v2.yaml; CAPACITY_BOUNDING_APPLIED.
+```
+
+Step 3 — after review/TLC/promotion, `draft --canonical-domain
+bounded_list_bounded --lang rust` deterministically materializes the static
+pool: the struct gains `slots: [bool; 5529]` (one occupancy bit per element —
+exactly the reviewed counter semantics, no values invented), the constructor
+initializes it empty, and every ±1 effect maintains occupancy (`push` marks
+`slots[pre_size]`, `pop` releases `slots[pre_size - 1]`). Real Prusti proves
+`size <= CAP` (reviewed invariant) and reject-when-full (growth guard), with
+index safety discharged from the same facts.
+
+The chain's terminal verdict carries `SOURCE_MODEL_REFINEMENT` plus
+`HARDWARE_MEMORY_BOUND_PROVED` with `memory_footprint_bytes` (5529 × 16 =
+88464 against the 88473-byte budget); a hand-tagged `capacity_bound` without
+`struct_size_bytes` provenance still earns the claim but refuses to state a
+footprint it cannot derive. Pool materialization is honest about shape: only a
+single counter at the capacity whose effects all move it by exactly ±1 gets an
+occupancy array — literal writes, non-unit steps, or a second counter lower
+without the pool (bounds still prove) rather than inventing a sharing design.
+
 ### Certification traceability
 
 `generate-traceability-matrix` bridges NL requirements and the formal evidence for

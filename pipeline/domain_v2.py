@@ -252,6 +252,14 @@ class DomainSpecV2(_StrictModel):
     actors: int = Field(default=1, ge=1, le=16)
     execution_model: Literal["async_message_passing"] | None = None
     concurrency: LockProtocolMetadata | None = None
+    # Set by the capacity-bounding lane: the silicon-derived element
+    # capacity this machine was clamped to. Downstream lowering may
+    # materialize a static pool of exactly this size.
+    capacity_bound: int | None = None
+    # Provenance for the capacity derivation: the per-element byte size the
+    # profile was divided by. With capacity_bound it lets downstream verdicts
+    # state the exact memory footprint (capacity x struct bytes).
+    struct_size_bytes: int | None = None
     state_variables: list[StateVariable] = Field(min_length=1)
     operations: list[Operation] = Field(min_length=1)
     tlc_invariants: list[Invariant] = Field(min_length=1)

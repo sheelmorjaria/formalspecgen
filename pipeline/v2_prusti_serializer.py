@@ -110,7 +110,55 @@ def _invariant_contract(reviewed, *, receiver: str = "self") -> str:
     return " && ".join(f"({_unparenthesized(conjunct)})" for conjunct in conjuncts) or "true"
 
 
-def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]:
+def _counter_step(effect) -> int | None:
+    """+1/-1 when the effect is exactly `target = target ± 1`, else None."""
+    value = effect.value
+    if not isinstance(value, BinaryExpr) or value.kind not in {"add", "sub"}:
+        return None
+    if (not isinstance(value.left, FieldExpr) or value.left.name != effect.target
+            or not isinstance(value.right, IntegerExpr)
+            or value.right.value != 1):
+        return None
+    return 1 if value.kind == "add" else -1
+
+
+def _pool_counter(reviewed) -> str | None:
+    """The one silicon-bounded counter the static pool can materialize.
+
+    Pool mode engages only when a single int field sits exactly at the
+    capacity bound AND every effect that writes it moves it by exactly ±1 —
+    the reviewed counter-machine shape whose occupancy `[bool; CAP]`
+    deterministically shadows. A non-counter write (literal/clear) or a
+    second counter refuses the pool rather than inventing a sharing design;
+    the machine still lowers and its bounds still prove via the reviewed
+    guards and invariants.
+    """
+    if getattr(reviewed, "capacity_bound", None) is None:
+        return None
+    counters: list[str] = []
+    for variable in reviewed.state_variables:
+        if (not isinstance(variable, IntStateVariable)
+                or variable.bound[1] != reviewed.capacity_bound):
+            continue
+        touched = False
+        for operation in reviewed.operations:
+            for effect in operation.effects:
+                if effect.target != variable.name:
+                    continue
+                if _counter_step(effect) is None:
+                    return None
+                touched = True
+        if touched:
+            counters.append(variable.name)
+    return counters[0] if len(counters) == 1 else None
+
+
+def _pool_field_name(reviewed) -> str:
+    return "slots_pool" if any(v.name == "slots" for v in reviewed.state_variables) else "slots"
+
+
+def _render_operation(operation, variables_by_name: dict, reviewed,
+                      pool_counter: str | None = None) -> list[str]:
     if operation.failure_semantics == "exception":
         raise UnsupportedPrustiBoundary(
             f"operation {operation.name!r} uses exception semantics; the "
@@ -129,6 +177,20 @@ def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]
         _unparenthesized(_body_expression(effect.value, pre_map)) + ";"
         for effect in operation.effects]
     invariant = _invariant_contract(reviewed)
+    # Static-pool occupancy maintenance: one line per ±1 effect on the
+    # silicon-bounded counter (push marks pre_size occupied, pop releases
+    # pre_size - 1). Index safety follows from the reviewed invariant
+    # (0 <= size <= CAP) plus the op's own guards — Prusti discharges it.
+    pool_lines: list[str] = []
+    if pool_counter is not None:
+        pool_name = _pool_field_name(reviewed)
+        for effect in operation.effects:
+            if effect.target != pool_counter:
+                continue
+            if _counter_step(effect) == 1:
+                pool_lines.append(f"        self.{pool_name}[pre_{pool_counter} as usize] = true;")
+            else:
+                pool_lines.append(f"        self.{pool_name}[(pre_{pool_counter} - 1) as usize] = false;")
     lines: list[str] = [
         f"    #[requires({invariant})]",
     ]
@@ -141,6 +203,7 @@ def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]
         lines.append(f"    pub fn {name}(&mut self) {{")
         lines.extend(pre_locals)
         lines.extend(assignments)
+        lines.extend(pool_lines)
     else:
         guard_old = " && ".join(
             _unparenthesized(render_prusti_expression(guard.expression,
@@ -165,6 +228,7 @@ def _render_operation(operation, variables_by_name: dict, reviewed) -> list[str]
             lines.append("            return false;")
             lines.append("        }")
         lines.extend(assignments)
+        lines.extend(pool_lines)
         lines.append("        true")
     lines.append("    }")
     return lines
@@ -180,10 +244,17 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
         return render_rust_mutex(reviewed)
     variables_by_name = {variable.name: variable
                          for variable in reviewed.state_variables}
+    pool_counter = _pool_counter(reviewed)
+    pool_name = _pool_field_name(reviewed)
     lines = ["use prusti_contracts::*;", ""]
     lines.append(f"pub struct {reviewed.domain_name} {{")
     lines.extend(f"    pub {variable.name}: {_rust_type(variable)},"
                  for variable in reviewed.state_variables)
+    if pool_counter is not None:
+        # The silicon-derived static pool: one occupancy bit per element of
+        # the hardware capacity — the reviewed counter semantics made
+        # physical. No values are invented; empty is `false`.
+        lines.append(f"    pub {pool_name}: [bool; {reviewed.capacity_bound}],")
     lines.extend(["}", "", f"impl {reviewed.domain_name} {{" ])
     initial = " && ".join(
         f"result.{variable.name} == " +
@@ -199,7 +270,9 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
             f"{variable.name}: " +
             (("true" if variable.initial else "false")
              if isinstance(variable, BoolStateVariable) else str(variable.initial))
-            for variable in reviewed.state_variables) + " }",
+            for variable in reviewed.state_variables) +
+        (f", {pool_name}: [false; {reviewed.capacity_bound}]"
+         if pool_counter is not None else "") + " }",
         "    }",
     ])
     for variable in reviewed.state_variables:
@@ -213,7 +286,8 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
         ])
     for operation in reviewed.operations:
         lines.append("")
-        lines.extend(_render_operation(operation, variables_by_name, reviewed))
+        lines.extend(_render_operation(operation, variables_by_name, reviewed,
+                                       pool_counter=pool_counter))
     lines.extend(["}", ""])
     return "\n".join(lines)
 
