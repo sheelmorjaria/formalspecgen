@@ -830,7 +830,8 @@ def command_verify_distributed(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify_heap(args: argparse.Namespace, ui: TerminalUI) -> int:
-    """Unbounded heap-shape verification via ghost predicates (Rust/Prusti)."""
+    """Unbounded heap-shape verification via ghost predicates (Rust/Prusti,
+    C/Frama-C WP on intrusive lists)."""
     from .heap import verify_heap
     result = verify_heap(args.source, provider=args.provider)
     if args.json_out:
@@ -1271,7 +1272,9 @@ def build_parser() -> argparse.ArgumentParser:
     sign_cmd.add_argument("--key", required=True, help="local-user key id or email")
     heap = sub.add_parser("verify-heap",
                           help="unbounded heap-shape verification (ghost predicates)")
-    heap.add_argument("source", help="Rust source with Box-linked structs")
+    heap.add_argument("source",
+                      help="Rust (.rs, Box-linked structs) or C (.c/.h, "
+                           "self-referential struct / intrusive list) source")
     heap.add_argument("--provider", default="ollama")
     heap.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",

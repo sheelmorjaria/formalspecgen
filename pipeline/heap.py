@@ -95,6 +95,13 @@ def verify_heap(source: str | Path, predicates: str | None = None, *,
     if not path.is_file():
         return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
                 "code": "input_unavailable", "target": str(path)}
+    if path.suffix.lower() in {".c", ".h"}:
+        # M33: the C lane — Frama-C WP on a fixed probed ACSL preamble for
+        # intrusive lists. Epistemics mirror this lane with the roles
+        # inverted: reachability inductiveness is machine-proved; acyclicity
+        # preservation (free under Rust ownership) is the human assumption.
+        from .heap_c import verify_heap_c
+        return verify_heap_c(path)
     if path.suffix.lower() != ".rs":
         return {"status": "HEAP_VERIFICATION_FAILED", "claim": "NO_PROOF",
                 "code": "UNSUPPORTED_BOUNDARY",

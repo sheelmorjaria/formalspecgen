@@ -397,7 +397,8 @@ def verify_distributed(domain: str, message_fields: str,
 
 
 def verify_heap(source: str, provider: str = "ollama") -> dict[str, Any]:
-    """Unbounded heap-shape verification via ghost predicates (Rust only)."""
+    """Unbounded heap-shape verification via ghost predicates (Rust/Prusti;
+    C .c/.h intrusive lists on Frama-C WP)."""
     from pipeline.heap import verify_heap as run_heap
     return _guarded(lambda: run_heap(_workspace_path(source),
                                      provider=provider))
