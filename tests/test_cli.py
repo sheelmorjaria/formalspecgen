@@ -219,6 +219,73 @@ class CliTests(unittest.TestCase):
         with patch("pipeline.hal_mmio.verify_hal", return_value=refused):
             self.assertEqual(cli.command_verify_hal(args, self.ui), 1)
 
+    def test_command_macro_dictionary_phases(self):
+        from types import SimpleNamespace
+        args = SimpleNamespace(
+            dictionary="macros.json", source=None, synthesize=False,
+            no_verify=False, provider=None, json_out=None)
+        loaded = {"status": "MACRO_DICTIONARY_LOADED", "entries": 2,
+                  "dictionary": {"READ_ONCE": "V2::Read"}}
+        with patch("pipeline.macro_semantics.load_macro_dictionary",
+                   return_value=loaded):
+            self.assertEqual(cli.command_macro_dictionary(args, self.ui), 0)
+        args.synthesize, args.source = True, "dev.c"
+        synthesized = {"status": "V2_SYNTHESIZED_FROM_MACROS",
+                       "claim": "MACRO_SYNTHESIS_PROVED"}
+        with patch("pipeline.macro_semantics.synthesize_v2_from_macros",
+                   return_value=synthesized) as run:
+            self.assertEqual(cli.command_macro_dictionary(args, self.ui), 0)
+            run.assert_called_once()
+        failed = {"status": "MACRO_TRANSLATION_FAILED", "claim": "NO_PROOF",
+                  "code": "dictionary_malformed", "message": "bad json"}
+        with patch("pipeline.macro_semantics.synthesize_v2_from_macros",
+                   return_value=failed):
+            self.assertEqual(cli.command_macro_dictionary(args, self.ui), 1)
+        args.synthesize, args.source = False, None
+        with patch("pipeline.macro_semantics.load_macro_dictionary",
+                   return_value=failed):
+            self.assertEqual(cli.command_macro_dictionary(args, self.ui), 1)
+        # --synthesize without --source refuses with usage guidance
+        args.synthesize, args.source = True, None
+        self.assertEqual(cli.command_macro_dictionary(args, self.ui), 2)
+        # --json writes the verdict artifact
+        args.synthesize, args.source, args.json_out = False, None, str(
+            self.root / "dict.json")
+        with patch("pipeline.macro_semantics.load_macro_dictionary",
+                   return_value=loaded):
+            self.assertEqual(cli.command_macro_dictionary(args, self.ui), 0)
+        import json as json_module
+        written = json_module.loads(
+            (self.root / "dict.json").read_text(encoding="utf-8"))
+        self.assertEqual(written["status"], "MACRO_DICTIONARY_LOADED")
+        args.json_out = None
+
+    def test_macro_dictionary_cli_end_to_end(self):
+        import json as json_module
+        import subprocess, sys
+        macro_path = self.root / "macros.json"
+        macro_path.write_text(
+            json_module.dumps({"READ_ONCE": "V2::Read"}), encoding="utf-8")
+        # dictionary-only load through the real parser and dispatch
+        completed = subprocess.run(
+            [sys.executable, "-m", "pipeline.cli", "macro-dictionary",
+             str(macro_path)], capture_output=True, text=True, timeout=120)
+        self.assertIn("MACRO_DICTIONARY_LOADED", completed.stdout)
+        self.assertEqual(completed.returncode, 0)
+        # the translate branch (--source, no --synthesize)
+        source = self.root / "dev.c"
+        source.write_text(
+            "struct dev { int state; };\n"
+            "void f(struct dev *d) { if (READ_ONCE(d->state) == 1) {} }\n",
+            encoding="utf-8")
+        completed = subprocess.run(
+            [sys.executable, "-m", "pipeline.cli", "macro-dictionary",
+             str(macro_path), "--source", str(source)],
+            capture_output=True, text=True, timeout=120)
+        self.assertIn("MACROS_TRANSLATED", completed.stdout)
+        self.assertEqual(completed.returncode, 0)
+        self.assertNotIn("--synthesize requires", completed.stdout)
+
     def test_polyglot_draft_and_verify_routes(self):
         args = SimpleNamespace(requirement="counter", provider="ollama", model=None,
             no_clarify=True, fallback_provider=None, out=None, max_attempts=None,

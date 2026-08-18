@@ -357,16 +357,17 @@ def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
 
 
 def test_mcp_create_server_registers_all_permitted_tools():
-    """30 tools registered; the trust actions and wizards stay out."""
+    """31 tools registered; the trust actions and wizards stay out."""
     import mcp_server as module
     import inspect, re
     source = inspect.getsource(module.create_server)
     registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
                             .split("):")[0])
-    assert len(registered) == 30
+    assert len(registered) == 31
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
-                 "verify_distributed", "verify_heap", "verify_hal"):
+                 "verify_distributed", "verify_heap", "verify_hal",
+                 "macro_translate"):
         assert name in registered
     for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
@@ -399,4 +400,22 @@ def test_mcp_verify_hal_guarded(tmp_path, monkeypatch):
     assert result["claim"] == "HAL_REASONING_PROVED"
     hal.assert_called_once()
     escape = mcp_server.verify_hal("../escape.h")
+    assert escape["code"] == "path_outside_workspace"
+
+
+def test_mcp_macro_translate_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "macros.json").write_text(
+        '{"READ_ONCE": "V2::Read"}', encoding="utf-8")
+    (Path.cwd() / "dev.c").write_text(
+        "struct dev { int state; };\n"
+        "void stop(struct dev *d) { if (READ_ONCE(d->state) == 1) {} }\n",
+        encoding="utf-8")
+    with patch("pipeline.macro_semantics.synthesize_v2_from_macros",
+               return_value={"status": "V2_SYNTHESIZED_FROM_MACROS",
+                             "claim": "MACRO_SYNTHESIS_PROVED"}) as run:
+        result = mcp_server.macro_translate("dev.c", "macros.json")
+    assert result["claim"] == "MACRO_SYNTHESIS_PROVED"
+    run.assert_called_once()
+    escape = mcp_server.macro_translate("../escape.c", "macros.json")
     assert escape["code"] == "path_outside_workspace"

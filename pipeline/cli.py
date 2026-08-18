@@ -854,6 +854,42 @@ def command_verify_hal(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "HAL_VERIFICATION_PROVED" else 1
 
 
+def command_macro_dictionary(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """M35: load a macros.json dictionary; with --source translate its
+    macro invocations (LLM proposals for unknowns), with --synthesize run
+    the full macros-to-V2 chain including the real-Z3 model proof."""
+    from .macro_semantics import (load_macro_dictionary,
+                                  synthesize_v2_from_macros,
+                                  translate_macros)
+    if args.synthesize:
+        if not args.source:
+            ui.console.print("[red]--synthesize requires --source[/red]")
+            return 2
+        result = synthesize_v2_from_macros(
+            args.source, args.dictionary, provider=args.provider,
+            project_root=Path(args.source).parent,
+            verify=not args.no_verify)
+    elif args.source:
+        loaded = load_macro_dictionary(args.dictionary)
+        if loaded.get("status") != "MACRO_DICTIONARY_LOADED":
+            result = loaded
+        else:
+            result = translate_macros(args.source, loaded["dictionary"],
+                                      provider=args.provider)
+    else:
+        result = load_macro_dictionary(args.dictionary)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    proved = result.get("status") in {"MACRO_DICTIONARY_LOADED",
+                                      "MACROS_TRANSLATED",
+                                      "V2_SYNTHESIZED_FROM_MACROS"}
+    style = "green" if proved else "red"
+    detail = result.get("message") or result.get("status", "")
+    ui.console.print(f"[{style}]{result.get('status', 'FAILED')}"
+                     f"[/{style}] — {detail}")
+    return 0 if proved else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1295,6 +1331,23 @@ def build_parser() -> argparse.ArgumentParser:
     hal.add_argument("source", help="C .c/.h HAL source (bitfield register "
                                     "structs, PADDR<->PPTR window macros)")
     hal.add_argument("--json", dest="json_out", default=None)
+    macros = sub.add_parser(
+        "macro-dictionary",
+        help="M35 semantic macro expansion: load macros.json, translate "
+             "invocations (--source), synthesize + Z3-prove the V2 model "
+             "(--synthesize)")
+    macros.add_argument("dictionary", help="macros.json mapping macro names "
+                                           "to V2 categories")
+    macros.add_argument("--source", default=None,
+                        help="C .c/.h source whose macro invocations are "
+                             "translated")
+    macros.add_argument("--synthesize", action="store_true",
+                        help="run the full macros-to-V2 chain (extraction "
+                             "+ real-Z3 model proof)")
+    macros.add_argument("--no-verify", action="store_true",
+                        help="skip the Z3 model proof")
+    macros.add_argument("--provider", default="ollama")
+    macros.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1435,6 +1488,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
         return command_verify_heap(args, ui)
     if args.command == "verify-hal":
         return command_verify_hal(args, ui)
+    if args.command == "macro-dictionary":
+        return command_macro_dictionary(args, ui)
     if args.command == "verify-distributed":
         return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
@@ -1458,6 +1513,7 @@ _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-a
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
                   "verify-heap", "verify-hal", "verify-distributed",
+                  "macro-dictionary",
                   "verify-linearizability",
                   "verify-unbounded",
                   "prove-equivalence",

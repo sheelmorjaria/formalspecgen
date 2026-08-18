@@ -412,6 +412,21 @@ def verify_hal(source: str) -> dict[str, Any]:
     return _guarded(lambda: run_hal(_workspace_path(source)))
 
 
+def macro_translate(source: str, dictionary: str,
+                    provider: str = "ollama") -> dict[str, Any]:
+    """M35 semantic macro expansion: translate a C source's macro
+    invocations with a macros.json dictionary (deterministic hits, recorded
+    LLM proposals for unknowns) and synthesize + Z3-prove the V2 model."""
+    from pipeline.macro_semantics import synthesize_v2_from_macros
+
+    def run():
+        path = _workspace_path(source)
+        return synthesize_v2_from_macros(
+            path, _workspace_path(dictionary), provider=provider,
+            project_root=path.parent, verify=True)
+    return _guarded(run)
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
@@ -424,7 +439,7 @@ def create_server():
                  unified_system, draft_canonical_contract, architecture, system,
                  prove_equivalence, generate_traceability_matrix, verify_unbounded,
                  verify_linearizability, verify_distributed, verify_heap,
-                 verify_hal):
+                 verify_hal, macro_translate):
         server.tool()(tool)
     return server
 
