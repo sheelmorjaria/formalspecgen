@@ -204,6 +204,21 @@ class CliTests(unittest.TestCase):
         with patch.object(cli, "verify", return_value=(0, "")):
             self.assertEqual(cli.command_verify(args, self.ui), 0)
 
+    def test_command_verify_hal_success_failure_and_json(self):
+        args = SimpleNamespace(source="hal.h",
+                               json_out=str(self.root / "hal.json"))
+        proved = {"status": "HAL_VERIFICATION_PROVED",
+                  "claim": "HAL_REASONING_PROVED",
+                  "lanes": ["register_bitfield_separation"]}
+        with patch("pipeline.hal_mmio.verify_hal", return_value=proved) as hal:
+            self.assertEqual(cli.command_verify_hal(args, self.ui), 0)
+            hal.assert_called_once_with("hal.h")
+        refused = {"status": "HAL_VERIFICATION_FAILED", "claim": "NO_PROOF",
+                   "code": "UNSUPPORTED_BOUNDARY", "message": "raw RMW"}
+        args.json_out = None
+        with patch("pipeline.hal_mmio.verify_hal", return_value=refused):
+            self.assertEqual(cli.command_verify_hal(args, self.ui), 1)
+
     def test_polyglot_draft_and_verify_routes(self):
         args = SimpleNamespace(requirement="counter", provider="ollama", model=None,
             no_clarify=True, fallback_provider=None, out=None, max_attempts=None,

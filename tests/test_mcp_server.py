@@ -357,16 +357,16 @@ def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
 
 
 def test_mcp_create_server_registers_all_permitted_tools():
-    """29 tools registered; the trust actions and wizards stay out."""
+    """30 tools registered; the trust actions and wizards stay out."""
     import mcp_server as module
     import inspect, re
     source = inspect.getsource(module.create_server)
     registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
                             .split("):")[0])
-    assert len(registered) == 29
+    assert len(registered) == 30
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
-                 "verify_distributed", "verify_heap"):
+                 "verify_distributed", "verify_heap", "verify_hal"):
         assert name in registered
     for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
@@ -385,3 +385,18 @@ def test_mcp_verify_heap_guarded(tmp_path, monkeypatch):
     heap.assert_called_once()
     non_rust = mcp_server.verify_heap("../escape.rs")
     assert non_rust["code"] == "path_outside_workspace"
+
+
+def test_mcp_verify_hal_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "hal.h").write_text(
+        "typedef struct { unsigned enable : 1; } uart_ctrl_t;\n",
+        encoding="utf-8")
+    with patch("pipeline.hal_mmio.verify_hal",
+               return_value={"status": "HAL_VERIFICATION_PROVED",
+                             "claim": "HAL_REASONING_PROVED"}) as hal:
+        result = mcp_server.verify_hal("hal.h")
+    assert result["claim"] == "HAL_REASONING_PROVED"
+    hal.assert_called_once()
+    escape = mcp_server.verify_hal("../escape.h")
+    assert escape["code"] == "path_outside_workspace"

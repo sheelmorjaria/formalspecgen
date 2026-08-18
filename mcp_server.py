@@ -404,6 +404,14 @@ def verify_heap(source: str, provider: str = "ollama") -> dict[str, Any]:
                                      provider=provider))
 
 
+def verify_hal(source: str) -> dict[str, Any]:
+    """HAL/MMIO register discipline: bitfield register separation and
+    PADDR<->PPTR window round-trip, machine-proved by Frama-C WP; device
+    semantics are recorded as human-accepted assumptions."""
+    from pipeline.hal_mmio import verify_hal as run_hal
+    return _guarded(lambda: run_hal(_workspace_path(source)))
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
@@ -415,7 +423,8 @@ def create_server():
                  discover_algorithms, validate_domain, compose, reverify_composition,
                  unified_system, draft_canonical_contract, architecture, system,
                  prove_equivalence, generate_traceability_matrix, verify_unbounded,
-                 verify_linearizability, verify_distributed, verify_heap):
+                 verify_linearizability, verify_distributed, verify_heap,
+                 verify_hal):
         server.tool()(tool)
     return server
 

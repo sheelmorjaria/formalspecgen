@@ -842,6 +842,18 @@ def command_verify_heap(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "HEAP_VERIFICATION_PROVED" else 1
 
 
+def command_verify_hal(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """HAL/MMIO register discipline via probed Frama-C WP witnesses."""
+    from .hal_mmio import verify_hal
+    result = verify_hal(args.source)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = "green" if result["status"] == "HAL_VERIFICATION_PROVED" else "red"
+    detail = result.get("message") or ", ".join(result.get("lanes", []))
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "HAL_VERIFICATION_PROVED" else 1
+
+
 def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Promote a reviewed candidate without letting generated text assign its own trust."""
     root = Path(args.project_root).resolve()
@@ -1277,6 +1289,12 @@ def build_parser() -> argparse.ArgumentParser:
                            "self-referential struct / intrusive list) source")
     heap.add_argument("--provider", default="ollama")
     heap.add_argument("--json", dest="json_out", default=None)
+    hal = sub.add_parser("verify-hal",
+                         help="HAL/MMIO register discipline (Frama-C WP "
+                              "on bitfield registers + window translation)")
+    hal.add_argument("source", help="C .c/.h HAL source (bitfield register "
+                                    "structs, PADDR<->PPTR window macros)")
+    hal.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1415,6 +1433,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "manage-trust": return command_manage_trust(args, ui)
     if args.command == "verify-heap":
         return command_verify_heap(args, ui)
+    if args.command == "verify-hal":
+        return command_verify_hal(args, ui)
     if args.command == "verify-distributed":
         return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
@@ -1437,7 +1457,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
-                  "verify-heap", "verify-distributed",
+                  "verify-heap", "verify-hal", "verify-distributed",
                   "verify-linearizability",
                   "verify-unbounded",
                   "prove-equivalence",
