@@ -124,6 +124,40 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         user_syscall_observed = True
         user_syscall_id = syscall.group(1)
         user_fault_far = user_trap.group(1)
+    ipc_ring = None
+    ipc_syscall_observed = False
+    if "IPC_ON" in transcript:
+        # M50: the MPSC endpoint's runtime sample — BOTH producers must
+        # be visible (the user's syscall AND the counters with the
+        # bound held and every arrival accounted)
+        ipc = re.search(
+            r"IPC lanes=(\d+) posted=(\d+) dropped=(\d+) "
+            r"consumed=(\d+) high_water=(\d+) cap=(\d+)", transcript)
+        if not ipc:
+            return _fail("ipc_not_observed",
+                         "IPC_ON printed but no IPC counters followed — "
+                         "the MPSC runtime sample is incomplete",
+                         rings=rings)
+        if "SYSCALL 0x65 ipc_send from EL0" not in transcript:
+            return _fail("ipc_syscall_not_observed",
+                         "IPC_ON printed but the user process never sent "
+                         "through the endpoint — the sample would show "
+                         "the kernel producer only (one-sided evidence)",
+                         rings=rings)
+        ipc_syscall_observed = True
+        ipc_ring = {"lanes": int(ipc.group(1)),
+                    "posted": int(ipc.group(2)),
+                    "dropped": int(ipc.group(3)),
+                    "consumed": int(ipc.group(4)),
+                    "high_water": int(ipc.group(5)),
+                    "cap": int(ipc.group(6))}
+        if ipc_ring["high_water"] > ipc_ring["cap"]:
+            return _fail(
+                "IPC_BOUND_EXCEEDED",
+                f"IPC high_water {ipc_ring['high_water']} > cap "
+                f"{ipc_ring['cap']} — the ESBMC-proved partition bound "
+                "FAILED at runtime; the deductive claim is contradicted",
+                rings=rings)
     return {
         "status": "BOOT_RUNTIME_CONFIRMED",
         # runtime evidence, honestly ceilinged BELOW the proof lanes:
@@ -137,6 +171,8 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         "user_syscall_observed": user_syscall_observed,
         "user_syscall_id": user_syscall_id,
         "user_fault_far": user_fault_far,
+        "ipc": ipc_ring,
+        "ipc_syscall_observed": ipc_syscall_observed,
         "note": "runtime observation of the M46-proven boot order and "
                 "the ESBMC-proved capacity bound — evidence, NOT an "
                 "additional proof; LOCK_FREE_LINEARIZABILITY_PROVED and "

@@ -1,15 +1,59 @@
 {
   "memory_map": {
-    "kernel_pools": {"kstack_pool": [805306368, 805311488],
-                     "page_tables": [805311488, 805340160]},
-    "dma_windows": {"nic_ring": [805351424, 805355520]},
-    "user_frames": [805918720, 806092800],
-    "page_table_pool": {"capacity": 64}
+    "kernel_pools": {
+      "kstack_pool": [
+        805306368,
+        805311488
+      ],
+      "page_tables": [
+        805311488,
+        805340160
+      ]
+    },
+    "dma_windows": {
+      "nic_ring": [
+        805351424,
+        805355520
+      ]
+    },
+    "user_frames": [
+      805918720,
+      806092800
+    ],
+    "page_table_pool": {
+      "capacity": 64
+    }
   },
-  "user_image": {"start": 805918720, "end": 805922816},
-  "kernel_resources": {"uart0": [805339136, 805339392]},
+  "user_image": {
+    "start": 805918720,
+    "end": 805922816
+  },
+  "kernel_resources": {
+    "uart0": [
+      805339136,
+      805339392
+    ],
+    "ipc_pool": [
+      805340160,
+      805344256
+    ]
+  },
   "syscalls": [
-    {"id": 100, "name": "write_console", "handler": "sys_write_console",
-     "resources": ["uart0"]}
+    {
+      "id": 100,
+      "name": "write_console",
+      "handler": "sys_write_console",
+      "resources": [
+        "uart0"
+      ]
+    },
+    {
+      "id": 101,
+      "name": "ipc_send",
+      "handler": "sys_ipc_send",
+      "resources": [
+        "ipc_pool"
+      ]
+    }
   ]
 }

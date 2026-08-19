@@ -161,6 +161,14 @@ pub extern "C" fn rust_main() -> ! {
     uart_putdec(unsafe { SCHED_RING.high_water });
     uart_puts(" cap=4\n");
 
+    // ---- M50: the IPC endpoint under MPSC load ------------------------
+    // The kernel driver is producer 1: TWO posts against LANE_CAP=1 —
+    // the second is DROPPED (ERR_MEM backpressure, the proved bound).
+    uart_puts("IPC_ON mpsc\n");
+    for i in 0..2u32 {
+        unsafe { IPC_Q.post(1, i) };
+    }
+
     // ---- M48: enable the real MMU ------------------------------------
     uart_puts("MMU_ON\n");
     mmu_init();
@@ -285,22 +293,93 @@ pub extern "C" fn el1_probe_return() -> ! {
 const USER_CODE: usize = 0x4200_0000;          // inside the EL0 block
 const USER_STACK_TOP: usize = 0x421F_F000;
 const SYSCALL_WRITE_CONSOLE: u64 = 0x64;
+const SYSCALL_IPC_SEND: u64 = 0x65;
 // SELF-CONTAINED: NO register may depend on preservation across the
 // syscall boundary — this handler does not save user registers (a
 // real kernel would; the unverified image simply must not rely on it).
-//   svc #0x64                   the one legitimate request channel
+//   svc #0x64                   write_console: the console request
+//   svc #0x65                   ipc_send: the M50 name-server endpoint
 //   movz x0, #0x4020, lsl #16   x0 = 0x40200000 (kernel .text, EL1-only)
 //   str x0, [x0]                the illegal store that MUST trap
 //   b .                         (unreachable when the trap contains it)
-const USER_IMAGE: [u32; 4] = [
+const USER_IMAGE: [u32; 5] = [
     // svc #0x64 = 0xD4000001 | imm<<5 — bits[1:0]=01 IS the svc opcode;
     // 00 is unallocated => UNDEFINED
     0xD400_0C81,
+    // svc #0x65 — same anchor discipline (0xD4000001 | 0x65<<5)
+    0xD400_0CA1,
     // movz x0,#0x4020,lsl#16 — hw=01 for LSL#16 (hw=11 would shift by
     // 48; movz x0,#1,lsl#16 = 0xD2A00020 is the anchor encoding)
     0xD2A8_0400,
     0xF900_0000,     // str x0, [x0]
     0x1400_0000];    // b .
+
+// ---- M50: the MPSC endpoint (the name-server queue) -------------------
+// The ESBMC-proved shape, exactly as the witness parameters it:
+// LANES=2 (the syscall path + the kernel driver), LANE_CAP=1, CAP=2.
+// Capacity is statically partitioned per producer — a shared-head
+// enqueue has a real lost-update interleaving; a full lane DROPS
+// (ERR_MEM backpressure), never overflows.
+const IPC_LANES: usize = 2;
+const IPC_LANE_CAP: usize = 1;
+const IPC_CAP: usize = 2;
+
+pub struct Mpsc {
+    head: [u32; IPC_LANES],
+    tail: [u32; IPC_LANES],
+    buf: [[u32; IPC_LANE_CAP]; IPC_LANES],
+    pub posted: u32,
+    pub dropped: u32,
+    pub consumed: u32,
+    high_water: u32,
+}
+
+impl Mpsc {
+    pub const fn new() -> Self {
+        Mpsc { head: [0; IPC_LANES], tail: [0; IPC_LANES],
+               buf: [[0; IPC_LANE_CAP]; IPC_LANES],
+               posted: 0, dropped: 0, consumed: 0, high_water: 0 }
+    }
+
+    /// Producer side — lane i is written by exactly ONE producer (the
+    /// linearization point is the single head store).
+    pub fn post(&mut self, lane: usize, value: u32) -> bool {
+        let h = unsafe { read_volatile(&self.head[lane]) };
+        if h - unsafe { read_volatile(&self.tail[lane]) }
+            >= IPC_LANE_CAP as u32 {
+            self.dropped += 1;      // full lane: ERR_MEM, drop
+            return false;
+        }
+        self.buf[lane][(h % IPC_LANE_CAP as u32) as usize] = value;
+        unsafe { write_volatile(&mut self.head[lane], h + 1) };
+        self.posted += 1;
+        let mut used: u32 = 0;
+        for l in 0..IPC_LANES {
+            let h = unsafe { read_volatile(&self.head[l]) };
+            let t = unsafe { read_volatile(&self.tail[l]) };
+            used += h - t;
+        }
+        if used > self.high_water { self.high_water = used; }
+        true
+    }
+
+    /// The ONE consumer (the name server), multiplexing lanes — the
+    /// M36 SPSC shape per lane.
+    pub fn fetch_any(&mut self) -> Option<u32> {
+        for lane in 0..IPC_LANES {
+            let t = unsafe { read_volatile(&self.tail[lane]) };
+            if t < unsafe { read_volatile(&self.head[lane]) } {
+                let v = self.buf[lane][(t % IPC_LANE_CAP as u32) as usize];
+                unsafe { write_volatile(&mut self.tail[lane], t + 1) };
+                self.consumed += 1;
+                return Some(v);
+            }
+        }
+        None
+    }
+}
+
+static mut IPC_Q: Mpsc = Mpsc::new();
 
 static mut KERNEL_RESUME: usize = 0;   // el0_return: after USER_TRAP
 static mut EL1_RESUME: usize = 0;      // el1_probe_return: after FAULT
@@ -334,6 +413,18 @@ pub extern "C" fn el0_return() -> ! {
     // killed the offending process and ERET'd back into the kernel.
     // The kernel never dies with the user.
     uart_puts("USER_CONTAINED el0->el1\n");
+    // M50: the name server drains the endpoint — both producers'
+    // messages are accounted, and the bound held (cap = 2 = both lanes).
+    while unsafe { IPC_Q.fetch_any() }.is_some() {}
+    uart_puts("IPC lanes=2 posted=");
+    uart_putdec(unsafe { IPC_Q.posted });
+    uart_puts(" dropped=");
+    uart_putdec(unsafe { IPC_Q.dropped });
+    uart_puts(" consumed=");
+    uart_putdec(unsafe { IPC_Q.consumed });
+    uart_puts(" high_water=");
+    uart_putdec(unsafe { IPC_Q.high_water });
+    uart_puts(" cap=2\n");
     unsafe { EL1_RESUME = el1_probe_return as usize; }
     isolation_probe()              // M48: the EL1 probe still runs after
 }
@@ -370,6 +461,13 @@ pub extern "C" fn sync_handler() -> ! {
             if imm == SYSCALL_WRITE_CONSOLE {
                 uart_puts("SYSCALL 0x64 write_console from EL0\n");
                 // ELR already points past the svc: return to the user
+                unsafe { core::arch::asm!("eret", options(noreturn)) };
+            }
+            if imm == SYSCALL_IPC_SEND {
+                // M50: the user process is producer 0 of the endpoint —
+                // the first user-space service through the boundary
+                unsafe { IPC_Q.post(0, imm as u32) };
+                uart_puts("SYSCALL 0x65 ipc_send from EL0\n");
                 unsafe { core::arch::asm!("eret", options(noreturn)) };
             }
             uart_puts("SYSCALL unknown -> killed\n");

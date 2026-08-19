@@ -1,9 +1,11 @@
 {
   "subsystems": [
     "scheduler",
-    "net"
+    "net",
+    "ipc"
   ],
   "composition": "composition.json",
   "mmu": "mmu.json",
-  "syscalls": "syscalls.json"
+  "syscalls": "syscalls.json",
+  "ipc": "ipc.json"
 }

@@ -210,3 +210,148 @@ def verify_lockfree(source: str | Path) -> dict:
                 else "esbmc_crashed")
         return _fail(code, output[-400:])
     return _fail("esbmc_no_verdict", output[-400:])
+
+
+# ---- M50: the MPSC endpoint judge (the name-server lane) --------------
+
+_MPSC_LANES = re.compile(r"#\s*define\s+LANES\s+(\d+)")
+_MPSC_CAP = re.compile(r"#\s*define\s+CAP\s+(\d+)")
+_MPSC_LANECAP = re.compile(r"#\s*define\s+LANE_CAP\s+(\d+)")
+_MPSC_HEAD = re.compile(r"\bint\s+head\s*\[\s*LANES\s*\]\s*=")
+_MPSC_TAIL = re.compile(r"\bint\s+tail\s*\[\s*LANES\s*\]\s*=")
+_LANE_STORE = re.compile(r"\bhead\s*\[\s*(\d+)\s*\]\s*=[^=]")
+
+
+def verify_mpsc(source: str | Path) -> dict:
+    """The MPSC endpoint witness: capacity statically partitioned into
+    per-producer lanes (the provable shape in the plain-int SC dialect —
+    a shared-head enqueue has a REAL lost-update interleaving there).
+    Each producer owns exactly one lane head (its linearization point);
+    ESBMC proves the per-lane and TOTAL capacity invariants under every
+    two-producer interleaving. The consumer is deliberately absent from
+    the harness: it only decreases occupancy (its absence makes the
+    bound harder) and per-lane consumer correctness is the M36-proved
+    SPSC shape."""
+    path = Path(source)
+    if not path.is_file():
+        return _fail("input_unavailable", str(path))
+    if path.suffix.lower() != ".c":
+        return _fail("UNSUPPORTED_BOUNDARY",
+                     "the mpsc lane verifies .c pthread sources")
+    text = path.read_text(encoding="utf-8")
+
+    lanes = _MPSC_LANES.search(text)
+    cap = _MPSC_CAP.search(text)
+    lane_cap = _MPSC_LANECAP.search(text)
+    if not (lanes and cap and lane_cap) \
+            or not _MPSC_HEAD.search(text) or not _MPSC_TAIL.search(text):
+        return _fail("no_mpsc_structure",
+                     "expected the partitioned-lane dialect: #define "
+                     "LANES/CAP/LANE_CAP plus head[LANES] and tail[LANES] "
+                     "shared index arrays")
+    lanes_n, cap_n, lane_cap_n = (int(lanes.group(1)), int(cap.group(1)),
+                                  int(lane_cap.group(1)))
+    if lane_cap_n * lanes_n != cap_n:
+        return _fail("PARTITION_MISMATCH",
+                     f"LANE_CAP {lane_cap_n} x LANES {lanes_n} != CAP "
+                     f"{cap_n} — the static partition must account for "
+                     "every slot exactly once")
+    created = _PTHREAD_CREATE.findall(text)
+    if len(created) < 2:
+        return _fail("no_thread_harness",
+                     "an MPSC witness needs at least two producer "
+                     "threads — one producer is the SPSC shape")
+    joins = list(_PTHREAD_JOIN.finditer(text))
+    if not joins:
+        return _fail("no_thread_harness",
+                     "main() never joins the producers — there is no "
+                     "point at which the capacity invariant can be judged")
+    functions = {m.group("name"): _brace_matched_body(
+        text, text.index("{", m.start())) for m in _THREAD_FN.finditer(text)
+        if m.group("name") in set(created)}
+    lane_owners: dict[int, str] = {}
+    for name in created:
+        body = functions.get(name, "")
+        stores = _LANE_STORE.findall(body)
+        if not stores:
+            return _fail("LINEARIZATION_POINT_MISSING",
+                         f"producer '{name}' never stores its lane head — "
+                         "its operation has no designated atomic step "
+                         "where it takes effect")
+        if len(stores) > 1 or len(set(stores)) > 1:
+            return _fail("LINEARIZATION_MULTIPLE_STORES",
+                         f"producer '{name}' stores head[] {len(stores)} "
+                         "times across lanes "
+                         f"{sorted(set(stores))} — the linearization point "
+                         "is exactly ONE single-word store to ONE lane")
+        lane = int(stores[0])
+        if lane in lane_owners:
+            return _fail("LANE_OWNER_CONFLICT",
+                         f"producers '{lane_owners[lane]}' and '{name}' "
+                         f"both store head[{lane}] — a shared-head "
+                         "enqueue is the unprovable MPMC shape in this "
+                         "dialect; partition the capacity instead")
+        if not 0 <= lane < lanes_n:
+            return _fail("LANE_INDEX_OUT_OF_RANGE",
+                         f"producer '{name}' stores head[{lane}] but "
+                         f"LANES is {lanes_n}")
+        if re.search(r"\btail\s*\[[^\]]*\]\s*=[^=]", body):
+            return _fail("PRODUCER_WRITES_TAIL",
+                         f"producer '{name}' stores a tail — tails belong "
+                         "to the consumer (the M36 SPSC shape) alone")
+        lane_owners[lane] = name
+    # only now the availability gate (the c846ef5 ordering discipline)
+    if not ESBMC_AVAILABLE:
+        return _fail("esbmc_unavailable",
+                     "esbmc binary not found on PATH")
+    harness = text
+    if f"head[0] - tail[0] <= {lane_cap_n}" not in harness:
+        anchor = joins[-1].end()
+        asserts = "".join(
+            f"\n    assert(head[{i}] - tail[{i}] <= {lane_cap_n});"
+            for i in range(lanes_n))
+        asserts += (f"\n    assert(head[0] + head[1] - tail[0] - tail[1]"
+                    f" <= {cap_n});")
+        asserts += "".join(
+            f"\n    assert(tail[{i}] <= head[{i}]);"
+            for i in range(lanes_n))
+        harness = harness[:anchor] + asserts + harness[anchor:]
+    bounds = [int(b) for b in _LOOP_BOUND.findall(text)]
+    bounds.append(lane_cap_n)   # symbolic bound: i < LANE_CAP
+    unwind = max(bounds) + 3
+    with tempfile.TemporaryDirectory() as directory:
+        staged = Path(directory) / "mpsc.c"
+        staged.write_text(harness, encoding="utf-8")
+        try:
+            process = subprocess.run(
+                ["esbmc", str(staged), "--unwind", str(unwind)],
+                capture_output=True, text=True, timeout=300)
+        except (subprocess.TimeoutExpired, TimeoutError, OSError):
+            return _fail("esbmc_timeout",
+                         f"ESBMC did not finish within 300s at unwind "
+                         f"{unwind}")
+    output = (process.stdout or "") + (process.stderr or "")
+    if "VERIFICATION SUCCESSFUL" in output:
+        return {
+            "status": "MPSC_BOUNDED_PARTITION_PROVED",
+            "claim": "MPSC_BOUNDED_PARTITION_PROVED",
+            "judge": "esbmc",
+            "scope": "partitioned_producer_interleaving_bmc",
+            "lanes": lanes_n,
+            "lane_capacity": lane_cap_n,
+            "capacity": cap_n,
+            "lane_owners": lane_owners,
+            "unwind": unwind,
+            "memory_model": "sequential_consistency_pthreads",
+            "consumer": "m36_spsc_shape_not_reproved",
+            "scheduler_fairness": "human_accepted_assumption",
+            "progress_proved": False,
+            "note": "ESBMC proved the per-lane and total capacity "
+                    "invariants under every two-producer interleaving "
+                    "within the unwind bound; the consumer multiplexes "
+                    "lanes in the M36-proved SPSC shape",
+        }
+    return _fail(
+        "esbmc_verification_failed",
+        f"ESBMC found a capacity-invariant violation (or failed) within "
+        f"unwind {unwind}: {output[-400:]}")

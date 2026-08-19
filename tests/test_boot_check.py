@@ -88,6 +88,34 @@ def test_user_space_transcript_judges_under_the_runtime_ceiling():
         "user_trap_not_observed"
 
 
+def test_ipc_transcript_judges_both_producers():
+    """M50: the MPSC sample is complete only when the user sent through
+    the endpoint AND the counters close under the proved bound."""
+    full = GOOD.replace(
+        "HALT", "IPC_ON mpsc\nUSER_ON el0\n"
+                "SYSCALL 0x65 ipc_send from EL0\n"
+                "USER_TRAP far=0x40200000 contained\n"
+                "IPC lanes=2 posted=2 dropped=1 consumed=2 "
+                "high_water=2 cap=2\nHALT")
+    verdict = parse_transcript(full, COMPOSITION)
+    assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED"
+    assert verdict["ipc_syscall_observed"] is True
+    assert verdict["ipc"]["high_water"] == verdict["ipc"]["cap"] == 2
+    assert verdict["ipc"]["posted"] + verdict["ipc"]["dropped"] == 3
+    no_line = full.replace("IPC lanes=2 posted=2 dropped=1 consumed=2 "
+                           "high_water=2 cap=2\n", "")
+    assert parse_transcript(no_line, COMPOSITION)["code"] == \
+        "ipc_not_observed"
+    kernel_only = full.replace(
+        "SYSCALL 0x65 ipc_send from EL0\n",
+        "SYSCALL 0x64 write_console from EL0\n")
+    assert parse_transcript(kernel_only, COMPOSITION)["code"] == \
+        "ipc_syscall_not_observed"
+    overflow = full.replace("high_water=2 cap=2", "high_water=3 cap=2")
+    assert parse_transcript(overflow, COMPOSITION)["code"] == \
+        "IPC_BOUND_EXCEEDED"
+
+
 def test_order_mismatch_and_missing_output_refuse():
     swapped = GOOD.replace("BOOT pool_init\nBOOT scheduler_start",
                            "BOOT scheduler_start\nBOOT pool_init")
@@ -263,6 +291,14 @@ def test_real_boot_end_to_end():
     assert verdict["user_syscall_observed"] is True
     assert verdict["user_syscall_id"] == "0x64"
     assert verdict["user_fault_far"] == "0x40200000"
+    # M50: BOTH producers fed the endpoint; the bound held exactly
+    assert verdict["ipc_syscall_observed"] is True
+    ipc = verdict["ipc"]
+    assert ipc["lanes"] == 2
+    assert ipc["high_water"] == ipc["cap"] == 2
+    assert ipc["posted"] == 2 and ipc["dropped"] == 1
+    assert ipc["posted"] + ipc["dropped"] == 3   # kernel's 2 + user's 1
+    assert ipc["consumed"] == ipc["posted"]
     ring = verdict["rings"]["NET"]
     assert ring["high_water"] == ring["cap"] == 4
     assert ring["dropped"] == 9 and ring["posted"] == 7

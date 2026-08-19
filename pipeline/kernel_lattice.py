@@ -27,8 +27,9 @@ import json
 from pathlib import Path
 
 from .dma_isolation import dma_isolation
+from .ipc_nameserver import verify_ipc_table
 from .kernel_composition import verify_composition
-from .lockfree import verify_lockfree
+from .lockfree import verify_lockfree, verify_mpsc
 from .mmu_isolation import verify_spatial_isolation
 from .realtime import wcet_bound
 from .syscall_boundary import verify_syscall_boundary
@@ -139,6 +140,23 @@ def verify_kernel(kernel_dir: str | Path,
                         "esbmc", subsystem=sub_name)
             else:
                 fail({"claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+                      "subsystem": sub_name,
+                      "source": name, "code": verdict.get("code"),
+                      "message": verdict.get("message", verdict["status"])})
+
+        # --- M50: the MPSC endpoint witness (the name-server lane) ---
+        for name in sub_manifest.get("mpsc", []):
+            verdict = verify_mpsc(sub_root / name)
+            if verdict["status"] == "MPSC_BOUNDED_PARTITION_PROVED":
+                mint("MPSC_BOUNDED_PARTITION_PROVED",
+                     "partitioned_producer_interleaving_bmc", None, name,
+                     judge="esbmc", subsystem=sub_name)
+            elif verdict.get("code") == "esbmc_unavailable":
+                pending("MPSC_BOUNDED_PARTITION_PROVED",
+                        "partitioned_producer_interleaving_bmc", None,
+                        name, "esbmc", subsystem=sub_name)
+            else:
+                fail({"claim": "MPSC_BOUNDED_PARTITION_PROVED",
                       "subsystem": sub_name,
                       "source": name, "code": verdict.get("code"),
                       "message": verdict.get("message", verdict["status"])})
@@ -309,6 +327,34 @@ def verify_kernel(kernel_dir: str | Path,
                       "profile": target, "source": str(syscall_artifact),
                       "code": verdict.get("code"),
                       "message": verdict.get("message", "")})
+
+    # --- M50: the IPC name table, routed through the boundary ---------
+    ipc_artifact = manifest.get("ipc")
+    if ipc_artifact is not None:
+        ipc_path = root / str(ipc_artifact)
+        if not ipc_path.is_file():
+            return _refuse("ipc_artifact_missing", str(ipc_path))
+        try:
+            ipc = _load_json(ipc_path)
+        except (OSError, ValueError) as exc:
+            return _refuse("ipc_artifact_invalid", str(exc))
+        # the M49 lane already refused a missing/invalid dispatch-table
+        # artifact behind the same manifest key; if the key is absent
+        # here, the gate itself refuses (ENDPOINT_SYSCALL_TABLE_MISSING)
+        syscall_name = manifest.get("syscalls")
+        syscall_artifact = None
+        if syscall_name is not None:
+            syscall_artifact = _load_json(root / str(syscall_name))
+        verdict = verify_ipc_table(ipc, syscall_artifact)
+        if verdict["status"] == "IPC_ENDPOINT_TABLE_PROVED":
+            mint("IPC_ENDPOINT_TABLE_PROVED",
+                 "deterministic_capacity_partition", None,
+                 str(ipc_artifact))
+        else:
+            fail({"claim": "IPC_ENDPOINT_TABLE_PROVED",
+                  "source": str(ipc_artifact),
+                  "code": verdict.get("code"),
+                  "message": verdict.get("message", "")})
 
     if failures:
         return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",
