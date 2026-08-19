@@ -35,9 +35,9 @@ _LLD_GLOB = ".rustup/toolchains/stable-*/lib/rustlib/" \
             "x86_64-unknown-linux-gnu/bin/rust-lld"
 
 
-def _fail(code: str, message: str) -> dict:
+def _fail(code: str, message: str, **extra) -> dict:
     return {"status": "BOOT_RUNTIME_FAILED", "claim": "NO_PROOF",
-            "code": code, "message": message}
+            "code": code, "message": message, **extra}
 
 
 def parse_transcript(transcript: str, composition: dict) -> dict:
@@ -84,6 +84,19 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
                      "exercised (vacuous evidence)")
     if "PANIC" in transcript:
         return _fail("kernel_panicked", "the image hit its panic handler")
+    if "MMU_ON" in transcript:
+        # M48: the image enabled the MMU — the isolation trap must
+        # follow, or the runtime evidence is incomplete (named, never
+        # silently dropped)
+        fault = re.search(r"FAULT far=(0x[0-9a-f]+)", transcript)
+        if not fault:
+            return _fail("mmu_trap_not_observed",
+                         "MMU_ON printed but no FAULT line followed — "
+                         "the isolation probe's trap was not observed; "
+                         "the runtime sample is incomplete",
+                         rings=rings)
+        rings["NET"]["mmu_fault_far"] = fault.group(1)
+        rings["NET"]["mmu_trap_observed"] = True
     return {
         "status": "BOOT_RUNTIME_CONFIRMED",
         # runtime evidence, honestly ceilinged BELOW the proof lanes:
@@ -93,6 +106,7 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         "judge": "deterministic_transcript_parser",
         "boot_order_confirmed": proven,
         "rings": rings,
+        "mmu_trap_observed": rings["NET"].pop("mmu_trap_observed", False),
         "note": "runtime observation of the M46-proven boot order and "
                 "the ESBMC-proved capacity bound — evidence, NOT an "
                 "additional proof; LOCK_FREE_LINEARIZABILITY_PROVED and "

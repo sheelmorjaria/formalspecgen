@@ -161,9 +161,140 @@ pub extern "C" fn rust_main() -> ! {
     uart_putdec(unsafe { SCHED_RING.high_water });
     uart_puts(" cap=4\n");
 
+    // ---- M48: enable the real MMU, then probe the hole -------------
+    uart_puts("MMU_ON\n");
+    mmu_init();
+    isolation_probe();        // must trap into fault_handler
+
     uart_puts("HALT\n");
     loop {
         unsafe { asm!("wfe") };   // wait-for-event: the honest halt
+    }
+}
+
+
+// ---- M48: the real MMU — identity map + one deliberate hole --------
+// Stage-1, 4KB granule, 2MB block mappings:
+//   VA 0x00000000-0x40000000 : device (covers the PL011 UART)
+//   VA 0x40000000-0x41000000 : normal (kernel + dtb region)
+//   VA 0x41000000            : INVALID — the isolation hole
+//   VA 0x41200000-0x48000000 : normal (the rest of virt RAM)
+// A store into the hole must take a synchronous exception to OUR
+// vector handler — the runtime sample for SPATIAL_ISOLATION_PROVED.
+
+#[repr(align(0x1000))]
+struct Table([u64; 512]);
+static mut L0: Table = Table([0; 512]);
+static mut L1_LOW: Table = Table([0; 512]);   // VA 0..1GB
+static mut L2_HIGH: Table = Table([0; 512]);  // VA 0x40000000.. pairs
+static mut L1_HIGH: Table = Table([0; 512]);  // VA 0x40000000-1GB..2GB
+
+const ATTR_NORMAL: u64 = 0;   // MAIR attr0
+const ATTR_DEVICE: u64 = 1;   // MAIR attr1
+const MMIO_BASE: usize = 0x09000000;
+pub const ISOLATION_HOLE: usize = 0x41000000;   // unmapped on purpose
+
+fn block_desc(pa: usize, attr: u64) -> u64 {
+    // valid 2MB block: AF | SH=inner | MAIR | NX | addr[51:21]
+    ((pa as u64) & 0x0000_FFFF_FFFE_0000) | (1 << 10) | (3 << 8)
+        | (attr << 2) | (1 << 54) | 1
+}
+
+fn table_desc(table: *const Table) -> u64 {
+    ((table as u64) & 0x0000_FFFF_FFFF_F000) | (3 << 8) | 3  // table
+}
+
+pub fn mmu_init() {
+    unsafe {
+        // low 1GB as device (UART lives there); one L2 walk is not
+        // needed — L1_LOW[0] is a 1GB block descriptor
+        L1_LOW.0[0] = block_desc(0, ATTR_DEVICE);
+        L0.0[0] = table_desc(&L1_LOW);
+        // the kernel's first 1GB: L1_HIGH[0] walks L2_HIGH 2MB blocks
+        for j in 0..64u64 {                    // 0x40000000..0x48000000
+            let pa = 0x4000_0000 + (j as usize) * 0x20_0000;
+            L2_HIGH.0[j as usize] = block_desc(pa, ATTR_NORMAL);
+        }
+        L2_HIGH.0[8] = 0;                      // 0x41000000: the HOLE
+        L1_HIGH.0[0] = table_desc(&L2_HIGH);
+        L0.0[1] = table_desc(&L1_HIGH);
+        core::arch::asm!(
+            "dsb sy",
+            "msr ttbr0_el1, {ttbr}",
+            "msr tcr_el1, {tcr}",
+            "msr mair_el1, {mair}",
+            "msr vbar_el1, {vbar}",
+            "isb",
+            ttbr = in(reg) &raw const L0,
+            tcr = in(reg) 0x3510u64,   // T0SZ=16 4KB SH0=3 WBWA
+            mair = in(reg) 0xFF00u64,  // attr0 normal, attr1 device
+            vbar = in(reg) &raw const vectors as u64,
+        );
+        // invalidate the TLB, then turn the MMU on
+        core::arch::asm!(
+            "tlbi vmalle1", "dsb sy", "isb",
+            "mrs {sctlr}, sctlr_el1",
+            "orr {sctlr}, {sctlr}, 1",
+            "msr sctlr_el1, {sctlr}",
+            "isb",
+            sctlr = out(reg) _,
+        );
+    }
+}
+
+/// The proof point: store into the unmapped hole. With the map from
+/// the SPATIAL_ISOLATION_PROVED family this MUST trap (the address is
+/// deliberately in no region); the vector handler answers.
+pub fn isolation_probe() {
+    unsafe {
+        let hole = ISOLATION_HOLE as *mut u64;
+        core::arch::asm!(
+            "str {val}, [{addr}]",
+            val = in(reg) 0xdead_beefu64,
+            addr = in(reg) hole,
+        );
+    }
+    // unreachable when the trap fires; printed only if isolation FAILED
+    uart_puts("ISOLATION_FAILED store landed\n");
+}
+
+// 16 vector slots x 0x80 bytes (0x800 total); every slot funnels to
+// the handler — only the synchronous slots are expected to fire.
+core::arch::global_asm!(
+    ".section .text.boot",
+    ".balign 0x800",
+    ".global vectors",
+    "vectors:",
+    ".rept 16",
+    "  b fault_handler",
+    "  .space 0x7c",
+    ".endr",
+);
+
+unsafe extern "C" {
+    static vectors: u8;   // the assembly vector table's address
+}
+
+#[no_mangle]
+pub extern "C" fn fault_handler() -> ! {
+    let far: u64;
+    unsafe { core::arch::asm!("mrs {far}, far_el1", far = out(reg) far); }
+    uart_puts("FAULT far=0x");
+    uart_puthex(far);
+    uart_puts(" ISOLATION_TRAP\n");
+    uart_puts("HALT\n");
+    loop { unsafe { asm!("wfe") }; }
+}
+
+fn uart_puthex(mut v: u64) {
+    let mut started = false;
+    for shift in (0..=60).rev().step_by(4) {
+        let nibble = ((v >> shift) & 0xF) as u8;
+        if nibble != 0 || started || shift == 0 {
+            uart_putc(if nibble < 10 { b'0' + nibble }
+                     else { b'a' + nibble - 10 });
+            started = true;
+        }
     }
 }
 

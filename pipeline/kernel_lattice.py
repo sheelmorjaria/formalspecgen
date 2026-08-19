@@ -29,6 +29,7 @@ from pathlib import Path
 from .dma_isolation import dma_isolation
 from .kernel_composition import verify_composition
 from .lockfree import verify_lockfree
+from .mmu_isolation import verify_spatial_isolation
 from .realtime import wcet_bound
 from .weak_memory import MEMORY_MODELS, barrier_correspondence
 
@@ -244,6 +245,37 @@ def verify_kernel(kernel_dir: str | Path,
                   "source": str(composition_artifact),
                   "code": verdict.get("code"),
                   "message": verdict.get("message", "")})
+
+    # --- M48: spatial isolation, per profile's physical map -----------
+    mmu_artifact = manifest.get("mmu")
+    if mmu_artifact is not None:
+        mmu_path = root / str(mmu_artifact)
+        if not mmu_path.is_file():
+            return _refuse("mmu_artifact_missing", str(mmu_path))
+        try:
+            mmu = _load_json(mmu_path)
+        except (OSError, ValueError) as exc:
+            return _refuse("mmu_artifact_invalid", str(exc))
+        mappings = mmu.get("mappings")
+        for profile_name, profile in loaded:
+            target = profile.get("target", profile_name)
+            memory_map = (profile.get("mmu_map")
+                          or mmu.get("memory_map"))
+            if not memory_map:
+                return _refuse("profile_field_missing",
+                               f"profile {target} declares no mmu_map "
+                               "and the artifact has no default — the "
+                               "physical map is a human declaration")
+            verdict = verify_spatial_isolation(memory_map, mappings)
+            if verdict["status"] == "SPATIAL_ISOLATION_PROVED":
+                mint("SPATIAL_ISOLATION_PROVED",
+                     f"deterministic_range_disjointness_{target}",
+                     target, str(mmu_artifact))
+            else:
+                fail({"claim": "SPATIAL_ISOLATION_PROVED",
+                      "profile": target, "source": str(mmu_artifact),
+                      "code": verdict.get("code"),
+                      "message": verdict.get("message", "")})
 
     if failures:
         return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",

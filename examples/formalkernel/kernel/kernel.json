@@ -1,4 +1,1 @@
-{
-  "subsystems": ["scheduler", "net"],
-  "composition": "composition.json"
-}
+{"subsystems": ["scheduler", "net"], "composition": "composition.json", "mmu": "mmu.json"}

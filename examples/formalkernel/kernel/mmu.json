@@ -1,0 +1,14 @@
+{
+  "memory_map": {
+    "kernel_pools": {"kstack_pool": [805306368, 805311488],
+                     "page_tables": [805311488, 805340160]},
+    "dma_windows": {"nic_ring": [805351424, 805355520]},
+    "user_frames": [805918720, 806092800],
+    "page_table_pool": {"capacity": 64}
+  },
+  "mappings": [
+    {"va": 65536, "frame": 805918720, "size": 4096},
+    {"va": 69632, "frame": 805922816, "size": 4096},
+    {"va": 73728, "frame": 806081536, "size": 4096}
+  ]
+}
