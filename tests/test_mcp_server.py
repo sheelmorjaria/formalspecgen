@@ -357,20 +357,97 @@ def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
 
 
 def test_mcp_create_server_registers_all_permitted_tools():
-    """32 tools registered; the trust actions and wizards stay out."""
+    """38 tools registered; the trust actions and wizards stay out."""
     import mcp_server as module
     import inspect, re
     source = inspect.getsource(module.create_server)
     registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
                             .split("):")[0])
-    assert len(registered) == 32
+    assert len(registered) == 38
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
                  "verify_distributed", "verify_heap", "verify_hal",
-                 "macro_translate", "verify_lockfree"):
+                 "macro_translate", "verify_lockfree",
+                 "verify_weak_memory", "verify_wcet", "verify_liveness",
+                 "verify_dma", "extract_intrusive_list", "resolve_callbacks"):
         assert name in registered
     for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
+
+
+def test_mcp_os_lanes_two_through_five_guarded(tmp_path, monkeypatch):
+    """The M37-M40 lanes exposed end-to-end: real deterministic verdicts
+    through the MCP wiring (no external judge needed), fail-closed
+    refusals, and the workspace-escape guard."""
+    _workspace(tmp_path, monkeypatch)
+    cwd = Path.cwd()
+    harness = ("int main(void){ pthread_t t1, t2;"
+               " pthread_create(&t1,0,p,0); pthread_create(&t2,0,c,0);"
+               " pthread_join(t1,0); pthread_join(t2,0); return 0; }\n")
+    (cwd / "b.c").write_text(
+        "#include <pthread.h>\nint ready = 0, data = 0;\n"
+        "void *p(void *a){ data = 42; smp_mb(); ready = 1; return 0; }\n"
+        "void *c(void *a){ while (!ready){} smp_rmb();"
+        " return (void *)data; }\n" + harness, encoding="utf-8")
+    barriered = mcp_server.verify_weak_memory("b.c")
+    assert barriered["status"] == "BARRIER_CORRESPONDENCE_PROVED"
+    assert barriered["weak_memory_safety"] == "unmintable_judge_pending"
+    (cwd / "r.c").write_text(
+        "#include <pthread.h>\nint ready = 0, data = 0;\n"
+        "void *p(void *a){ data = 42; ready = 1; return 0; }\n"
+        "void *c(void *a){ while (!ready){} return (void *)data; }\n"
+        + harness, encoding="utf-8")
+    assert mcp_server.verify_weak_memory("r.c")["code"] == \
+        "WEAK_MEMORY_VIOLATION"
+    assert mcp_server.verify_weak_memory("../escape.c")["code"] == \
+        "path_outside_workspace"
+
+    (cwd / "isr.c").write_text(
+        "int handle(int irq) {\n    int status = irq & 3;\n"
+        "    for (int i = 0; i < 8; i++) { status = status + 1; }\n"
+        "    return status;\n}\n", encoding="utf-8")
+    assert mcp_server.verify_wcet("isr.c", {"max_cycles": 500})["status"] \
+        == "WCET_BOUND_PROVEN"
+    assert mcp_server.verify_wcet("isr.c", {})["code"] == \
+        "timing_constraints_missing"
+
+    live = mcp_server.verify_liveness({"transitions": [
+        {"from": {"state": "READY"}, "to": {"state": "BUSY"}},
+        {"from": {"state": "BUSY"}, "to": {"state": "READY"}}],
+        "ready_state": {"state": "READY"}})
+    assert live["status"] == "LIVENESS_PROVED"
+    stuck = mcp_server.verify_liveness({"transitions": [
+        {"from": {"state": "READY"}, "to": {"state": "STUCK"}}],
+        "ready_state": {"state": "READY"}})
+    assert stuck["code"] == "LIVENESS_VIOLATION"
+
+    (cwd / "eth.c").write_text(
+        "void *eth_setup(void) { return dma_map(eth, 0x100); }\n",
+        encoding="utf-8")
+    dma = mcp_server.verify_dma(
+        "eth.c",
+        {"kernel_pools": {"object_pool": [0x4000, 0x8000]},
+         "devices": {"eth": [0x10000, 0x11000]}},
+        {"eth": [0x10000, 0x10800]})
+    assert dma["status"] == "DMA_ISOLATION_PROVED"
+
+    (cwd / "list.c").write_text(
+        "struct list_head { struct list_head *next, *prev; };\n"
+        "struct device { int id; struct list_head links; };\n"
+        "void register_dev(struct device *d)"
+        " { list_add(&d->links, &device_list); }\n"
+        "void unregister_dev(struct device *d)"
+        " { list_del(&d->links); }\n", encoding="utf-8")
+    assert mcp_server.extract_intrusive_list("list.c", 8)["status"] == \
+        "INTRUSIVE_LIST_ABSTRACTED"
+    (cwd / "fops.c").write_text(
+        "ssize_t dev_read(int fd) { return 0; }\n"
+        "extern ssize_t vendor_ioctl(int fd);\n"
+        "struct file_operations dev_fops = { .read = dev_read,"
+        " .unlocked_ioctl = vendor_ioctl };\n", encoding="utf-8")
+    fops = mcp_server.resolve_callbacks("fops.c")
+    assert fops["unresolved"] == ["vendor_ioctl"]
+    assert fops["machines_for_extraction"] == ["dev_read"]
 
 
 def test_mcp_verify_heap_guarded(tmp_path, monkeypatch):

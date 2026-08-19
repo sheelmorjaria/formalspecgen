@@ -16,7 +16,7 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 29 tools covering the full verification surface: `verify_code`,
+The server exposes 38 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
@@ -24,7 +24,16 @@ The server exposes 29 tools covering the full verification surface: `verify_code
 `validate_domain`, `compose`, `reverify_composition`, `unified_system`,
 `draft_canonical_contract`, `architecture`, `system`, `prove_equivalence`,
 `generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
-`verify_distributed`, and `verify_heap`. `correct_behavior`
+`verify_distributed`, `verify_heap`, `verify_hal`, `macro_translate`,
+`verify_lockfree`, `verify_weak_memory`, `verify_wcet`, `verify_liveness`,
+`verify_dma`, `extract_intrusive_list`, and `resolve_callbacks`. The
+OS-lane tools keep the same epistemic split as the CLI: `verify_lockfree`
+mints its claim only from real ESBMC interleaving results, the
+deterministic structural lanes (`verify_weak_memory`, `verify_wcet`,
+`verify_dma`) record their absent judges (RC11/herd7, aiT, CN/Kani) as
+pending rather than guessing, and `verify_wcet` takes the human-owned
+hardware cost model (`{"max_cycles": N, "loop_bounds": {...}}`).
+`correct_behavior`
 accepts the full correction surface (`strategy`, `hardware`,
 `struct_size_bytes`, `auto_strategy`), `implement_code` accepts the
 `v2_reviewed_domain`/`v2_validation_evidence` refinement pair (and can mint

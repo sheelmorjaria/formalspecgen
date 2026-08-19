@@ -436,6 +436,62 @@ def macro_translate(source: str, dictionary: str,
     return _guarded(run)
 
 
+def verify_weak_memory(source: str, memory_model: str = "x86_tso") -> dict[str, Any]:
+    """OS lane 2: weak-memory barrier correspondence under an x86-TSO or
+    ARMv8 profile — every cross-thread access must sit under an explicit
+    ordering primitive; the full RC11/herd7 claim is honestly judge-pending."""
+    from pipeline.weak_memory import barrier_correspondence
+    return _guarded(lambda: barrier_correspondence(
+        _workspace_path(source), memory_model))
+
+
+def verify_wcet(source: str, timing: dict[str, Any]) -> dict[str, Any]:
+    """OS lane 3: deterministic WCET bound under a human-declared hardware
+    cost model ({"max_cycles": N, "loop_bounds": {...}}); unbounded loops
+    and missed deadlines fail closed (aiT remains judge-pending)."""
+    from pipeline.realtime import wcet_bound
+    return _guarded(lambda: wcet_bound(_workspace_path(source), timing))
+
+
+def verify_liveness(domain: dict[str, Any]) -> dict[str, Any]:
+    """OS lane 3: bounded liveness over a transition domain — no non-ready
+    sink states; scheduler fairness is the human-accepted assumption
+    (SPIN LTL remains judge-pending)."""
+    from pipeline.realtime import liveness_check
+    return _guarded(lambda: liveness_check(domain))
+
+
+def verify_dma(source: str, memory_map: dict[str, Any],
+               contracts: dict[str, Any]) -> dict[str, Any]:
+    """OS lane 4: DMA isolation by deterministic range disjointness — each
+    dma_map/ioremap window inside its device contract and outside every
+    kernel pool (the CN/Kani hardware memory model remains judge-pending)."""
+    from pipeline.dma_isolation import dma_isolation as run_dma
+    return _guarded(lambda: run_dma(_workspace_path(source),
+                                    memory_map, contracts))
+
+
+def extract_intrusive_list(source: str, capacity: int) -> dict[str, Any]:
+    """OS lane 5: abstract the intrusive list_head dialect to a bounded size
+    counter (0 <= size <= capacity); capacity is a human declaration — the
+    tool never guesses it."""
+    from pipeline.os_patterns import extract_intrusive_list as run_extract
+
+    def run() -> dict[str, Any]:
+        path = _workspace_path(source)
+        return run_extract(path.read_text(encoding="utf-8"), capacity)
+    return _guarded(run)
+
+
+def resolve_callbacks(source: str) -> dict[str, Any]:
+    """OS lane 5: resolve file_operations-style callback registrations;
+    extern targets are named unresolved, and machines_for_extraction lists
+    only the callbacks whose bodies live in the source."""
+    from pipeline.os_patterns import resolve_callbacks as run_resolve
+    return _guarded(lambda: run_resolve(
+        _workspace_path(source).read_text(encoding="utf-8")))
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
@@ -448,7 +504,9 @@ def create_server():
                  unified_system, draft_canonical_contract, architecture, system,
                  prove_equivalence, generate_traceability_matrix, verify_unbounded,
                  verify_linearizability, verify_distributed, verify_heap,
-                 verify_hal, macro_translate, verify_lockfree):
+                 verify_hal, macro_translate, verify_lockfree,
+                 verify_weak_memory, verify_wcet, verify_liveness,
+                 verify_dma, extract_intrusive_list, resolve_callbacks):
         server.tool()(tool)
     return server
 
