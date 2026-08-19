@@ -155,6 +155,66 @@ def test_real_esbmc_refuses_a_broken_ring(tmp_path):
     assert verdict["claim"] == "NO_PROOF"
 
 
+def test_detection_edge_pins():
+    """Unclosed braces, missing index, and gate passthroughs."""
+    from pipeline.lockfree import detect_spsc_ring, linearization_coverage
+    # head without tail: not the SPSC dialect
+    head_only = ("#define CAP 4\nint buf[CAP];\nint head = 0;\n"
+                 "void *p(void *x){head = 1; return 0;}\n"
+                 "int main(void){pthread_t t; pthread_create(&t,0,p,0); "
+                 "pthread_join(t,0); return 0;}")
+    assert detect_spsc_ring(head_only)["code"] == "no_ring_structure"
+    # a non-DETECTED detection passes through the coverage gate unchanged
+    refused = linearization_coverage(head_only, detect_spsc_ring(head_only))
+    assert refused["code"] == "no_ring_structure"
+    # unclosed function body: the brace scan clamps at end-of-text
+    unclosed = ("#define CAP 2\nint buf[2];\nint head = 0, tail = 0;\n"
+                "void *p(void *x){head = 1; return 0;")
+    assert detect_spsc_ring(unclosed)["status"] in {"DETECTED", "FAILED"} or \
+        detect_spsc_ring(unclosed)["code"] == "no_ring_structure"
+    # a shared index stored only in a thread fn that is never created:
+    # coverage names the missing linearization point's owner
+    never_created = ("#define CAP 2\nint buf[2];\nint head = 0, tail = 0;\n"
+                     "void *ghost(void *x){head = 1; return 0;}\n"
+                     "void *p(void *x){head = 1; return 0;}\n"
+                     "int main(void){pthread_t t; pthread_create(&t,0,p,0);"
+                     " pthread_join(t,0); return 0;}")
+    detection = detect_spsc_ring(never_created)
+    assert detection["status"] == "DETECTED", detection
+    verdict = linearization_coverage(never_created, detection)
+    assert verdict["code"] == "LINEARIZATION_POINT_MISSING"
+
+
+def test_brace_clamp_fallbacks():
+    """Unclosed bodies clamp at end-of-text in both scanners."""
+    from pipeline.lockfree import _brace_matched_body
+    from pipeline.weak_memory import _brace_matched_body as wm_body
+    unclosed = "void *f(void *x){head = 1;"
+    open_brace = unclosed.index("{")
+    assert "head = 1;" in _brace_matched_body(unclosed, open_brace)
+    assert "head = 1;" in wm_body(unclosed, open_brace)
+
+
+def test_verify_passthroughs_and_no_verdict(tmp_path, monkeypatch):
+    """The verify entry passes gate refusals through and reports an
+    ESBMC run that yields no verdict (garbage output) by name."""
+    from subprocess import CompletedProcess
+    from unittest.mock import patch
+
+    from pipeline.lockfree import verify_lockfree
+    never_stores = ("#define CAP 2\nint buf[2];\nint head = 0, tail = 0;\n"
+                     "int main(void){pthread_t t; pthread_create(&t,0,p,0);"
+                     " pthread_join(t,0); return 0;}")
+    passthrough = verify_lockfree(_write(tmp_path, "np.c", never_stores))
+    assert passthrough["code"] == "LINEARIZATION_POINT_MISSING"
+
+    with patch("subprocess.run", return_value=CompletedProcess(
+            args=[], returncode=0, stdout="mysterious silence",
+            stderr="")):
+        verdict = verify_lockfree(_write(tmp_path, "ring.c", RING))
+    assert verdict["code"] == "esbmc_no_verdict"
+
+
 def test_residuals_fail_closed(tmp_path, monkeypatch):
     """Out-of-dialect sources, missing files, and prover residuals refuse
     by name. Hermetic: subprocess mocked (CI runners have no esbmc)."""

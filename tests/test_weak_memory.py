@@ -161,3 +161,52 @@ def test_residuals_fail_closed(tmp_path):
                     "int main(void){return 0;}\n")
     assert barrier_correspondence(single, "x86_tso")["code"] == \
         "no_cross_thread_state"
+    # a global shared between threads, none of which is created: the
+    # created-set is what makes it cross-thread
+    uncreated = "#include <pthread.h>\nint x = 0;\n" \
+                "void *a(void *v){x = 1; return 0;}\n" \
+                "void *b(void *v){x = 2; return 0;}\n" \
+                "int main(void){return 0;}\n"
+    assert barrier_correspondence(
+        _write(tmp_path, "u.c", uncreated), "x86_tso")["code"] == \
+        "no_cross_thread_state"
+    # unclosed thread body: the brace scan clamps without crashing
+    unclosed = "#include <pthread.h>\nint x = 0;\n" \
+               "void *a(void *v){x = 1; return 0;"
+    verdict = barrier_correspondence(
+        _write(tmp_path, "ub.c", unclosed), "x86_tso")
+    assert verdict["code"] in {"no_cross_thread_state", "WEAK_MEMORY_VIOLATION"}
+    # one shared field guarded by atomics, another bare: the bare one is
+    # named even when its sibling passes
+    mixed = """#include <pthread.h>
+_Atomic int guarded = 0;
+int bare = 0;
+void *a(void *v){ guarded = 1; bare = 1; return 0; }
+void *b(void *v){ guarded = 2; bare = 2; return 0; }
+int main(void){
+    pthread_t t1, t2;
+    pthread_create(&t1,0,a,0);
+    pthread_create(&t2,0,b,0);
+    pthread_join(t1,0); pthread_join(t2,0);
+    return 0;
+}
+"""
+    mixed_v = barrier_correspondence(_write(tmp_path, "m.c", mixed),
+                                     "x86_tso")
+    assert mixed_v["code"] == "WEAK_MEMORY_VIOLATION"
+    assert "bare" in " ".join(mixed_v["violations"])
+    # two created threads sharing NOTHING global: no cross-thread state
+    disjoint = """#include <pthread.h>
+void *a(void *v){ int local = 1; return (void *)local; }
+void *b(void *v){ int local = 2; return (void *)local; }
+int main(void){
+    pthread_t t1, t2;
+    pthread_create(&t1,0,a,0);
+    pthread_create(&t2,0,b,0);
+    pthread_join(t1,0); pthread_join(t2,0);
+    return 0;
+}
+"""
+    disjoint_v = barrier_correspondence(_write(tmp_path, "d.c", disjoint),
+                                        "x86_tso")
+    assert disjoint_v["code"] == "no_cross_thread_state"

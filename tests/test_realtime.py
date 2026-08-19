@@ -85,3 +85,5 @@ def test_liveness_proved_and_starvation_refused():
     assert "STUCK" in refused["message"]
 
     assert liveness_check({"transitions": []})["code"] == "no_transitions"
+    bad_shape = liveness_check({"transitions": [{"from": {"s": 1}}]})
+    assert bad_shape["code"] == "transition_shape_unsupported"

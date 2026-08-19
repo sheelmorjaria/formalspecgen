@@ -73,3 +73,22 @@ def test_residuals_fail_closed(tmp_path):
                             MEMORY_MAP, CONTRACTS)
     assert verdict["code"] == "DMA_ISOLATION_VIOLATED"
     assert "DmaContract" in " ".join(verdict["violations"])
+
+
+def test_dma_edge_pins(tmp_path):
+    """Literal-less size, malformed contract, and malformed map ranges."""
+    no_size = "void *x(void) { return dma_map(eth, len); }"
+    verdict = dma_isolation(_write(tmp_path, "ns.c", no_size),
+                            MEMORY_MAP, CONTRACTS)
+    assert verdict["code"] == "DMA_ISOLATION_VIOLATED"
+    assert "no literal size" in " ".join(verdict["violations"])
+
+    bad_contract = dma_isolation(_write(tmp_path, "e.c", DRIVER),
+                                 MEMORY_MAP, {"eth": "big"})
+    assert bad_contract["code"] == "DMA_ISOLATION_VIOLATED"
+    assert "not a range" in " ".join(bad_contract["violations"])
+
+    bad_map = dma_isolation(_write(tmp_path, "e.c", DRIVER),
+                            {"kernel_pools": {"p": [5, 5]},
+                             "devices": {"eth": [1, 2]}}, CONTRACTS)
+    assert bad_map["code"] == "memory_map_incomplete"

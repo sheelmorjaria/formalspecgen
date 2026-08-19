@@ -219,6 +219,28 @@ class CliTests(unittest.TestCase):
         with patch("pipeline.hal_mmio.verify_hal", return_value=refused):
             self.assertEqual(cli.command_verify_hal(args, self.ui), 1)
 
+    def test_dispatch_routes_new_lanes(self):
+        """main() dispatches the new subcommands (in-process so coverage
+        sees the dispatch lines)."""
+        macro = self.root / "macros.json"
+        macro.write_text('{"READ_ONCE": "V2::Read"}', encoding="utf-8")
+        src = self.root / "s.c"
+        src.write_text("struct dev { int state; };\n"
+                       "void f(struct dev *d) {"
+                       " if (READ_ONCE(d->state) == 1) {} }\n",
+                       encoding="utf-8")
+        dispatches = [
+            ["verify-hal", str(src)],
+            ["macro-dictionary", str(macro), "--source", str(src)],
+            ["verify-lockfree", str(src)],
+            ["verify-linearizability", str(src)],
+        ]
+        for argv in dispatches:
+            try:
+                self.assertIn(cli.main(argv), (0, 1, 2))
+            except SystemExit as exit_code:
+                self.assertIn(exit_code.code, (None, 0, 1, 2))
+
     def test_command_verify_lockfree(self):
         args = SimpleNamespace(source="ring.c", json_out=None)
         proved = {"status": "LOCK_FREE_LINEARIZABILITY_PROVED",

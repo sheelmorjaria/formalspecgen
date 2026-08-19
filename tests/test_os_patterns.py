@@ -82,3 +82,8 @@ def test_callbacks_resolve_and_flag_unresolved():
     assert clean["unresolved"] == []
     assert resolve_callbacks("int main(void){return 0;}")["code"] == \
         "no_callback_registrations"
+    # NULL slots are skipped; non-ops-table assignments are ignored
+    skips = resolve_callbacks(
+        "struct file_operations f = {.read = NULL};\n"
+        "count->total = 5;\n")
+    assert skips["code"] == "no_callback_registrations"
