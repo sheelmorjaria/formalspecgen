@@ -142,3 +142,19 @@ def test_cli_routes_kernel_driver_with_profile(tmp_path):
                    "--dependencies", "kernel-driver",
                    "--dma-profile", str(tmp_path / "ghost.json")])
     assert rc == 2   # unreadable profile is a usage error
+
+
+def test_malformed_memory_map_and_unparseable_calls_refuse(tmp_path):
+    source = _adapter(tmp_path, "0")
+    bad_map = {"memory_map": {"kernel_pools": {"p": [9, 4]}},
+               "dma_contracts": {"nic": [0, 4]}}
+    assert inject_dependency(source, "kernel-driver",
+                             dma_profile=bad_map)["code"] == \
+        "memory_map_incomplete"
+    # a DMA-shaped token the checker cannot parse never passes vacuously
+    source2 = _adapter(tmp_path, "dma_map_page_region(nic, x) as i32")
+    with patch("pipeline.dependency_injection._chat_fn",
+               _fill("dma_map_page_region(nic, x) as i32")):
+        result = inject_dependency(source2, "kernel-driver",
+                                   dma_profile=DMA_PROFILE)
+    assert result["code"] == "dma_callsite_unrecognized"

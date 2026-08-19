@@ -142,3 +142,15 @@ def test_profile_dataclass_defaults():
                       word_size_bytes=4)
     assert profile.usable_sram_bytes == 90
     assert profile.memory_model == "" and profile.sram_base_bytes == 0
+
+
+def test_budget_bytes_residuals_fail_closed(tmp_path):
+    derive = derive_kernel_pools
+    assert derive(_profile(tmp_path),
+                  {"s": {"struct_size_bytes": 8,
+                         "budget_bytes": "lots"}})["code"] == \
+        "subsystem_field_missing"
+    assert derive(_profile(tmp_path),
+                  {"s": {"struct_size_bytes": 8,
+                         "budget_bytes": 0}})["code"] == \
+        "hardware_profile_invalid"

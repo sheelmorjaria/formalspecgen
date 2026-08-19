@@ -78,7 +78,7 @@ R52 = {"target": "r52", "memory_model": "armv8_sc",
 
 def _kernel(tmp_path, *, ring=WITNESS, manifest_extra=None):
     root = tmp_path / "kernel"
-    root.mkdir()
+    root.mkdir(exist_ok=True)
     (root / "ring.c").write_text(ring, encoding="utf-8")
     (root / "isr.c").write_text(ISR, encoding="utf-8")
     (root / "eth.c").write_text(DMA_DRIVER, encoding="utf-8")
@@ -199,3 +199,70 @@ def test_dma_map_can_live_in_the_profile_instead(tmp_path):
     bare = _profile(tmp_path, {"target": "t", "memory_model": "x86_tso",
                                "timing": {"max_cycles": 500}}, "nomap")
     assert verify_kernel(root, [bare])["code"] == "profile_field_missing"
+
+
+def test_lockfree_refusal_fails_the_bundle(tmp_path):
+    """A witness that refuses (not judge-pending — a real gate refusal)
+    fails the bundle with that code, distinct from esbmc absence."""
+    root = _kernel(tmp_path, ring="int main(void){return 0;}\n")
+    bundle = verify_kernel(root, [_profile(tmp_path, N150, "n150")])
+    assert bundle["status"] == "KERNEL_VERIFICATION_FAILED"
+    assert bundle["failures"][0]["source"] == "ring.c"
+
+
+def test_profile_without_cost_model_uses_source_defaults(tmp_path):
+    root = _kernel(tmp_path)
+    bare = {"target": "t", "memory_model": "x86_tso",
+            "timing": {"max_cycles": 500}}
+    bundle = verify_kernel(root, [_profile(tmp_path, bare, "bare")])
+    assert bundle["status"] == "KERNEL_EVIDENCE_BUNDLE"
+    assert ("WCET_BOUND_PROVEN", "static_cfg_cost_model_t") in {
+        (e["claim"], e["scope"]) for e in bundle["claims"]}
+
+
+def test_half_declared_dma_profile_refuses(tmp_path):
+    """memory_map without dma_contracts is a half-declared trust root."""
+    root = _kernel(tmp_path)
+    manifest = json.loads((root / "kernel.json").read_text())
+    del manifest["memory_map"], manifest["dma_contracts"]
+    (root / "kernel.json").write_text(json.dumps(manifest), encoding="utf-8")
+    half = dict(N150, memory_map=MEMORY_MAP)
+    assert verify_kernel(root, [_profile(tmp_path, half, "half")])["code"] \
+        == "profile_field_missing"
+
+
+def test_every_lane_failure_branch_is_named(tmp_path, monkeypatch):
+    """A DEADLINE_MISSED ISR, a pool-overlapping DMA driver, and an
+    absent ESBMC judge each fail/degrade their lane by name."""
+    root = _kernel(tmp_path)
+    manifest = json.loads((root / "kernel.json").read_text())
+    manifest["wcet"] = {"isr.c": {"max_cycles": 5}}   # 8-trip loop busts it
+    (root / "kernel.json").write_text(json.dumps(manifest), encoding="utf-8")
+    bundle = verify_kernel(root, [_profile(tmp_path, N150, "n150")])
+    assert bundle["status"] == "KERNEL_VERIFICATION_FAILED"
+    assert bundle["failures"][0]["code"] == "DEADLINE_MISSED"
+
+    root2 = _kernel(tmp_path)
+    (root2 / "eth.c").write_text(
+        "void *bad(void) { return dma_map(nic, 0x4000); }\n",
+        encoding="utf-8")
+    manifest = json.loads((root2 / "kernel.json").read_text())
+    manifest["dma"] = ["eth.c"]
+    (root2 / "kernel.json").write_text(json.dumps(manifest), encoding="utf-8")
+    straddle = dict(N150, memory_map={
+        "kernel_pools": {"object_pool": [0x4000, 0x8000]},
+        "devices": {"nic": [0x3000, 0x5000]}},
+        dma_contracts={"nic": [0x3000, 0x3400]})
+    bundle = verify_kernel(root2, [_profile(tmp_path, straddle, "s")])
+    assert bundle["failures"][0]["code"] == "DMA_ISOLATION_VIOLATED"
+
+    # absent judge: esbmc hidden -> the lock-free entry degrades to
+    # judge_pending, never minted, and the bundle still stands
+    root3 = _kernel(tmp_path)
+    monkeypatch.setattr("pipeline.lockfree.ESBMC_AVAILABLE", False)
+    bundle = verify_kernel(root3, [_profile(tmp_path, N150, "n150")])
+    assert bundle["status"] == "KERNEL_EVIDENCE_BUNDLE"
+    lockfree = [e for e in bundle["claims"]
+                if e["claim"] == "LOCK_FREE_LINEARIZABILITY_PROVED"]
+    assert lockfree[0]["status"] == "judge_pending"
+    assert lockfree[0]["judge_pending"] == "esbmc"

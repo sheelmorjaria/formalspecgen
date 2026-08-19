@@ -143,3 +143,79 @@ def test_rustc_failures_refuse_by_name(tmp_path, monkeypatch):
     with patch("subprocess.run", side_effect=TimeoutError("slow")):
         assert wcet_bound_binary(good, {"max_cycles": 10})["code"] == \
             "rustc_timeout"
+
+
+@pytest.mark.skipif(not _toolchain(), reason="rustc/objdump not installed")
+def test_objdump_residuals_refuse_by_name(tmp_path, monkeypatch):
+    from subprocess import CompletedProcess
+    monkeypatch.setattr("pipeline.wcet_binary.RUSTC_BIN", shutil.which("rustc"))
+    monkeypatch.setattr("pipeline.wcet_binary.OBJDUMP_BIN", "/usr/bin/false")
+    good = _write(tmp_path, "ok.rs", SPIN)
+    assert wcet_bound_binary(good, {"max_cycles": 10})["code"] == \
+        "objdump_failed"
+    monkeypatch.setattr("pipeline.wcet_binary.OBJDUMP_BIN", "/usr/bin/true")
+    assert wcet_bound_binary(good, {"max_cycles": 10})["code"] == \
+        "no_functions_found"
+
+
+def test_fallthrough_edge_into_the_next_block():
+    """A block ending without a branch falls through to the next leader —
+    the hand-written CFG pins that edge."""
+    disasm = """
+0000000000000000 <chain>:
+   0:\te8 00 00 00 00      	callq  5 <chain+0x5>
+   5:\t48 83 c0 01         	add    $0x1,%rax
+   9:\t83 f8 08            	cmp    $0x8,%eax
+   c:\t7f 05               	jg     13 <chain+0x13>
+   e:\t89 c2               	mov    %eax,%edx
+  10:\t01 d0               	add    %edx,%eax
+  12:\tc3                  	retq
+  13:\tb8 08 00 00 00      	mov    $0x8,%eax
+  18:\tc3                  	retq
+"""
+    functions = parse_functions(disasm)
+    cfg = _build_cfg(functions["chain"])
+    # addresses are hex: callq at 0 → block [0..4] falls through to 0x5;
+    # jg at 0xc targets 0x13 and falls through to 0xe
+    assert (0, 5) in cfg["edges"]
+    assert (5, 0x13) in cfg["edges"]
+    assert (5, 0xe) in cfg["edges"]
+    assert cfg["back_edges"] == []
+    assert cfg["indirect"] == []
+
+
+def test_parser_ignores_instructions_before_any_function():
+    assert parse_functions("   0:\t50                   	push   %rax\n") == {}
+
+
+def test_block_ending_without_a_branch_falls_through():
+    disasm = """
+0000000000000000 <chain2>:
+   0:\te8 00 00 00 00      	callq  5 <chain2+0x5>
+   5:\t48 83 c0 01         	add    $0x1,%rax
+   9:\t83 f8 08            	cmp    $0x8,%eax
+   c:\t7f 05               	jg     13 <chain2+0x13>
+   e:\t89 c2               	mov    %eax,%edx
+  10:\t01 d0               	add    %edx,%eax
+  12:\t90                   	nop
+  13:\tb8 08 00 00 00      	mov    $0x8,%eax
+  18:\tc3                   	retq
+"""
+    cfg = _build_cfg(parse_functions(disasm)["chain2"])
+    # block [0xe..0x12] ends in a nop — it FALLS THROUGH to 0x13
+    assert (0xe, 0x13) in cfg["edges"]
+    assert cfg["back_edges"] == []
+
+
+@pytest.mark.skipif(not _toolchain(), reason="rustc/objdump not installed")
+def test_objdump_timeout_refuses_by_name(tmp_path, monkeypatch):
+    from subprocess import CompletedProcess
+    from unittest.mock import patch
+    monkeypatch.setattr("pipeline.wcet_binary.RUSTC_BIN", shutil.which("rustc"))
+    monkeypatch.setattr("pipeline.wcet_binary.OBJDUMP_BIN", "/usr/bin/objdump")
+    good = _write(tmp_path, "t.rs", SPIN)
+    with patch("subprocess.run", side_effect=[
+            CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+            TimeoutError("slow")]):
+        assert wcet_bound_binary(good, {"max_cycles": 10})["code"] == \
+            "objdump_timeout"
