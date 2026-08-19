@@ -208,6 +208,9 @@ def test_verify_passthroughs_and_no_verdict(tmp_path, monkeypatch):
     passthrough = verify_lockfree(_write(tmp_path, "np.c", never_stores))
     assert passthrough["code"] == "LINEARIZATION_POINT_MISSING"
 
+    # CI runners have no esbmc — the module constant was computed at
+    # import. Open the availability gate so the MOCKED run is reached.
+    monkeypatch.setattr("pipeline.lockfree.ESBMC_AVAILABLE", True)
     with patch("subprocess.run", return_value=CompletedProcess(
             args=[], returncode=0, stdout="mysterious silence",
             stderr="")):
@@ -221,7 +224,7 @@ def test_residuals_fail_closed(tmp_path, monkeypatch):
     from subprocess import CompletedProcess
     from unittest.mock import patch
 
-    from pipeline import config
+    from pipeline import config  # noqa: F401  (residual lane import pin)
     assert verify_lockfree(tmp_path / "nope.c")["code"] == \
         "input_unavailable"
     rust = _write(tmp_path, "L.rs", "pub fn f() {}")
@@ -235,7 +238,10 @@ def test_residuals_fail_closed(tmp_path, monkeypatch):
     monkeypatch.setattr("pipeline.lockfree.ESBMC_AVAILABLE", False)
     assert verify_lockfree(_write(tmp_path, "ring.c", RING))["code"] == \
         "esbmc_unavailable"
-    monkeypatch.undo()
+    # (never monkeypatch.undo() past an availability check — on CI the
+    # import-time constant is False and the mocked residuals below would
+    # all collapse to esbmc_unavailable. Open the gate explicitly.)
+    monkeypatch.setattr("pipeline.lockfree.ESBMC_AVAILABLE", True)
 
     with patch("subprocess.run",
                side_effect=TimeoutError("slow")):

@@ -327,7 +327,9 @@ def test_verify_residuals_fail_closed(tmp_path, monkeypatch):
                           "right": {"kind": "integer", "value": 1}}}}]}
     monkeypatch.setenv("Z3_BIN", "/nonexistent/z3")
     assert verify_macro_model(good)["code"] == "z3_unavailable"
-    monkeypatch.undo()
+    # CI runners have no z3: point Z3_BIN at any real binary so the
+    # availability gate opens and the MOCKED subprocess residuals run.
+    monkeypatch.setenv("Z3_BIN", "/bin/true")
 
     from subprocess import CompletedProcess
     from unittest.mock import patch
@@ -351,6 +353,7 @@ def test_verify_residuals_fail_closed(tmp_path, monkeypatch):
     assert verify_macro_model(unsupported_kind)["code"] == \
         "unsupported_expression"
 
+    monkeypatch.delenv("Z3_BIN", raising=False)
     if _z3_installed():
         proved = verify_macro_model(good)
         assert proved["status"] == "MACRO_MODEL_SAFETY_PROVED"

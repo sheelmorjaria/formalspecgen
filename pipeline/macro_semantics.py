@@ -455,17 +455,21 @@ def verify_macro_model(payload: dict) -> dict:
     """Test 3.2: real Z3 proves the synthesized model's invariant
     inductive (initiation + 1-step consecution) over the deterministic
     SMT-LIB2 encoding."""
-    z3_binary = shutil.which(os.environ.get("Z3_BIN", "z3"))
-    if not z3_binary:
-        return {"status": "MACRO_MODEL_VERIFICATION_FAILED", "claim":
-                "NO_PROOF", "code": "z3_unavailable",
-                "message": "z3 binary not found (Z3_BIN)"}
+    # Diagnosable-input residuals are decided BEFORE the solver
+    # availability gate: a bad payload names its own defect even on hosts
+    # (CI runners) where no z3 is installed. The encoding is a pure
+    # deterministic transform — it never needs the solver.
     try:
         smt2 = _encode_smt2(payload)
     except _Unsupported as error:
         return {"status": "MACRO_MODEL_VERIFICATION_FAILED", "claim":
                 "NO_PROOF", "code": "unsupported_expression",
                 "message": str(error)}
+    z3_binary = shutil.which(os.environ.get("Z3_BIN", "z3"))
+    if not z3_binary:
+        return {"status": "MACRO_MODEL_VERIFICATION_FAILED", "claim":
+                "NO_PROOF", "code": "z3_unavailable",
+                "message": "z3 binary not found (Z3_BIN)"}
     try:
         process = subprocess.run([z3_binary, "-in"], input=smt2,
                                  capture_output=True, text=True, timeout=60)
