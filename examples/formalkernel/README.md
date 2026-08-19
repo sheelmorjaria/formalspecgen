@@ -81,7 +81,8 @@ python3 -c 'from pipeline.boot_check import build_boot_image; \
 
 # boot it (needs qemu-system-aarch64; sudo apt-get install qemu-system-arm)
 timeout 10 qemu-system-aarch64 -M virt -cpu cortex-a72 -nographic \
-  -no-reboot -kernel examples/formalkernel/boot/formalkernel.elf
+  -monitor none -no-reboot \
+  -kernel examples/formalkernel/boot/formalkernel.elf
 
 # judge the transcript (RUNTIME_SAMPLE ceiling — evidence, NOT proof)
 python3 -c '
@@ -92,9 +93,12 @@ comp = json.load(open("kernel/composition.json"))
 print(json.dumps(parse_transcript(boot["transcript"], comp), indent=2))'
 ```
 
-Expected transcript: the four BOOT lines in the proven order, then
-`NET posted=13 dropped=3 consumed=13 high_water=4 cap=4` — drops > 0
-means the ERR_MEM backpressure path actually executed; high_water == 4
-== cap means the ESBMC-proved bound held on emulated silicon. The
+Verified transcript (2026-08-19, this host): the four BOOT lines in
+the proven order, then `NET posted=7 dropped=9 consumed=7 high_water=4
+cap=4` — 16 arrivals, 7 accepted, 9 DROPPED at the bound (the ERR_MEM
+backpressure path actually executed); high_water == 4 == cap is the
+ESBMC-proved capacity invariant observed on emulated silicon. The
+kernel parks in wfe (the run ends on the timeout, transcript
+complete). The
 verdict's `claim_ceiling` is `RUNTIME_SAMPLE`: a QEMU transcript is
 evidence about the math, never more math.

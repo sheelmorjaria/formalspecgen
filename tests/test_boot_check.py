@@ -21,10 +21,15 @@ BOOT pool_init
 BOOT scheduler_start
 BOOT net_start
 FLOOD start
-NET posted=13 dropped=3 consumed=13 high_water=4 cap=4
+NET posted=7 dropped=9 consumed=7 high_water=4 cap=4
 SCHED posted=3 picked=3 dropped=0 high_water=3 cap=4
 HALT
 """
+
+
+def shutil_which(binary):
+    import shutil
+    return shutil.which(binary)
 
 
 def test_good_transcript_confirms_under_the_runtime_ceiling():
@@ -35,7 +40,7 @@ def test_good_transcript_confirms_under_the_runtime_ceiling():
     assert verdict["scope"] == "qemu_virt_aarch64_uart_transcript"
     assert verdict["boot_order_confirmed"] == \
         ["timer_init", "pool_init", "scheduler_start", "net_start"]
-    assert verdict["rings"]["NET"]["dropped"] == 3
+    assert verdict["rings"]["NET"]["dropped"] == 9
     assert verdict["rings"]["NET"]["high_water"] == 4
     assert "NOT an additional proof" in verdict["note"]
 
@@ -55,7 +60,7 @@ def test_order_mismatch_and_missing_output_refuse():
 def test_ring_bound_violation_is_the_worst_outcome():
     """high_water > cap is not a lane failure — it CONTRADICTS the
     ESBMC-proved invariant; the code names it as such."""
-    overflow = GOOD.replace("NET posted=13 dropped=3 consumed=13 "
+    overflow = GOOD.replace("NET posted=7 dropped=9 consumed=7 "
                             "high_water=4 cap=4",
                             "NET posted=16 dropped=0 consumed=16 "
                             "high_water=5 cap=4")
@@ -66,7 +71,7 @@ def test_ring_bound_violation_is_the_worst_outcome():
 
 
 def test_vacuous_flood_and_residuals_refuse():
-    no_drops = GOOD.replace("dropped=3", "dropped=0")
+    no_drops = GOOD.replace("dropped=9", "dropped=0")
     verdict = parse_transcript(no_drops, COMPOSITION)
     assert verdict["code"] == "backpressure_not_exercised"
     assert "vacuous" in verdict["message"]
@@ -180,3 +185,25 @@ def test_qemu_clean_exit_returns_transcript(monkeypatch):
                return_value=done):
         out = boot_check.run_qemu_boot("/x.elf")
     assert out == {"transcript": "HALT\n", "timed_out": False}
+
+
+@pytest.mark.skipif(shutil_which("qemu-system-aarch64") is None,
+                    reason="qemu-system-aarch64 not installed")
+def test_real_boot_end_to_end():
+    """The full capstone on live QEMU: build, boot, judge — the
+    executed boot order must equal the M46-proven order and the ring
+    bound must hold with drops observed, under the RUNTIME_SAMPLE
+    ceiling."""
+    import json as _json
+    from pipeline.boot_check import run_qemu_boot
+    built = build_boot_image(BOOT_DIR)
+    assert built["status"] == "IMAGE_BUILT", built
+    boot = run_qemu_boot(built["elf"], timeout_seconds=10)
+    verdict = parse_transcript(boot["transcript"], COMPOSITION)
+    assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED", verdict
+    assert verdict["claim_ceiling"] == "RUNTIME_SAMPLE"
+    ring = verdict["rings"]["NET"]
+    assert ring["high_water"] == ring["cap"] == 4
+    assert ring["dropped"] == 9 and ring["posted"] == 7
+    assert ring["posted"] + ring["dropped"] == 16   # every arrival
+                                                    # accounted for

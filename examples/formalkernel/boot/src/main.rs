@@ -97,8 +97,26 @@ fn step(name: &str) {
     uart_puts("\n");
 }
 
+core::arch::global_asm!(
+    ".section .text.boot",
+    ".global _start",
+    "_start:",
+    "ldr x0, =__stack_top",
+    "mov sp, x0",
+    "bl rust_main",
+    "2: wfe",
+    "b 2b",
+    ".section .bss.stack, \"aw\", @nobits",
+    ".align 16",
+    ".global __stack_bottom",
+    "__stack_bottom:",
+    ".space 16384",
+    ".global __stack_top",
+    "__stack_top:"
+);
+
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn rust_main() -> ! {
     uart_puts("FormalKernel boot (QEMU virt aarch64)\n");
     // The M46-proven order, compiled in from composition.json:
     // timer -> pools -> scheduler -> net. Each step prints BEFORE it
