@@ -154,6 +154,42 @@ def test_net_server_transcript_closes_the_ledger():
         "NET_SERVER_LEDGER_OPEN"
 
 
+def test_restart_transcript_proves_resilience():
+    """M52: the respawn's evidence needs the voluntary exit, a
+    non-vacuous poll, and a SECOND closed ledger."""
+    full = GOOD.replace(
+        "consumed=7", "consumed=4").replace(
+        "HALT", "NETSRV_ON el0\nUSER_ON el0\n"
+                "SYSCALL 0x64 write_console from EL0\n"
+                "SYSCALL 0x66 net_poll from EL0\n"
+                "USER_TRAP far=0x40200000 contained NET_SERVER_KILLED\n"
+                "NETSRV srv_consumed=1 reclaimed=2 kernel_consumed=4 "
+                "posted=7 dropped=9\n"
+                "NETSRV_RESTART gen=2\n"
+                "SYSCALL 0x66 net_poll from EL0\n"
+                "SYSCALL 0x67 process_exit from EL0\n"
+                "NETSRV2 srv_consumed=1 reclaimed=1 posted=2\nHALT")
+    verdict = parse_transcript(full, COMPOSITION)
+    assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED"
+    rs = verdict["net_server_restart"]
+    assert rs["srv_consumed"] + rs["reclaimed"] == rs["posted"] == 2
+    no_exit = full.replace(
+        "SYSCALL 0x67 process_exit from EL0\n", "")
+    assert parse_transcript(no_exit, COMPOSITION)["code"] == \
+        "restart_exit_not_observed"
+    no_ledger = full.replace(
+        "NETSRV2 srv_consumed=1 reclaimed=1 posted=2\n", "")
+    assert parse_transcript(no_ledger, COMPOSITION)["code"] == \
+        "netsrv2_ledger_not_observed"
+    vacuous = full.replace("srv_consumed=1 reclaimed=1 posted=2",
+                           "srv_consumed=0 reclaimed=2 posted=2")
+    assert parse_transcript(vacuous, COMPOSITION)["code"] == \
+        "restart_poll_vacuous"
+    leaky = full.replace("reclaimed=1 posted=2", "reclaimed=0 posted=2")
+    assert parse_transcript(leaky, COMPOSITION)["code"] == \
+        "RESTART_LEDGER_OPEN"
+
+
 def test_order_mismatch_and_missing_output_refuse():
     swapped = GOOD.replace("BOOT pool_init\nBOOT scheduler_start",
                            "BOOT scheduler_start\nBOOT pool_init")
@@ -347,6 +383,13 @@ def test_real_boot_end_to_end():
         "kernel_consumed"] == ns["posted"] == 7
     assert ns["dropped"] == 9 and "NET_SERVER_KILLED" in boot[
         "transcript"]
+    # M52: the RESTART — the respawned server received through the
+    # door, exited VOLUNTARILY, and the second ledger closed
+    rs = verdict["net_server_restart"]
+    assert rs["srv_consumed"] == 1 and rs["reclaimed"] == 1
+    assert rs["srv_consumed"] + rs["reclaimed"] == rs["posted"] == 2
+    assert "SYSCALL 0x67 process_exit from EL0" in boot["transcript"]
+    assert "NETSRV_RESTART gen=2" in boot["transcript"]
     ring = verdict["rings"]["NET"]
     assert ring["high_water"] == ring["cap"] == 4
     assert ring["dropped"] == 9 and ring["posted"] == 7

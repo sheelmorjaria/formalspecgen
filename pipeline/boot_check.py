@@ -213,6 +213,48 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
                 f"{net_server['posted']} — packets vanished or appeared; "
                 "containment lost state",
                 rings=rings)
+    net_server_restart = None
+    if "NETSRV_RESTART" in transcript:
+        # M52: the respawn — evidence is complete only when the NEW
+        # server received through the door, exited VOLUNTARILY through
+        # a declared syscall, and the SECOND ledger closed
+        if "SYSCALL 0x67 process_exit from EL0" not in transcript:
+            return _fail("restart_exit_not_observed",
+                         "NETSRV_RESTART printed but the respawned "
+                         "server never exited through the declared "
+                         "process_exit syscall — a healthy server "
+                         "returning control was not demonstrated",
+                         rings=rings)
+        ledger2 = re.search(
+            r"NETSRV2 srv_consumed=(\d+) reclaimed=(\d+) "
+            r"posted=(\d+)", transcript)
+        if not ledger2:
+            return _fail("netsrv2_ledger_not_observed",
+                         "NETSRV_RESTART printed but no generation-2 "
+                         "packet ledger followed — the post-restart "
+                         "accounting is missing",
+                         rings=rings)
+        net_server_restart = {
+            "srv_consumed": int(ledger2.group(1)),
+            "reclaimed": int(ledger2.group(2)),
+            "posted": int(ledger2.group(3)),
+        }
+        if net_server_restart["srv_consumed"] == 0:
+            return _fail("restart_poll_vacuous",
+                         "the respawned server received nothing — the "
+                         "restart never moved a packet through the "
+                         "door (vacuous resilience evidence)",
+                         rings=rings)
+        if net_server_restart["srv_consumed"] + net_server_restart[
+                "reclaimed"] != net_server_restart["posted"]:
+            return _fail(
+                "RESTART_LEDGER_OPEN",
+                f"generation-2 ledger does not close: srv "
+                f"{net_server_restart['srv_consumed']} + reclaimed "
+                f"{net_server_restart['reclaimed']} != posted "
+                f"{net_server_restart['posted']} — the restart lost or "
+                "invented packets",
+                rings=rings)
     return {
         "status": "BOOT_RUNTIME_CONFIRMED",
         # runtime evidence, honestly ceilinged BELOW the proof lanes:
@@ -229,6 +271,7 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         "ipc": ipc_ring,
         "ipc_syscall_observed": ipc_syscall_observed,
         "net_server": net_server,
+        "net_server_restart": net_server_restart,
         "note": "runtime observation of the M46-proven boot order and "
                 "the ESBMC-proved capacity bound — evidence, NOT an "
                 "additional proof; LOCK_FREE_LINEARIZABILITY_PROVED and "

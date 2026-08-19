@@ -179,7 +179,8 @@ pub extern "C" fn rust_main() -> ! {
     unsafe { NETSRV_ACTIVE = true; }
     // ---- M49: drop to EL0 with the unverified user image -------------
     uart_puts("USER_ON el0\n");
-    launch_user();   // noreturn: control comes back via el0_return
+    unsafe { KERNEL_RESUME = el0_return as usize; }
+    launch_user(&USER_IMAGE);   // noreturn: back via el0_return
 }
 
 
@@ -299,6 +300,7 @@ const USER_STACK_TOP: usize = 0x421F_F000;
 const SYSCALL_WRITE_CONSOLE: u64 = 0x64;
 const SYSCALL_IPC_SEND: u64 = 0x65;
 const SYSCALL_NET_POLL: u64 = 0x66;   // the user-space net server
+const SYSCALL_PROCESS_EXIT: u64 = 0x67;   // the voluntary exit
 // SELF-CONTAINED: NO register may depend on preservation across the
 // syscall boundary — this handler does not save user registers (a
 // real kernel would; the unverified image simply must not rely on it).
@@ -390,19 +392,40 @@ impl Mpsc {
 
 static mut IPC_Q: Mpsc = Mpsc::new();
 
+// GENERATION 2 — the respawned net server: the SAME door, the SAME
+// endpoint, but this one is healthy furniture. It writes the console,
+// receives a packet, and EXITS VOLUNTARILY through a declared syscall
+// (no crash) — proving service resumed after the kill.
+const USER_IMAGE_GEN2: [u32; 4] = [
+    0xD400_0C81,     // svc #0x64 write_console
+    0xD400_0CC1,     // svc #0x66 net_poll
+    0xD400_0CE1,     // svc #0x67 process_exit (0xD4000001 | 0x67<<5)
+    0x1400_0000];    // b . (unreachable: exit never returns to EL0)
+
 static mut NETSRV_CONSUMED: u32 = 0;  // packets the EL0 server took
 static mut NETSRV_ACTIVE: bool = false; // the EL0 process is the net srv
+static mut NETSRV_CONSUMED_BASE: u32 = 0; // gen-1 share (per-gen ledger)
+static mut NET_POSTED_BASE: u32 = 0;      // gen-1 posted (per-gen ledger)
 static mut KERNEL_RESUME: usize = 0;   // el0_return: after USER_TRAP
 static mut EL1_RESUME: usize = 0;      // el1_probe_return: after FAULT
 
-fn launch_user() -> ! {
+// the launch path reads KERNEL_RESUME AFTER the stores above; a
+// plain read of the static would let the compiler sink it — volatile
+unsafe fn KERNEL_RESUME_VOLATILE() {
+    let _ = read_volatile(&KERNEL_RESUME);
+}
+
+fn launch_user(image: &[u32]) -> ! {
     unsafe {
-        // copy the unverified image into user frames (EL1 may write there)
+        // (re)initialize the user frames with the image and reset
+        // SP_EL0 below — a respawn re-initializes, it never trusts
+        // the dead process's leftovers
         let dst = USER_CODE as *mut u32;
-        for (i, word) in USER_IMAGE.iter().enumerate() {
+        for i in 0..32usize { write_volatile(dst.add(i), 0); }
+        for (i, word) in image.iter().enumerate() {
             write_volatile(dst.add(i), *word);
         }
-        KERNEL_RESUME = el0_return as usize;
+        KERNEL_RESUME_VOLATILE();
         core::arch::asm!(
             "dsb sy",
             "msr sp_el0, {sp}",
@@ -455,6 +478,39 @@ pub extern "C" fn el0_return() -> ! {
     uart_puts(" dropped=");
     uart_putdec(unsafe { NET_RING.dropped });
     uart_puts("\n");
+    // M52: the RESTART. Snapshot the gen-1 ledger bases, post a fresh
+    // driver burst, and RESPAWN the server with re-initialized frames
+    // and a fresh stack — fault recovery, not just fault containment.
+    unsafe {
+        NETSRV_CONSUMED_BASE = NETSRV_CONSUMED;
+        NET_POSTED_BASE = NET_RING.posted;
+        NET_RING.post(burst_marker());
+        NET_RING.post(burst_marker());
+        NETSRV_ACTIVE = true;
+    }
+    uart_puts("NETSRV_RESTART gen=2\n");
+    unsafe { KERNEL_RESUME = netsrv2_return as usize; }
+    launch_user(&USER_IMAGE_GEN2)
+}
+
+/// A distinguishing value for the post-restart driver burst.
+fn burst_marker() -> u32 { 0x5253_5452 }   // "RSTR"
+
+/// The gen-2 continuation: the respawned server exited voluntarily —
+/// the SECOND ledger closes and the kernel carries on to the probe.
+#[no_mangle]
+pub extern "C" fn netsrv2_return() -> ! {
+    let mut reclaimed = 0u32;
+    while unsafe { NET_RING.fetch() }.is_some() { reclaimed += 1; }
+    let srv = unsafe { NETSRV_CONSUMED } - unsafe { NETSRV_CONSUMED_BASE };
+    let posted = unsafe { NET_RING.posted } - unsafe { NET_POSTED_BASE };
+    uart_puts("NETSRV2 srv_consumed=");
+    uart_putdec(srv);
+    uart_puts(" reclaimed=");
+    uart_putdec(reclaimed);
+    uart_puts(" posted=");
+    uart_putdec(posted);
+    uart_puts("\n");
     unsafe { EL1_RESUME = el1_probe_return as usize; }
     isolation_probe()              // M48: the EL1 probe still runs after
 }
@@ -492,6 +548,12 @@ pub extern "C" fn sync_handler() -> ! {
                 uart_puts("SYSCALL 0x64 write_console from EL0\n");
                 // ELR already points past the svc: return to the user
                 unsafe { core::arch::asm!("eret", options(noreturn)) };
+            }
+            if imm == SYSCALL_PROCESS_EXIT {
+                // the respawned server's VOLUNTARY exit — service
+                // complete, no fault, the kernel simply resumes
+                uart_puts("SYSCALL 0x67 process_exit from EL0\n");
+                unsafe { eret_to(read_volatile(&KERNEL_RESUME)) };
             }
             if imm == SYSCALL_NET_POLL {
                 // M51: the user-space net server receives one packet
