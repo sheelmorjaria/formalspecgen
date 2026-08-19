@@ -30,6 +30,10 @@ class Profile:
     reserved_system_bytes: int
     max_stack_depth_bytes: int
     word_size_bytes: int
+    # M41: the multi-architecture lattice keys off these; both stay
+    # optional so M30-era profiles (stm32.json) keep loading unchanged.
+    memory_model: str = ""
+    sram_base_bytes: int = 0
 
     @property
     def usable_sram_bytes(self) -> int:
@@ -45,7 +49,9 @@ def load_profile(path: str | Path) -> Profile:
             total_sram_bytes=int(raw["total_sram_bytes"]),
             reserved_system_bytes=int(raw["reserved_system_bytes"]),
             max_stack_depth_bytes=int(raw["max_stack_depth_bytes"]),
-            word_size_bytes=int(raw.get("word_size_bytes", 4)))
+            word_size_bytes=int(raw.get("word_size_bytes", 4)),
+            memory_model=str(raw.get("memory_model", "")),
+            sram_base_bytes=int(raw.get("sram_base_bytes", 0)))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise HardwareProfileError(f"hardware_profile_unreadable: {exc}") from exc
     if profile.reserved_system_bytes >= profile.total_sram_bytes:
@@ -100,3 +106,104 @@ def stack_depth_ok(profile: Profile, frame_bytes: int, depth: int) -> bool:
     """Whether `depth` frames of `frame_bytes` fit the physical stack."""
     return frame_bytes > 0 and depth >= 0 and frame_bytes * depth \
         <= profile.max_stack_depth_bytes
+
+
+# --- M41: the kernel subsystem pool table ---------------------------------
+#
+# One human-owned profile derives EVERY kernel pool (scheduler, VFS,
+# network) at once, and the pools must not collide in SRAM. The math is
+# deterministic; the profile is the human's trust root.
+
+
+def derive_kernel_pools(profile: Profile,
+                        subsystems: dict) -> dict:
+    """Derive every kernel pool's capacity and SRAM window, fail-closed.
+
+    ``subsystems`` maps a name to ``{"struct_size_bytes": N,
+    "sram_base": ADDR?}`` — struct sizes are human declarations, windows
+    are checked pairwise disjoint and (when the profile declares an SRAM
+    origin) contained in usable SRAM. Windows are only minted for
+    subsystems that declare ``sram_base``; capacity is minted for all.
+    """
+    def refused(code: str, message: str) -> dict:
+        return {"status": "HARDWARE_PROFILE_REFUSED", "claim": "NO_PROOF",
+                "code": code, "message": message}
+
+    if not isinstance(subsystems, dict) or not subsystems:
+        return refused("subsystems_missing",
+                       "the kernel profile declares no subsystems — "
+                       "capacities are never guessed")
+    pools: dict[str, dict] = {}
+    windows: list[tuple[str, int, int]] = []
+    for name, spec in subsystems.items():
+        if not isinstance(spec, dict) or "struct_size_bytes" not in spec:
+            return refused("subsystem_field_missing",
+                           f"subsystem {name} lacks struct_size_bytes — "
+                           "a pool size is never guessed")
+        try:
+            struct_size = int(spec["struct_size_bytes"])
+        except (TypeError, ValueError):
+            return refused("subsystem_field_missing",
+                           f"subsystem {name} struct_size_bytes is not an "
+                           "integer")
+        if struct_size <= 0:
+            return refused("hardware_profile_invalid",
+                           f"subsystem {name} struct size must be positive")
+        if struct_size % profile.word_size_bytes:
+            return refused("word_misaligned",
+                           f"subsystem {name} struct of {struct_size} bytes "
+                           f"is not {profile.word_size_bytes}-byte aligned "
+                           f"on {profile.target}")
+        try:
+            capacity = safe_capacity(profile, struct_size)
+        except HardwareProfileError as exc:
+            code, _, message = str(exc).partition(": ")
+            return refused(code, message)
+        if "budget_bytes" in spec:
+            # The reviewer's share declaration: how much of usable SRAM
+            # this subsystem may take. The ceiling stays the physics; the
+            # share is the architecture. Capacity never exceeds either.
+            try:
+                share = int(spec["budget_bytes"])
+            except (TypeError, ValueError):
+                return refused("subsystem_field_missing",
+                               f"subsystem {name} budget_bytes is not an "
+                               "integer")
+            if share <= 0:
+                return refused("hardware_profile_invalid",
+                               f"subsystem {name} budget must be positive")
+            capacity = min(capacity, share // struct_size)
+        window = None
+        if "sram_base" in spec:
+            base = int(spec["sram_base"])
+            window = (base, base + capacity * struct_size)
+            windows.append((name, window[0], window[1]))
+        pools[name] = {"safe_capacity": capacity,
+                       "struct_size_bytes": struct_size,
+                       "footprint_bytes": capacity * struct_size,
+                       "window_bytes": list(window) if window else None}
+    for i, (name_a, lo_a, hi_a) in enumerate(windows):
+        for name_b, lo_b, hi_b in windows[i + 1:]:
+            if lo_a < hi_b and lo_b < hi_a:
+                return refused("sram_overlap",
+                               f"kernel pools {name_a} and {name_b} overlap "
+                               f"in SRAM ([{lo_a}, {hi_a}) vs [{lo_b}, "
+                               f"{hi_b})) — the memory map is refused")
+    if profile.sram_base_bytes:
+        origin = profile.sram_base_bytes
+        ceiling = origin + profile.usable_sram_bytes
+        for name, lo, hi in windows:
+            if lo < origin or hi > ceiling:
+                return refused("pool_outside_sram",
+                               f"kernel pool {name} window [{lo}, {hi}) is "
+                               f"outside usable SRAM [{origin}, {ceiling}) "
+                               f"of {profile.target}")
+    return {"status": "HARDWARE_PROFILE_DERIVED",
+            "claim": "HARDWARE_PROFILE_DERIVED",
+            "scope": "deterministic_arithmetic",
+            "ownership": "human_declared_hardware_profile",
+            "target": profile.target,
+            "memory_model": profile.memory_model or None,
+            "usable_sram_bytes": profile.usable_sram_bytes,
+            "safety_margin": 0.9,
+            "pools": pools}
