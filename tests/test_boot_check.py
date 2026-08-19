@@ -67,6 +67,27 @@ def test_good_transcript_confirms_under_the_runtime_ceiling():
     assert "NOT an additional proof" in verdict["note"]
 
 
+def test_user_space_transcript_judges_under_the_runtime_ceiling():
+    """M49: the EL0 drop's evidence is complete only when BOTH halves
+    are present — the syscall answered AND the kernel-access trapped."""
+    full = GOOD.replace(
+        "HALT", "USER_ON el0\n"
+                "SYSCALL 0x64 write_console from EL0\n"
+                "USER_TRAP far=0x40200000 contained\nHALT")
+    verdict = parse_transcript(full, COMPOSITION)
+    assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED"
+    assert verdict["claim_ceiling"] == "RUNTIME_SAMPLE"
+    assert verdict["user_syscall_observed"] is True
+    assert verdict["user_syscall_id"] == "0x64"
+    assert verdict["user_fault_far"] == "0x40200000"
+    no_syscall = full.replace("SYSCALL 0x64 write_console from EL0\n", "")
+    assert parse_transcript(no_syscall, COMPOSITION)["code"] == \
+        "user_syscall_not_observed"
+    no_trap = full.replace("USER_TRAP far=0x40200000 contained\n", "")
+    assert parse_transcript(no_trap, COMPOSITION)["code"] == \
+        "user_trap_not_observed"
+
+
 def test_order_mismatch_and_missing_output_refuse():
     swapped = GOOD.replace("BOOT pool_init\nBOOT scheduler_start",
                            "BOOT scheduler_start\nBOOT pool_init")
@@ -237,6 +258,11 @@ def test_real_boot_end_to_end():
     assert verdict["claim_ceiling"] == "RUNTIME_SAMPLE"
     assert verdict["mmu_trap_observed"] is True
     assert verdict["rings"]["NET"]["mmu_fault_far"] == "0x41000000"
+    # M49: the unverified EL0 image asked through the table, then its
+    # direct store into kernel .text trapped at exactly that address
+    assert verdict["user_syscall_observed"] is True
+    assert verdict["user_syscall_id"] == "0x64"
+    assert verdict["user_fault_far"] == "0x40200000"
     ring = verdict["rings"]["NET"]
     assert ring["high_water"] == ring["cap"] == 4
     assert ring["dropped"] == 9 and ring["posted"] == 7

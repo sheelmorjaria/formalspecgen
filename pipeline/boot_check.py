@@ -97,6 +97,33 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
                          rings=rings)
         rings["NET"]["mmu_fault_far"] = fault.group(1)
         rings["NET"]["mmu_trap_observed"] = True
+    user_syscall_observed = False
+    user_syscall_id = None
+    user_fault_far = None
+    if "USER_ON" in transcript:
+        # M49: the image dropped to EL0 with an unverified user image —
+        # BOTH halves of the boundary sample must be present: the
+        # syscall answered AND the EL0 kernel-access trapped
+        syscall = re.search(r"SYSCALL (0x[0-9a-f]+) \S+ from EL0",
+                            transcript)
+        if not syscall:
+            return _fail("user_syscall_not_observed",
+                         "USER_ON printed but no SYSCALL line followed — "
+                         "the unverified image never requested service "
+                         "through the table; the runtime sample is "
+                         "incomplete",
+                         rings=rings)
+        user_trap = re.search(r"USER_TRAP far=(0x[0-9a-f]+)", transcript)
+        if not user_trap:
+            return _fail("user_trap_not_observed",
+                         "USER_ON printed but no USER_TRAP line followed "
+                         "— the EL0 store into kernel memory was not "
+                         "observed trapped; the runtime sample is "
+                         "incomplete",
+                         rings=rings)
+        user_syscall_observed = True
+        user_syscall_id = syscall.group(1)
+        user_fault_far = user_trap.group(1)
     return {
         "status": "BOOT_RUNTIME_CONFIRMED",
         # runtime evidence, honestly ceilinged BELOW the proof lanes:
@@ -107,6 +134,9 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         "boot_order_confirmed": proven,
         "rings": rings,
         "mmu_trap_observed": rings["NET"].pop("mmu_trap_observed", False),
+        "user_syscall_observed": user_syscall_observed,
+        "user_syscall_id": user_syscall_id,
+        "user_fault_far": user_fault_far,
         "note": "runtime observation of the M46-proven boot order and "
                 "the ESBMC-proved capacity bound — evidence, NOT an "
                 "additional proof; LOCK_FREE_LINEARIZABILITY_PROVED and "

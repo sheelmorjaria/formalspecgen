@@ -31,6 +31,7 @@ from .kernel_composition import verify_composition
 from .lockfree import verify_lockfree
 from .mmu_isolation import verify_spatial_isolation
 from .realtime import wcet_bound
+from .syscall_boundary import verify_syscall_boundary
 from .weak_memory import MEMORY_MODELS, barrier_correspondence
 
 
@@ -274,6 +275,38 @@ def verify_kernel(kernel_dir: str | Path,
             else:
                 fail({"claim": "SPATIAL_ISOLATION_PROVED",
                       "profile": target, "source": str(mmu_artifact),
+                      "code": verdict.get("code"),
+                      "message": verdict.get("message", "")})
+
+    # --- M49: the syscall boundary, per profile's physical map ---------
+    syscall_artifact = manifest.get("syscalls")
+    if syscall_artifact is not None:
+        sys_path = root / str(syscall_artifact)
+        if not sys_path.is_file():
+            return _refuse("syscalls_artifact_missing", str(sys_path))
+        try:
+            sys_artifact = _load_json(sys_path)
+        except (OSError, ValueError) as exc:
+            return _refuse("syscalls_artifact_invalid", str(exc))
+        for profile_name, profile in loaded:
+            target = profile.get("target", profile_name)
+            memory_map = (profile.get("mmu_map")
+                          or sys_artifact.get("memory_map"))
+            if not memory_map:
+                return _refuse("profile_field_missing",
+                               f"profile {target} declares no mmu_map "
+                               "and the syscall artifact has no default "
+                               "— the physical map is a human "
+                               "declaration")
+            verdict = verify_syscall_boundary({**sys_artifact,
+                                               "memory_map": memory_map})
+            if verdict["status"] == "SYSCALL_BOUNDARY_PROVED":
+                mint("SYSCALL_BOUNDARY_PROVED",
+                     f"deterministic_dispatch_table_{target}",
+                     target, str(syscall_artifact))
+            else:
+                fail({"claim": "SYSCALL_BOUNDARY_PROVED",
+                      "profile": target, "source": str(syscall_artifact),
                       "code": verdict.get("code"),
                       "message": verdict.get("message", "")})
 

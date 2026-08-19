@@ -161,15 +161,13 @@ pub extern "C" fn rust_main() -> ! {
     uart_putdec(unsafe { SCHED_RING.high_water });
     uart_puts(" cap=4\n");
 
-    // ---- M48: enable the real MMU, then probe the hole -------------
+    // ---- M48: enable the real MMU ------------------------------------
     uart_puts("MMU_ON\n");
     mmu_init();
-    isolation_probe();        // must trap into fault_handler
 
-    uart_puts("HALT\n");
-    loop {
-        unsafe { asm!("wfe") };   // wait-for-event: the honest halt
-    }
+    // ---- M49: drop to EL0 with the unverified user image -------------
+    uart_puts("USER_ON el0\n");
+    launch_user();   // noreturn: control comes back via el0_return
 }
 
 
@@ -193,7 +191,8 @@ const ATTR_DEVICE: u64 = 1;   // MAIR attr1
 pub const ISOLATION_HOLE: usize = 0x41000000;   // unmapped on purpose
 
 fn block_desc(pa: usize, attr: u64) -> u64 {
-    // valid 2MB block: AF | SH=inner | MAIR | NX | addr[51:21]
+    // valid 2MB block: AF | SH=inner | MAIR | UXN (bit 54 — EL0 execute
+    // never; EL1 unaffected) | AP[7:6]=00 (EL0 cannot touch) | addr
     ((pa as u64) & 0x0000_FFFF_FFFE_0000) | (1 << 10) | (3 << 8)
         | (attr << 2) | (1 << 54) | 1
 }
@@ -214,6 +213,12 @@ pub fn mmu_init() {
             L2_HIGH.0[j as usize] = block_desc(pa, ATTR_NORMAL);
         }
         L2_HIGH.0[8] = 0;                      // 0x41000000: the HOLE
+        // M49: the user 2MB block (0x42000000) is the ONLY EL0-visible
+        // range: AP=0b01 (bit 6 — EL0 may read/write) and UXN CLEAR
+        // (bit 54 — EL0 may execute). Every other block keeps AP=00 /
+        // UXN=1: kernel memory simply does not exist for EL0.
+        L2_HIGH.0[16] = (block_desc(0x4200_0000, ATTR_NORMAL)
+                         & !(1u64 << 54)) | (1u64 << 6);
         // THE WALK FIX: L0[0] spans VA 0..512GB — the kernel's 1GB
         // bank (0x40000000..0x80000000) is L1_LOW[1], NOT L0[1].
         L1_LOW.0[1] = table_desc(&L2_HIGH);
@@ -244,7 +249,7 @@ pub fn mmu_init() {
 /// The proof point: store into the unmapped hole. With the map from
 /// the SPATIAL_ISOLATION_PROVED family this MUST trap (the address is
 /// deliberately in no region); the vector handler answers.
-pub fn isolation_probe() {
+pub fn isolation_probe() -> ! {
     unsafe {
         let hole = ISOLATION_HOLE as *mut u64;
         core::arch::asm!(
@@ -253,8 +258,84 @@ pub fn isolation_probe() {
             addr = in(reg) hole,
         );
     }
-    // unreachable when the trap fires; printed only if isolation FAILED
+    // reachable ONLY if the trap did not fire: the store landed inside
+    // the hole — isolation is BROKEN, and the transcript says so
     uart_puts("ISOLATION_FAILED store landed\n");
+    loop { unsafe { asm!("wfe") }; }
+}
+
+/// The kernel continuation after the EL1 probe trap: the handler ERETs
+/// here (never back into the middle of isolation_probe — this handler
+/// does not unwind its frame).
+#[no_mangle]
+pub extern "C" fn el1_probe_return() -> ! {
+    uart_puts("PROBE_CONTAINED\n");
+    uart_puts("HALT\n");
+    loop { unsafe { asm!("wfe") }; }
+}
+
+// ---- M49: user space — the unverified EL0 image -----------------------
+// The "init process": 3 hand-assembled instructions the kernel copies
+// into user frames at boot. UNVERIFIED BY DESIGN — exactly the artifact
+// the boundary must contain:
+//   svc #0x64      ask the kernel to write the console (the only way in)
+//   str x0, [x0]   x0 = kernel .text VA (set by the kernel before ERET):
+//                  an EL0 store into kernel memory that MUST trap
+//   b .            (unreachable when the trap contains the process)
+const USER_CODE: usize = 0x4200_0000;          // inside the EL0 block
+const USER_STACK_TOP: usize = 0x421F_F000;
+const SYSCALL_WRITE_CONSOLE: u64 = 0x64;
+// SELF-CONTAINED: NO register may depend on preservation across the
+// syscall boundary — this handler does not save user registers (a
+// real kernel would; the unverified image simply must not rely on it).
+//   svc #0x64                   the one legitimate request channel
+//   movz x0, #0x4020, lsl #16   x0 = 0x40200000 (kernel .text, EL1-only)
+//   str x0, [x0]                the illegal store that MUST trap
+//   b .                         (unreachable when the trap contains it)
+const USER_IMAGE: [u32; 4] = [
+    // svc #0x64 = 0xD4000001 | imm<<5 — bits[1:0]=01 IS the svc opcode;
+    // 00 is unallocated => UNDEFINED
+    0xD400_0C81,
+    // movz x0,#0x4020,lsl#16 — hw=01 for LSL#16 (hw=11 would shift by
+    // 48; movz x0,#1,lsl#16 = 0xD2A00020 is the anchor encoding)
+    0xD2A8_0400,
+    0xF900_0000,     // str x0, [x0]
+    0x1400_0000];    // b .
+
+static mut KERNEL_RESUME: usize = 0;   // el0_return: after USER_TRAP
+static mut EL1_RESUME: usize = 0;      // el1_probe_return: after FAULT
+
+fn launch_user() -> ! {
+    unsafe {
+        // copy the unverified image into user frames (EL1 may write there)
+        let dst = USER_CODE as *mut u32;
+        for (i, word) in USER_IMAGE.iter().enumerate() {
+            write_volatile(dst.add(i), *word);
+        }
+        KERNEL_RESUME = el0_return as usize;
+        core::arch::asm!(
+            "dsb sy",
+            "msr sp_el0, {sp}",
+            "msr elr_el1, {entry}",
+            "msr spsr_el1, {spsr}",     // 0 = EL0t: the privilege drop
+            "isb",
+            "eret",                     // EL1 -> EL0: the transition
+            sp = in(reg) USER_STACK_TOP,
+            entry = in(reg) USER_CODE,
+            spsr = in(reg) 0u64,
+            options(noreturn),
+        );
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn el0_return() -> ! {
+    // control reaches here ONLY through the USER_TRAP path: the handler
+    // killed the offending process and ERET'd back into the kernel.
+    // The kernel never dies with the user.
+    uart_puts("USER_CONTAINED el0->el1\n");
+    unsafe { EL1_RESUME = el1_probe_return as usize; }
+    isolation_probe()              // M48: the EL1 probe still runs after
 }
 
 // 16 vector slots x 0x80 bytes (0x800 total); every slot funnels to
@@ -265,7 +346,7 @@ core::arch::global_asm!(
     ".global vectors",
     "vectors:",
     ".rept 16",
-    "  b fault_handler",
+    "  b sync_handler",
     "  .space 0x7c",
     ".endr",
 );
@@ -275,14 +356,65 @@ unsafe extern "C" {
 }
 
 #[no_mangle]
-pub extern "C" fn fault_handler() -> ! {
-    let far: u64;
-    unsafe { core::arch::asm!("mrs {far}, far_el1", far = out(reg) far); }
-    uart_puts("FAULT far=0x");
-    uart_puthex(far);
-    uart_puts(" ISOLATION_TRAP\n");
-    uart_puts("HALT\n");
-    loop { unsafe { asm!("wfe") }; }
+pub extern "C" fn sync_handler() -> ! {
+    // dispatch on the exception class: EC says WHO asked the question
+    let esr: u64;
+    unsafe {
+        core::arch::asm!("mrs {e}, esr_el1", e = out(reg) esr);
+    }
+    let ec = (esr >> 26) & 0x3F;
+    match ec {
+        // SVC from EL0: the one legitimate request channel
+        0x15 => {
+            let imm = esr & 0xFFFF;
+            if imm == SYSCALL_WRITE_CONSOLE {
+                uart_puts("SYSCALL 0x64 write_console from EL0\n");
+                // ELR already points past the svc: return to the user
+                unsafe { core::arch::asm!("eret", options(noreturn)) };
+            }
+            uart_puts("SYSCALL unknown -> killed\n");
+            unsafe { eret_to(read_volatile(&KERNEL_RESUME)) };
+        }
+        // data abort FROM EL0: the user touched kernel memory — the
+        // boundary HELD; contain the process, the kernel continues
+        0x24 => {
+            let far: u64;
+            unsafe { core::arch::asm!("mrs {f}, far_el1", f = out(reg) far); }
+            uart_puts("USER_TRAP far=0x");
+            uart_puthex(far);
+            uart_puts(" contained\n");
+            unsafe { eret_to(read_volatile(&KERNEL_RESUME)) };
+        }
+        // data abort from EL1: the M48 isolation probe into the hole.
+        // NEVER resume mid-function (this handler does not unwind its
+        // frame, so the interrupted frame's epilogue would restore
+        // garbage) — continue at the dedicated kernel continuation.
+        0x25 => {
+            let far: u64;
+            unsafe { core::arch::asm!("mrs {f}, far_el1", f = out(reg) far); }
+            uart_puts("FAULT far=0x");
+            uart_puthex(far);
+            uart_puts(" ISOLATION_TRAP\n");
+            unsafe { eret_to(read_volatile(&EL1_RESUME)) };
+        }
+        _ => {
+            uart_puts("UNEXPECTED_EC 0x");
+            uart_puthex(ec);
+            uart_puts("\n");
+            loop { unsafe { asm!("wfe") }; }
+        }
+    }
+}
+
+/// ERET to a kernel continuation at EL1h. Used to kill an offending
+/// user process and to contain the EL1 probe trap — the exception is
+/// contained, never fatal to the kernel.
+unsafe fn eret_to(target: usize) -> ! {
+    core::arch::asm!(
+        "msr elr_el1, {r}", "msr spsr_el1, {s}", "eret",
+        r = in(reg) target,
+        s = in(reg) 0x5u64,          // EL1h
+        options(noreturn));
 }
 
 fn uart_puthex(mut v: u64) {

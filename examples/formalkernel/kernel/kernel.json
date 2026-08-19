@@ -1,1 +1,9 @@
-{"subsystems": ["scheduler", "net"], "composition": "composition.json", "mmu": "mmu.json"}
+{
+  "subsystems": [
+    "scheduler",
+    "net"
+  ],
+  "composition": "composition.json",
+  "mmu": "mmu.json",
+  "syscalls": "syscalls.json"
+}
