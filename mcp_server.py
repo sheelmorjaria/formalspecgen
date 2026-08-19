@@ -404,6 +404,15 @@ def verify_heap(source: str, provider: str = "ollama") -> dict[str, Any]:
                                      provider=provider))
 
 
+def verify_lockfree(source: str) -> dict[str, Any]:
+    """OS lane 1: lock-free SPSC-ring linearizability — real ESBMC thread
+    interleaving (capacity invariant under every interleaving) plus the
+    structural linearization-point coverage gate; scheduler fairness is
+    the human-accepted assumption."""
+    from pipeline.lockfree import verify_lockfree as run_lockfree
+    return _guarded(lambda: run_lockfree(_workspace_path(source)))
+
+
 def verify_hal(source: str) -> dict[str, Any]:
     """HAL/MMIO register discipline: bitfield register separation and
     PADDR<->PPTR window round-trip, machine-proved by Frama-C WP; device
@@ -439,7 +448,7 @@ def create_server():
                  unified_system, draft_canonical_contract, architecture, system,
                  prove_equivalence, generate_traceability_matrix, verify_unbounded,
                  verify_linearizability, verify_distributed, verify_heap,
-                 verify_hal, macro_translate):
+                 verify_hal, macro_translate, verify_lockfree):
         server.tool()(tool)
     return server
 

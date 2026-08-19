@@ -219,6 +219,22 @@ class CliTests(unittest.TestCase):
         with patch("pipeline.hal_mmio.verify_hal", return_value=refused):
             self.assertEqual(cli.command_verify_hal(args, self.ui), 1)
 
+    def test_command_verify_lockfree(self):
+        args = SimpleNamespace(source="ring.c", json_out=None)
+        proved = {"status": "LOCK_FREE_LINEARIZABILITY_PROVED",
+                  "claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+                  "scope": "concurrent_interleaving_bmc"}
+        with patch("pipeline.lockfree.verify_lockfree",
+                   return_value=proved) as run:
+            self.assertEqual(cli.command_verify_lockfree(args, self.ui), 0)
+            run.assert_called_once_with("ring.c")
+        refused = {"status": "LOCK_FREE_VERIFICATION_FAILED",
+                   "claim": "NO_PROOF", "code": "mpmc_not_in_dialect",
+                   "message": "two writers of head"}
+        with patch("pipeline.lockfree.verify_lockfree",
+                   return_value=refused):
+            self.assertEqual(cli.command_verify_lockfree(args, self.ui), 1)
+
     def test_command_macro_dictionary_phases(self):
         from types import SimpleNamespace
         args = SimpleNamespace(

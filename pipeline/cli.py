@@ -854,6 +854,21 @@ def command_verify_hal(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "HAL_VERIFICATION_PROVED" else 1
 
 
+def command_verify_lockfree(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """OS lane 1: lock-free SPSC ring under real ESBMC interleaving."""
+    from .lockfree import verify_lockfree
+    result = verify_lockfree(args.source)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    style = ("green"
+             if result["status"] == "LOCK_FREE_LINEARIZABILITY_PROVED"
+             else "red")
+    detail = result.get("message") or result.get(
+        "scope", "concurrent_interleaving_bmc")
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — {detail}")
+    return 0 if result["status"] == "LOCK_FREE_LINEARIZABILITY_PROVED" else 1
+
+
 def command_macro_dictionary(args: argparse.Namespace, ui: TerminalUI) -> int:
     """M35: load a macros.json dictionary; with --source translate its
     macro invocations (LLM proposals for unknowns), with --synthesize run
@@ -1348,6 +1363,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="skip the Z3 model proof")
     macros.add_argument("--provider", default="ollama")
     macros.add_argument("--json", dest="json_out", default=None)
+    lockfree = sub.add_parser(
+        "verify-lockfree",
+        help="OS lane 1: SPSC ring linearizability under real ESBMC "
+             "thread interleaving + the linearization-point coverage gate")
+    lockfree.add_argument("source", help="C .c pthread source (SPSC ring: "
+                                         "buf + head/tail, one store each)")
+    lockfree.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1490,6 +1512,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
         return command_verify_hal(args, ui)
     if args.command == "macro-dictionary":
         return command_macro_dictionary(args, ui)
+    if args.command == "verify-lockfree":
+        return command_verify_lockfree(args, ui)
     if args.command == "verify-distributed":
         return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
@@ -1513,7 +1537,7 @@ _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-a
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
                   "verify-heap", "verify-hal", "verify-distributed",
-                  "macro-dictionary",
+                  "macro-dictionary", "verify-lockfree",
                   "verify-linearizability",
                   "verify-unbounded",
                   "prove-equivalence",

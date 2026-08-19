@@ -357,17 +357,17 @@ def test_mcp_verify_distributed_guarded(tmp_path, monkeypatch):
 
 
 def test_mcp_create_server_registers_all_permitted_tools():
-    """31 tools registered; the trust actions and wizards stay out."""
+    """32 tools registered; the trust actions and wizards stay out."""
     import mcp_server as module
     import inspect, re
     source = inspect.getsource(module.create_server)
     registered = re.findall(r"[a-z_]+", source.split("for tool in (")[1]
                             .split("):")[0])
-    assert len(registered) == 31
+    assert len(registered) == 32
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
                  "verify_distributed", "verify_heap", "verify_hal",
-                 "macro_translate"):
+                 "macro_translate", "verify_lockfree"):
         assert name in registered
     for excluded in ("sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
@@ -419,3 +419,18 @@ def test_mcp_macro_translate_guarded(tmp_path, monkeypatch):
     run.assert_called_once()
     escape = mcp_server.macro_translate("../escape.c", "macros.json")
     assert escape["code"] == "path_outside_workspace"
+
+
+def test_mcp_verify_lockfree_guarded(tmp_path, monkeypatch):
+    _workspace(tmp_path, monkeypatch)
+    (Path.cwd() / "ring.c").write_text("#define CAP 4\nint buf[4];\n",
+                                       encoding="utf-8")
+    with patch("pipeline.lockfree.verify_lockfree",
+               return_value={
+                   "status": "LOCK_FREE_LINEARIZABILITY_PROVED",
+                   "claim": "LOCK_FREE_LINEARIZABILITY_PROVED"}) as run:
+        result = mcp_server.verify_lockfree("ring.c")
+    assert result["claim"] == "LOCK_FREE_LINEARIZABILITY_PROVED"
+    run.assert_called_once()
+    assert mcp_server.verify_lockfree("../escape.c")["code"] == \
+        "path_outside_workspace"
