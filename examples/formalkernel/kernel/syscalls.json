@@ -36,6 +36,10 @@
     "ipc_pool": [
       805340160,
       805344256
+    ],
+    "nic_ring": [
+      805351424,
+      805355520
     ]
   },
   "syscalls": [
@@ -53,6 +57,14 @@
       "handler": "sys_ipc_send",
       "resources": [
         "ipc_pool"
+      ]
+    },
+    {
+      "id": 102,
+      "name": "net_poll",
+      "handler": "sys_net_poll",
+      "resources": [
+        "nic_ring"
       ]
     }
   ]

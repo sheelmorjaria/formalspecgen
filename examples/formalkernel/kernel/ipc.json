@@ -1,6 +1,22 @@
 {
-  "message_pool": {"capacity": 2, "slot_bytes": 8},
+  "message_pool": {
+    "capacity": 4,
+    "slot_bytes": 8
+  },
   "endpoints": [
-    {"name": "console", "id": 101, "syscall": 101, "lanes": 2, "slots": 2}
+    {
+      "name": "console",
+      "id": 101,
+      "syscall": 101,
+      "lanes": 2,
+      "slots": 2
+    },
+    {
+      "name": "net_rx",
+      "id": 102,
+      "syscall": 102,
+      "lanes": 2,
+      "slots": 2
+    }
   ]
 }

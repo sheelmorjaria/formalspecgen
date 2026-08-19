@@ -135,8 +135,9 @@ pub extern "C" fn rust_main() -> ! {
         }
         if unsafe { NET_RING.fetch() }.is_some() { consumed += 1; }
     }
-    // drain the rest so the counters close
-    while let Some(_) = unsafe { NET_RING.fetch() } { consumed += 1; }
+    // M51: the kernel keeps ONLY the 4 it consumed during the bursts
+    // (bootstrap); the REST stay queued for the user-space net server,
+    // which polls exactly 1 — the remainder is reclaimed after the kill
     dropped = unsafe { NET_RING.dropped };
 
     uart_puts("NET posted=");
@@ -173,6 +174,9 @@ pub extern "C" fn rust_main() -> ! {
     uart_puts("MMU_ON\n");
     mmu_init();
 
+    // ---- M51: the network server IS the EL0 process ------------------
+    uart_puts("NETSRV_ON el0\n");
+    unsafe { NETSRV_ACTIVE = true; }
     // ---- M49: drop to EL0 with the unverified user image -------------
     uart_puts("USER_ON el0\n");
     launch_user();   // noreturn: control comes back via el0_return
@@ -294,20 +298,25 @@ const USER_CODE: usize = 0x4200_0000;          // inside the EL0 block
 const USER_STACK_TOP: usize = 0x421F_F000;
 const SYSCALL_WRITE_CONSOLE: u64 = 0x64;
 const SYSCALL_IPC_SEND: u64 = 0x65;
+const SYSCALL_NET_POLL: u64 = 0x66;   // the user-space net server
 // SELF-CONTAINED: NO register may depend on preservation across the
 // syscall boundary — this handler does not save user registers (a
 // real kernel would; the unverified image simply must not rely on it).
 //   svc #0x64                   write_console: the console request
 //   svc #0x65                   ipc_send: the M50 name-server endpoint
+//   svc #0x66                   net_poll: the net server receives
 //   movz x0, #0x4020, lsl #16   x0 = 0x40200000 (kernel .text, EL1-only)
-//   str x0, [x0]                the illegal store that MUST trap
+//   str x0, [x0]                the NET-STACK BUG: a wild pointer store
+//                               (what would panic a monolithic kernel)
 //   b .                         (unreachable when the trap contains it)
-const USER_IMAGE: [u32; 5] = [
+const USER_IMAGE: [u32; 6] = [
     // svc #0x64 = 0xD4000001 | imm<<5 — bits[1:0]=01 IS the svc opcode;
     // 00 is unallocated => UNDEFINED
     0xD400_0C81,
     // svc #0x65 — same anchor discipline (0xD4000001 | 0x65<<5)
     0xD400_0CA1,
+    // svc #0x66 — the net server's poll (0xD4000001 | 0x66<<5)
+    0xD400_0CC1,
     // movz x0,#0x4020,lsl#16 — hw=01 for LSL#16 (hw=11 would shift by
     // 48; movz x0,#1,lsl#16 = 0xD2A00020 is the anchor encoding)
     0xD2A8_0400,
@@ -381,6 +390,8 @@ impl Mpsc {
 
 static mut IPC_Q: Mpsc = Mpsc::new();
 
+static mut NETSRV_CONSUMED: u32 = 0;  // packets the EL0 server took
+static mut NETSRV_ACTIVE: bool = false; // the EL0 process is the net srv
 static mut KERNEL_RESUME: usize = 0;   // el0_return: after USER_TRAP
 static mut EL1_RESUME: usize = 0;      // el1_probe_return: after FAULT
 
@@ -425,6 +436,25 @@ pub extern "C" fn el0_return() -> ! {
     uart_puts(" high_water=");
     uart_putdec(unsafe { IPC_Q.high_water });
     uart_puts(" cap=2\n");
+    // M51: the net server died contained; the kernel RECLAIMS the
+    // endpoint and the packet ledger CLOSES — every accepted packet
+    // is exactly one of {kernel, server, reclaimed}. The kernel
+    // survived its network stack.
+    let mut reclaimed = 0u32;
+    while unsafe { NET_RING.fetch() }.is_some() { reclaimed += 1; }
+    let srv = unsafe { NETSRV_CONSUMED };
+    let kernel_c = unsafe { NET_RING.consumed } - srv - reclaimed;
+    uart_puts("NETSRV srv_consumed=");
+    uart_putdec(srv);
+    uart_puts(" reclaimed=");
+    uart_putdec(reclaimed);
+    uart_puts(" kernel_consumed=");
+    uart_putdec(kernel_c);
+    uart_puts(" posted=");
+    uart_putdec(unsafe { NET_RING.posted });
+    uart_puts(" dropped=");
+    uart_putdec(unsafe { NET_RING.dropped });
+    uart_puts("\n");
     unsafe { EL1_RESUME = el1_probe_return as usize; }
     isolation_probe()              // M48: the EL1 probe still runs after
 }
@@ -463,6 +493,15 @@ pub extern "C" fn sync_handler() -> ! {
                 // ELR already points past the svc: return to the user
                 unsafe { core::arch::asm!("eret", options(noreturn)) };
             }
+            if imm == SYSCALL_NET_POLL {
+                // M51: the user-space net server receives one packet
+                // from the kernel endpoint (the bounded ring)
+                if unsafe { NET_RING.fetch() }.is_some() {
+                    unsafe { NETSRV_CONSUMED += 1 };
+                }
+                uart_puts("SYSCALL 0x66 net_poll from EL0\n");
+                unsafe { core::arch::asm!("eret", options(noreturn)) };
+            }
             if imm == SYSCALL_IPC_SEND {
                 // M50: the user process is producer 0 of the endpoint —
                 // the first user-space service through the boundary
@@ -480,7 +519,11 @@ pub extern "C" fn sync_handler() -> ! {
             unsafe { core::arch::asm!("mrs {f}, far_el1", f = out(reg) far); }
             uart_puts("USER_TRAP far=0x");
             uart_puthex(far);
-            uart_puts(" contained\n");
+            uart_puts(" contained");
+            if unsafe { NETSRV_ACTIVE } {
+                uart_puts(" NET_SERVER_KILLED");
+            }
+            uart_puts("\n");
             unsafe { eret_to(read_volatile(&KERNEL_RESUME)) };
         }
         // data abort from EL1: the M48 isolation probe into the hole.

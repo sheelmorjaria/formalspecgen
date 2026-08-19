@@ -116,6 +116,44 @@ def test_ipc_transcript_judges_both_producers():
         "IPC_BOUND_EXCEEDED"
 
 
+def test_net_server_transcript_closes_the_ledger():
+    """M51: the containment evidence needs the poll, the kill, AND a
+    packet ledger that closes — a vacuous poll or an open ledger
+    refuses by name."""
+    full = GOOD.replace(
+        "consumed=7", "consumed=4").replace(
+        "HALT", "NETSRV_ON el0\nUSER_ON el0\n"
+                "SYSCALL 0x64 write_console from EL0\n"
+                "SYSCALL 0x66 net_poll from EL0\n"
+                "USER_TRAP far=0x40200000 contained NET_SERVER_KILLED\n"
+                "NETSRV srv_consumed=1 reclaimed=2 kernel_consumed=4 "
+                "posted=7 dropped=9\nHALT")
+    verdict = parse_transcript(full, COMPOSITION)
+    assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED"
+    ns = verdict["net_server"]
+    assert ns["srv_consumed"] == 1 and ns["reclaimed"] == 2
+    assert ns["srv_consumed"] + ns["reclaimed"] + ns[
+        "kernel_consumed"] == ns["posted"] == 7
+    no_poll = full.replace("SYSCALL 0x66 net_poll from EL0\n", "")
+    assert parse_transcript(no_poll, COMPOSITION)["code"] == \
+        "net_server_syscall_not_observed"
+    survived = full.replace(" NET_SERVER_KILLED", "")
+    assert parse_transcript(survived, COMPOSITION)["code"] == \
+        "net_server_containment_not_observed"
+    no_ledger = full.replace(
+        "NETSRV srv_consumed=1 reclaimed=2 kernel_consumed=4 "
+        "posted=7 dropped=9\n", "")
+    assert parse_transcript(no_ledger, COMPOSITION)["code"] == \
+        "netsrv_ledger_not_observed"
+    vacuous = full.replace("srv_consumed=1 reclaimed=2",
+                           "srv_consumed=0 reclaimed=3")
+    assert parse_transcript(vacuous, COMPOSITION)["code"] == \
+        "net_server_poll_vacuous"
+    leaky = full.replace("kernel_consumed=4", "kernel_consumed=5")
+    assert parse_transcript(leaky, COMPOSITION)["code"] == \
+        "NET_SERVER_LEDGER_OPEN"
+
+
 def test_order_mismatch_and_missing_output_refuse():
     swapped = GOOD.replace("BOOT pool_init\nBOOT scheduler_start",
                            "BOOT scheduler_start\nBOOT pool_init")
@@ -299,8 +337,19 @@ def test_real_boot_end_to_end():
     assert ipc["posted"] == 2 and ipc["dropped"] == 1
     assert ipc["posted"] + ipc["dropped"] == 3   # kernel's 2 + user's 1
     assert ipc["consumed"] == ipc["posted"]
+    # M51: the net stack ran at EL0, died contained, and the packet
+    # ledger CLOSED — the kernel survived its network stack
+    ns = verdict["net_server"]
+    assert ns["srv_consumed"] == 1   # the server polled exactly one
+    assert ns["reclaimed"] == 2      # the kernel took the rest back
+    assert ns["kernel_consumed"] == 4
+    assert ns["srv_consumed"] + ns["reclaimed"] + ns[
+        "kernel_consumed"] == ns["posted"] == 7
+    assert ns["dropped"] == 9 and "NET_SERVER_KILLED" in boot[
+        "transcript"]
     ring = verdict["rings"]["NET"]
     assert ring["high_water"] == ring["cap"] == 4
     assert ring["dropped"] == 9 and ring["posted"] == 7
+    assert ring["consumed"] == 4   # M51: the rest are the server's
     assert ring["posted"] + ring["dropped"] == 16   # every arrival
                                                     # accounted for

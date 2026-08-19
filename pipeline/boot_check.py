@@ -158,6 +158,61 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
                 f"{ipc_ring['cap']} — the ESBMC-proved partition bound "
                 "FAILED at runtime; the deductive claim is contradicted",
                 rings=rings)
+    net_server = None
+    if "NETSRV_ON" in transcript:
+        # M51: the net stack ran as an EL0 process — the evidence is
+        # complete only when it received through the door, died to its
+        # own bug CONTAINED, and the packet ledger closed
+        if "SYSCALL 0x66 net_poll from EL0" not in transcript:
+            return _fail("net_server_syscall_not_observed",
+                         "NETSRV_ON printed but the server never polled "
+                         "the endpoint — the user-space network stack "
+                         "did not run",
+                         rings=rings)
+        if "NET_SERVER_KILLED" not in transcript:
+            return _fail("net_server_containment_not_observed",
+                         "NETSRV_ON printed but NET_SERVER_KILLED never "
+                         "followed — the crash-containment path was not "
+                         "exercised",
+                         rings=rings)
+        ledger = re.search(
+            r"NETSRV srv_consumed=(\d+) reclaimed=(\d+) "
+            r"kernel_consumed=(\d+) posted=(\d+) dropped=(\d+)",
+            transcript)
+        if not ledger:
+            return _fail("netsrv_ledger_not_observed",
+                         "NETSRV_ON printed but no packet ledger "
+                         "followed — the reclaim accounting is missing",
+                         rings=rings)
+        net_server = {
+            "srv_consumed": int(ledger.group(1)),
+            "reclaimed": int(ledger.group(2)),
+            "kernel_consumed": int(ledger.group(3)),
+            "posted": int(ledger.group(4)),
+            "dropped": int(ledger.group(5)),
+        }
+        if net_server["srv_consumed"] == 0:
+            return _fail("net_server_poll_vacuous",
+                         "the net server polled but received nothing — "
+                         "the kernel drained the endpoint first; the "
+                         "containment sample never transferred a packet "
+                         "(vacuous evidence)",
+                         rings=rings)
+        accounted = (net_server["srv_consumed"]
+                     + net_server["reclaimed"]
+                     + net_server["kernel_consumed"])
+        if accounted != net_server["posted"] \
+                or net_server["posted"] != rings.get("NET", {}).get(
+                    "posted"):
+            return _fail(
+                "NET_SERVER_LEDGER_OPEN",
+                f"packet ledger does not close: srv "
+                f"{net_server['srv_consumed']} + reclaimed "
+                f"{net_server['reclaimed']} + kernel "
+                f"{net_server['kernel_consumed']} != posted "
+                f"{net_server['posted']} — packets vanished or appeared; "
+                "containment lost state",
+                rings=rings)
     return {
         "status": "BOOT_RUNTIME_CONFIRMED",
         # runtime evidence, honestly ceilinged BELOW the proof lanes:
@@ -173,6 +228,7 @@ def parse_transcript(transcript: str, composition: dict) -> dict:
         "user_fault_far": user_fault_far,
         "ipc": ipc_ring,
         "ipc_syscall_observed": ipc_syscall_observed,
+        "net_server": net_server,
         "note": "runtime observation of the M46-proven boot order and "
                 "the ESBMC-proved capacity bound — evidence, NOT an "
                 "additional proof; LOCK_FREE_LINEARIZABILITY_PROVED and "
