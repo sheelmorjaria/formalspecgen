@@ -32,6 +32,28 @@ def shutil_which(binary):
     return shutil.which(binary)
 
 
+def _cross_target_ready() -> bool:
+    """The aarch64-unknown-none-softfloat CORE LIBRARY must be present
+    (rustup target add ...). CI runners have rustc but not the cross
+    target's core — the build would fail with "can't find crate for
+    `core`" (E0463), which is availability, not a defect."""
+    import glob
+    import shutil
+    import subprocess
+    rustc = shutil.which("rustc")
+    if not rustc:
+        return False
+    try:
+        libdir = subprocess.run(
+            [rustc, "--print", "target-libdir",
+             "--target", "aarch64-unknown-none-softfloat"],
+            capture_output=True, text=True,
+            timeout=30).stdout.strip()
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return bool(libdir) and bool(glob.glob(libdir + "/libcore-*.rlib"))
+
+
 def test_good_transcript_confirms_under_the_runtime_ceiling():
     verdict = parse_transcript(GOOD, COMPOSITION)
     assert verdict["status"] == "BOOT_RUNTIME_CONFIRMED"
@@ -87,6 +109,11 @@ def test_vacuous_flood_and_residuals_refuse():
 
 @pytest.mark.skipif(not (BOOT_DIR / "layout.ld").exists(),
                     reason="boot example not present")
+@pytest.mark.skipif(shutil_which("rustc") is None,
+                    reason="rustc not installed")
+@pytest.mark.skipif(not _cross_target_ready(),
+                    reason="aarch64-unknown-none-softfloat core lib "
+                           "not installed")
 def test_image_builds_for_qemu_virt():
     """The no_std image compiles with rustc + rust-lld (no cross C
     toolchain) — real build, no emulator needed."""
@@ -113,6 +140,9 @@ def subprocess_strings(path: Path) -> str:
     return out.stdout
 
 
+@pytest.mark.skipif(shutil_which("rustc") is None,
+                    reason="the rustc_failed/rustc_timeout residuals "
+                           "restore the real rustc binary")
 def test_residuals_fail_closed(tmp_path, monkeypatch):
     import subprocess
     from unittest.mock import patch
@@ -189,6 +219,9 @@ def test_qemu_clean_exit_returns_transcript(monkeypatch):
 
 @pytest.mark.skipif(shutil_which("qemu-system-aarch64") is None,
                     reason="qemu-system-aarch64 not installed")
+@pytest.mark.skipif(not _cross_target_ready(),
+                    reason="aarch64-unknown-none-softfloat core lib "
+                           "not installed")
 def test_real_boot_end_to_end():
     """The full capstone on live QEMU: build, boot, judge — the
     executed boot order must equal the M46-proven order and the ring
