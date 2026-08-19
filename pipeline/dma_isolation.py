@@ -18,7 +18,7 @@ from pathlib import Path
 
 _DMA_CALL = re.compile(
     r"(?:dma_map|dma_map_single|dma_map_page|ioremap|ioremap_nocache|"
-    r"devm_ioremap)\s*\(([^;]*)\)\s*;")
+    r"devm_ioremap)\s*\(([^;()]*)\)")
 
 
 def _fail(code: str, message: str, **extra) -> dict:
@@ -36,30 +36,24 @@ def _contains(outer: tuple[int, int], inner: tuple[int, int]) -> bool:
     return outer[0] <= inner[0] and inner[1] <= outer[1]
 
 
-def dma_isolation(source: str | Path, memory_map: dict,
-                  contracts: dict) -> dict:
-    """Deterministic disjointness gate: each DMA/ioremap call range must be
-    inside the named device's contract and outside every kernel pool."""
-    path = Path(source)
-    if not path.is_file():
-        return _fail("input_unavailable", str(path))
-    if path.suffix.lower() != ".c":
-        return _fail("UNSUPPORTED_BOUNDARY",
-                     "the DMA lane verifies .c driver sources")
+def dma_callsite_check(text: str, memory_map: dict,
+                       contracts: dict) -> tuple[int, list[str] | str]:
+    """Language-agnostic DMA call-site gate over raw source text.
+
+    Returns (checked, violations) — violations is a list of named
+    defects, or a string naming a malformed memory map. Shared by the
+    .c driver lane and the M45 kernel-driver adapter boundary.
+    """
     pools = memory_map.get("kernel_pools")
     devices = memory_map.get("devices")
     if not pools or not devices:
-        return _fail("memory_map_incomplete",
-                     "PhysicalMemoryMap requires kernel_pools and devices "
-                     "address ranges")
+        return 0, "PhysicalMemoryMap requires kernel_pools and devices " \
+                  "address ranges"
     for name, span in {**pools, **devices}.items():
         if not (isinstance(span, (list, tuple)) and len(span) == 2
                 and span[0] < span[1]):
-            return _fail("memory_map_incomplete",
-                         f"range for {name!r} must be [start, end] with "
-                         "start < end")
-    text = path.read_text(encoding="utf-8")
-
+            return 0, f"range for {name!r} must be [start, end] with " \
+                      "start < end"
     violations = []
     checked = 0
     for call in _DMA_CALL.finditer(text):
@@ -93,6 +87,23 @@ def dma_isolation(source: str | Path, memory_map: dict,
                     f"DMA range [{request[0]:#x}, {request[1]:#x}) for "
                     f"{device} overlaps kernel pool {pool_name} "
                     f"{list(pool)}")
+    return checked, violations
+
+
+def dma_isolation(source: str | Path, memory_map: dict,
+                  contracts: dict) -> dict:
+    """Deterministic disjointness gate: each DMA/ioremap call range must be
+    inside the named device's contract and outside every kernel pool."""
+    path = Path(source)
+    if not path.is_file():
+        return _fail("input_unavailable", str(path))
+    if path.suffix.lower() != ".c":
+        return _fail("UNSUPPORTED_BOUNDARY",
+                     "the DMA lane verifies .c driver sources")
+    checked, violations = dma_callsite_check(
+        path.read_text(encoding="utf-8"), memory_map, contracts)
+    if isinstance(violations, str):
+        return _fail("memory_map_incomplete", violations)
     if violations:
         return _fail("DMA_ISOLATION_VIOLATED", "; ".join(violations[:4]),
                      violations=violations)
@@ -101,7 +112,8 @@ def dma_isolation(source: str | Path, memory_map: dict,
         "claim": "DMA_ISOLATION_PROVED",
         "scope": "deterministic_range_disjointness",
         "dma_calls_checked": checked,
-        "kernel_pools": {k: list(v) for k, v in pools.items()},
+        "kernel_pools": {k: list(v) for k, v in
+                         memory_map.get("kernel_pools", {}).items()},
         "contracts": {k: list(v) for k, v in contracts.items()},
         "artifacts": "PhysicalMemoryMap + DmaContract are the "
                      "human-reviewed inputs",

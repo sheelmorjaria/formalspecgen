@@ -49,11 +49,26 @@ Rules:
 - Do not add exceptions, raw new/delete, or weaken any contract.
 """
 
+_KERNEL_DRIVER_PROMPT = """Implement this generated Rust kernel-driver adapter stub.
+
+Rules:
+- Return exactly one complete Rust source file in a ```rust fence and no prose.
+- Preserve the struct name, the `impl Trait for Struct` clause, every method
+  signature, and every #[requires]/#[ensures] Prusti attribute exactly.
+- Preserve the first-line marker `// UNVERIFIED EXTERNAL BOUNDARY`.
+- Fill only method bodies with the vendor SDK's register/DMA calls; device
+  behavior remains unverified external I/O.
+- Every dma_map/ioremap call must carry the device and a literal size within
+  the device's declared DmaContract — the glue may not widen a contract.
+- Do not add unsafe code, unwrap, expect, or panic paths.
+"""
+
 # dependency -> (suffix set, language, prompt)
 _POLYGLOT_DEPENDENCIES = {
     "aws": {".rs": ("rust", _AWS_RUST_PROMPT)},
     "curl": {".cpp": ("cpp", _CURL_CPP_PROMPT), ".cc": ("cpp", _CURL_CPP_PROMPT),
              ".cxx": ("cpp", _CURL_CPP_PROMPT)},
+    "kernel-driver": {".rs": ("rust", _KERNEL_DRIVER_PROMPT)},
 }
 
 _ADAPTER_SHAPES = {
@@ -63,7 +78,8 @@ _ADAPTER_SHAPES = {
 
 
 def inject_dependency(source: str | Path, dependency: str, *, provider: str = "ollama",
-                      model: str | None = None) -> dict:
+                      model: str | None = None,
+                      dma_profile: dict | None = None) -> dict:
     path = Path(source)
     original = path.read_text(encoding="utf-8")
     suffix = path.suffix.lower()
@@ -81,6 +97,16 @@ def inject_dependency(source: str | Path, dependency: str, *, provider: str = "o
         language, prompt = lane
     else:
         return _fail("unsupported_dependency", f"unsupported dependency {dependency!r}")
+    if dependency == "kernel-driver":
+        # M45: the DmaContract is a human trust root — the glue can only
+        # be checked against a declared physical map, never without one.
+        if not isinstance(dma_profile, dict) or \
+                "memory_map" not in dma_profile or \
+                "dma_contracts" not in dma_profile:
+            return _fail("dma_profile_required",
+                         "kernel-driver adapters require a dma profile "
+                         "({memory_map, dma_contracts}) — driver glue is "
+                         "never injected with the DMA boundary unchecked")
     if "UNVERIFIED EXTERNAL BOUNDARY" not in original:
         return _fail("not_external_adapter", "source is not a generated external adapter")
     if language is None:
@@ -117,11 +143,36 @@ def inject_dependency(source: str | Path, dependency: str, *, provider: str = "o
     if not same_surface:
         return _fail("adapter_surface_changed", "generated adapter changed its trusted surface",
                      {"differences": differences})
+    dma_checked = False
+    if dependency == "kernel-driver":
+        from .dma_isolation import dma_callsite_check
+        checked, violations = dma_callsite_check(
+            candidate, dma_profile["memory_map"],
+            dma_profile["dma_contracts"])
+        if isinstance(violations, str):
+            return _fail("memory_map_incomplete", violations)
+        if violations:
+            # the adapter never lands: the glue may not widen a device's
+            # contract or touch a kernel pool
+            return _fail("DMA_CONTRACT_VIOLATED",
+                         "; ".join(violations[:4]),
+                         {"violations": violations})
+        if checked == 0 and re.search(r"\b(?:dma_map\w*|ioremap\w*)\s*\(",
+                                      candidate):
+            return _fail("dma_callsite_unrecognized",
+                         "the adapter appears to make DMA/ioremap calls "
+                         "the checker cannot parse — refusing rather "
+                         "than passing vacuously")
+        dma_checked = True
     path.write_text(candidate, encoding="utf-8")
     verdict = {"status": "INJECTED", "claim": "UNVERIFIED_EXTERNAL_ADAPTER",
                "dependency": dependency, "adapter": adapter_name,
                "external_io_safety_proved": False, "source": str(path.resolve()),
                "implementation_code": candidate}
+    if dependency == "kernel-driver":
+        verdict["dma_contract_checked"] = dma_checked
+        verdict["dma_scope"] = "deterministic_range_disjointness"
+        verdict["port_interface"] = "immutable"
     if language is not None:
         verdict["language"] = language
     return verdict

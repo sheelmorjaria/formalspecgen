@@ -241,12 +241,24 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
     dependency = getattr(args, "dependencies", None)
     if dependency:
         allowed = {".java": {"stripe"}, ".jml": {"stripe"},
-                   ".rs": {"aws"}, ".cpp": {"curl"}, ".cc": {"curl"}, ".cxx": {"curl"}}
+                   ".rs": {"aws", "kernel-driver"}, ".cpp": {"curl"},
+                   ".cc": {"curl"}, ".cxx": {"curl"}}
         if dependency not in allowed.get(suffix, set()):
             ui.console.print(f"[bold red]Dependency {dependency!r} cannot fill {suffix} adapters[/bold red]")
             return 2
+        dma_profile = None
+        if getattr(args, "dma_profile", None):
+            import json as _json
+            try:
+                dma_profile = _json.loads(
+                    Path(args.dma_profile).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                ui.console.print(f"[bold red]dma profile unreadable: {exc}[/bold red]")
+                return 2
         from .dependency_injection import inject_dependency
-        result = inject_dependency(args.stub, dependency, provider=args.provider, model=args.model)
+        result = inject_dependency(args.stub, dependency,
+                                   provider=args.provider, model=args.model,
+                                   dma_profile=dma_profile)
         _write_json(result, args.json, ui.console)
         return 0 if result["status"] == "INJECTED" else 1
     try:
@@ -1205,8 +1217,15 @@ def build_parser() -> argparse.ArgumentParser:
     implement.add_argument("--parallel-kernel", default="process_chunk",
                            help="proved Rust kernel name for --parallel-wrapper")
     implement.add_argument("--parallel-out", help="generated parallel Rust destination")
-    implement.add_argument("--dependencies", choices=["stripe", "aws", "curl"],
+    implement.add_argument("--dependencies",
+                           choices=["stripe", "aws", "curl", "kernel-driver"],
                            help="fill a generated external adapter using a dependency SDK")
+    implement.add_argument("--dma-profile", dest="dma_profile", default=None,
+                           metavar="PROFILE_JSON",
+                           help="kernel-driver adapters: the declared "
+                                "{memory_map, dma_contracts} the glue must "
+                                "respect (required for --dependencies "
+                                "kernel-driver)")
 
     check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
     check.add_argument("source")
