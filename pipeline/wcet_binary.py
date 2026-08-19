@@ -31,12 +31,12 @@ from pathlib import Path
 
 DEFAULT_COST_MODEL = {"instruction": 1, "memory": 2, "branch": 3}
 
-_BRANCHES = {"jmp", "ret", "call", "loop"} | {
+_BRANCHES = {"jmp", "ret", "retq", "retf", "call", "callq", "loop"} | {
     f"j{suffix}" for suffix in (
         "g", "ge", "l", "le", "e", "ne", "a", "ae", "b", "be", "s", "ns",
         "o", "no", "p", "np", "cxz", "ecxz", "rcxz")}
 _CONDITIONAL = {name for name in _BRANCHES
-                if name != "jmp" and name != "ret"}
+                if name not in {"jmp", "ret", "retq", "retf"}}
 
 _INSTR_RE = re.compile(
     r"^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2} )*[0-9a-f]{2}\s+(\S+)\s*(.*)$")

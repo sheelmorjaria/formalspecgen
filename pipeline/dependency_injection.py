@@ -107,6 +107,14 @@ def inject_dependency(source: str | Path, dependency: str, *, provider: str = "o
                          "kernel-driver adapters require a dma profile "
                          "({memory_map, dma_contracts}) — driver glue is "
                          "never injected with the DMA boundary unchecked")
+        # The human-owned MAP is validated BEFORE the LLM is consulted —
+        # a malformed trust root refuses deterministically, independent
+        # of provider availability.
+        from .dma_isolation import dma_callsite_check
+        _, map_defect = dma_callsite_check("", dma_profile["memory_map"],
+                                           dma_profile["dma_contracts"])
+        if isinstance(map_defect, str):
+            return _fail("memory_map_incomplete", map_defect)
     if "UNVERIFIED EXTERNAL BOUNDARY" not in original:
         return _fail("not_external_adapter", "source is not a generated external adapter")
     if language is None:
@@ -149,7 +157,7 @@ def inject_dependency(source: str | Path, dependency: str, *, provider: str = "o
         checked, violations = dma_callsite_check(
             candidate, dma_profile["memory_map"],
             dma_profile["dma_contracts"])
-        if isinstance(violations, str):
+        if isinstance(violations, str):   # unreachable: map pre-validated
             return _fail("memory_map_incomplete", violations)
         if violations:
             # the adapter never lands: the glue may not widen a device's
