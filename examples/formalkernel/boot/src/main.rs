@@ -187,11 +187,9 @@ struct Table([u64; 512]);
 static mut L0: Table = Table([0; 512]);
 static mut L1_LOW: Table = Table([0; 512]);   // VA 0..1GB
 static mut L2_HIGH: Table = Table([0; 512]);  // VA 0x40000000.. pairs
-static mut L1_HIGH: Table = Table([0; 512]);  // VA 0x40000000-1GB..2GB
 
 const ATTR_NORMAL: u64 = 0;   // MAIR attr0
 const ATTR_DEVICE: u64 = 1;   // MAIR attr1
-const MMIO_BASE: usize = 0x09000000;
 pub const ISOLATION_HOLE: usize = 0x41000000;   // unmapped on purpose
 
 fn block_desc(pa: usize, attr: u64) -> u64 {
@@ -216,8 +214,9 @@ pub fn mmu_init() {
             L2_HIGH.0[j as usize] = block_desc(pa, ATTR_NORMAL);
         }
         L2_HIGH.0[8] = 0;                      // 0x41000000: the HOLE
-        L1_HIGH.0[0] = table_desc(&L2_HIGH);
-        L0.0[1] = table_desc(&L1_HIGH);
+        // THE WALK FIX: L0[0] spans VA 0..512GB — the kernel's 1GB
+        // bank (0x40000000..0x80000000) is L1_LOW[1], NOT L0[1].
+        L1_LOW.0[1] = table_desc(&L2_HIGH);
         core::arch::asm!(
             "dsb sy",
             "msr ttbr0_el1, {ttbr}",
@@ -227,7 +226,7 @@ pub fn mmu_init() {
             "isb",
             ttbr = in(reg) &raw const L0,
             tcr = in(reg) 0x3510u64,   // T0SZ=16 4KB SH0=3 WBWA
-            mair = in(reg) 0xFF00u64,  // attr0 normal, attr1 device
+            mair = in(reg) 0x00FFu64,  // attr0=0xFF normal, attr1=0x00 device
             vbar = in(reg) &raw const vectors as u64,
         );
         // invalidate the TLB, then turn the MMU on

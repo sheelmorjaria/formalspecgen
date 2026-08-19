@@ -97,8 +97,12 @@ Verified transcript (2026-08-19, this host): the four BOOT lines in
 the proven order, then `NET posted=7 dropped=9 consumed=7 high_water=4
 cap=4` — 16 arrivals, 7 accepted, 9 DROPPED at the bound (the ERR_MEM
 backpressure path actually executed); high_water == 4 == cap is the
-ESBMC-proved capacity invariant observed on emulated silicon. The
-kernel parks in wfe (the run ends on the timeout, transcript
+ESBMC-proved capacity invariant observed on emulated silicon. Then
+`MMU_ON` and `FAULT far=0x41000000 ISOLATION_TRAP`: the real AArch64
+stage-1 MMU is enabled (identity map + the deliberate hole at
+0x41000000) and the isolation probe's store TRAPS into the kernel's
+own vector handler — the runtime sample for SPATIAL_ISOLATION_PROVED.
+The kernel parks in wfe (the run ends on the timeout, transcript
 complete). The
 verdict's `claim_ceiling` is `RUNTIME_SAMPLE`: a QEMU transcript is
 evidence about the math, never more math.
