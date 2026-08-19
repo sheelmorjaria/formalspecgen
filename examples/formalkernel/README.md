@@ -8,6 +8,8 @@ Provenance of each artifact is recorded in its header comment.
 
 | Artifact | lwIP provenance | Kernel lane |
 |---|---|---|
+| `kernel/scheduler/` | the scheduler ready runqueue (irq-wake → pick, the SPSC contract) + `sched_tick.c` deadline | M36/M37 witness + M38 tick |
+| `kernel/composition.json` | the orchestrator's boot flow: every callee's `requires` established by an earlier step's `establishes` | M46 precondition flow → `SYSTEM_COMPOSITION_PROVED` |
 | `kernel/rx_ring.c` | `src/api/tcpip.c:61` `tcpip_mbox` — the netif→tcpip-thread packet handoff, an SPSC mailbox | M36 lock-free witness + M37 barrier correspondence |
 | `kernel/timer_tick.c` | `src/core/timeouts.c` `sys_timeouts` walk over `struct sys_timeo` (include/lwip/timeouts.h:93) | M38 source WCET + the deadline the tick must meet |
 | `kernel/nic.c` | the `netif` driver seam lwIP leaves to the port (`ethernetif` shape) | M39 DMA isolation + M45 driver boundary |
@@ -37,8 +39,9 @@ python3 -c 'from pipeline.os_patterns import extract_intrusive_list; \
   print(extract_intrusive_list(open(\
   "../../../runs/lwip-probe/lwip/src/core/timeouts.c").read(), 8)["status"])'
 
-# M43 — the multi-architecture evidence lattice (real ESBMC on the
-#        witness; WCET + DMA per profile)
+# M43/M46 — the multi-subsystem, multi-architecture lattice (real
+#        ESBMC per witness; WCET + DMA per profile; the composition
+#        gate mints SYSTEM_COMPOSITION_PROVED once, arch-agnostic)
 formalspecgen verify-kernel kernel \
   --profile profiles/n150.json --profile profiles/r52.json \
   --json ../../runs/formalkernel/bundle.json

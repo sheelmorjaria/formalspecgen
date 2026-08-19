@@ -1,6 +1,6 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
-"""M43: the multi-architecture kernel evidence lattice.
+"""M43/M46: the multi-architecture kernel evidence lattice.
 
 One kernel, many architecture profiles. The architecture-agnostic claims
 (lock-free linearizability over the C witness) are judged ONCE; the
@@ -8,6 +8,12 @@ physical claims (barrier correspondence, WCET, DMA isolation) run PER
 PROFILE and mint scope-tagged entries — ``BARRIER_CORRESPONDENCE_PROVED
 scope x86_tso`` and ``scope armv8_sc`` come from the same sources under
 two human-owned profiles.
+
+M46: a manifest may declare ``subsystems`` (subdirectories, each with
+its own kernel.json) — the lanes run per subsystem and entries carry
+their subsystem — plus a ``composition`` artifact judged by the
+deterministic precondition-flow gate (``kernel_composition``), minting
+SYSTEM_COMPOSITION_PROVED once, arch-agnostic.
 
 Fail-closed discipline: a REAL violation in any lane fails the whole
 bundle by name (a scope is never silently dropped); an ABSENT judge
@@ -21,6 +27,7 @@ import json
 from pathlib import Path
 
 from .dma_isolation import dma_isolation
+from .kernel_composition import verify_composition
 from .lockfree import verify_lockfree
 from .realtime import wcet_bound
 from .weak_memory import MEMORY_MODELS, barrier_correspondence
@@ -37,7 +44,8 @@ def _load_json(path: Path) -> dict:
 
 def verify_kernel(kernel_dir: str | Path,
                   profiles: list[str | Path]) -> dict:
-    """Run the M36–M39 gates over one kernel manifest, per profile."""
+    """Run the M36–M39 lanes per subsystem, per profile, plus the M46
+    composition gate when the manifest declares one."""
     root = Path(kernel_dir)
     if not root.is_dir():
         return _refuse("kernel_dir_missing", str(root))
@@ -61,41 +69,77 @@ def verify_kernel(kernel_dir: str | Path,
     seen: set[tuple] = set()
 
     def mint(claim: str, scope: str, profile: str | None, source: str,
-             judge: str = "deterministic_gate") -> None:
-        key = (claim, scope)
+             judge: str = "deterministic_gate",
+             subsystem: str | None = None) -> None:
+        key = (claim, scope, subsystem)
         if key in seen:
             return
         seen.add(key)
-        claims.append({"claim": claim, "scope": scope, "profile": profile,
-                       "source": source, "judge": judge})
+        entry = {"claim": claim, "scope": scope, "profile": profile,
+                 "source": source, "judge": judge}
+        if subsystem is not None:
+            entry["subsystem"] = subsystem
+        claims.append(entry)
 
     def pending(claim: str, scope: str, profile: str | None, source: str,
-                judge: str) -> None:
+                judge: str, subsystem: str | None = None) -> None:
         """Record an absent judge — the claim is named but never minted."""
-        key = (claim, scope, "pending")
+        key = (claim, scope, subsystem, "pending")
         if key in seen:
             return
         seen.add(key)
-        claims.append({"claim": claim, "scope": scope, "profile": profile,
-                       "source": source, "status": "judge_pending",
-                       "judge_pending": judge})
+        entry = {"claim": claim, "scope": scope, "profile": profile,
+                 "source": source, "status": "judge_pending",
+                 "judge_pending": judge}
+        if subsystem is not None:
+            entry["subsystem"] = subsystem
+        claims.append(entry)
 
     def fail(entry: dict) -> None:
         failures.append(entry)
 
-    # --- architecture-agnostic: the lock-free witness, judged once ------
-    for name in manifest.get("lockfree", []):
-        verdict = verify_lockfree(root / name)
-        if verdict["status"] == "LOCK_FREE_LINEARIZABILITY_PROVED":
-            mint("LOCK_FREE_LINEARIZABILITY_PROVED",
-                 "concurrent_interleaving_bmc", None, name, judge="esbmc")
-        elif verdict.get("code") == "esbmc_unavailable":
-            pending("LOCK_FREE_LINEARIZABILITY_PROVED",
-                    "concurrent_interleaving_bmc", None, name, "esbmc")
-        else:
-            fail({"claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
-                  "source": name, "code": verdict.get("code"),
-                  "message": verdict.get("message", verdict["status"])})
+    # --- subsystem resolution: flat manifest or declared subdirs -----
+    subsystems: list[tuple[str | None, Path, dict]] = []
+    declared = manifest.get("subsystems")
+    if declared is None:
+        subsystems.append((None, root, manifest))
+    else:
+        if not isinstance(declared, list) or not declared:
+            return _refuse("subsystems_invalid",
+                           "subsystems must be a non-empty list of "
+                           "subdirectory names")
+        for name in declared:
+            sub_root = root / str(name)
+            if not sub_root.is_dir():
+                return _refuse("subsystem_dir_missing", str(sub_root))
+            sub_manifest_path = sub_root / "kernel.json"
+            if not sub_manifest_path.is_file():
+                return _refuse("kernel_manifest_missing",
+                               f"subsystem {name!r} has no kernel.json")
+            try:
+                subsystems.append((str(name), sub_root,
+                                   _load_json(sub_manifest_path)))
+            except (OSError, ValueError) as exc:
+                return _refuse("kernel_manifest_invalid",
+                               f"subsystem {name!r}: {exc}")
+
+    # --- architecture-agnostic: the lock-free witness, judged once ---
+    for sub_name, sub_root, sub_manifest in subsystems:
+        for name in sub_manifest.get("lockfree", []):
+            verdict = verify_lockfree(sub_root / name)
+            if verdict["status"] == "LOCK_FREE_LINEARIZABILITY_PROVED":
+                mint("LOCK_FREE_LINEARIZABILITY_PROVED",
+                     "concurrent_interleaving_bmc", None, name,
+                     judge="esbmc", subsystem=sub_name)
+            elif verdict.get("code") == "esbmc_unavailable":
+                pending("LOCK_FREE_LINEARIZABILITY_PROVED",
+                        "concurrent_interleaving_bmc", None, name,
+                        "esbmc", subsystem=sub_name)
+            else:
+                fail({"claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+                      "subsystem": sub_name,
+                      "source": name, "code": verdict.get("code"),
+                      "message": verdict.get("message", verdict["status"])})
 
     loaded: list[tuple[str, dict]] = []
     for profile_path in profiles:
@@ -107,68 +151,99 @@ def verify_kernel(kernel_dir: str | Path,
 
     for profile_name, profile in loaded:
         target = profile.get("target", profile_name)
-        memory_model = profile.get("memory_model")
-        for name in manifest.get("weak_memory", []):
-            if not memory_model:
-                return _refuse(
-                    "profile_field_missing",
-                    f"profile {target} declares no memory_model — the "
-                    "weak-memory scope is a human declaration")
-            if memory_model not in MEMORY_MODELS:
-                return _refuse("profile_field_missing",
-                               f"profile {target}: unknown memory_model "
-                               f"{memory_model!r}")
-            verdict = barrier_correspondence(root / name, memory_model)
-            if verdict["status"] == "BARRIER_CORRESPONDENCE_PROVED":
-                mint("BARRIER_CORRESPONDENCE_PROVED", memory_model,
-                     target, name)
-                pending("WEAK_MEMORY_SAFETY_PROVED", memory_model,
-                        target, name,
-                        verdict.get("judge_pending", "herd7_or_rc11"))
-            else:
-                fail({"claim": "BARRIER_CORRESPONDENCE_PROVED",
-                      "profile": target, "source": name,
-                      "code": verdict.get("code"),
-                      "message": verdict.get("message", "")})
+        for sub_name, sub_root, sub_manifest in subsystems:
+            memory_model = profile.get("memory_model")
+            for name in sub_manifest.get("weak_memory", []):
+                if not memory_model:
+                    return _refuse(
+                        "profile_field_missing",
+                        f"profile {target} declares no memory_model — the "
+                        "weak-memory scope is a human declaration")
+                if memory_model not in MEMORY_MODELS:
+                    return _refuse("profile_field_missing",
+                                   f"profile {target}: unknown memory_model "
+                                   f"{memory_model!r}")
+                verdict = barrier_correspondence(sub_root / name,
+                                                 memory_model)
+                if verdict["status"] == "BARRIER_CORRESPONDENCE_PROVED":
+                    mint("BARRIER_CORRESPONDENCE_PROVED", memory_model,
+                         target, name, subsystem=sub_name)
+                    pending("WEAK_MEMORY_SAFETY_PROVED", memory_model,
+                            target, name,
+                            verdict.get("judge_pending", "herd7_or_rc11"),
+                            subsystem=sub_name)
+                else:
+                    fail({"claim": "BARRIER_CORRESPONDENCE_PROVED",
+                          "profile": target, "subsystem": sub_name,
+                          "source": name, "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
 
-        profile_timing = profile.get("timing", {})
-        for name, file_timing in manifest.get("wcet", {}).items():
-            timing = {**profile_timing, **(file_timing or {})}
-            if "max_cycles" not in timing:
-                return _refuse("profile_field_missing",
-                               f"profile {target} declares no "
-                               "timing.max_cycles — a deadline is a human "
-                               "declaration")
-            if profile.get("cost_model"):
-                timing["cost_model"] = {**(timing.get("cost_model") or {}),
-                                        **profile["cost_model"]}
-            verdict = wcet_bound(root / name, timing)
-            if verdict["status"] == "WCET_BOUND_PROVEN":
-                mint("WCET_BOUND_PROVEN",
-                     f"static_cfg_cost_model_{target}", target, name)
-            else:
-                fail({"claim": "WCET_BOUND_PROVEN", "profile": target,
-                      "source": name, "code": verdict.get("code"),
-                      "message": verdict.get("message", "")})
+            profile_timing = profile.get("timing", {})
+            for name, file_timing in sub_manifest.get("wcet", {}).items():
+                timing = {**profile_timing, **(file_timing or {})}
+                if "max_cycles" not in timing:
+                    return _refuse("profile_field_missing",
+                                   f"profile {target} declares no "
+                                   "timing.max_cycles — a deadline is a "
+                                   "human declaration")
+                if profile.get("cost_model"):
+                    timing["cost_model"] = {
+                        **(timing.get("cost_model") or {}),
+                        **profile["cost_model"]}
+                verdict = wcet_bound(sub_root / name, timing)
+                if verdict["status"] == "WCET_BOUND_PROVEN":
+                    mint("WCET_BOUND_PROVEN",
+                         f"static_cfg_cost_model_{target}", target, name,
+                         subsystem=sub_name)
+                else:
+                    fail({"claim": "WCET_BOUND_PROVED", "profile": target,
+                          "subsystem": sub_name, "source": name,
+                          "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
 
-        memory_map = profile.get("memory_map") or manifest.get("memory_map")
-        contracts = (profile.get("dma_contracts")
-                     or manifest.get("dma_contracts"))
-        for name in manifest.get("dma", []):
-            if not memory_map or not contracts:
-                return _refuse("profile_field_missing",
-                               f"profile {target} declares no "
-                               "memory_map/dma_contracts — the IOMMU "
-                               "correspondence needs the physical map")
-            verdict = dma_isolation(root / name, memory_map, contracts)
-            if verdict["status"] == "DMA_ISOLATION_PROVED":
-                mint("DMA_ISOLATION_PROVED",
-                     f"deterministic_range_disjointness_{target}",
-                     target, name)
-            else:
-                fail({"claim": "DMA_ISOLATION_PROVED", "profile": target,
-                      "source": name, "code": verdict.get("code"),
-                      "message": verdict.get("message", "")})
+            memory_map = (profile.get("memory_map")
+                          or sub_manifest.get("memory_map"))
+            contracts = (profile.get("dma_contracts")
+                         or sub_manifest.get("dma_contracts"))
+            for name in sub_manifest.get("dma", []):
+                if not memory_map or not contracts:
+                    return _refuse("profile_field_missing",
+                                   f"profile {target} declares no "
+                                   "memory_map/dma_contracts — the IOMMU "
+                                   "correspondence needs the physical map")
+                verdict = dma_isolation(sub_root / name, memory_map,
+                                        contracts)
+                if verdict["status"] == "DMA_ISOLATION_PROVED":
+                    mint("DMA_ISOLATION_PROVED",
+                         f"deterministic_range_disjointness_{target}",
+                         target, name, subsystem=sub_name)
+                else:
+                    fail({"claim": "DMA_ISOLATION_PROVED", "profile": target,
+                          "subsystem": sub_name, "source": name,
+                          "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
+
+    # --- M46: the orchestrator's precondition flow, judged once ------
+    composition_artifact = manifest.get("composition")
+    if composition_artifact is not None:
+        composition_path = root / str(composition_artifact)
+        if not composition_path.is_file():
+            return _refuse("composition_artifact_missing",
+                           str(composition_path))
+        try:
+            artifact = _load_json(composition_path)
+        except (OSError, ValueError) as exc:
+            return _refuse("composition_artifact_invalid", str(exc))
+        verdict = verify_composition(artifact)
+        if verdict["status"] == "SYSTEM_COMPOSITION_PROVED":
+            mint("SYSTEM_COMPOSITION_PROVED",
+                 "deterministic_precondition_flow", None,
+                 str(composition_artifact))
+        else:
+            fail({"claim": "SYSTEM_COMPOSITION_PROVED",
+                  "source": str(composition_artifact),
+                  "code": verdict.get("code"),
+                  "message": verdict.get("message", "")})
 
     if failures:
         return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",

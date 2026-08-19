@@ -1,6 +1,4 @@
 {
-  "weak_memory": ["rx_ring.c"],
-  "lockfree": ["rx_ring.c"],
-  "wcet": {"timer_tick.c": {}},
-  "dma": ["nic.c"]
+  "subsystems": ["scheduler", "net"],
+  "composition": "composition.json"
 }

@@ -1,0 +1,6 @@
+{
+  "weak_memory": ["runqueue.c"],
+  "lockfree": ["runqueue.c"],
+  "wcet": {"sched_tick.c": {}},
+  "dma": []
+}

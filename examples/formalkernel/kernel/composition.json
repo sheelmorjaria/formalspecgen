@@ -1,0 +1,11 @@
+{
+  "steps": [
+    {"name": "timer_init",    "establishes": ["timer_running"]},
+    {"name": "pool_init",     "requires": ["timer_running"],
+                              "establishes": ["pools_mapped"]},
+    {"name": "scheduler_start", "requires": ["pools_mapped"],
+                              "establishes": ["runqueue_ready"]},
+    {"name": "net_start",     "requires": ["runqueue_ready", "pools_mapped"],
+                              "establishes": ["packet_path_up"]}
+  ]
+}
