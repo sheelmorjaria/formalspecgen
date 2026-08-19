@@ -869,6 +869,28 @@ def command_verify_lockfree(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "LOCK_FREE_LINEARIZABILITY_PROVED" else 1
 
 
+def command_verify_kernel(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """M43: the multi-architecture kernel evidence lattice."""
+    from .kernel_lattice import verify_kernel
+    result = verify_kernel(args.kernel_dir, args.profile)
+    if args.json_out:
+        _write_json(result, args.json_out, ui.console)
+    ok = result["status"] == "KERNEL_EVIDENCE_BUNDLE"
+    style = "green" if ok else "red"
+    ui.console.print(f"[{style}]{result['status']}[/{style}] — "
+                     f"{len(result.get('claims', []))} claim entries")
+    for entry in result.get("claims", []):
+        judge = entry.get("judge") or \
+            f"judge_pending:{entry.get('judge_pending')}"
+        # parens, not brackets — Rich would eat [judge] as a markup tag
+        ui.console.print(f"  {entry['claim']} scope={entry['scope']} "
+                         f"({judge})")
+    for failure in result.get("failures", []):
+        ui.console.print(f"[red]  FAILED {failure.get('code')} at "
+                         f"{failure.get('source')}[/red]")
+    return 0 if ok else 1
+
+
 def command_macro_dictionary(args: argparse.Namespace, ui: TerminalUI) -> int:
     """M35: load a macros.json dictionary; with --source translate its
     macro invocations (LLM proposals for unknowns), with --synthesize run
@@ -1370,6 +1392,17 @@ def build_parser() -> argparse.ArgumentParser:
     lockfree.add_argument("source", help="C .c pthread source (SPSC ring: "
                                          "buf + head/tail, one store each)")
     lockfree.add_argument("--json", dest="json_out", default=None)
+    kernel = sub.add_parser(
+        "verify-kernel",
+        help="M43: the multi-architecture evidence lattice — run the "
+             "M36-M39 gates over kernel.json per hardware profile")
+    kernel.add_argument("kernel_dir", help="directory containing "
+                                          "kernel.json + sources")
+    kernel.add_argument("--profile", action="append", required=True,
+                        metavar="PROFILE_JSON",
+                        help="human-owned hardware profile (repeatable: one "
+                             "evidence scope per profile)")
+    kernel.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1514,6 +1547,8 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
         return command_macro_dictionary(args, ui)
     if args.command == "verify-lockfree":
         return command_verify_lockfree(args, ui)
+    if args.command == "verify-kernel":
+        return command_verify_kernel(args, ui)
     if args.command == "verify-distributed":
         return command_verify_distributed(args, ui)
     if args.command == "verify-linearizability":
@@ -1537,7 +1572,7 @@ _REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-a
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
                   "verify-heap", "verify-hal", "verify-distributed",
-                  "macro-dictionary", "verify-lockfree",
+                  "macro-dictionary", "verify-lockfree", "verify-kernel",
                   "verify-linearizability",
                   "verify-unbounded",
                   "prove-equivalence",
