@@ -60,3 +60,41 @@ formalspecgen implement driver/nic_driver.rs \
 Every claim in the bundle carries its scope; absent judges stay
 `judge_pending`; the adapter is stamped `UNVERIFIED_EXTERNAL_ADAPTER`
 with `external_io_safety_proved: false`.
+
+## M47 — boot it on QEMU (AArch64 virt)
+
+The boot image is a `no_std` Rust kernel whose boot order is COMPILED
+IN from the proven composition artifact (`scripts/gen_boot_order.py`
+generates `boot/src/boot_order.rs` from `kernel/composition.json` —
+the same artifact M46 proved). It runs the order, then floods the net
+ring (16 arrivals against CAP=4 with a draining consumer) and prints
+the counters over the PL011 UART.
+
+```bash
+# one-time: the cross target (no sudo needed)
+rustup target add aarch64-unknown-none-softfloat
+
+# build the image (rustc + rust-lld — no cross C toolchain)
+python3 -c 'from pipeline.boot_check import build_boot_image; \
+  from pathlib import Path; print(build_boot_image(\
+  Path("examples/formalkernel/boot")))'
+
+# boot it (needs qemu-system-aarch64; sudo apt-get install qemu-system-arm)
+timeout 10 qemu-system-aarch64 -M virt -cpu cortex-a72 -nographic \
+  -no-reboot -kernel examples/formalkernel/boot/formalkernel.elf
+
+# judge the transcript (RUNTIME_SAMPLE ceiling — evidence, NOT proof)
+python3 -c '
+import json
+from pipeline.boot_check import parse_transcript, run_qemu_boot
+boot = run_qemu_boot("examples/formalkernel/boot/formalkernel.elf")
+comp = json.load(open("kernel/composition.json"))
+print(json.dumps(parse_transcript(boot["transcript"], comp), indent=2))'
+```
+
+Expected transcript: the four BOOT lines in the proven order, then
+`NET posted=13 dropped=3 consumed=13 high_water=4 cap=4` — drops > 0
+means the ERR_MEM backpressure path actually executed; high_water == 4
+== cap means the ESBMC-proved bound held on emulated silicon. The
+verdict's `claim_ceiling` is `RUNTIME_SAMPLE`: a QEMU transcript is
+evidence about the math, never more math.
