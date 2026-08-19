@@ -1,0 +1,7 @@
+{
+  "memory_map": {
+    "kernel_pools": {"kstack_pool": [16384, 32768]},
+    "devices": {"nic_dev": [69632, 71680]}
+  },
+  "dma_contracts": {"nic_dev": [69632, 70144]}
+}

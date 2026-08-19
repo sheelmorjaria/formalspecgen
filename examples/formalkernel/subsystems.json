@@ -1,0 +1,8 @@
+{
+  "subsystems": {
+    "scheduler":    {"struct_size_bytes": 32, "sram_base": 536870912,     "budget_bytes": 8192},
+    "tcpip_stack":  {"struct_size_bytes": 64, "sram_base": 536879104,     "budget_bytes": 16384},
+    "pbuf_pool":    {"struct_size_bytes": 32, "sram_base": 536903680,     "budget_bytes": 32768},
+    "sys_timeouts": {"struct_size_bytes": 24, "sram_base": 536936448,     "budget_bytes": 1024}
+  }
+}

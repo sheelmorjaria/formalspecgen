@@ -1,0 +1,7 @@
+{
+  "max_cycles": 800,
+  "loop_bounds": {"timer_tick": 8},
+  "panic_paths": "bounded_abort",
+  "panic_cost_cycles": 20,
+  "cost_model": {"instruction": 2, "memory": 3, "branch": 5}
+}

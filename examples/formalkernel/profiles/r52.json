@@ -1,0 +1,1 @@
+{"target": "r52", "memory_model": "armv8_sc", "timing": {"max_cycles": 800, "loop_bounds": {"SYS_TIMEOUT_POOL_CAP": 8}}, "cost_model": {"instruction": 2, "memory": 3, "branch": 5}, "memory_map": {"kernel_pools": {"tcm_kernel": [16384, 32768]}, "devices": {"nic_dev": [69632, 71680]}}, "dma_contracts": {"nic_dev": [69632, 70144]}}
