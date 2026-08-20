@@ -94,3 +94,4 @@ Thumbs.db
 *.swo
 *~
 formalkernel.elf
+examples/formalkernel/boot/proofs/target/
