@@ -1,4 +1,4 @@
-# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M45)
+# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M54)
 
 TDD plan for building a hybrid-kernel development flow on top of the
 M36–M40 OS verification framework. Governing rule, unchanged: *The LLM
@@ -151,6 +151,92 @@ Tests: adapter verdict shape; contract violation refused by name; Port
 signature mutation detected (`TRUST_BOUNDARY_VIOLATION`); the fixed
 SDK choices still work.
 
+## Shipped beyond the original plan (M46–M54)
+
+### M46 — kernel composition (v9.1)
+
+`pipeline/kernel_composition.py`: a boot-orchestration artifact
+(`steps: [{name, requires, establishes}]`) is checked by deterministic
+precondition flow — a step whose `requires` facts no earlier step (or
+itself) establishes refuses `COMPOSITION_PRECONDITION_UNMET` naming
+both; re-establishing an established fact refuses
+`COMPOSITION_FACT_REESTABLISHED`; duplicate step names refuse. Claim
+`SYSTEM_COMPOSITION_PROVED`, scope `deterministic_precondition_flow` —
+an orchestration-order claim, not a concurrency claim. Wired as the
+lattice `composition` lane.
+
+### M47 — live QEMU boot with proven order (v9.2)
+
+The composed boot order stops being a JSON artifact: an aarch64
+bare-metal image (`examples/formalkernel/boot/`) boots on
+`qemu-system-aarch64` following exactly the M46-proven step order,
+printing a boot transcript. The transcript-observed order must match
+the proved order or the run fails.
+
+### M48 — MMU spatial isolation (v9.3)
+
+`pipeline/mmu_isolation.py`: page-table artifacts (per-frame base,
+descriptor bits) are judged for kernel/user separation — bit 54 UXN on
+user frames, AP bits permitting EL0 access only where declared — and
+`walker paper-decode`: the kernel's page-table walker runs against the
+same descriptors and must land where the artifact says. Claim
+`SPATIAL_ISOLATION_PROVED` (deterministic gate over the descriptor
+math). Live: a user wild store traps into the kernel with a named
+fault (`USER_TRAP far=...`), contained.
+
+### M49 — syscalls: the EL0 boundary (v9.4)
+
+`pipeline/syscall_dispatch.py` + the `syscalls` lattice lane: an
+aarch64 svc dispatch-table artifact (immediate → handler → capability)
+is judged for total dispatch (every declared immediate answers, no
+undeclared one fires) — claim `SYSCALL_BOUNDARY_PROVED`, judge_pending
+`hardware_exception_level_transition` (the EL1↔EL0 trap itself is
+hardware, honestly not machine-proved). Live: `svc #0x64` answered at
+EL0; a user abort contains as `USER_TRAP`.
+
+### M50 — the IPC name server (v9.5)
+
+`pipeline/mpsc.py` (`verify_mpsc`) + `pipeline/ipc_nameserver.py`: a
+partitioned-lane MPSC witness (one bounded slot-array per producer
+lane, plain-int SC dialect) proves per-lane capacity and the TOTAL
+posted+dropped ledger under ESBMC interleaving; the endpoint-table
+gate routes cross-artifact messages through the M49 dispatch table.
+Claims `MPSC_BOUNDED_PARTITION_PROVED`, `IPC_ENDPOINT_TABLE_PROVED`.
+ESBMC budget: 2 producers ≈ seconds, 3 threads ≈ minutes.
+
+### M51–M52 — user-space net stack, then respawn (v9.6/v9.7)
+
+The network server moves to EL0 (svc #0x66 poll loop over the shared
+bounded pool). Live: a wild store in the server kills it
+(`NET_SERVER_KILLED`) while the kernel closes the packet ledger
+exactly (`posted == served + reclaimed + kernel-held`) and survives;
+M52 re-initializes the server's frames (zeroed, image re-copied,
+SP_EL0 reset) and a second generation serves with its own closed
+ledger. Vacuity refusals (`net_server_poll_vacuous`,
+`NETSRV_LEDGER_OPEN`) keep the ledger claim honest.
+
+### M53 — the Kani refinement lane (v9.8)
+
+`pipeline/kani_refinement.py`: the image's own `witness.rs`
+(Ring/Mpsc) is `#[path]`-included by `boot/proofs/` — not copied — and
+Kani proves capacity invariants, backpressure accounting, and the
+exact ledger identities over bounded nondeterministic sequences.
+`WITNESS_LINK_MISSING` refuses a proof over a copy. Claim
+`RUST_WITNESS_REFINEMENT_PROVED`, judge `kani`; concurrent
+interleaving stays with ESBMC.
+
+### M54 — deployment profiles (v9.9)
+
+`pipeline/deployment_profile.py`: one tree, two honest bundles, no
+code fork. The root manifest declares its deployment; a monolith
+carrying any boundary lane (mmu/syscalls/ipc) refuses
+`MONOLITH_BOUNDARY_CONTRADICTION`. `verify-kernel --manifest
+monolith.json` mints the 19-claim monolithic bundle (boundary claims
+omitted; the note says the driver is the kernel — containment does not
+exist) from the SAME sources as the 24-claim microkernel bundle. The
+anti-drift guarantee is a test: the monolith's claims are a strict
+subset and every shared claim is the byte-identical tuple.
+
 ## Evidence lattice shipped per subsystem
 
 ```
@@ -160,7 +246,12 @@ LOCK_FREE_LINEARIZABILITY_PROVED   (ESBMC over the C witness — once)
 BARRIER_CORRESPONDENCE_PROVED      (per profile: x86_tso | armv8_sc)
 WCET_BOUND_PROVEN                  (per profile cost model; binary_cfg when toolchain present)
 DMA_ISOLATION_PROVED               (per profile memory map)
-SYSTEM_COMPOSITION_PROOF           (compose --lang rust — Phase 5)
+SYSTEM_COMPOSITION_PROVED          (deterministic precondition flow — M46)
+SPATIAL_ISOLATION_PROVED           (descriptor math + walker decode — M48)
+SYSCALL_BOUNDARY_PROVED            (dispatch table — judge_pending hardware trap — M49)
+MPSC_BOUNDED_PARTITION_PROVED      (ESBMC per-lane + total — M50)
+IPC_ENDPOINT_TABLE_PROVED          (cross-artifact routing — M50)
+RUST_WITNESS_REFINEMENT_PROVED     (Kani over the image's own witness.rs — M53)
 UNVERIFIED_EXTERNAL_ADAPTER        (M45 — driver glue, explicitly not proved)
 ```
 

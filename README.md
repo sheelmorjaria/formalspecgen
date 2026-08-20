@@ -427,6 +427,7 @@ FormalSpecGen covers five connected workflows:
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
 | Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
+| Kernel evidence | `verify-kernel` (per-profile lanes; `--manifest` selects the deployment profile) | `KERNEL_EVIDENCE_BUNDLE` — scope-tagged claims from real judges (ESBMC/Kani/deterministic gates); absent judges stay `judge_pending` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method`, plus the Rust strategy profile (`--pattern strategy`) on the probed static-dispatch shape | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 | Verified reimplementation | `analyze-codebase` → `validate-domain` → `promote-domain` → `draft --canonical-domain --lang` → `implement` | `SOURCE_MODEL_REFINEMENT` for a Rust port of a reviewed, TLC-validated extracted state machine |
@@ -437,7 +438,11 @@ The following milestones were added after the v1.0.0 tag push. Release lineage:
 v1.0.0 → v2.1.0 → v2.3.0 → v2.3.1 → v2.4.0 → v2.4.1 → v3.0.0 → v3.3.0 → v3.5.0 →
 v3.6.0 → v3.7.0 → v3.8.0 → v3.9.0 → v3.10.0 → v3.11.0 (Tomcat, the first Java
 production port) → v3.12.0 (the six-CWE hardening agent) → v4.0.0 (the Encoding
-Artifact paper and release).
+Artifact paper and release) → v5.x/v6.x/v7.x/v8.x (linearizability through the
+M36–M40 OS lanes and the 38-tool MCP surface) → v9.x (the FormalKernel era:
+M41–M48 lattice, composition, live QEMU boot, MMU isolation; M49–M52 the EL0
+era — syscalls, IPC name server, user-space net stack, respawn; M53 the Kani
+refinement lane; M54 deployment profiles — one tree, two honest bundles).
 
 Key commits: `a31463d`, `b8d1df4`, `5169ef5`, `a708fc6`, `6884f88`, `778ddd7`, `c367d3a`,
 `692b234`, `4f0b2f8`, `a18a0c7`, `e9a966e`, and `360f567`, then `90f7015`, `fcb2767`, and
@@ -1676,6 +1681,48 @@ Async Tokio metadata, lock protocols, exception semantics, and unsupported expre
 rejected rather than approximated. Install ESBMC from its official Ubuntu PPA or release binary;
 the verifier must be available as `esbmc` on `PATH`.
 
+### The FormalKernel evidence lattice (verify-kernel)
+
+The OS-scale lane (M41–M54, documented in
+[`docs/FORMALKERNEL_PLAN.md`](docs/FORMALKERNEL_PLAN.md)): one kernel tree under
+`examples/formalkernel/`, one command, one evidence bundle — every lane judged by the real tool
+or recorded as `judge_pending`, never minted from absence:
+
+```bash
+formalspecgen verify-kernel examples/formalkernel/kernel \
+  --profile examples/formalkernel/profiles/n150.json \
+  --profile examples/formalkernel/profiles/r52.json --json bundle.json
+```
+
+The root manifest (`kernel.json`) declares its **deployment profile**. The microkernel bundle
+carries all 24 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
+model, DMA per memory map), ESBMC lock-free/MPSC over the C witnesses, deterministic composition,
+and the boundary lanes (`SPATIAL_ISOLATION_PROVED`, `SYSCALL_BOUNDARY_PROVED`,
+`IPC_ENDPOINT_TABLE_PROVED`) plus the Kani refinement over the image's own `witness.rs`
+(`RUST_WITNESS_REFINEMENT_PROVED`). Selecting the **monolithic** manifest is one flag, not a
+code fork:
+
+```bash
+formalspecgen verify-kernel examples/formalkernel/kernel \
+  --profile examples/formalkernel/profiles/n150.json \
+  --profile examples/formalkernel/profiles/r52.json --manifest monolith.json
+# KERNEL_EVIDENCE_BUNDLE — 19 claim entries
+# note: monolithic: no boundary lane is claimable — the driver is the kernel; its
+# concurrency, capacity, and composition claims stand, containment does not exist
+```
+
+One tree, two honest bundles: the monolith's claims are a strict subset of the microkernel's
+with every shared claim the byte-identical `(claim, scope, subsystem, profile, source)` tuple —
+the anti-drift guarantee is a test, not a promise. A monolith manifest declaring any boundary
+lane refuses `MONOLITH_BOUNDARY_CONTRADICTION` before a single lane runs; a manifest without a
+deployment key refuses `deployment_missing`. The same tree boots live on
+`qemu-system-aarch64`: the composed boot order proved by the composition lane is the order the
+image prints, syscalls are answered across the EL1/EL0 boundary, a user-space network server's
+wild store is contained (`NET_SERVER_KILLED`) with the packet ledger closing exactly, and a
+second-generation server respawns onto the same frames with its own closed ledger. Honest
+scope throughout: the EL1↔EL0 hardware transition itself is `judge_pending`, never minted;
+absent judges (herd7/aiT/…) stay pending by name.
+
 ### Contract-preserving Java refactoring
 
 The initial modernization profile compares two independently verified Java/JML revisions:
@@ -2127,6 +2174,9 @@ pipeline/verify_*.py    Normalized Java, Rust, and C formal-tool judges
 pipeline/cwe_registry.py  Config-driven CWE manifest loader (see security/cwe_manifest.json)
 pipeline/pattern_registry.py  Categorized design-pattern detector registry
 pipeline/domains/      Reviewed and scaffolded semantic-domain plugins
+examples/formalkernel/ The FormalKernel evidence lattice: kernel/ manifests + subsystem
+                       witnesses, profiles/, and boot/ (the live aarch64 QEMU image and
+                       its Kani proof crate #[path]-sharing the image's witness.rs)
 formalspec_core/       Shared deterministic postprocessor and proof-support core
 domains/               Declarative domain specifications (V2 candidates under candidates/)
 extracted/             Unreviewed `analyze-codebase` output (architecture map and domain sketches)
@@ -2165,8 +2215,8 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.01% combined statement/branch coverage across 1238
-tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
+The deterministic suite currently reports 99.02% combined statement/branch coverage across
+1,400+ tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
 `analyze-codebase → document-code`) — and can be run with:
