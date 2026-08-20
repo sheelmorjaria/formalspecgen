@@ -6,8 +6,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
+import pytest
 from pipeline.capability_registry import capability
 from pipeline.kernel_lattice import verify_kernel
 from pipeline.pq_tls_pool import verify_pq_tls_pool
@@ -24,6 +26,7 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@pytest.mark.skipif(shutil.which("z3") is None, reason="real Z3 not installed")
 def test_z3_proves_exact_two_handshake_ceiling_for_each_profile():
     artifact = _json(NET / "pq_tls.json")
     for profile_path in PROFILES:
@@ -52,6 +55,14 @@ def test_capacity_or_parameter_drift_fails_closed():
     invalid["session_components_bytes"]["signature"] = 0
     assert verify_pq_tls_pool(invalid, profile)["code"] == \
         "PQ_TLS_COMPONENT_SIZE_INVALID"
+
+
+def test_valid_capacity_mints_nothing_when_z3_is_absent(monkeypatch):
+    monkeypatch.setattr("pipeline.pq_tls_pool.shutil.which", lambda _name: None)
+    verdict = verify_pq_tls_pool(_json(NET / "pq_tls.json"), _json(PROFILES[0]))
+    assert verdict["status"] == "PQ_TLS_POOL_FAILED"
+    assert verdict["claim"] == "NO_PROOF"
+    assert verdict["code"] == "z3_unavailable"
 
 
 def test_pool_source_is_hash_bound_bounded_and_panic_free():

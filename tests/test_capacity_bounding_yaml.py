@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import yaml
 
 from pipeline.behavior_correction import correct_behavior
@@ -50,6 +51,20 @@ CANDIDATE = {
 # -> capacity 76 (floor(921/12)).
 PROFILE = {"target": "TestMCU", "total_sram_bytes": 1024, "reserved_system_bytes": 0,
            "max_stack_depth_bytes": 512, "word_size_bytes": 4}
+
+
+@pytest.fixture(autouse=True)
+def deterministic_z3_capacity_seam(monkeypatch):
+    """Unit-test candidate rewriting independently of host judge installs."""
+    def proved(profile, capacity, struct_size_bytes, safety_margin=0.9):
+        budget = int(profile.usable_sram_bytes * safety_margin)
+        return {"status": "VERIFIED", "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                "solver": "test-seam", "encoding_sha256": "0" * 64,
+                "capacity_bound": capacity,
+                "struct_size_bytes": struct_size_bytes,
+                "memory_footprint_bytes": capacity * struct_size_bytes,
+                "sram_budget_bytes": budget}
+    monkeypatch.setattr("pipeline.hardware_profile.prove_fixed_pool_fits", proved)
 
 
 def _write(tmp_path, candidate=CANDIDATE):

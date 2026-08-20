@@ -10,6 +10,7 @@ from pipeline.hardware_profile import (
     Profile,
     derive_struct_size,
     load_profile,
+    prove_fixed_pool_fits,
     safe_capacity,
     stack_depth_ok,
 )
@@ -81,3 +82,11 @@ def test_derive_struct_size_has_word_floor():
     # no scalar fields -> one word minimum; nested references are not counted
     assert derive_struct_size("public class Node { public Node next; }",
                               word_size_bytes=4) == 4
+
+
+def test_fixed_pool_proof_fails_closed_when_z3_is_absent(monkeypatch):
+    monkeypatch.setattr("pipeline.hardware_profile.shutil.which", lambda _name: None)
+    verdict = prove_fixed_pool_fits(Profile(**PROFILE), 2, 16)
+    assert verdict["status"] == "HARDWARE_BOUND_FAILED"
+    assert verdict["claim"] == "NO_PROOF"
+    assert verdict["code"] == "z3_unavailable"

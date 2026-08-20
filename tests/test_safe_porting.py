@@ -13,7 +13,23 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from pipeline.codebase_analysis import analyze_codebase
+
+
+@pytest.fixture(autouse=True)
+def deterministic_z3_capacity_seam(monkeypatch):
+    """Unit-test the porting chain independently of host judge installs."""
+    def proved(profile, capacity, struct_size_bytes, safety_margin=0.9):
+        budget = int(profile.usable_sram_bytes * safety_margin)
+        return {"status": "VERIFIED", "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                "solver": "test-seam", "encoding_sha256": "0" * 64,
+                "capacity_bound": capacity,
+                "struct_size_bytes": struct_size_bytes,
+                "memory_footprint_bytes": capacity * struct_size_bytes,
+                "sram_budget_bytes": budget}
+    monkeypatch.setattr("pipeline.hardware_profile.prove_fixed_pool_fits", proved)
 
 C_LINKED_LIST = """typedef struct Node {
     int val;

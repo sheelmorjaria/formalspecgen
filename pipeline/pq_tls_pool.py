@@ -38,6 +38,11 @@ def verify_pq_tls_pool(artifact: dict, profile: dict) -> dict:
     budget = budgets[target]
     if budget <= 0:
         return _fail("PQ_TLS_BUDGET_INVALID")
+    # Reject a non-maximal or overflowing declaration before invoking the
+    # judge. This is deterministic input validation, not proof: an exact
+    # candidate still requires real Z3 below before any claim is minted.
+    if capacity != budget // session_size:
+        return _fail("PQ_TLS_CAPACITY_NOT_EXACT")
     z3 = shutil.which("z3")
     if z3 is None:
         return _fail("z3_unavailable")
