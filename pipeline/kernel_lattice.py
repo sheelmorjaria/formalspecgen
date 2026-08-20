@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .deployment_profile import verify_deployment_profile
 from .dma_isolation import dma_isolation
 from .ipc_nameserver import verify_ipc_table
 from .kani_refinement import verify_rust_refinement
@@ -47,22 +48,31 @@ def _load_json(path: Path) -> dict:
 
 
 def verify_kernel(kernel_dir: str | Path,
-                  profiles: list[str | Path]) -> dict:
+                  profiles: list[str | Path],
+                  manifest_name: str = "kernel.json") -> dict:
     """Run the M36–M39 lanes per subsystem, per profile, plus the M46
-    composition gate when the manifest declares one."""
+    composition gate when the manifest declares one. The manifest NAME
+    selects the deployment profile (M54): kernel.json (microkernel) or
+    monolith.json — one source tree, two honest bundles."""
     root = Path(kernel_dir)
     if not root.is_dir():
         return _refuse("kernel_dir_missing", str(root))
-    manifest_path = root / "kernel.json"
+    manifest_path = root / manifest_name
     if not manifest_path.is_file():
         return _refuse("kernel_manifest_missing",
-                       "kernel.json declares the lanes (weak_memory, "
+                       f"{manifest_name} declares the lanes (weak_memory, "
                        "lockfree, wcet, dma) — the lattice never guesses "
                        "which sources carry which obligations")
     try:
         manifest = _load_json(manifest_path)
     except (OSError, ValueError) as exc:
         return _refuse("kernel_manifest_invalid", str(exc))
+    # M54: the deployment profile is checked FIRST — a monolithic
+    # manifest carrying boundary artifacts is a contradiction, and
+    # no lane runs until it is resolved
+    profile_check = verify_deployment_profile(manifest)
+    if profile_check["status"] != "DEPLOYMENT_PROFILE_OK":
+        return _refuse(profile_check["code"], profile_check["message"])
     if not profiles:
         return _refuse("profiles_missing",
                        "at least one human-owned hardware profile is "
@@ -381,4 +391,7 @@ def verify_kernel(kernel_dir: str | Path,
                 "claims": claims}
     return {"status": "KERNEL_EVIDENCE_BUNDLE",
             "claim": "KERNEL_EVIDENCE_BUNDLE",
-            "profiles": [name for name, _ in loaded], "claims": claims}
+            "deployment": manifest["deployment"],
+            "manifest": manifest_name,
+            "profiles": [name for name, _ in loaded], "claims": claims,
+            "note": profile_check["note"]}

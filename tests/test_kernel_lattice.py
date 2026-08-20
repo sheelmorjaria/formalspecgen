@@ -82,7 +82,8 @@ def _kernel(tmp_path, *, ring=WITNESS, manifest_extra=None):
     (root / "ring.c").write_text(ring, encoding="utf-8")
     (root / "isr.c").write_text(ISR, encoding="utf-8")
     (root / "eth.c").write_text(DMA_DRIVER, encoding="utf-8")
-    manifest = {"weak_memory": ["ring.c"], "lockfree": ["ring.c"],
+    manifest = {"deployment": "microkernel",
+                "weak_memory": ["ring.c"], "lockfree": ["ring.c"],
                 "wcet": {"isr.c": {}}, "dma": ["eth.c"],
                 "memory_map": MEMORY_MAP, "dma_contracts": CONTRACTS}
     manifest.update(manifest_extra or {})
@@ -178,6 +179,15 @@ def test_manifest_and_profile_residuals_fail_closed(tmp_path):
     assert verify_kernel(root, [_profile(tmp_path, N150, "n150")])["code"] \
         == "kernel_manifest_invalid"
     (root / "kernel.json").write_text("{}", encoding="utf-8")
+    # an empty manifest lacks the deployment profile FIRST (M54) — the
+    # profile is what makes a bundle's omissions honest
+    assert verify_kernel(
+        root, [_profile(tmp_path, N150, "n150")])["code"] == \
+        "deployment_missing"
+    manifest = json.loads((root / "kernel.json").read_text())
+    manifest["deployment"] = "microkernel"
+    (root / "kernel.json").write_text(json.dumps(manifest),
+                                       encoding="utf-8")
     assert verify_kernel(root, [])["code"] == "profiles_missing"
     assert verify_kernel(
         root, [tmp_path / "ghost.json"])["code"] == "profile_unreadable"

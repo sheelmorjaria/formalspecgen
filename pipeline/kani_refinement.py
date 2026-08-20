@@ -30,8 +30,12 @@ import subprocess
 from pathlib import Path
 
 _KANI = shutil.which("kani") or shutil.which("cargo-kani")
-KANI_AVAILABLE = _KANI is not None or (
-    Path.home() / ".cargo/bin/kani").exists()
+# availability means THE COMMAND WE RUN exists: the lane invokes
+# ["cargo", "kani"], so a kani without cargo is an absent judge, not a
+# spurious kani_crashed refusal (absent judges degrade to judge_pending)
+KANI_AVAILABLE = (_KANI is not None or
+                  (Path.home() / ".cargo/bin/kani").exists()) and \
+                 shutil.which("cargo") is not None
 
 _PROOF = re.compile(r"#\[kani::proof\]")
 _WITNESS_LINK = '#[path = "../../src/witness.rs"]'

@@ -884,13 +884,20 @@ def command_verify_lockfree(args: argparse.Namespace, ui: TerminalUI) -> int:
 def command_verify_kernel(args: argparse.Namespace, ui: TerminalUI) -> int:
     """M43: the multi-architecture kernel evidence lattice."""
     from .kernel_lattice import verify_kernel
-    result = verify_kernel(args.kernel_dir, args.profile)
+    result = verify_kernel(args.kernel_dir, args.profile,
+                           manifest_name=args.manifest)
     if args.json_out:
         _write_json(result, args.json_out, ui.console)
     ok = result["status"] == "KERNEL_EVIDENCE_BUNDLE"
     style = "green" if ok else "red"
     ui.console.print(f"[{style}]{result['status']}[/{style}] — "
                      f"{len(result.get('claims', []))} claim entries")
+    if result.get("note"):
+        # M54: the deployment profile's honest scope note (e.g. a
+        # monolith's "the driver is the kernel") belongs on the terminal,
+        # not buried in --json-out
+        ui.console.print(f"note: {result['note']}", markup=False,
+                         highlight=False)
     for entry in result.get("claims", []):
         judge = entry.get("judge") or \
             f"judge_pending:{entry.get('judge_pending')}"
@@ -1421,6 +1428,11 @@ def build_parser() -> argparse.ArgumentParser:
                         metavar="PROFILE_JSON",
                         help="human-owned hardware profile (repeatable: one "
                              "evidence scope per profile)")
+    kernel.add_argument("--manifest", default="kernel.json",
+                        help="deployment profile manifest (M54): kernel.json "
+                             "= microkernel (all lanes), monolith.json = "
+                             "monolithic (boundary lanes omitted — a driver "
+                             "fault is a kernel fault, honestly)")
     kernel.add_argument("--json", dest="json_out", default=None)
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")

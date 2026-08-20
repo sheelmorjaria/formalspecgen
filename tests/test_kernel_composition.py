@@ -61,7 +61,8 @@ def _kernel(tmp_path, *, composition=None, boot=BOOT):
             "wcet": {sources[1][0]: {}}, "dma": [],
             "memory_map": MEMORY_MAP, "dma_contracts": CONTRACTS}),
             encoding="utf-8")
-    manifest = {"subsystems": ["scheduler", "net"]}
+    manifest = {"subsystems": ["scheduler", "net"],
+                "deployment": "microkernel"}
     if composition is True:
         manifest["composition"] = "composition.json"
         (root / "composition.json").write_text(
