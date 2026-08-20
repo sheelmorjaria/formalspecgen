@@ -201,7 +201,10 @@ def test_demo_bundle_mints_m50_claims():
     assert "MPSC_BOUNDED_PARTITION_PROVED" in claims
     assert "IPC_ENDPOINT_TABLE_PROVED" in claims
     assert "SYSCALL_BOUNDARY_PROVED" in claims
-    assert len(bundle["claims"]) == 23
+    # 23 through M50; +1 when the M53 Kani refinement lane proves
+    assert len(bundle["claims"]) in (23, 24)
+    if "RUST_WITNESS_REFINEMENT_PROVED" in claims:
+        assert len(bundle["claims"]) == 24
 
 
 def test_mpsc_judge_more_residuals(tmp_path):

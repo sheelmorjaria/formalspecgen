@@ -28,6 +28,7 @@ from pathlib import Path
 
 from .dma_isolation import dma_isolation
 from .ipc_nameserver import verify_ipc_table
+from .kani_refinement import verify_rust_refinement
 from .kernel_composition import verify_composition
 from .lockfree import verify_lockfree, verify_mpsc
 from .mmu_isolation import verify_spatial_isolation
@@ -353,6 +354,24 @@ def verify_kernel(kernel_dir: str | Path,
         else:
             fail({"claim": "IPC_ENDPOINT_TABLE_PROVED",
                   "source": str(ipc_artifact),
+                  "code": verdict.get("code"),
+                  "message": verdict.get("message", "")})
+
+    # --- M53: the Kani refinement lane — the image's own Rust -------
+    kani_dir = manifest.get("kani_proofs")
+    if kani_dir is not None:
+        verdict = verify_rust_refinement(root / str(kani_dir))
+        if verdict["status"] == "RUST_WITNESS_REFINEMENT_PROVED":
+            mint("RUST_WITNESS_REFINEMENT_PROVED",
+                 "bounded_nondet_operation_sequences", None,
+                 str(kani_dir), judge="kani")
+        elif verdict.get("code") == "kani_unavailable":
+            pending("RUST_WITNESS_REFINEMENT_PROVED",
+                    "bounded_nondet_operation_sequences", None,
+                    str(kani_dir), "kani")
+        else:
+            fail({"claim": "RUST_WITNESS_REFINEMENT_PROVED",
+                  "source": str(kani_dir),
                   "code": verdict.get("code"),
                   "message": verdict.get("message", "")})
 

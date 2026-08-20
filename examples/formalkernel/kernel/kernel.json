@@ -7,5 +7,6 @@
   "composition": "composition.json",
   "mmu": "mmu.json",
   "syscalls": "syscalls.json",
-  "ipc": "ipc.json"
+  "ipc": "ipc.json",
+  "kani_proofs": "../boot/proofs"
 }
