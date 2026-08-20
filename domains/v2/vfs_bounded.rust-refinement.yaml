@@ -1,0 +1,38 @@
+schema_version: 1
+lane: M55_vfs
+deliverable: 4
+status: VERIFIED
+claims: [SOURCE_MODEL_REFINEMENT, HARDWARE_MEMORY_BOUND_PROVED]
+scope: v2_atomic_contract_refinement
+language: rust
+judge:
+  name: Prusti
+  version: 0.2.2
+  verified_items: 9
+  result: VERIFIED
+hardware_judge:
+  name: Z3
+  version: 4.8.12
+  encoding_sha256: b3854651fb9b023f0991c0f044a88c9f41bd8ed01437a5a479a3f1e2b9e23a19
+  capacity_bound: 4
+  hardware_safe_capacity: 6912
+  struct_size_bytes: 16
+  memory_footprint_bytes: 64
+  sram_budget_bytes: 110592
+  result: VERIFIED
+bindings:
+  accepted_candidate_sha256: 0f5ca07b2412edc5056744ea69563aae161484602c1d595f8c353ac0481687f4
+  accepted_evidence_sha256: 3f8b6146bb4f6c14d4f4f861c41cc1d95f6bded62cb1eb57f3bd974e6a8f1f91
+  trusted_contract_sha256: 16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00
+  implementation_sha256: 16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00
+  certificate_sha256: 140a92d89c0b45714088ec7febb1aafeabc8e2572d422d119b34769d19e50687
+obligations:
+- {operation: open, status: PROVED}
+- {operation: close, status: PROVED}
+- {operation: read, status: PROVED}
+- {operation: write, status: PROVED}
+static_pool_materialized: true
+maturity: production
+step_status: complete
+locked_claims: []
+production: true

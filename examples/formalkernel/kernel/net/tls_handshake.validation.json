@@ -1,0 +1,18 @@
+{
+  "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+  "cryptographic_strength_proved": false,
+  "distinct_states": 5,
+  "generated_tla_sha256": "afee43942b9a5002fd8fed55d071f9e535392d69e60c9510936f6418e49276c9",
+  "judge": "tlc",
+  "mbedtls_implementation_refinement_proved": false,
+  "properties": [
+    "DEADLOCK_FREE",
+    "STATE_INITIALIZED",
+    "TERMINAL_REACHABILITY"
+  ],
+  "source_sha256": "cbc61866bf7a7a1eca4b1d9ff5d8b2b7f3fe1d0a62432df7db2811a365cc513e",
+  "states_generated": 9,
+  "status": "TLS_HANDSHAKE_MODEL_PROVED",
+  "tlc_version": "2.19 of 08 August 2024",
+  "transcript_authenticity_proved": false
+}

@@ -1,0 +1,18 @@
+{
+  "external_adapter": "liboqs",
+  "algorithms": ["ML-KEM-768", "ML-DSA-65"],
+  "capacity": 2,
+  "profile_budgets": {"n150": 49152, "r52": 49152},
+  "alignment_bytes": 64,
+  "session_components_bytes": {
+    "kem_public_key": 1184,
+    "kem_secret_key": 2400,
+    "kem_ciphertext": 1088,
+    "signature_public_key": 1952,
+    "signature_secret_key": 4032,
+    "signature": 3309,
+    "tls_workspace": 8192
+  },
+  "source": "pq_tls_pool.rs",
+  "source_sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"
+}

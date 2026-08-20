@@ -1,4 +1,4 @@
-# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M54)
+# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M60)
 
 TDD plan for building a hybrid-kernel development flow on top of the
 M36–M40 OS verification framework. Governing rule, unchanged: *The LLM
@@ -234,8 +234,142 @@ carrying any boundary lane (mmu/syscalls/ipc) refuses
 monolith.json` mints the 19-claim monolithic bundle (boundary claims
 omitted; the note says the driver is the kernel — containment does not
 exist) from the SAME sources as the 24-claim microkernel bundle. The
-anti-drift guarantee is a test: the monolith's claims are a strict
-subset and every shared claim is the byte-identical tuple.
+anti-drift guarantee is a test: every shared claim is the byte-identical
+tuple. M60 introduces one deliberate, registry-declared divergence:
+microkernels mint the EL0 preemption scope while monoliths mint only the
+cooperative EL1 chunk bound.
+
+### M55 — VFS portability lane (deliverables 1–2 of 4)
+
+`domains/candidates/vfs.v2.yaml` is the unreviewed bounded inode-cache
+candidate. Its four operations (`open`, `close`, `read`, `write`) preserve a
+four-inode pool through the explicit `inode_count + free_list_head = 4`
+conservation invariant; `close` is the recycle path. Deterministic traversal
+currently reaches 123 states and 492 transitions within a 6,375-state ceiling.
+
+This deliverable mints **no claim** and publishes no validation envelope. The
+capability registry fixes `M55_vfs` at step 1 and maturity `scaffold`; doctor
+shows `BOUNDED_ARCHITECTURE_EVIDENCE`, `SOURCE_MODEL_REFINEMENT`, and
+`HARDWARE_MEMORY_BOUND_PROVED` as locked. Real TLC plus human promotion belong
+to deliverable 3. Rust/Prusti refinement and the hardware-bound proof belong to
+deliverable 4; only that final hash-bound gate may transition the lane to
+`production`.
+
+Deliverable 2 adds a repository-local synthetic legacy-C fixture under
+`tests/fixtures/legacy_vfs`. `analyze-codebase` joins the header declaration
+and C operations, derives the declared capacity of four, and translates
+`list_add`/`list_del` into bounded `size` effects. It separately refuses the
+RB-tree, hash-bucket, and pointer-to-pointer alias shapes with
+`UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW`. The human mapping record at
+`domains/candidates/vfs.legacy-mapping.yaml` explains which scalar state
+represents occupancy and which semantics remain outside the candidate. It is
+itself `unreviewed`, carries `NO_PROOF`, and keeps all three M55 claims locked.
+
+Deliverable 3 ran real TLC 2.19 against candidate SHA-256
+`4e6af210144c55aa71df996c02a16ec58e6639e615fb17a6fcc9310637215132`.
+The hash-bound envelope records 123 reachable states, 492 transitions, a
+6,375-state ceiling, and TLC exit status zero. Explicit human promotion wrote
+the separate reviewed artifact `domains/v2/vfs.json`; the lane is now Step 3
+and `bounded-evidence`. Only `BOUNDED_ARCHITECTURE_EVIDENCE` is available.
+`SOURCE_MODEL_REFINEMENT`, `HARDWARE_MEMORY_BOUND_PROVED`, and `production`
+remain locked behind Deliverable 4.
+
+Deliverable 4 is complete. The corrected hardware lane distinguishes the
+four-element logical inode pool from the profile-derived safe ceiling of
+6,912 elements. Real Z3 4.8.12 proved that the 64-byte pool cannot exceed the
+110,592-byte SRAM safety budget; the encoding hash is
+`b3854651fb9b023f0991c0f044a88c9f41bd8ed01437a5a479a3f1e2b9e23a19`.
+Real TLC then revalidated candidate
+`0f5ca07b2412edc5056744ea69563aae161484602c1d595f8c353ac0481687f4`
+at 123 states / 492 transitions before explicit replacement promotion.
+Deterministic Rust lowering materializes `slots: [bool; 4]`; Prusti 0.2.2
+verified all 9 items and all four action refinements under certificate
+`140a92d89c0b45714088ec7febb1aafeabc8e2572d422d119b34769d19e50687`.
+The lane is `production` with all three claims available. Both deployment
+manifests include the fail-closed VFS formal-domain bundle; full verification
+produces 27 microkernel and 22 monolithic entries, including the TLC, Prusti,
+and Z3 VFS claims.
+
+### M56 — confined virtio-blk driver boundary
+
+`examples/formalkernel/kernel/vfs/virtio_blk.rs` is a rustfmt-clean,
+statically checked EL0 adapter with a two-request admission bound. It is
+permanently marked `UNVERIFIED EXTERNAL BOUNDARY`: virtio device semantics,
+interrupt delivery, and external I/O correctness are not proved. The adapter
+receives only a `BlockSyscall` capability and buffer identifiers, never a
+physical address.
+
+The mechanical claims live around it. Syscall 103 names only the kernel-owned
+`blk_ring`; the storage IPC endpoint receives two statically partitioned MPSC
+slots; and `virtio_blk_dma.c` maps one literal 512-byte request within each
+profile's `blk_dev` contract, disjoint from every kernel pool. `verify-kernel`
+hashes and statically checks the adapter before emitting the boundary marker.
+The microkernel bundle reports `UNVERIFIED_EXTERNAL_ADAPTER` plus its DMA,
+syscall, and IPC confinement claims. The monolith honestly reports
+`UNVERIFIED_IN_KERNEL_DRIVER`, no syscall/IPC containment, and that an
+in-kernel driver fault may crash the kernel.
+
+### M57 — bounded ELF process loader
+
+The microkernel manifest binds `elf_loader.json` to the production VFS read
+capability and to a panic-free Rust ELF64/AArch64 parser. The parser accepts at
+most four `PT_LOAD` entries, checks all offset arithmetic, rejects overlapping
+segments and writable-executable mappings, and requires the entry point to lie
+inside executable memory. The deterministic gate maps ELF `PF_X`/`PF_W` flags
+exactly to M48 `UXN`/`AP` declarations and reuses spatial-isolation range
+arithmetic for every hardware profile.
+
+The resulting `ELF_SEGMENT_LAYOUT_PROVED` and
+`ELF_PERMISSION_CORRESPONDENCE_PROVED` claims cover bounded parsing and the
+declared mapping plan only. Hardware page-table walking and the `ERET`
+EL1-to-EL0 transition remain named `judge_pending` boundaries for M62. The
+monolithic manifest cannot carry this lane and records
+`EL0_PROCESS_LOADER_OMITTED` instead of minting user-process claims.
+
+### M58 — bounded post-quantum TLS pool
+
+The shared network subsystem declares the byte footprint of its ML-KEM-768,
+ML-DSA-65, and TLS workspace inputs in `net/pq_tls.json`. Each hardware target
+owns a 49,152-byte TLS budget. A real Z3 query proves that two aligned 22,208-byte
+sessions fit (44,416 bytes) and that a third cannot fit (66,624 bytes), making
+two the exact concurrent-handshake ceiling rather than a heuristic bound.
+
+The hash-bound Rust admission ledger contains exactly two static slots and
+returns `ERR_MEM` after they are occupied. Both deployment bundles mint a
+profile-scoped `HARDWARE_MEMORY_BOUND_PROVED` entry. The `liboqs` adapter remains
+outside the proof boundary with `cryptographic_strength_proved: false` and
+`liboqs_implementation_proved: false`; this lane proves resource containment,
+not ML-KEM/ML-DSA security or third-party implementation correctness.
+
+### M59 — bounded cryptographic handshake state machine
+
+The Rosetta lane binds a five-state mbedTLS-style C control-flow fixture to a
+deterministically rendered TLA+ model. Real TLC 2.19 explores five distinct
+states (nine generated states) and checks deadlock freedom, initialized-state
+safety, and weak-fair terminal reachability. Both successful establishment and
+explicit failure are terminal outcomes; the model never assumes an opaque
+cryptographic operation succeeds.
+
+The published TLC envelope binds the source SHA-256 and generated-TLA SHA-256.
+Both deployment bundles receive `BOUNDED_ARCHITECTURE_EVIDENCE` for the shared
+control graph. `TLS_TRANSCRIPT_AUTHENTICITY_PROVED`, cryptographic strength,
+and native mbedTLS/liboqs implementation refinement remain forbidden; those
+properties cannot be inferred from finite control-state exploration.
+
+### M60 — PQ workload WCET and deployment-split preemption
+
+The NTT timing witness binds eight layers of 128 butterflies to each profile's
+human-owned instruction-cost model. In the microkernel, PQ work remains at EL0:
+the claim bounds the hash-bound EL1 scheduler handler (68 cycles on N150 and
+133 on R52), independently of total user workload time. Physical interrupt
+delivery remains unproved.
+
+The monolith receives no preemptive-isolation claim. Its shared source has one
+hash-bound cooperative yield per layer, so the multiplicative cost gate bounds
+the largest non-yielding chunk at 3,456 cycles on N150 and 5,760 on R52. These
+are `PQ_COOPERATIVE_WCET_BOUND_PROVED` scopes, not microkernel preemption
+evidence. The registry forbids both hardware interrupt-delivery proof and any
+monolithic preemptive-isolation claim.
 
 ## Evidence lattice shipped per subsystem
 

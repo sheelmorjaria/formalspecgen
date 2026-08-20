@@ -1,0 +1,154 @@
+schema_version: 2
+review_status: unreviewed
+domain_name: VfsInodeCache
+module_name: vfs
+actors: 1
+execution_model: null
+concurrency: null
+state_variables:
+- kind: int
+  name: inode_count
+  bound: [0, 4]
+  initial: 0
+- kind: int
+  name: free_list_head
+  bound: [0, 4]
+  initial: 4
+- kind: int
+  name: open_handle_count
+  bound: [0, 4]
+  initial: 0
+- kind: int
+  name: cached_bytes
+  bound: [0, 16]
+  initial: 0
+operations:
+- name: open
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: inode_capacity_available
+    expression:
+      kind: lt
+      left: {kind: field, name: inode_count}
+      right: {kind: integer, value: 4}
+  - id: free_inode_available
+    expression:
+      kind: gt
+      left: {kind: field, name: free_list_head}
+      right: {kind: integer, value: 0}
+  effects:
+  - id: allocate_inode
+    target: inode_count
+    value:
+      kind: add
+      left: {kind: field, name: inode_count}
+      right: {kind: integer, value: 1}
+  - id: advance_free_list
+    target: free_list_head
+    value:
+      kind: sub
+      left: {kind: field, name: free_list_head}
+      right: {kind: integer, value: 1}
+  - id: allocate_handle
+    target: open_handle_count
+    value:
+      kind: add
+      left: {kind: field, name: open_handle_count}
+      right: {kind: integer, value: 1}
+  frame: [inode_count, free_list_head, open_handle_count]
+  exception_type: null
+  exception_trigger: null
+- name: close
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: handle_is_open
+    expression:
+      kind: gt
+      left: {kind: field, name: open_handle_count}
+      right: {kind: integer, value: 0}
+  effects:
+  - id: release_handle
+    target: open_handle_count
+    value:
+      kind: sub
+      left: {kind: field, name: open_handle_count}
+      right: {kind: integer, value: 1}
+  - id: recycle_inode
+    target: inode_count
+    value:
+      kind: sub
+      left: {kind: field, name: inode_count}
+      right: {kind: integer, value: 1}
+  - id: restore_free_list
+    target: free_list_head
+    value:
+      kind: add
+      left: {kind: field, name: free_list_head}
+      right: {kind: integer, value: 1}
+  frame: [open_handle_count, inode_count, free_list_head]
+  exception_type: null
+  exception_trigger: null
+- name: read
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: readable_handle_exists
+    expression:
+      kind: gt
+      left: {kind: field, name: open_handle_count}
+      right: {kind: integer, value: 0}
+  effects: []
+  frame: []
+  exception_type: null
+  exception_trigger: null
+- name: write
+  return_type: boolean
+  failure_semantics: false_and_stutter
+  guards:
+  - id: writable_handle_exists
+    expression:
+      kind: gt
+      left: {kind: field, name: open_handle_count}
+      right: {kind: integer, value: 0}
+  - id: cache_capacity_available
+    expression:
+      kind: lt
+      left: {kind: field, name: cached_bytes}
+      right: {kind: integer, value: 16}
+  effects:
+  - id: cache_one_byte
+    target: cached_bytes
+    value:
+      kind: add
+      left: {kind: field, name: cached_bytes}
+      right: {kind: integer, value: 1}
+  frame: [cached_bytes]
+  exception_type: null
+  exception_trigger: null
+tlc_invariants:
+- id: inode_pool_conservation
+  expression:
+    kind: eq
+    left:
+      kind: add
+      left: {kind: field, name: inode_count}
+      right: {kind: field, name: free_list_head}
+    right: {kind: integer, value: 4}
+- id: handles_are_backed_by_inodes
+  expression:
+    kind: lte
+    left: {kind: field, name: open_handle_count}
+    right: {kind: field, name: inode_count}
+- id: cached_bytes_are_bounded
+  expression:
+    kind: and
+    left:
+      kind: gte
+      left: {kind: field, name: cached_bytes}
+      right: {kind: integer, value: 0}
+    right:
+      kind: lte
+      left: {kind: field, name: cached_bytes}
+      right: {kind: integer, value: 16}

@@ -72,7 +72,10 @@ CHECK_DEADLOCK FALSE"""
 
 
 from .inventory_extract import recognizes_inventory, extract_inventory_model
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 INVENTORY_PLUGIN = DomainPlugin("inventory", recognizes_inventory,
-                                extract_inventory_model, render_inventory)
+    extract_inventory_model, render_inventory,
+    maturity=DomainMaturity.BOUNDED_EVIDENCE,
+    evidence_ceiling="BOUNDED_ARCHITECTURE_EVIDENCE",
+    maturity_note="Reviewed deterministic source-to-TLA adapter; source refinement remains unproved.")

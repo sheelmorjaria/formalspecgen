@@ -176,6 +176,7 @@ def correct_behavior(target: str, cwe: str, out_dir: str = "corrections",
                      max_attempts: int = 3, strategy: str | None = None,
                      hardware: str | None = None,
                      struct_size_bytes: int | None = None,
+                     pool_field: str | None = None,
                      auto_strategy: bool = False) -> dict[str, Any]:
     """Strengthen a contract per CWE and prove the corrected behavior with ESC.
 
@@ -191,7 +192,8 @@ def correct_behavior(target: str, cwe: str, out_dir: str = "corrections",
         _workspace_path(target), cwe, _workspace_path(out_dir, must_exist=False),
         provider=provider, model=model, max_attempts=max_attempts,
         strategy=strategy, hardware=profile,
-        struct_size_bytes=struct_size_bytes, auto_strategy=auto_strategy))
+        struct_size_bytes=struct_size_bytes, pool_field=pool_field,
+        auto_strategy=auto_strategy))
 
 
 def architecture(stub_path: str, abstraction: str = "atomic_operations",
@@ -492,21 +494,32 @@ def resolve_callbacks(source: str) -> dict[str, Any]:
         _workspace_path(source).read_text(encoding="utf-8")))
 
 
+def verify_kernel(kernel_dir: str, profile: list[str],
+                  manifest: str = "kernel.json") -> dict[str, Any]:
+    """Run the OS evidence lattice for an explicit deployment manifest.
+
+    Each profile is human-owned input. Absent judges remain named
+    ``judge_pending`` entries and are never promoted into minted claims.
+    """
+    from pipeline.kernel_lattice import verify_kernel as run_kernel
+    def run() -> dict[str, Any]:
+        root = _workspace_path(kernel_dir)
+        if Path(manifest).name != manifest:
+            raise ValueError("manifest must be a filename inside kernel_dir")
+        resolved_profiles = [_workspace_path(item) for item in profile]
+        return run_kernel(root, resolved_profiles, manifest_name=manifest)
+    return _guarded(run)
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
     server = FastMCP("FormalSpecGen")
-    for tool in (verify_code, validate_architecture, implement_code, inspect_code,
-                 analyze_codebase, document_code, assess_security, security_inspect,
-                 security_exploit, remediate_code, correct_behavior, apply_refactor,
-                 verify_refactor, verify_bisimulation, optimize_algorithm,
-                 discover_algorithms, validate_domain, compose, reverify_composition,
-                 unified_system, draft_canonical_contract, architecture, system,
-                 prove_equivalence, generate_traceability_matrix, verify_unbounded,
-                 verify_linearizability, verify_distributed, verify_heap,
-                 verify_hal, macro_translate, verify_lockfree,
-                 verify_weak_memory, verify_wcet, verify_liveness,
-                 verify_dma, extract_intrusive_list, resolve_callbacks):
+    from pipeline.capability_registry import mcp_capabilities
+    for capability in mcp_capabilities():
+        tool = globals().get(capability.mcp_tool or "")
+        if not callable(tool):
+            raise RuntimeError(f"registered MCP binding is missing: {capability.mcp_tool}")
         server.tool()(tool)
     return server
 

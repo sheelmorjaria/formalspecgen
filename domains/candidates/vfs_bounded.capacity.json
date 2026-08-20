@@ -1,0 +1,41 @@
+{
+  "status": "CAPACITY_BOUND_CANDIDATE_GENERATED",
+  "claim": "NO_PROOF",
+  "claims": [
+    "CAPACITY_BOUNDING_APPLIED"
+  ],
+  "mitigated_cwe": "CWE-400",
+  "strategy": "bounded-pool",
+  "target": "domains/candidates/vfs.v2.yaml",
+  "bounded_candidate": "domains/candidates/vfs_bounded.v2.yaml",
+  "hardware": {
+    "target": "formalkernel-demo",
+    "usable_sram_bytes": 122880,
+    "max_stack_depth_bytes": 4096,
+    "word_size_bytes": 4,
+    "struct_size_bytes": 16,
+    "safety_margin": 0.9,
+    "derived_capacity": 6912
+  },
+  "derived_capacity": 6912,
+  "struct_size_bytes": 16,
+  "clamped_fields": [],
+  "gained_bounds": [],
+  "memory_footprint_bytes": 64,
+  "hardware_proof": {
+    "status": "VERIFIED",
+    "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+    "solver": "z3",
+    "solver_version": "Z3 version 4.8.12 - 64 bit",
+    "encoding_sha256": "b3854651fb9b023f0991c0f044a88c9f41bd8ed01437a5a479a3f1e2b9e23a19",
+    "capacity_bound": 4,
+    "struct_size_bytes": 16,
+    "memory_footprint_bytes": 64,
+    "sram_budget_bytes": 110592
+  },
+  "next_steps": [
+    "validate-domain parser_bounded --project-root <root>",
+    "promote-domain parser_bounded --accept-candidate-sha256 <hash>",
+    "draft \"...\" --canonical-domain parser_bounded --lang rust"
+  ]
+}

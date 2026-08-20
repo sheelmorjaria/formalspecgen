@@ -9,7 +9,9 @@ from typing import Any
 from . import cwe_registry
 from .verify import verify
 
-_SECURITY_DIR = Path(__file__).resolve().parents[1] / "security"
+from . import config
+
+_SECURITY_DIR = config.resource_path("security")
 _SAST_CONFIGS = {".java": _SECURITY_DIR / "java_custom.yml",
                  ".c": _SECURITY_DIR / "c_custom.yml",
                  ".h": _SECURITY_DIR / "c_custom.yml",

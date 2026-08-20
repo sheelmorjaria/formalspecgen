@@ -18,9 +18,11 @@ def generate_and_check(code: str, provider: str = "glm", max_format_attempts: in
                        clarifications: str = "", abstraction: str | None = None) -> dict:
     del provider, max_format_attempts  # Source serialization never depends on an LLM.
     from .domains.registry import PLUGINS
-    from .domains.router import AmbiguousDomain, UnsupportedDomain, select_domain
+    from .domains.router import (AmbiguousDomain, DomainMaturity,
+                                 UnsupportedDomain, select_domain)
     try:
-        plugin = select_domain(code, PLUGINS)
+        plugin = select_domain(code, PLUGINS,
+                               minimum_maturity=DomainMaturity.BOUNDED_EVIDENCE)
     except (UnsupportedDomain, AmbiguousDomain) as exc:
         details = []
         if isinstance(exc, UnsupportedDomain):

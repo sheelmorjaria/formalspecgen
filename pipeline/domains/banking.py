@@ -5,7 +5,7 @@
 from ..extract_tla_ir import extract_banking_model
 from ..tla_backend import detect_banking_boundary
 from ..tla_ir import render_banking_model
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 
 BANKING_PLUGIN = DomainPlugin(
@@ -13,4 +13,7 @@ BANKING_PLUGIN = DomainPlugin(
     recognizes=detect_banking_boundary,
     extract=extract_banking_model,
     render=render_banking_model,
+    maturity=DomainMaturity.BOUNDED_EVIDENCE,
+    evidence_ceiling="BOUNDED_ARCHITECTURE_EVIDENCE",
+    maturity_note="Reviewed deterministic source-to-TLA adapter; source refinement remains unproved.",
 )

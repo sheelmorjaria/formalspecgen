@@ -18,9 +18,11 @@ def verify_cpp(file_path: str | Path, timeout: int = 180, unwind: int = 5) -> di
             timeout, language="cpp", unwind=unwind)
     source = path.read_text(encoding="utf-8")
     class_match = re.search(r"\bclass\s+([A-Za-z_]\w*)\s*\{", source)
-    if class_match is None:
+    has_entry_point = re.search(r"\b(?:int|auto)\s+main\s*\(", source) is not None
+    if class_match is None or has_entry_point:
         # Preserve generic C++ verification for translation units that already
-        # provide their own main entry point.
+        # provide their own main entry point. Including such a unit in another
+        # generated harness would redefine main and prevent the judge running.
         return _run_esbmc(
             ["esbmc", str(path), "--unwind", str(unwind),
              "--memory-leak-check", "--force-malloc-success", "--z3"],

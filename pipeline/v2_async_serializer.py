@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from . import config
 from .domain_v2_promotion import ReviewedDomainSpecV2
 
 
@@ -54,7 +55,7 @@ def check_tokio_scaffold(code: str, timeout: int = 60) -> dict:
             'edition="2021"\n\n[dependencies]\nrayon="=1.11.0"\n'
             'tokio={version="=1.49.0",features=["sync"]}\n',
             encoding="utf-8")
-        lockfile = Path(__file__).resolve().parents[1] / "ci" / "rust-deps" / "Cargo.lock"
+        lockfile = config.resource_path("ci", "rust-deps", "Cargo.lock")
         if lockfile.is_file():
             (root / "Cargo.lock").write_text(lockfile.read_text(encoding="utf-8"), encoding="utf-8")
         (root / "src" / "lib.rs").write_text(code, encoding="utf-8")

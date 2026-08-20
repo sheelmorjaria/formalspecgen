@@ -39,6 +39,17 @@ operations:
         target: moving_state
         value: {kind: integer, value: 1}
     frame: [moving_state]
+  - name: finishMove
+    return_type: void
+    failure_semantics: unavailable
+    guards:
+      - id: moving_is_up
+        expression: {kind: eq, left: {kind: field, name: moving_state}, right: {kind: integer, value: 1}}
+    effects:
+      - id: set_moving_stopped
+        target: moving_state
+        value: {kind: integer, value: 0}
+    frame: [moving_state]
 tlc_invariants:
   - id: DoorsClosedWhileMoving
     expression:

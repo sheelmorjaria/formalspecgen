@@ -1,6 +1,6 @@
 {
   "deployment": "monolithic",
-  "subsystems": ["scheduler", "net", "ipc"],
+  "subsystems": ["scheduler", "net", "ipc", "vfs"],
   "composition": "composition.json",
   "kani_proofs": "../boot/proofs"
 }

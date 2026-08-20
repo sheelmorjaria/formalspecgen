@@ -1,0 +1,10 @@
+{
+  "dma": ["virtio_blk_dma.c"],
+  "external_adapter": "virtio_blk.rs",
+  "formal_domain": {
+    "reviewed": "../../../../domains/v2/vfs_bounded.json",
+    "validation": "../../../../domains/candidates/vfs_bounded.v2.validation.json",
+    "refinement": "../../../../domains/v2/vfs_bounded.rust-refinement.yaml",
+    "source": "../../../../Vfs.rs"
+  }
+}

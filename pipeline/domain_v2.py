@@ -256,6 +256,13 @@ class DomainSpecV2(_StrictModel):
     # capacity this machine was clamped to. Downstream lowering may
     # materialize a static pool of exactly this size.
     capacity_bound: int | None = None
+    # When a pre-bounded logical pool is smaller than the silicon ceiling,
+    # retain both values. ``capacity_bound`` is the allocation actually
+    # materialized; this is the profile-derived maximum it was proved under.
+    hardware_safe_capacity: int | None = None
+    pool_counter: str | None = None
+    hardware_profile_sha256: str | None = None
+    hardware_proof_sha256: str | None = None
     # Provenance for the capacity derivation: the per-element byte size the
     # profile was divided by. With capacity_bound it lets downstream verdicts
     # state the exact memory footprint (capacity x struct bytes).
@@ -289,6 +296,29 @@ class DomainSpecV2(_StrictModel):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} must be unique")
         declared = set(groups["state variables"])
+        hardware_fields = (self.capacity_bound, self.hardware_safe_capacity,
+                           self.pool_counter, self.hardware_profile_sha256,
+                           self.hardware_proof_sha256, self.struct_size_bytes)
+        extended_hardware_fields = (self.hardware_safe_capacity,
+                                    self.pool_counter,
+                                    self.hardware_profile_sha256,
+                                    self.hardware_proof_sha256)
+        if any(value is not None for value in extended_hardware_fields):
+            if any(value is None for value in hardware_fields):
+                raise ValueError("hardware pool metadata must be complete")
+            if self.capacity_bound <= 0 or self.struct_size_bytes <= 0:
+                raise ValueError("hardware pool capacity and element size must be positive")
+            if self.capacity_bound > self.hardware_safe_capacity:
+                raise ValueError("logical pool exceeds hardware-safe capacity")
+            if not re.fullmatch(r"[0-9a-f]{64}", self.hardware_profile_sha256):
+                raise ValueError("hardware profile hash must be SHA-256")
+            if not re.fullmatch(r"[0-9a-f]{64}", self.hardware_proof_sha256):
+                raise ValueError("hardware proof hash must be SHA-256")
+            pool = next((item for item in self.state_variables
+                         if item.name == self.pool_counter), None)
+            if not isinstance(pool, IntStateVariable) or \
+                    pool.bound[1] != self.capacity_bound:
+                raise ValueError("pool_counter must be bounded at capacity_bound")
         if self.execution_model == "async_message_passing":
             if self.actors < 2:
                 raise ValueError("async message passing requires at least two actors")

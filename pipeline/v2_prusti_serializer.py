@@ -135,6 +135,20 @@ def _pool_counter(reviewed) -> str | None:
     """
     if getattr(reviewed, "capacity_bound", None) is None:
         return None
+    explicit = getattr(reviewed, "pool_counter", None)
+    if explicit is not None:
+        variable = next((item for item in reviewed.state_variables
+                         if item.name == explicit), None)
+        if (not isinstance(variable, IntStateVariable)
+                or variable.bound[1] != reviewed.capacity_bound):
+            raise UnsupportedPrustiBoundary(
+                "explicit pool_counter must be an integer bounded at capacity_bound")
+        for operation in reviewed.operations:
+            for effect in operation.effects:
+                if effect.target == explicit and _counter_step(effect) is None:
+                    raise UnsupportedPrustiBoundary(
+                        "explicit pool_counter has a non-unit effect")
+        return explicit
     counters: list[str] = []
     for variable in reviewed.state_variables:
         if (not isinstance(variable, IntStateVariable)
@@ -265,14 +279,18 @@ def render_struct(reviewed: ReviewedDomainSpecV2) -> str:
     lines.extend([
         f"    #[ensures({constructor_contract})]",
         "    pub fn new() -> Self {",
-        "        Self { " +
-        ", ".join(
-            f"{variable.name}: " +
-            (("true" if variable.initial else "false")
-             if isinstance(variable, BoolStateVariable) else str(variable.initial))
-            for variable in reviewed.state_variables) +
-        (f", {pool_name}: [false; {reviewed.capacity_bound}]"
-         if pool_counter is not None else "") + " }",
+        "        Self {",
+    ])
+    lines.extend(
+        f"            {variable.name}: " +
+        (("true" if variable.initial else "false")
+         if isinstance(variable, BoolStateVariable) else str(variable.initial)) + ","
+        for variable in reviewed.state_variables)
+    if pool_counter is not None:
+        lines.append(
+            f"            {pool_name}: [false; {reviewed.capacity_bound}],")
+    lines.extend([
+        "        }",
         "    }",
     ])
     for variable in reviewed.state_variables:

@@ -448,6 +448,7 @@ def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
                               strategy=getattr(args, "strategy", None),
                               hardware=getattr(args, "hardware", None),
                               struct_size_bytes=getattr(args, "struct_size_bytes", None),
+                              pool_field=getattr(args, "pool_field", None),
                               auto_strategy=getattr(args, "auto_strategy", False))
     _write_json(result, args.json or str(Path(args.out_dir) / "correction_verdict.json"), ui.console)
     ui.console.print(f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}")
@@ -607,6 +608,51 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     if result.get("document"):
         ui.console.print(f"Document: {result['document']}")
     return 0 if result["status"] == "DOCUMENTED" else 1
+
+
+def command_doctor(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Report judge readiness without minting verification evidence."""
+    from .doctor import inspect_environment, required_failures
+    report = inspect_environment()
+    failures = required_failures(report, args.require)
+    report["required_failures"] = failures
+    if args.json:
+        if args.json == "-":
+            ui.console.print_json(data=report)
+        else:
+            _write_json(report, args.json, ui.console)
+    else:
+        table = Table(title="FormalSpecGen judge readiness")
+        table.add_column("Judge")
+        table.add_column("Status")
+        table.add_column("Evidence ceiling")
+        for item in report["capabilities"]:
+            enabled = ", ".join(item["claims_enabled"])
+            ceiling = enabled if item["status"] == "READY" else f"judge_pending:{item['judge_pending']}"
+            table.add_row(item["name"], item["status"], ceiling)
+        ui.console.print(table)
+        ui.console.print("[dim]Readiness is not verification evidence; doctor always reports claim=NO_PROOF.[/dim]")
+        for item in report["capabilities"]:
+            if item.get("message"):
+                ui.console.print(f"[yellow]{item['name']}:[/yellow] {escape(item['message'])}")
+        domains = Table(title="Domain adapter maturity")
+        domains.add_column("Domain")
+        domains.add_column("Maturity")
+        domains.add_column("Evidence ceiling")
+        for domain in report["domains"]:
+            domains.add_row(domain["name"], domain["maturity"], domain["evidence_ceiling"])
+        ui.console.print(domains)
+        lanes = Table(title="Milestone lane readiness")
+        lanes.add_column("Lane")
+        lanes.add_column("Step")
+        lanes.add_column("Maturity")
+        lanes.add_column("Status")
+        lanes.add_column("Locked claims")
+        for lane in report["lanes"]:
+            lanes.add_row(lane["lane"], str(lane["current_step"]), lane["maturity"],
+                          lane["status"], ", ".join(lane["claims_locked"]) or "none")
+        ui.console.print(lanes)
+    return 1 if failures or (args.strict and report["status"] != "READY") else 0
 
 
 def command_domain(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
@@ -1185,6 +1231,14 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--provider", choices=["glm", "openai", "ollama"], default="ollama")
     common.add_argument("--model")
 
+    doctor = sub.add_parser("doctor", help="report judge readiness and evidence ceilings")
+    doctor.add_argument("--json", nargs="?", const="-", metavar="PATH",
+                        help="write structured report to PATH, or stdout when omitted")
+    doctor.add_argument("--require", action="append", default=[], metavar="JUDGE",
+                        help="exit non-zero unless this judge is READY (repeatable)")
+    doctor.add_argument("--strict", action="store_true",
+                        help="exit non-zero on a misconfigured or broken installed judge")
+
     draft = sub.add_parser("draft", parents=[common], help="clarify NL and draft checked JML")
     draft.add_argument("requirement")
     draft.add_argument("--no-clarify", action="store_true")
@@ -1304,6 +1358,8 @@ def build_parser() -> argparse.ArgumentParser:
                                 "(SRAM/stack limits; mints HARDWARE_MEMORY_BOUND_PROVEN)")
     correction.add_argument("--struct-size-bytes", type=int,
                            help="explicit element size for --hardware capacity derivation")
+    correction.add_argument("--pool-field",
+                           help="bounded integer occupancy counter to materialize as a pool")
     correction.add_argument("--auto-strategy", action="store_true",
                            help="route the correction strategy from the code's own "
                                 "shape (deterministic; fails closed when nothing "
@@ -1418,22 +1474,8 @@ def build_parser() -> argparse.ArgumentParser:
     lockfree.add_argument("source", help="C .c pthread source (SPSC ring: "
                                          "buf + head/tail, one store each)")
     lockfree.add_argument("--json", dest="json_out", default=None)
-    kernel = sub.add_parser(
-        "verify-kernel",
-        help="M43: the multi-architecture evidence lattice — run the "
-             "M36-M39 gates over kernel.json per hardware profile")
-    kernel.add_argument("kernel_dir", help="directory containing "
-                                          "kernel.json + sources")
-    kernel.add_argument("--profile", action="append", required=True,
-                        metavar="PROFILE_JSON",
-                        help="human-owned hardware profile (repeatable: one "
-                             "evidence scope per profile)")
-    kernel.add_argument("--manifest", default="kernel.json",
-                        help="deployment profile manifest (M54): kernel.json "
-                             "= microkernel (all lanes), monolith.json = "
-                             "monolithic (boundary lanes omitted — a driver "
-                             "fault is a kernel fault, honestly)")
-    kernel.add_argument("--json", dest="json_out", default=None)
+    from .capability_registry import add_cli_parser
+    add_cli_parser(sub, "verify_kernel")
     dist = sub.add_parser("verify-distributed",
                           help="safety under injected network faults")
     dist.add_argument("domain", help="async_message_passing V2 domain (yaml/json)")
@@ -1548,6 +1590,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
              state: dict[str, Any]) -> int:
+    if args.command == "doctor": return command_doctor(args, ui)
     if args.command == "draft": return command_draft(args, ui, store, state)
     if args.command == "implement": return command_implement(args, ui)
     if args.command == "verify": return command_verify(args, ui)
@@ -1599,7 +1642,7 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     return 2
 
 
-_REPL_COMMANDS = {"draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
+_REPL_COMMANDS = {"doctor", "draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
                   "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
                   "verify-heap", "verify-hal", "verify-distributed",

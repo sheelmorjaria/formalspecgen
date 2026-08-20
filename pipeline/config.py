@@ -16,6 +16,13 @@ BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.pare
 ROOT = Path(os.environ.get("FORMALSPECGEN_HOME", str(BUNDLE_ROOT))).resolve()
 
 
+def resource_path(*parts: str) -> Path:
+    """Resolve immutable application data in source, target, or venv installs."""
+    relative = Path(*parts)
+    candidates = (ROOT / relative, Path(sys.prefix).resolve() / relative)
+    return next((path for path in candidates if path.exists()), candidates[0])
+
+
 def load_env(path=None):
     p = Path(path) if path else ROOT / ".env"
     if not p.exists():
@@ -65,7 +72,9 @@ JAVA_BIN = os.environ.get("JAVA_BIN", "java")
 PRUSTI_BIN = os.environ.get("PRUSTI_BIN", str(ROOT / "tools" / "prusti" / "prusti-rustc"))
 RUSTC_BIN = os.environ.get("RUSTC_BIN", "rustc")
 PRUSTI_TIMEOUT = int(os.environ.get("PRUSTI_TIMEOUT", "180"))
-KANI_BIN = os.environ.get("KANI_BIN", "cargo-kani")
+# The generic Kani lane appends the `kani` subcommand when using Cargo.
+# `cargo-kani` is the installed plugin binary, not the invocation contract.
+KANI_BIN = os.environ.get("KANI_BIN", "cargo")
 KANI_TIMEOUT = int(os.environ.get("KANI_TIMEOUT", "180"))
 FRAMAC_BIN = os.environ.get(
     "FRAMAC_BIN", str(ROOT / "tools" / "frama-c-33.0" / "bin" / "frama-c"))

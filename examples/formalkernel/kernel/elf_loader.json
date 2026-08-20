@@ -1,0 +1,39 @@
+{
+  "input_capability": "vfs.read",
+  "source": "loader/elf_loader.rs",
+  "source_sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1",
+  "file_size": 12288,
+  "max_load_segments": 4,
+  "elf_header": {
+    "magic": "7f454c46",
+    "class": "ELF64",
+    "endian": "little",
+    "type": "ET_EXEC",
+    "machine": "AARCH64",
+    "entry": 65536
+  },
+  "segments": [
+    {
+      "offset": 4096,
+      "file_size": 4096,
+      "memory_size": 4096,
+      "va": 65536,
+      "frame": 805918720,
+      "flags": 5,
+      "user": true,
+      "ap": "EL0_RO",
+      "uxn": false
+    },
+    {
+      "offset": 8192,
+      "file_size": 2048,
+      "memory_size": 4096,
+      "va": 69632,
+      "frame": 805922816,
+      "flags": 6,
+      "user": true,
+      "ap": "EL0_RW",
+      "uxn": true
+    }
+  ]
+}

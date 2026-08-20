@@ -158,7 +158,7 @@ def test_m3_constructor_and_getter():
     assert ("#[ensures(result.value == 0 && (0 <= result.value) && "
             "(result.value <= 5))]" in code)
     assert "    pub fn new() -> Self {" in code
-    assert "        Self { value: 0 }" in code
+    assert "        Self {\n            value: 0,\n        }" in code
     assert "#[pure]" in code
     assert "#[ensures(result == self.value)]" in code
     assert "    pub fn get_value(&self) -> i32 {" in code

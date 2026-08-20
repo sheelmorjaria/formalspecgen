@@ -2,5 +2,8 @@
   "weak_memory": ["rx_ring.c"],
   "lockfree": ["rx_ring.c"],
   "wcet": {"timer_tick.c": {}},
-  "dma": ["nic.c"]
+  "dma": ["nic.c"],
+  "pq_tls": "pq_tls.json",
+  "tls_handshake": "tls_handshake.json",
+  "pq_wcet": "pq_wcet.json"
 }

@@ -5,7 +5,7 @@ from .traffic_light_controller import (
     TrafficLightControllerTlaModel,
 )
 from .traffic_light_controller_extract import extract_traffic_light_controller_model, recognizes_traffic_light_controller
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 STATE_VARIABLES = 'ns_light, ew_light'
 CFG_INVARIANTS = 'INVARIANT NoSimultaneousGreenLights'
@@ -62,4 +62,7 @@ CHECK_DEADLOCK FALSE'''
 
 TRAFFIC_LIGHT_CONTROLLER_PLUGIN = DomainPlugin(
     'traffic_light_controller', recognizes_traffic_light_controller,
-    extract_traffic_light_controller_model, render_traffic_light_controller)
+    extract_traffic_light_controller_model, render_traffic_light_controller,
+    maturity=DomainMaturity.BOUNDED_EVIDENCE,
+    evidence_ceiling="BOUNDED_ARCHITECTURE_EVIDENCE",
+    maturity_note="Reviewed deterministic source-to-TLA adapter; source refinement remains unproved.")

@@ -46,6 +46,7 @@ def test_validation_measures_runs_tlc_and_publishes_bound_envelope(tmp_path):
     candidate = tmp_path / "counter.v2.yaml"; write_candidate(candidate)
     validation = tmp_path / "counter.validation.json"
     failure = tmp_path / "counter.validation_failed.json"
+    failure.write_text('{"validation_status":"VALIDATION_FAILED"}\n')
     evidence = validate_v2_candidate(
         candidate, validation, failure_path=failure, tlc_jar="tlc.jar",
         java="java", runner=successful_runner)

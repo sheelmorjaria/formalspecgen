@@ -14,7 +14,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-_MANIFEST = Path(__file__).resolve().parents[1] / "security" / "cwe_manifest.json"
+from . import config
+
+_MANIFEST = config.resource_path("security", "cwe_manifest.json")
 _CWE_ID = re.compile(r"^CWE-\d+$")
 _METHODS = {"formal", "sast", "manual"}
 _LANGUAGES = {"java", "rust", "c", "cpp"}

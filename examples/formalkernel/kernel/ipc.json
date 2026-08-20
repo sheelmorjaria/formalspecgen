@@ -1,6 +1,6 @@
 {
   "message_pool": {
-    "capacity": 4,
+    "capacity": 6,
     "slot_bytes": 8
   },
   "endpoints": [
@@ -15,6 +15,13 @@
       "name": "net_rx",
       "id": 102,
       "syscall": 102,
+      "lanes": 2,
+      "slots": 2
+    },
+    {
+      "name": "storage",
+      "id": 103,
+      "syscall": 103,
       "lanes": 2,
       "slots": 2
     }

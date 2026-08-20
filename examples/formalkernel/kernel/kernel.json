@@ -3,11 +3,13 @@
   "subsystems": [
     "scheduler",
     "net",
-    "ipc"
+    "ipc",
+    "vfs"
   ],
   "composition": "composition.json",
   "mmu": "mmu.json",
   "syscalls": "syscalls.json",
   "ipc": "ipc.json",
+  "elf_loader": "elf_loader.json",
   "kani_proofs": "../boot/proofs"
 }

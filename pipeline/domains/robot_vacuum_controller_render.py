@@ -2,7 +2,7 @@
 from ..extract_tla_ir import UnsupportedJmlSemantics
 from .robot_vacuum_controller import RobotVacuumControllerTlaModel
 from .robot_vacuum_controller_extract import extract_robot_vacuum_controller_model, recognizes_robot_vacuum_controller
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 STATE_VARIABLES = 'battery_level, vacuum_mode'
 CFG_INVARIANTS = 'INVARIANT BatteryLevelBounds\nINVARIANT VacuumModeBounds\nINVARIANT NoCleaningWithDeadBattery'
@@ -16,4 +16,6 @@ def render_robot_vacuum_controller(model: RobotVacuumControllerTlaModel) -> tupl
 
 ROBOT_VACUUM_CONTROLLER_PLUGIN = DomainPlugin(
     'robot_vacuum_controller', recognizes_robot_vacuum_controller,
-    extract_robot_vacuum_controller_model, render_robot_vacuum_controller)
+    extract_robot_vacuum_controller_model, render_robot_vacuum_controller,
+    maturity=DomainMaturity.SCAFFOLD, evidence_ceiling="NO_PROOF",
+    maturity_note="AST extractor and TLA renderer contain review-blocking TODOs.")

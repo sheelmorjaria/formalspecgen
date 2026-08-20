@@ -28,7 +28,14 @@ class ReviewedDomainSpecV2(DomainSpecV2):
 
 def candidate_sha256(candidate: DomainSpecV2) -> str:
     """Hash the semantic candidate, independent of YAML formatting and key order."""
-    return canonical_sha256(candidate.model_dump(mode="json"))
+    value = candidate.model_dump(mode="json")
+    # New optional provenance fields must not retroactively invalidate every
+    # pre-existing promoted V2 artifact when they are absent.
+    for field in ("hardware_safe_capacity", "pool_counter",
+                  "hardware_profile_sha256", "hardware_proof_sha256"):
+        if value.get(field) is None:
+            value.pop(field, None)
+    return canonical_sha256(value)
 
 
 def load_candidate(path: str | Path) -> DomainSpecV2:

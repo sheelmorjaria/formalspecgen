@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from . import config
+
 
 _SAFE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -46,7 +48,7 @@ def check_rayon_syntax(wrapped_code: str, timeout: int = 60) -> dict:
             '[package]\nname="formalspecgen-ci-rust-deps"\nversion="0.0.0"\n'
             'edition="2021"\n\n[dependencies]\nrayon="=1.11.0"\n'
             'tokio={version="=1.49.0",features=["sync"]}\n', encoding="utf-8")
-        lockfile = Path(__file__).resolve().parents[1] / "ci" / "rust-deps" / "Cargo.lock"
+        lockfile = config.resource_path("ci", "rust-deps", "Cargo.lock")
         if lockfile.is_file():
             (root / "Cargo.lock").write_text(lockfile.read_text(encoding="utf-8"), encoding="utf-8")
         (root / "src" / "lib.rs").write_text(erased, encoding="utf-8")

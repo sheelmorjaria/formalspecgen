@@ -4,7 +4,7 @@
 from ..extract_tla_ir import UnsupportedJmlSemantics
 from .elevator_controller import ElevatorControllerTlaModel
 from .elevator_controller_extract import extract_elevator_controller_model, recognizes_elevator_controller
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 def render_elevator_controller(model: ElevatorControllerTlaModel) -> tuple[str,str]:
     if model is None or {x.operation for x in model.operations}!={'startMoveUp','startMoveDown','arriveUp','arriveDown','openDoors','closeDoors'}:
@@ -30,4 +30,7 @@ Spec == Init /\ [][Next]_vars
     return tla,cfg
 
 ELEVATOR_CONTROLLER_PLUGIN=DomainPlugin('elevator_controller',recognizes_elevator_controller,
-    extract_elevator_controller_model,render_elevator_controller)
+    extract_elevator_controller_model,render_elevator_controller,
+    maturity=DomainMaturity.BOUNDED_EVIDENCE,
+    evidence_ceiling="BOUNDED_ARCHITECTURE_EVIDENCE",
+    maturity_note="Reviewed deterministic source-to-TLA adapter; source refinement remains unproved.")

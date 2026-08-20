@@ -304,7 +304,8 @@ def _hw_invariant_ast(name: str, lo: int, hi: int) -> dict:
 def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                           strategy: str | None, hardware: str | Path | None,
                           struct_size_bytes: int | None,
-                          safety_margin: float) -> dict[str, Any]:
+                          safety_margin: float,
+                          pool_field: str | None = None) -> dict[str, Any]:
     """Deterministic capacity bounding of a V2 candidate: the C/Rust lane.
 
     No LLM: the silicon chooses the number. Int state-variable bounds are
@@ -334,7 +335,9 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                 "code": "hardware_profile_required",
                 "message": "candidate bounding derives the capacity from a "
                            "hardware profile; pass --hardware PROFILE.json"}
-    from .hardware_profile import HardwareProfileError, load_profile, safe_capacity
+    from .hardware_profile import (
+        HardwareProfileError, load_profile, prove_fixed_pool_fits, safe_capacity,
+    )
     import yaml as _yaml
     try:
         spec = _yaml.safe_load(candidate_path.read_text(encoding="utf-8"))
@@ -344,6 +347,7 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                        else len(int_vars) * load_profile(hardware).word_size_bytes)
         profile = load_profile(hardware)
         capacity = safe_capacity(profile, struct_size, safety_margin)
+        profile_sha256 = _digest(Path(hardware).read_text(encoding="utf-8"))
     except HardwareProfileError as exc:
         failure = {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
                    "code": str(exc).split(":")[0], "message": str(exc)}
@@ -375,6 +379,24 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                 var["bound"] = [bound[0], capacity]
                 clamped.append(var["name"])
         bounded["state_variables"].append(var)
+    logical_capacity = capacity
+    if pool_field is not None:
+        pool_variables = [var for var in bounded["state_variables"]
+                          if var.get("name") == pool_field and
+                          var.get("kind") == "int" and var.get("bound")]
+        if len(pool_variables) != 1:
+            return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                    "code": "pool_field_invalid",
+                    "message": f"{pool_field!r} is not one bounded integer field"}
+        logical_capacity = int(pool_variables[0]["bound"][1])
+        if logical_capacity > capacity:
+            return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
+                    "code": "HARDWARE_MEMORY_EXCEEDED",
+                    "message": "logical pool exceeds the profile-derived ceiling"}
+    hardware_proof = prove_fixed_pool_fits(
+        profile, logical_capacity, struct_size, safety_margin)
+    if hardware_proof.get("status") != "VERIFIED":
+        return hardware_proof
     # Growth guards: a machine clamped to C whose growth op still fires at
     # C would produce C+1 and fail the traverser (out of bounds) — the
     # guard is semantically required, not documentation. Every +n effect on
@@ -405,7 +427,12 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
                     guards.append(growth)
         op["guards"] = guards
         bounded["operations"].append(op)
-    bounded["capacity_bound"] = capacity
+    bounded["capacity_bound"] = logical_capacity
+    if pool_field is not None:
+        bounded["hardware_safe_capacity"] = capacity
+        bounded["pool_counter"] = pool_field
+        bounded["hardware_profile_sha256"] = profile_sha256
+        bounded["hardware_proof_sha256"] = hardware_proof["encoding_sha256"]
     bounded["struct_size_bytes"] = struct_size
     bounded["tlc_invariants"] = list(spec.get("tlc_invariants", [])) + [
         {"id": f"inv_hw_bound_{v['name']}",
@@ -434,7 +461,8 @@ def _correct_v2_candidate(target: str | Path, cwe: str, out_dir: str | Path,
             "derived_capacity": capacity,
             "struct_size_bytes": struct_size,
             "clamped_fields": clamped, "gained_bounds": gained,
-            "memory_footprint_bytes": capacity * struct_size,
+            "memory_footprint_bytes": logical_capacity * struct_size,
+            "hardware_proof": hardware_proof,
             "next_steps": [
                 "validate-domain parser_bounded --project-root <root>",
                 "promote-domain parser_bounded --accept-candidate-sha256 <hash>",
@@ -448,7 +476,8 @@ def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "correc
                      hardware: str | Path | None = None,
                      struct_size_bytes: int | None = None,
                      safety_margin: float = 0.9,
-                     auto_strategy: bool = False) -> dict[str, Any]:
+                     auto_strategy: bool = False,
+                     pool_field: str | None = None) -> dict[str, Any]:
     source_path = Path(target)
     if auto_strategy and source_path.suffix.lower() not in {".yaml", ".yml"}:
         from .correction_router import auto_route_correction
@@ -459,7 +488,8 @@ def correct_behavior(target: str | Path, cwe: str, out_dir: str | Path = "correc
                                      max_attempts=max_attempts)
     if source_path.suffix.lower() in {".yaml", ".yml"}:
         return _correct_v2_candidate(source_path, cwe, out_dir, strategy,
-                                     hardware, struct_size_bytes, safety_margin)
+                                     hardware, struct_size_bytes, safety_margin,
+                                     pool_field=pool_field)
     if strategy is not None and strategy not in _STRATEGY_GUIDANCE:
         return {"status": "CORRECTION_FAILED", "claim": "NO_PROOF",
                 "code": "unknown_strategy", "message": f"unknown strategy {strategy!r}"}

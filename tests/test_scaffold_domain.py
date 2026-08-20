@@ -42,6 +42,9 @@ class DomainScaffolderTests(unittest.TestCase):
                 py_compile.compile(str(output), doraise=True)
             extractor = (root / "pipeline/domains/light_switch_extract.py").read_text()
             self.assertIn("plugin is scaffolded but its AST adapter is not reviewed", extractor)
+            renderer = (root / "pipeline/domains/light_switch_render.py").read_text()
+            self.assertIn("maturity=DomainMaturity.SCAFFOLD", renderer)
+            self.assertIn('evidence_ceiling="NO_PROOF"', renderer)
             registry = (root / "pipeline/domains/registry.py").read_text()
             self.assertIn("LIGHT_SWITCH_PLUGIN", registry)
 

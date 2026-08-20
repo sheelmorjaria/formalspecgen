@@ -16,6 +16,8 @@ PROFILES = ["examples/formalkernel/profiles/n150.json",
             "examples/formalkernel/profiles/r52.json"]
 BOUNDARY_CLAIMS = {"SPATIAL_ISOLATION_PROVED", "SYSCALL_BOUNDARY_PROVED",
                    "IPC_ENDPOINT_TABLE_PROVED"}
+DIVERGENT_CLAIMS = {"PQ_PREEMPTION_BOUND_PROVED",
+                    "PQ_COOPERATIVE_WCET_BOUND_PROVED"}
 
 
 def test_gate_units():
@@ -34,14 +36,14 @@ def test_gate_units():
     assert "cannot" not in ok_mono["note"] or True
     ok_micro = gate({"deployment": "microkernel", "mmu": "mmu.json"})
     assert ok_micro["status"] == "DEPLOYMENT_PROFILE_OK"
-    assert ok_micro["boundary_lanes"] == ["ipc", "mmu", "syscalls"]
+    assert ok_micro["boundary_lanes"] == ["elf_loader", "ipc", "mmu", "syscalls"]
 
 
 @pytest.mark.skipif(not KANI_AVAILABLE, reason="kani not installed")
 def test_one_tree_two_bundles_no_drift():
     """The M54 flex: the SAME sources mint a monolith bundle and a
-    microkernel bundle; the monolith's claims are a strict subset, and
-    every shared claim is the identical (claim, scope, subsystem,
+    microkernel bundle; after M60 their explicit timing claims diverge, and
+    every genuinely shared claim is the identical (claim, scope, subsystem,
     profile, source) tuple — the anti-drift guarantee, mechanical."""
     from pipeline.kernel_lattice import verify_kernel
     mono = verify_kernel(KERNEL, PROFILES, manifest_name="monolith.json")
@@ -55,8 +57,16 @@ def test_one_tree_two_bundles_no_drift():
     # the boundary claims exist ONLY in the microkernel bundle
     assert BOUNDARY_CLAIMS <= micro_claims
     assert not (BOUNDARY_CLAIMS & mono_claims)
-    # the monolith is a strict subset — nothing extra, nothing weaker
-    assert mono_claims < micro_claims
+    # M60 is the sole registered divergence: EL0 preemption versus an EL1
+    # cooperative-yield chunk. All remaining monolith claims are a strict
+    # subset of the microkernel evidence.
+    assert mono_claims - DIVERGENT_CLAIMS < micro_claims - DIVERGENT_CLAIMS
+    assert "PQ_COOPERATIVE_WCET_BOUND_PROVED" in mono_claims - micro_claims
+    assert "PQ_PREEMPTION_BOUND_PROVED" in micro_claims - mono_claims
+    assert "UNVERIFIED_EXTERNAL_ADAPTER" in micro_claims
+    driver_boundary = next(item for item in mono["boundaries"]
+                           if item["claim"] == "UNVERIFIED_IN_KERNEL_DRIVER")
+    assert driver_boundary["in_kernel_fault_can_crash_kernel"] is True
     # honest note: the monolith says a driver fault is a kernel fault
     assert "driver is the kernel" in mono["note"]
 
@@ -66,6 +76,8 @@ def test_one_tree_two_bundles_no_drift():
                      c.get("profile"), c["source"])
     micro_keys = {key(c) for c in micro["claims"]}
     for c in mono["claims"]:
+        if c["claim"] in DIVERGENT_CLAIMS:
+            continue
         assert key(c) in micro_keys, f"drift: {c}"
 
 
@@ -122,6 +134,9 @@ def test_cli_manifest_flag_selects_the_profile(tmp_path):
     # its kani_proofs lane (the proofs dir lives outside the copied tree)
     mf = json.loads((copy / "monolith.json").read_text())
     mf.pop("kani_proofs", None)
+    # The copied demo intentionally excludes repository-root formal-domain
+    # artifacts; remove that externally bound subsystem just as above.
+    mf["subsystems"] = [name for name in mf["subsystems"] if name != "vfs"]
     (copy / "monolith.json").write_text(json.dumps(mf))
 
     lines = []

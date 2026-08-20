@@ -1,0 +1,18 @@
+{
+  "source": "pq_ntt_workload.c",
+  "source_sha256": "daa07b9ee6b87dddcefb81ad539a0f2412bec8f1e3cc05f6c915a55864e9c13e",
+  "layers": 8,
+  "width": 256,
+  "operations_per_butterfly": 9,
+  "cooperative_yield_symbol": "cooperative_yield",
+  "microkernel": {
+    "execution_level": "EL0",
+    "scheduler_source": "../scheduler/sched_tick.c",
+    "scheduler_source_sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c",
+    "max_preemption_cycles": {"n150": 500, "r52": 800}
+  },
+  "monolithic": {
+    "execution_level": "EL1",
+    "max_non_yielding_chunk_cycles": {"n150": 4000, "r52": 6000}
+  }
+}

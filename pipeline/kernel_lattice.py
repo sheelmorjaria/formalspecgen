@@ -24,17 +24,24 @@ lane, no timing for WCET) fail closed: the human owns the profile.
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
+
+import yaml
 
 from .deployment_profile import verify_deployment_profile
 from .dma_isolation import dma_isolation
+from .elf_loader import verify_elf_load
 from .ipc_nameserver import verify_ipc_table
 from .kani_refinement import verify_rust_refinement
 from .kernel_composition import verify_composition
 from .lockfree import verify_lockfree, verify_mpsc
 from .mmu_isolation import verify_spatial_isolation
+from .pq_tls_pool import verify_pq_tls_pool
+from .pq_wcet import verify_pq_wcet
 from .realtime import wcet_bound
 from .syscall_boundary import verify_syscall_boundary
+from .tls_handshake import verify_tls_handshake_evidence
 from .weak_memory import MEMORY_MODELS, barrier_correspondence
 
 
@@ -79,6 +86,7 @@ def verify_kernel(kernel_dir: str | Path,
                        "required — physical scopes are never guessed")
 
     claims: list[dict] = []
+    boundaries: list[dict] = []
     failures: list[dict] = []
     seen: set[tuple] = set()
 
@@ -172,6 +180,134 @@ def verify_kernel(kernel_dir: str | Path,
                       "source": name, "code": verdict.get("code"),
                       "message": verdict.get("message", verdict["status"])})
 
+        formal = sub_manifest.get("formal_domain")
+        if formal is not None:
+            try:
+                reviewed_path = (sub_root / formal["reviewed"]).resolve()
+                validation_path = (sub_root / formal["validation"]).resolve()
+                refinement_path = (sub_root / formal["refinement"]).resolve()
+                source_path = (sub_root / formal["source"]).resolve()
+                from .v2_refinement import load_bound_reviewed_domain
+                reviewed = load_bound_reviewed_domain(
+                    reviewed_path, validation_path)
+                refinement = yaml.safe_load(
+                    refinement_path.read_text(encoding="utf-8"))
+                source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+                bindings = refinement["bindings"]
+                valid = (
+                    refinement.get("status") == "VERIFIED"
+                    and refinement.get("production") is True
+                    and bindings["accepted_candidate_sha256"] ==
+                    reviewed.accepted_candidate_sha256
+                    and bindings["accepted_evidence_sha256"] ==
+                    reviewed.accepted_evidence_sha256
+                    and bindings["implementation_sha256"] == source_hash
+                    and refinement.get("hardware_judge", {}).get("result") ==
+                    "VERIFIED"
+                    and set(refinement.get("claims", [])) == {
+                        "SOURCE_MODEL_REFINEMENT",
+                        "HARDWARE_MEMORY_BOUND_PROVED"})
+            except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as exc:
+                fail({"claim": "FORMAL_DOMAIN_BUNDLE", "subsystem": sub_name,
+                      "code": "formal_domain_invalid", "message": str(exc)})
+            else:
+                if not valid:
+                    fail({"claim": "FORMAL_DOMAIN_BUNDLE", "subsystem": sub_name,
+                          "code": "formal_domain_binding_mismatch"})
+                else:
+                    mint("BOUNDED_ARCHITECTURE_EVIDENCE",
+                         "reviewed_v2_tlc", None, str(validation_path),
+                         judge="tlc", subsystem=sub_name)
+                    mint("SOURCE_MODEL_REFINEMENT",
+                         "v2_atomic_contract_refinement", None,
+                         str(source_path), judge="prusti", subsystem=sub_name)
+                    mint("HARDWARE_MEMORY_BOUND_PROVED",
+                         "profile_bound_static_pool", None,
+                         str(source_path), judge="z3", subsystem=sub_name)
+
+        adapter_name = sub_manifest.get("external_adapter")
+        if adapter_name is not None:
+            adapter_path = sub_root / str(adapter_name)
+            try:
+                adapter_code = adapter_path.read_text(encoding="utf-8")
+                from .rust_support import check_rust_syntax, lint_rust
+                syntax = check_rust_syntax(adapter_code)
+                blockers = [item for item in lint_rust(adapter_code)
+                            if item.get("severity") == "error"]
+            except (OSError, ValueError) as exc:
+                fail({"claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+                      "subsystem": sub_name, "code": "adapter_unreadable",
+                      "message": str(exc)})
+            else:
+                if "UNVERIFIED EXTERNAL BOUNDARY" not in adapter_code:
+                    fail({"claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+                          "subsystem": sub_name,
+                          "code": "external_boundary_marker_missing"})
+                elif syntax.get("status") != "RUST_CHECKED" or blockers:
+                    fail({"claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+                          "subsystem": sub_name,
+                          "code": "adapter_static_check_failed",
+                          "message": syntax.get("output", "")})
+                else:
+                    microkernel = profile_check["deployment"] == "microkernel"
+                    boundary = {
+                        "claim": ("UNVERIFIED_EXTERNAL_ADAPTER" if microkernel
+                                  else "UNVERIFIED_IN_KERNEL_DRIVER"),
+                        "scope": ("external_device_behavior" if microkernel
+                                  else "in_kernel_device_behavior"),
+                        "profile": None, "source": str(adapter_name),
+                        "status": "boundary", "judge": "none",
+                        "subsystem": sub_name,
+                        "source_sha256": hashlib.sha256(
+                            adapter_code.encode()).hexdigest(),
+                        "external_io_safety_proved": False,
+                        "driver_recovery_proved": False,
+                        "in_kernel_fault_can_crash_kernel": not microkernel,
+                        "confinement_claims": ([
+                            "DMA_ISOLATION_PROVED",
+                            "SYSCALL_BOUNDARY_PROVED",
+                            "IPC_ENDPOINT_TABLE_PROVED"] if microkernel else []),
+                    }
+                    if microkernel:
+                        claims.append(boundary)
+                    else:
+                        boundaries.append(boundary)
+
+        handshake_name = sub_manifest.get("tls_handshake")
+        if handshake_name is not None:
+            handshake_path = sub_root / str(handshake_name)
+            try:
+                handshake = _load_json(handshake_path)
+                handshake_source = (sub_root / handshake["source"]).read_bytes()
+                handshake_evidence = _load_json(
+                    sub_root / handshake["validation"])
+                verdict = verify_tls_handshake_evidence(
+                    handshake, handshake_source, handshake_evidence)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                fail({"claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+                      "subsystem": sub_name, "code": "TLS_HANDSHAKE_ARTIFACT_INVALID",
+                      "message": str(exc)})
+            else:
+                if verdict["status"] == "TLS_HANDSHAKE_EVIDENCE_BOUND":
+                    mint("BOUNDED_ARCHITECTURE_EVIDENCE",
+                         "tls_handshake_tlc", None, str(handshake_name),
+                         judge="tlc", subsystem=sub_name)
+                    boundaries.append({
+                        "claim": "TLS_HANDSHAKE_REFINEMENT_PENDING",
+                        "scope": "mbedtls_and_liboqs_implementation",
+                        "profile": None, "source": str(handshake_name),
+                        "status": "boundary", "judge": "none",
+                        "subsystem": sub_name,
+                        "cryptographic_strength_proved": False,
+                        "transcript_authenticity_proved": False,
+                        "mbedtls_implementation_refinement_proved": False,
+                    })
+                else:
+                    fail({"claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+                          "subsystem": sub_name, "source": str(handshake_name),
+                          "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
+
     loaded: list[tuple[str, dict]] = []
     for profile_path in profiles:
         path = Path(profile_path)
@@ -253,6 +389,103 @@ def verify_kernel(kernel_dir: str | Path,
                           "subsystem": sub_name, "source": name,
                           "code": verdict.get("code"),
                           "message": verdict.get("message", "")})
+
+            pq_name = sub_manifest.get("pq_tls")
+            if pq_name is not None:
+                pq_path = sub_root / str(pq_name)
+                try:
+                    pq = _load_json(pq_path)
+                    pq_source_name = pq["source"]
+                    pq_source = (sub_root / str(pq_source_name)).read_text(encoding="utf-8")
+                    pq_hash = hashlib.sha256(pq_source.encode()).hexdigest()
+                    from .rust_support import check_rust_syntax, lint_rust
+                    syntax = check_rust_syntax(pq_source)
+                    blockers = [item for item in lint_rust(pq_source)
+                                if item.get("severity") == "error"]
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    fail({"claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                          "profile": target, "subsystem": sub_name,
+                          "code": "PQ_TLS_ARTIFACT_INVALID", "message": str(exc)})
+                    continue
+                if pq.get("source_sha256") != pq_hash:
+                    fail({"claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                          "profile": target, "subsystem": sub_name,
+                          "code": "PQ_TLS_SOURCE_HASH_MISMATCH"})
+                    continue
+                if syntax.get("status") != "RUST_CHECKED" or blockers:
+                    fail({"claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                          "profile": target, "subsystem": sub_name,
+                          "code": "PQ_TLS_STATIC_CHECK_FAILED",
+                          "message": syntax.get("output", "")})
+                    continue
+                verdict = verify_pq_tls_pool(pq, profile)
+                if verdict["status"] == "PQ_TLS_POOL_BOUND_PROVED":
+                    mint("HARDWARE_MEMORY_BOUND_PROVED",
+                         f"pq_tls_session_pool_{target}", target,
+                         str(pq_name), judge="z3", subsystem=sub_name)
+                elif verdict.get("code") == "z3_unavailable":
+                    pending("HARDWARE_MEMORY_BOUND_PROVED",
+                            f"pq_tls_session_pool_{target}", target,
+                            str(pq_name), "z3", subsystem=sub_name)
+                else:
+                    fail({"claim": "HARDWARE_MEMORY_BOUND_PROVED",
+                          "profile": target, "subsystem": sub_name,
+                          "source": str(pq_name), "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
+
+            pq_wcet_name = sub_manifest.get("pq_wcet")
+            if pq_wcet_name is not None:
+                try:
+                    pq_wcet_artifact = _load_json(sub_root / str(pq_wcet_name))
+                    workload = (sub_root / pq_wcet_artifact["source"]).read_bytes()
+                    scheduler_path = (sub_root / pq_wcet_artifact["microkernel"][
+                        "scheduler_source"]).resolve()
+                    verdict = verify_pq_wcet(
+                        pq_wcet_artifact, workload, scheduler_path, profile,
+                        profile_check["deployment"])
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    fail({"claim": "PQ_WCET", "profile": target,
+                          "subsystem": sub_name, "code": "PQ_WCET_ARTIFACT_INVALID",
+                          "message": str(exc)})
+                    continue
+                if verdict["status"] == "PQ_PREEMPTION_BOUND_PROVED":
+                    mint("PQ_PREEMPTION_BOUND_PROVED", verdict["scope"], target,
+                         str(pq_wcet_name), judge="static_wcet", subsystem=sub_name)
+                elif verdict["status"] == "PQ_COOPERATIVE_WCET_BOUND_PROVED":
+                    mint("PQ_COOPERATIVE_WCET_BOUND_PROVED", verdict["scope"],
+                         target, str(pq_wcet_name), subsystem=sub_name)
+                else:
+                    fail({"claim": "PQ_WCET", "profile": target,
+                          "subsystem": sub_name, "source": str(pq_wcet_name),
+                          "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
+
+    for sub_name, _sub_root, sub_manifest in subsystems:
+        pq_name = sub_manifest.get("pq_tls")
+        if pq_name is not None:
+            boundaries.append({
+                "claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+                "scope": "post_quantum_cryptographic_implementation",
+                "profile": None, "source": "liboqs", "status": "boundary",
+                "judge": "none", "subsystem": sub_name,
+                "cryptographic_strength_proved": False,
+                "liboqs_implementation_proved": False,
+                "claims_proved": ["HARDWARE_MEMORY_BOUND_PROVED"],
+                "note": "M58 proves session-pool capacity and ERR_MEM admission only",
+            })
+        if sub_manifest.get("pq_wcet") is not None:
+            microkernel = profile_check["deployment"] == "microkernel"
+            boundaries.append({
+                "claim": ("HARDWARE_INTERRUPT_DELIVERY_PENDING" if microkernel
+                          else "PQ_PREEMPTIVE_ISOLATION_NOT_AVAILABLE"),
+                "scope": "pq_scheduler_silicon_boundary",
+                "profile": None, "source": str(sub_manifest["pq_wcet"]),
+                "status": "boundary", "judge": "none", "subsystem": sub_name,
+                "hardware_interrupt_delivery_proved": False,
+                "preemptive_isolation_proved": False,
+                "declared_el0_preemption_model_proved": microkernel,
+                "cooperative_yield_required": not microkernel,
+            })
 
     # --- M46: the orchestrator's precondition flow, judged once ------
     composition_artifact = manifest.get("composition")
@@ -385,13 +618,77 @@ def verify_kernel(kernel_dir: str | Path,
                   "code": verdict.get("code"),
                   "message": verdict.get("message", "")})
 
+    # --- M57: bounded ELF64 layout + M48 permission correspondence --
+    loader_artifact = manifest.get("elf_loader")
+    if loader_artifact is not None:
+        loader_path = root / str(loader_artifact)
+        if not loader_path.is_file():
+            return _refuse("elf_loader_artifact_missing", str(loader_path))
+        try:
+            loader = _load_json(loader_path)
+            source_name = loader["source"]
+            source_path = root / str(source_name)
+            source = source_path.read_text(encoding="utf-8")
+            source_hash = hashlib.sha256(source.encode()).hexdigest()
+            from .rust_support import check_rust_syntax, lint_rust
+            syntax = check_rust_syntax(source)
+            blockers = [item for item in lint_rust(source)
+                        if item.get("severity") == "error"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            return _refuse("elf_loader_artifact_invalid", str(exc))
+        if loader.get("source_sha256") != source_hash:
+            fail({"claim": "ELF_SEGMENT_LAYOUT_PROVED",
+                  "source": str(source_name),
+                  "code": "ELF_LOADER_SOURCE_HASH_MISMATCH",
+                  "message": "the load plan is not bound to the exact Rust parser bytes"})
+        elif loader.get("input_capability") != "vfs.read" or not any(
+                name == "vfs" and sub_manifest.get("formal_domain") is not None
+                for name, _sub_root, sub_manifest in subsystems):
+            fail({"claim": "ELF_SEGMENT_LAYOUT_PROVED",
+                  "source": str(loader_artifact),
+                  "code": "ELF_VFS_BINDING_MISSING",
+                  "message": "the loader must consume the production VFS read capability"})
+        elif syntax.get("status") != "RUST_CHECKED" or blockers:
+            fail({"claim": "ELF_SEGMENT_LAYOUT_PROVED",
+                  "source": str(source_name),
+                  "code": "ELF_LOADER_STATIC_CHECK_FAILED",
+                  "message": syntax.get("output", "")})
+        else:
+            mint("ELF_SEGMENT_LAYOUT_PROVED", "bounded_elf64_aarch64_parser",
+                 None, str(source_name))
+            for profile_name, profile in loaded:
+                target = profile.get("target", profile_name)
+                memory_map = profile.get("mmu_map")
+                if not memory_map:
+                    return _refuse("profile_field_missing",
+                                   f"profile {target} declares no mmu_map for the ELF loader")
+                verdict = verify_elf_load(loader, memory_map)
+                if verdict["status"] == "ELF_LOAD_PROVED":
+                    mint("ELF_PERMISSION_CORRESPONDENCE_PROVED",
+                         f"elf_flags_to_m48_permissions_{target}", target,
+                         str(loader_artifact))
+                else:
+                    fail({"claim": "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+                          "profile": target, "source": str(loader_artifact),
+                          "code": verdict.get("code"),
+                          "message": verdict.get("message", "")})
+    elif profile_check["deployment"] == "monolithic":
+        boundaries.append({
+            "claim": "EL0_PROCESS_LOADER_OMITTED",
+            "scope": "single_address_space",
+            "status": "boundary", "judge": "none", "profile": None,
+            "hardware_exception_level_transition_proved": False,
+            "note": "the monolith never loads a separate EL0 process; no loader, UXN/AP, or ERET claim is minted",
+        })
+
     if failures:
         return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",
                 "code": failures[0].get("code"), "failures": failures,
-                "claims": claims}
+                "claims": claims, "boundaries": boundaries}
     return {"status": "KERNEL_EVIDENCE_BUNDLE",
             "claim": "KERNEL_EVIDENCE_BUNDLE",
             "deployment": manifest["deployment"],
             "manifest": manifest_name,
             "profiles": [name for name, _ in loaded], "claims": claims,
+            "boundaries": boundaries,
             "note": profile_check["note"]}

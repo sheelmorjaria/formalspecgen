@@ -235,7 +235,7 @@ def _render_source(spec: DomainSpec) -> str:
 from ..extract_tla_ir import UnsupportedJmlSemantics
 from .{spec.module_name} import {spec.domain_name}TlaModel
 from .{spec.module_name}_extract import extract_{spec.module_name}_model, recognizes_{spec.module_name}
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 
 STATE_VARIABLES = {variables!r}
 CFG_INVARIANTS = {invariants!r}
@@ -249,7 +249,9 @@ def render_{spec.module_name}(model: {spec.domain_name}TlaModel) -> tuple[str, s
 
 {spec.module_name.upper()}_PLUGIN = DomainPlugin(
     {spec.module_name!r}, recognizes_{spec.module_name},
-    extract_{spec.module_name}_model, render_{spec.module_name})
+    extract_{spec.module_name}_model, render_{spec.module_name},
+    maturity=DomainMaturity.SCAFFOLD, evidence_ceiling="NO_PROOF",
+    maturity_note="Generated adapter; semantic mapping is not reviewed.")
 '''
 
 

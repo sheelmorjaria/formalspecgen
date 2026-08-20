@@ -190,8 +190,7 @@ def test_lattice_ipc_lane_residuals(tmp_path):
 
 @pytest.mark.skipif(not ESBMC_AVAILABLE, reason="esbmc not installed")
 def test_demo_bundle_mints_m50_claims():
-    """The demo kernel through both profiles: 23 claims including the
-    MPSC witness (real ESBMC) and the routed endpoint table."""
+    """The current demo includes the routed M50 and M56 storage lanes."""
     from pipeline.kernel_lattice import verify_kernel
     bundle = verify_kernel("examples/formalkernel/kernel",
                            ["examples/formalkernel/profiles/n150.json",
@@ -201,10 +200,11 @@ def test_demo_bundle_mints_m50_claims():
     assert "MPSC_BOUNDED_PARTITION_PROVED" in claims
     assert "IPC_ENDPOINT_TABLE_PROVED" in claims
     assert "SYSCALL_BOUNDARY_PROVED" in claims
-    # 23 through M50; +1 when the M53 Kani refinement lane proves
-    assert len(bundle["claims"]) in (23, 24)
+    assert "UNVERIFIED_EXTERNAL_ADAPTER" in claims
+    # M57 adds three ELF entries, M58 two bounds, M59 one model, M60 two WCET scopes.
+    assert len(bundle["claims"]) in (37, 38)
     if "RUST_WITNESS_REFINEMENT_PROVED" in claims:
-        assert len(bundle["claims"]) == 24
+        assert len(bundle["claims"]) == 38
 
 
 def test_mpsc_judge_more_residuals(tmp_path):

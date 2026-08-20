@@ -2,7 +2,8 @@
   "memory_map": {
     "kernel_pools": {"kstack_pool": [805306368, 805311488],
                      "page_tables": [805311488, 805340160]},
-    "dma_windows": {"nic_ring": [805351424, 805355520]},
+    "dma_windows": {"nic_ring": [805351424, 805355520],
+                    "blk_ring": [805355520, 805359616]},
     "user_frames": [805918720, 806092800],
     "page_table_pool": {"capacity": 64}
   },

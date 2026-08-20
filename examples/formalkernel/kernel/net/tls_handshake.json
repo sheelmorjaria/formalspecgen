@@ -1,0 +1,19 @@
+{
+  "module": "TlsHandshake",
+  "source": "mbedtls_handshake_legacy.c",
+  "source_sha256": "cbc61866bf7a7a1eca4b1d9ff5d8b2b7f3fe1d0a62432df7db2811a365cc513e",
+  "initial": "ClientHello",
+  "states": ["ClientHello", "KeyExchange", "Finished", "Established", "Failed"],
+  "terminal_states": ["Established", "Failed"],
+  "transitions": [
+    {"name": "AcceptClientHello", "from": "ClientHello", "to": "KeyExchange"},
+    {"name": "RejectClientHello", "from": "ClientHello", "to": "Failed"},
+    {"name": "KeyExchangeOk", "from": "KeyExchange", "to": "Finished"},
+    {"name": "KeyExchangeFailed", "from": "KeyExchange", "to": "Failed"},
+    {"name": "FinishedVerified", "from": "Finished", "to": "Established"},
+    {"name": "FinishedRejected", "from": "Finished", "to": "Failed"},
+    {"name": "EstablishedStutter", "from": "Established", "to": "Established"},
+    {"name": "FailedStutter", "from": "Failed", "to": "Failed"}
+  ],
+  "validation": "tls_handshake.validation.json"
+}

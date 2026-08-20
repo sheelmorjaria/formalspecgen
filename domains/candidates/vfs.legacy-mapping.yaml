@@ -1,0 +1,36 @@
+schema_version: 1
+lane: M55_vfs
+deliverable: 2
+source_fixture: tests/fixtures/legacy_vfs
+review_status: unreviewed
+claim: NO_PROOF
+target_model: domains/candidates/vfs.v2.yaml
+bounded_abstractions:
+- source_shape: legacy_inode.free_links
+  extraction: intrusive_list_size
+  source_capacity: VFS_INODE_CAPACITY
+  source_bound: 4
+  target_state: free_list_head
+  target_bound: [0, 4]
+  mapping: list membership is represented only by the finite free-inode count
+manual_review_mappings:
+- refusal: RB_TREE
+  source_shape: legacy_inode.directory_index
+  target_state: inode_count
+  mapping: directory topology is discarded; inode occupancy is bounded by the inode pool
+  residual_assumption: lookup ordering and key uniqueness are outside the M55 cache model
+- refusal: HASH_BUCKETS
+  source_shape: legacy_inode.name_hash
+  target_state: inode_count
+  mapping: hash topology is discarded; cached membership is bounded by the inode pool
+  residual_assumption: collision behavior and name lookup correctness are outside this model
+- refusal: POINTER_ALIAS
+  source_shape: hlist_node.pprev
+  target_state: null
+  mapping: no alias relation is admitted into scalar V2 state
+  residual_assumption: native alias safety requires the Deliverable 4 refinement judge
+locked_claims:
+- BOUNDED_ARCHITECTURE_EVIDENCE
+- SOURCE_MODEL_REFINEMENT
+- HARDWARE_MEMORY_BOUND_PROVED
+next_gate: TLC validation and hash-bound human promotion in Deliverable 3

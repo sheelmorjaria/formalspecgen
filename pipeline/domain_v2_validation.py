@@ -79,6 +79,10 @@ def validate_v2_candidate(candidate_path: str | Path, validation_path: str | Pat
             tlc_exit_status=0,
         )
         publish_validation_success(validation_path, evidence)
+        # A later successful rerun supersedes a prior environmental/model
+        # failure for this exact validation path. Never leave contradictory
+        # terminal artifacts side by side.
+        Path(failure_path).unlink(missing_ok=True)
         return evidence
     except Exception as exc:
         publish_validation_failure(failure_path, candidate_sha256=digest, failed_gate=gate,

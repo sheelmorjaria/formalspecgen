@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Deterministic TLA+ renderer for the reviewed safe crossing controller."""
-from .router import DomainPlugin
+from .router import DomainMaturity, DomainPlugin
 from .train_crossing import TrainRoadCrossingTlaModel
 from .train_crossing_extract import extract_train_crossing_model, recognizes_train_crossing
 
@@ -79,4 +79,7 @@ CHECK_DEADLOCK FALSE"""
 
 
 TRAIN_CROSSING_PLUGIN = DomainPlugin("train_crossing", recognizes_train_crossing,
-    extract_train_crossing_model, render_train_crossing)
+    extract_train_crossing_model, render_train_crossing,
+    maturity=DomainMaturity.BOUNDED_EVIDENCE,
+    evidence_ceiling="BOUNDED_ARCHITECTURE_EVIDENCE",
+    maturity_note="Reviewed deterministic source-to-TLA adapter; source refinement remains unproved.")

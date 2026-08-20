@@ -7,6 +7,30 @@ The design thesis — the LLM proposes, deterministic compilers transform, forma
 humans control trusted assumptions — is written up with the full six-port production evidence in
 [`docs/THE_ENCODING_ARTIFACT.md`](docs/THE_ENCODING_ARTIFACT.md).
 
+### Judge readiness (`doctor`)
+
+Before running an assurance lane, inspect the exact judges available in the current environment:
+
+```bash
+formalspecgen doctor
+formalspecgen doctor --json doctor.json
+formalspecgen doctor --require OpenJML --require TLC
+formalspecgen doctor --strict
+```
+
+The report maps each successful smoke probe to the claims that judge can support and maps every
+absent or broken judge to its explicit `judge_pending` ceiling. `--require` is the CI-friendly
+gate for a named tool; `--strict` additionally rejects installed-but-broken or inconsistent
+configurations. Readiness is environmental metadata, never verification evidence: `doctor`
+always reports `claim: NO_PROOF` and cannot mint a proof claim.
+
+The same report lists every semantic domain adapter with an enforced maturity:
+`scaffold` adapters may only be recognized and have a `NO_PROOF` ceiling;
+`bounded-evidence` adapters may run their reviewed deterministic TLA/TLC translation but
+cannot claim source refinement; `production` is reserved for adapters whose critical native
+implementation/refinement chain is complete. Architecture routing rejects an adapter below its
+required maturity before calling its extractor or renderer.
+
 ### Optional MCP server
 
 FormalSpecGen exposes an optional Model Context Protocol façade for structured agent access:
@@ -16,7 +40,7 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 38 tools covering the full verification surface: `verify_code`,
+The server exposes 39 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
@@ -26,7 +50,7 @@ The server exposes 38 tools covering the full verification surface: `verify_code
 `generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
 `verify_distributed`, `verify_heap`, `verify_hal`, `macro_translate`,
 `verify_lockfree`, `verify_weak_memory`, `verify_wcet`, `verify_liveness`,
-`verify_dma`, `extract_intrusive_list`, and `resolve_callbacks`. The
+`verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, and `verify_kernel`. The
 OS-lane tools keep the same epistemic split as the CLI: `verify_lockfree`
 mints its claim only from real ESBMC interleaving results, the
 deterministic structural lanes (`verify_weak_memory`, `verify_wcet`,
@@ -51,6 +75,12 @@ clarification wizards (`domain`, non-canonical `draft`, `design-system`), and th
 reviewer trust actions `sign-artifact` / `manage-trust` — signing and key policy
 require the human reviewer's own GPG key, and an agent must never sign or
 authorize on a reviewer's behalf.
+
+CLI/MCP exposure is governed by `pipeline/capability_registry.py`. The migration is
+incremental: all MCP tools and human-only trust exclusions are declared there, and
+high-drift CLI schemas are moving into the same registry beginning with `verify-kernel`.
+Registry parity tests reject duplicate names, missing MCP callables, argument drift, or
+accidental exposure of promotion, signing, and reviewer-key policy.
 Configure an MCP client with the server command and its absolute project path, for
 example:
 
@@ -1683,7 +1713,7 @@ the verifier must be available as `esbmc` on `PATH`.
 
 ### The FormalKernel evidence lattice (verify-kernel)
 
-The OS-scale lane (M41–M54, documented in
+The OS-scale lane (M41–M60, documented in
 [`docs/FORMALKERNEL_PLAN.md`](docs/FORMALKERNEL_PLAN.md)): one kernel tree under
 `examples/formalkernel/`, one command, one evidence bundle — every lane judged by the real tool
 or recorded as `judge_pending`, never minted from absence:
@@ -1694,8 +1724,8 @@ formalspecgen verify-kernel examples/formalkernel/kernel \
   --profile examples/formalkernel/profiles/r52.json --json bundle.json
 ```
 
-The root manifest (`kernel.json`) declares its **deployment profile**. The microkernel bundle
-carries all 24 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
+The root manifest (`kernel.json`) declares its **deployment profile**. With every configured
+judge available, the current microkernel bundle carries 38 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
 model, DMA per memory map), ESBMC lock-free/MPSC over the C witnesses, deterministic composition,
 and the boundary lanes (`SPATIAL_ISOLATION_PROVED`, `SYSCALL_BOUNDARY_PROVED`,
 `IPC_ENDPOINT_TABLE_PROVED`) plus the Kani refinement over the image's own `witness.rs`
@@ -1706,14 +1736,15 @@ code fork:
 formalspecgen verify-kernel examples/formalkernel/kernel \
   --profile examples/formalkernel/profiles/n150.json \
   --profile examples/formalkernel/profiles/r52.json --manifest monolith.json
-# KERNEL_EVIDENCE_BUNDLE — 19 claim entries
+# KERNEL_EVIDENCE_BUNDLE — 29 claim entries
 # note: monolithic: no boundary lane is claimable — the driver is the kernel; its
 # concurrency, capacity, and composition claims stand, containment does not exist
 ```
 
-One tree, two honest bundles: the monolith's claims are a strict subset of the microkernel's
-with every shared claim the byte-identical `(claim, scope, subsystem, profile, source)` tuple —
-the anti-drift guarantee is a test, not a promise. A monolith manifest declaring any boundary
+One tree, two honest bundles: every shared claim is the byte-identical
+`(claim, scope, subsystem, profile, source)` tuple. M60 registers one intentional divergence:
+the microkernel receives `PQ_PREEMPTION_BOUND_PROVED`, while the monolith receives only
+`PQ_COOPERATIVE_WCET_BOUND_PROVED`. The anti-drift guarantee is a test, not a promise. A monolith manifest declaring any boundary
 lane refuses `MONOLITH_BOUNDARY_CONTRADICTION` before a single lane runs; a manifest without a
 deployment key refuses `deployment_missing`. The same tree boots live on
 `qemu-system-aarch64`: the composed boot order proved by the composition lane is the order the
@@ -1722,6 +1753,15 @@ wild store is contained (`NET_SERVER_KILLED`) with the packet ledger closing exa
 second-generation server respawns onto the same frames with its own closed ledger. Honest
 scope throughout: the EL1↔EL0 hardware transition itself is `judge_pending`, never minted;
 absent judges (herd7/aiT/…) stay pending by name.
+
+M55–M60 extend the same lattice through verified storage and bounded PQ networking: the VFS is
+TLC/Prusti/Z3-bound to a fixed Rust inode pool; `virtio-blk` remains an explicitly unverified but
+DMA/syscall/IPC-confined adapter; the microkernel ELF loader proves bounded layout and W^X
+permission correspondence; Z3 derives an exact two-session PQ-TLS ceiling with deterministic
+`ERR_MEM`; TLC checks the hash-bound handshake control graph; and deployment-specific WCET gates
+separate EL0 scheduler preemption from the monolith's cooperative-yield bound. Cryptographic
+strength, liboqs/mbedTLS correctness, hardware page walking, `ERET`, and physical interrupt
+delivery remain explicitly unproved.
 
 ### Contract-preserving Java refactoring
 
@@ -2104,7 +2144,7 @@ DAFNY_BIN=/path/to/dafny
 TLC_JAR=/path/to/tla2tools.jar
 PRUSTI_BIN=/path/to/prusti-rustc
 RUSTC_BIN=/path/to/rustc
-KANI_BIN=/path/to/cargo-kani
+KANI_BIN=cargo  # or /path/to/kani-driver for a managed release bundle
 FRAMAC_BIN=/path/to/frama-c
 FRAMAC_PROVERS=z3
 CC_BIN=gcc

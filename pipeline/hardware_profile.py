@@ -13,8 +13,11 @@ chooses the number; the silicon does.
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,6 +82,42 @@ def safe_capacity(profile: Profile, struct_size_bytes: int,
             f"{struct_size_bytes} bytes does not fit the {budget}-byte SRAM budget "
             f"of {profile.target}")
     return budget // struct_size_bytes
+
+
+def prove_fixed_pool_fits(profile: Profile, capacity: int,
+                          struct_size_bytes: int,
+                          safety_margin: float = 0.9) -> dict:
+    """Use real Z3 to refute overflow of one fixed-capacity SRAM pool."""
+    z3 = shutil.which("z3")
+    if z3 is None:
+        return {"status": "HARDWARE_BOUND_FAILED", "claim": "NO_PROOF",
+                "code": "z3_unavailable"}
+    budget = int(profile.usable_sram_bytes * safety_margin)
+    smt2 = ("(set-logic QF_LIA)\n"
+            f"(define-fun capacity () Int {capacity})\n"
+            f"(define-fun element_size () Int {struct_size_bytes})\n"
+            f"(define-fun sram_budget () Int {budget})\n"
+            "(assert (> (* capacity element_size) sram_budget))\n"
+            "(check-sat)\n")
+    try:
+        result = subprocess.run([z3, "-in"], input=smt2, capture_output=True,
+                                text=True, timeout=30)
+        version = subprocess.run([z3, "--version"], capture_output=True,
+                                 text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": "HARDWARE_BOUND_FAILED", "claim": "NO_PROOF",
+                "code": "z3_failed", "message": str(exc)}
+    if result.returncode != 0 or result.stdout.strip() != "unsat":
+        return {"status": "HARDWARE_BOUND_FAILED", "claim": "NO_PROOF",
+                "code": "pool_exceeds_sram", "solver_output": result.stdout.strip()}
+    return {
+        "status": "VERIFIED", "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+        "solver": "z3", "solver_version": version.stdout.strip(),
+        "encoding_sha256": hashlib.sha256(smt2.encode()).hexdigest(),
+        "capacity_bound": capacity, "struct_size_bytes": struct_size_bytes,
+        "memory_footprint_bytes": capacity * struct_size_bytes,
+        "sram_budget_bytes": budget,
+    }
 
 
 _JAVA_FIELD = re.compile(

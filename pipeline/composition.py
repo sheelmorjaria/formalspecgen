@@ -114,7 +114,7 @@ def resolve_bindings(spec: CompositionSpec,
                      v2_dir: str | Path | None = None) -> dict[str, ReviewedDomainSpecV2]:
     """Bind every component to its promoted V2 artifact; fail closed on any gap."""
     directory = (Path(v2_dir) if v2_dir is not None
-                 else Path(config.ROOT) / "domains" / "v2")
+                 else config.resource_path("domains", "v2"))
     known = {component.id for component in parse_architecture(spec.architecture).components}
     resolved: dict[str, ReviewedDomainSpecV2] = {}
     for binding in spec.bindings:

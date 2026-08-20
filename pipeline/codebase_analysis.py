@@ -777,6 +777,45 @@ def _unbounded_heap_warnings(text: str, source: Path) -> list[dict]:
     return warnings
 
 
+def _c_os_pattern_evidence(text: str, source: Path) -> tuple[list[dict], list[dict]]:
+    """Extract bounded M40 list evidence and name unsupported C shapes.
+
+    A source-level capacity declaration is mandatory: analysis must never
+    invent the finite bound that makes a pointer abstraction tractable.
+    Trees, hash buckets, and indirect pointer aliases remain review
+    obligations even when an intrusive list in the same file is bounded.
+    """
+    from .os_patterns import extract_intrusive_list
+
+    evidence: list[dict] = []
+    refusals: list[dict] = []
+    if re.search(r"struct\s+list_head\s+\w+\s*;", text):
+        capacities = [int(value) for value in re.findall(
+            r"^\s*#\s*define\s+\w*(?:CAPACITY|MAX_(?:INODES|DENTRIES))\s+"
+            r"(\d+)\b", text, re.M)]
+        verdict = extract_intrusive_list(
+            text, capacity=min(capacities) if capacities else None)
+        verdict["file"] = str(source)
+        evidence.append(verdict)
+
+    unsupported_patterns = (
+        ("RB_TREE", r"\b(?:rb_root|rb_node|RB_ROOT)\b"),
+        ("HASH_BUCKETS", r"\b(?:hlist_head|hlist_node|hash_(?:add|del|init))\b"),
+        ("POINTER_ALIAS", r"\b\w+\s*\*\s*\*\s*\w+\b"),
+    )
+    for shape, pattern in unsupported_patterns:
+        if re.search(pattern, text):
+            refusals.append({
+                "file": str(source),
+                "code": "UNBOUNDED_STATE_REQUIRES_MANUAL_REVIEW",
+                "shape": shape,
+                "message": f"{shape} pointer topology is not reduced to "
+                           "scalar state; manually map it into a reviewed, "
+                           "capacity-bounded V2 model.",
+            })
+    return evidence, refusals
+
+
 def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                      project_root: str | Path = ".") -> dict:
     root, destination = Path(target_dir), Path(out_dir)
@@ -784,6 +823,7 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
         return {"status": "FAIL", "claim": "NO_PROOF", "code": "input_unavailable", "message": str(root)}
     destination.mkdir(parents=True, exist_ok=True)
     components, domains, warnings = [], [], []
+    os_pattern_evidence: list[dict] = []
     c_structs: dict[str, list[tuple[str, str]]] = {}
     c_texts: dict[str, str] = {}
     sources = sorted(path for ext in ("*.java", "*.rs", "*.c", "*.h", "*.cpp", "*.cc", "*.cxx", "*.ll")
@@ -861,6 +901,11 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
                                    "proved)"})
                 continue
             warnings.extend(_unbounded_heap_warnings(text, source))
+            if source.suffix.lower() in {".c", ".h", ".cc", ".cpp", ".cxx"}:
+                pattern_evidence, pattern_refusals = _c_os_pattern_evidence(
+                    text, source)
+                os_pattern_evidence.extend(pattern_evidence)
+                warnings.extend(pattern_refusals)
             declarations, had_parse_errors = _tree_sitter_declarations(source, text)
             if declarations is None:
                 declarations = _polyglot_declarations(source, text)
@@ -976,6 +1021,23 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
             registered = _register_candidate(Path(project_root), name, fields,
                                               transitions, bounds=inferred)
             domains.append(str(registered))
+    # Headers carry embedded list fields and bounds while implementation
+    # units carry list operations. Run one translation-unit-style aggregate
+    # pass when no individual file contained the complete pattern.
+    if not any(item.get("status") == "INTRUSIVE_LIST_ABSTRACTED"
+               for item in os_pattern_evidence):
+        c_sources = [source for source in sources if source.suffix.lower()
+                     in {".c", ".h", ".cc", ".cpp", ".cxx"}]
+        combined_c = []
+        for source in c_sources:
+            try:
+                combined_c.append(source.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError):
+                continue
+        if combined_c:
+            aggregate, _ = _c_os_pattern_evidence(
+                "\n".join(combined_c), root)
+            os_pattern_evidence.extend(aggregate)
     architecture = {"name": "ExtractedSystem", "components": components, "use_cases": [],
                     "review_status": "unreviewed", "warnings": warnings}
     architecture_path = destination / "extracted_architecture.json"
@@ -983,4 +1045,5 @@ def analyze_codebase(target_dir: str | Path, out_dir: str | Path = "extracted",
     return {"status": "EXTRACTED", "claim": "UNREVIEWED_EXTRACTION_CANDIDATE",
             "architecture": str(architecture_path), "domains": domains,
             "components": components, "warnings": warnings,
+            "os_pattern_evidence": os_pattern_evidence,
             "validation": {"status": "NOT_RUN", "reason": "human review required"}}

@@ -31,6 +31,7 @@ BOUNDARY_LANES = {
     "mmu": "the frame map (SPATIAL_ISOLATION)",
     "syscalls": "the dispatch table (SYSCALL_BOUNDARY)",
     "ipc": "the endpoint table (IPC_ENDPOINT_TABLE routing)",
+    "elf_loader": "the EL0 ELF loader (permission and process boundary)",
 }
 
 _VALID = ("monolithic", "microkernel")

@@ -16,6 +16,12 @@ dependencies = [
   "PyYAML==6.0.2",
   "prompt-toolkit>=3.0.51,<4",
   "rich>=14.1,<15",
+  "tree-sitter==0.26.0",
+  "tree-sitter-java==0.23.5",
+  "tree-sitter-rust==0.24.2",
+  "tree-sitter-c==0.24.2",
+  "tree-sitter-cpp==0.23.4",
+  "llvmlite>=0.44",
 ]
 
 [project.scripts]
@@ -26,6 +32,17 @@ mcp = ["mcp>=1.0,<2"]
 
 [tool.setuptools.packages.find]
 include = ["pipeline*", "formalspec_core*"]
+
+[tool.setuptools]
+include-package-data = true
+py-modules = ["mcp_server"]
+
+[tool.setuptools.data-files]
+security = ["security/cwe_manifest.json", "security/java_custom.yml", "security/c_custom.yml"]
+domains = ["domains/*.yaml"]
+"domains/v2" = ["domains/v2/*.json"]
+"ci/rust-deps" = ["ci/rust-deps/Cargo.toml", "ci/rust-deps/Cargo.lock"]
+"ci/rust-deps/src" = ["ci/rust-deps/src/lib.rs"]
 
 [tool.setuptools.dynamic]
 version = { attr = "pipeline.__version__" }
