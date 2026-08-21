@@ -1713,7 +1713,7 @@ the verifier must be available as `esbmc` on `PATH`.
 
 ### The FormalKernel evidence lattice (verify-kernel)
 
-The OS-scale lane (M41–M60, documented in
+The OS-scale lane (M41–M75, including M71.5, documented in
 [`docs/FORMALKERNEL_PLAN.md`](docs/FORMALKERNEL_PLAN.md)): one kernel tree under
 `examples/formalkernel/`, one command, one evidence bundle — every lane judged by the real tool
 or recorded as `judge_pending`, never minted from absence:
@@ -1725,7 +1725,7 @@ formalspecgen verify-kernel examples/formalkernel/kernel \
 ```
 
 The root manifest (`kernel.json`) declares its **deployment profile**. With every configured
-judge available, the current microkernel bundle carries 38 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
+judge available, the current microkernel bundle carries 53 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
 model, DMA per memory map), ESBMC lock-free/MPSC over the C witnesses, deterministic composition,
 and the boundary lanes (`SPATIAL_ISOLATION_PROVED`, `SYSCALL_BOUNDARY_PROVED`,
 `IPC_ENDPOINT_TABLE_PROVED`) plus the Kani refinement over the image's own `witness.rs`
@@ -1736,7 +1736,7 @@ code fork:
 formalspecgen verify-kernel examples/formalkernel/kernel \
   --profile examples/formalkernel/profiles/n150.json \
   --profile examples/formalkernel/profiles/r52.json --manifest monolith.json
-# KERNEL_EVIDENCE_BUNDLE — 29 claim entries
+# KERNEL_EVIDENCE_BUNDLE — 41 claim entries
 # note: monolithic: no boundary lane is claimable — the driver is the kernel; its
 # concurrency, capacity, and composition claims stand, containment does not exist
 ```
@@ -1754,7 +1754,8 @@ second-generation server respawns onto the same frames with its own closed ledge
 scope throughout: the EL1↔EL0 hardware transition itself is `judge_pending`, never minted;
 absent judges (herd7/aiT/…) stay pending by name.
 
-M55–M60 extend the same lattice through verified storage and bounded PQ networking: the VFS is
+M55–M75 extend the same lattice through verified storage, bounded PQ networking, and real
+weak-memory judging: the VFS is
 TLC/Prusti/Z3-bound to a fixed Rust inode pool; `virtio-blk` remains an explicitly unverified but
 DMA/syscall/IPC-confined adapter; the microkernel ELF loader proves bounded layout and W^X
 permission correspondence; Z3 derives an exact two-session PQ-TLS ceiling with deterministic
@@ -1762,6 +1763,82 @@ permission correspondence; Z3 derives an exact two-session PQ-TLS ceiling with d
 separate EL0 scheduler preemption from the monolith's cooperative-yield bound. Cryptographic
 strength, liboqs/mbedTLS correctness, hardware page walking, `ERET`, and physical interrupt
 delivery remain explicitly unproved.
+The M61 herd7 lane binds reviewed AArch64 and x86 message-passing litmus bytes
+to their SHA-256 digests. It mints `WEAK_MEMORY_SAFETY_PROVED` only for a
+successful `Observation … Never`. The declared development environment uses
+herdtools7 7.58 and both profile litmus tests pass; environments without the
+judge remain honestly `judge_pending` rather than inheriting the structural
+barrier result.
+M62 adds an AArch64/R52-scoped six-state TLC model of prepared EL0 entry, syscall trap, dispatch
+validation, and return. Its evidence is bound to the MMU, syscall, and ELF
+artifacts. The claim remains model-scoped: physical `ERET` behavior and
+compiled exception-vector refinement are explicitly unproved.
+M63 adds a three-task round-robin temporal model. TLC checks the per-task
+leads-to property under explicit weak scheduler fairness; it does not infer
+unbounded-task liveness, physical timer fairness, or C/model refinement.
+M64 adds a Kani-verified, allocation-free 4 KiB EL0 heap ledger with 16 fixed
+blocks and deterministic exhaustion. Physical frame assignment and general
+libc allocator behavior remain outside the claim.
+M65 adds a Z3-judged finite capability matrix for the VFS, network, and shell
+servers. It proves that VFS lacks raw-packet authority and Net lacks
+file-descriptor authority, while hash-binding the reviewed table and SMT
+encoding. Capability-token unforgeability and physical enforcement remain
+separate M48/M49 assumptions; the monolith records the boundary as omitted.
+M66 adds `unikernel.json`, a third deployment profile. It rejects every EL0
+boundary artifact, selects only scheduler, network, and VFS subsystems, and
+builds a hash-bound no-std crate with `cargo build --features unikernel`. Its
+40-entry bundle includes `UNIKERNEL_BUILD_PROVED`; bootability, runtime
+behavior, and fault containment remain explicitly unproved.
+M67 binds the R52 profile's kernel pool to a reviewed 16 KiB ITCM/16 KiB
+DTCM linker layout and mints `R52_TCM_PLACEMENT_PROVED`. Physical Cortex-R52
+boot, SoC address conformance, and measured WCET remain explicitly pending on
+real board evidence.
+M68 proves the reviewed R52 SMMUv3 stream table corresponds exactly to the
+profile's NIC/block DMA contracts and remains disjoint from protected DTCM.
+The malicious-device test protocol is installed but unobserved; physical DMA
+blocking and `EXTERNAL_IO_SAFETY_PROVED` remain forbidden pending board fault
+injection.
+M69 similarly binds an x86_64 N150 linker window and Intel VT-d requester
+table to the reviewed profile, minting `N150_PLATFORM_CONFIGURATION_PROVED`.
+Physical boot, firmware loading, VT-d fault behavior, and silicon TSO
+conformance remain pending a real N150 run.
+M70 deterministically maps deployment-applicable system requirements to the
+actual minted evidence entries and hash-binds that evidence fingerprint. It
+mints `CERTIFICATION_TRACEABILITY_COMPLETE`, while retaining
+`certification_ready: false`: DO-178C/ISO 26262 certification and physical
+hard-real-time behavior remain forbidden until external review and board
+closures exist.
+M71.5 enumerates cache, memory-bandwidth, interconnect, DMA, interrupt, and
+SMT interference channels for both hardware targets. It mints only
+`MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED`; WCET inflation validation and
+multicore timing proof remain pending authenticated target measurements.
+M71 adds a TLAPS-proved arbitrary-reader grace-period invariant and a real
+ESBMC two-reader C witness, minting `RCU_RECLAMATION_SAFETY_PROVED`. The C
+witness uses explicit atomic linearization sections and a three-context-switch
+bound. Source/model refinement, IRQ/NMI interaction, and callback-pressure
+bounds remain pending rather than inheriting the model theorem.
+M72 adds bounded write-ahead-log crash semantics. TLC checks reordering, torn
+writes, volatile-cache loss, and crash-during-recovery paths, minting
+`FILESYSTEM_CRASH_ATOMICITY_PROVED` under the declared persistence contract.
+Physical FUA behavior, device firmware, and injected-crash validation remain
+pending.
+M73 partitions a four-slot TCP ledger into two-slot attacker and legitimate
+quotas across half-open, established, and TIME_WAIT states. TLC checks modular
+sequence windows, duplicate/lost/reordered traffic, retransmission timeout,
+and blind-RST challenge behavior, minting `TCP_RESOURCE_CONTAINMENT_PROVED`.
+Full RFC 9293/5961 conformance and native-stack refinement remain pending.
+M74 replaces hardcoded x86 mitigation assumptions with a hash-bound policy for
+MDS, TAA, L1TF, SRSO, and BHI. Z3 proves every declared active hazard has its
+required selected mitigation, while a deterministic equation proves the
+declared 105-cycle cost fits the 160-cycle budget. The CPUID/microcode profile
+and cycle costs remain human declarations: runtime identity, measured timing,
+and speculative noninterference are explicitly pending.
+M75 adds a standalone standard-library oracle script that imports no FormalSpecGen
+modules. It independently checks two canonical V2 AST identity vectors and one
+SMT Boolean-mapping vector, hash-binding both the corpus and oracle bytes. This
+mints `TOOL_QUALIFICATION_EVIDENCE_READY` only for the reviewed corpus. It does
+not establish general transformation correctness, DO-330 qualification, or
+external authority acceptance.
 
 ### Contract-preserving Java refactoring
 

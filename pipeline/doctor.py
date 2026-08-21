@@ -75,7 +75,7 @@ def inspect_environment(*, runner: Runner = subprocess.run,
         ("ESBMC", ["esbmc", "--version"], ["BOUNDED_C_EVIDENCE", "LOCKFREE_INTERLEAVING_PROVED"], "esbmc", "PATH"),
         ("Z3", ["z3", "--version"], ["SMT_MODEL_PROVED"], "z3", "PATH"),
         ("Semgrep", ["semgrep", "--version"], ["SAST_CLEAN"], "semgrep", "PATH"),
-        ("herd7", ["herd7", "--version"], ["WEAK_MEMORY_SAFETY"], "herd7_or_rc11", "PATH"),
+        ("herd7", ["herd7", "-version"], ["WEAK_MEMORY_SAFETY"], "herd7_or_rc11", "PATH"),
     ]
     checks = [_probe(name, command, claims, pending, runner=runner, which=which,
                      source=source if source == "PATH" or os.environ.get(source) else "default")

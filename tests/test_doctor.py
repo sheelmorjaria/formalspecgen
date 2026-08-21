@@ -64,3 +64,13 @@ def test_probe_fails_closed_on_timeout():
                            runner=timeout, which=lambda _name: "/tools/judge", source="PATH")
     assert result["status"] == "ERROR"
     assert result["smoke_test"] == "timeout"
+
+
+def test_probe_fails_closed_on_execution_error():
+    def broken(*_args, **_kwargs):
+        raise OSError("cannot execute")
+    result = doctor._probe("Judge", ["judge"], ["CLAIM"], "judge",
+                           runner=broken, which=lambda _name: "/tools/judge",
+                           source="PATH")
+    assert result["status"] == "ERROR"
+    assert result["smoke_test"] == "execution_failed"

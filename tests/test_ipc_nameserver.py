@@ -202,9 +202,9 @@ def test_demo_bundle_mints_m50_claims():
     assert "SYSCALL_BOUNDARY_PROVED" in claims
     assert "UNVERIFIED_EXTERNAL_ADAPTER" in claims
     # M57 adds three ELF entries, M58 two bounds, M59 one model, M60 two WCET scopes.
-    assert len(bundle["claims"]) in (37, 38)
+    assert len(bundle["claims"]) in (52, 53)
     if "RUST_WITNESS_REFINEMENT_PROVED" in claims:
-        assert len(bundle["claims"]) == 38
+        assert len(bundle["claims"]) == 53
 
 
 def test_mpsc_judge_more_residuals(tmp_path):

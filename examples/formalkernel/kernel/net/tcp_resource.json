@@ -1,0 +1,20 @@
+{
+  "module": "TcpResourceContainment",
+  "validation": "tcp_resource.validation.json",
+  "clients": ["Attacker", "Legit"],
+  "pool_capacity": 4,
+  "per_client_quota": 2,
+  "sequence_modulus": 8,
+  "receive_window": 2,
+  "adversarial_envelope": [
+    "duplicate_syn",
+    "dropped_ack",
+    "reordered_ack",
+    "blind_rst",
+    "retransmission_timeout",
+    "time_wait_pressure"
+  ],
+  "rfc9293_conformance_proved": false,
+  "rfc5961_conformance_proved": false,
+  "implementation_refinement_proved": false
+}

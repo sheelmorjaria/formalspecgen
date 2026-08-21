@@ -36,7 +36,18 @@ def test_gate_units():
     assert "cannot" not in ok_mono["note"] or True
     ok_micro = gate({"deployment": "microkernel", "mmu": "mmu.json"})
     assert ok_micro["status"] == "DEPLOYMENT_PROFILE_OK"
-    assert ok_micro["boundary_lanes"] == ["elf_loader", "ipc", "mmu", "syscalls"]
+    assert ok_micro["boundary_lanes"] == [
+        "elf_loader", "exception_transition", "ipc", "mmu",
+        "server_capabilities", "syscalls", "user_heap"]
+    assert gate({"deployment": "unikernel"})["code"] == \
+        "UNIKERNEL_BUILD_MISSING"
+    unikernel = gate({"deployment": "unikernel",
+                      "unikernel_build": "../unikernel/Cargo.toml"})
+    assert unikernel["status"] == "DEPLOYMENT_PROFILE_OK"
+    assert unikernel["boundary_lanes"] == []
+    assert gate({"deployment": "unikernel", "unikernel_build": "x",
+                 "ipc": "ipc.json"})["code"] == \
+        "UNIKERNEL_BOUNDARY_CONTRADICTION"
 
 
 @pytest.mark.skipif(not KANI_AVAILABLE, reason="kani not installed")
@@ -64,6 +75,14 @@ def test_one_tree_two_bundles_no_drift():
     assert "PQ_COOPERATIVE_WCET_BOUND_PROVED" in mono_claims - micro_claims
     assert "PQ_PREEMPTION_BOUND_PROVED" in micro_claims - mono_claims
     assert "UNVERIFIED_EXTERNAL_ADAPTER" in micro_claims
+    assert "SERVER_CAPABILITY_NONINTERFERENCE_PROVED" in micro_claims
+    assert "SERVER_CAPABILITY_NONINTERFERENCE_PROVED" not in mono_claims
+    capability_boundary = next(
+        item for item in mono["boundaries"]
+        if item["claim"] == "SERVER_CAPABILITY_BOUNDARY_OMITTED")
+    assert capability_boundary["scope"] == "single_address_space"
+    assert len(micro["claims"]) == 53
+    assert len(mono["claims"]) == 41
     driver_boundary = next(item for item in mono["boundaries"]
                            if item["claim"] == "UNVERIFIED_IN_KERNEL_DRIVER")
     assert driver_boundary["in_kernel_fault_can_crash_kernel"] is True
@@ -134,6 +153,11 @@ def test_cli_manifest_flag_selects_the_profile(tmp_path):
     # its kani_proofs lane (the proofs dir lives outside the copied tree)
     mf = json.loads((copy / "monolith.json").read_text())
     mf.pop("kani_proofs", None)
+    # Hardware-port artifacts bind linker scripts outside this copied kernel
+    # directory. They are orthogonal to this CLI manifest-selection test.
+    for lane in ("r52_port", "r52_smmu", "n150_port",
+                 "multicore_interference", "certification_traceability"):
+        mf.pop(lane, None)
     # The copied demo intentionally excludes repository-root formal-domain
     # artifacts; remove that externally bound subsystem just as above.
     mf["subsystems"] = [name for name in mf["subsystems"] if name != "vfs"]
@@ -148,8 +172,7 @@ def test_cli_manifest_flag_selects_the_profile(tmp_path):
     ui = SimpleNamespace(console=Console())
     args = argparse.Namespace(
         kernel_dir=str(copy),
-        profile=[str(Path("examples/formalkernel/profiles/n150.json")
-                     .resolve())],
+        profile=[str(Path("examples/formalkernel/profiles/n150.json").resolve())],
         manifest="monolith.json", json_out=None)
     assert cli.command_verify_kernel(args, ui) == 0
     assert any("KERNEL_EVIDENCE_BUNDLE" in line for line in lines)

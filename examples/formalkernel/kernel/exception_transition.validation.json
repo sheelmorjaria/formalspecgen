@@ -1,0 +1,20 @@
+{
+  "bindings": {
+    "elf_loader": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb",
+    "mmu": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3",
+    "syscalls": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+  },
+  "claim": "EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED",
+  "compiled_vector_refinement_proved": false,
+  "distinct_states": 6,
+  "generated_tla_sha256": "7b495c7a4f3c8df4d36de4ed9778005902c8bfb9b95eb31d039aeba54790c093",
+  "hardware_eret_semantics_proved": false,
+  "judge": "tlc",
+  "properties": [
+    "TYPE_SAFE",
+    "EL0_REQUIRES_PREPARED_RETURN",
+    "TRAPPED_RETURN_REQUIRES_DISPATCH"
+  ],
+  "status": "EXCEPTION_TRANSITION_MODEL_PROVED",
+  "tlc_version": "2.19 of 08 August 2024"
+}

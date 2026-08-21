@@ -1,0 +1,9 @@
+X86_64 M61_MP_MFENCE
+{
+  [x]=0; [y]=0;
+}
+ P0           | P1            ;
+ movl $1,(x)  | movl (y),%eax ;
+ mfence       | mfence        ;
+ movl $1,(y)  | movl (x),%ebx ;
+exists (1:RAX=1 /\ 1:RBX=0)

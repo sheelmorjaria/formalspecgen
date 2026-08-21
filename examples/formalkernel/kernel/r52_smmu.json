@@ -1,0 +1,17 @@
+{
+  "target": "r52",
+  "smmu_model": "human_declared_arm_smmu_v3",
+  "streams": {
+    "nic_dev": {"stream_id": 32, "allowed_dma": [69632, 70144]},
+    "blk_dev": {"stream_id": 33, "allowed_dma": [71680, 72192]}
+  },
+  "protected_ranges": {
+    "tcm_kernel": [16384, 32768]
+  },
+  "fault_response": "abort_and_log",
+  "physical_test": {
+    "operation": "device_dma_write_into_tcm_kernel",
+    "expected": "translation_fault_no_memory_change",
+    "observed": null
+  }
+}

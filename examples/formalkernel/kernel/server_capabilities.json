@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "vfs": ["file_descriptor"],
+    "net": ["raw_packet"],
+    "shell": ["file_descriptor", "network_client"]
+  },
+  "routes": [
+    {"from": "shell", "to": "vfs", "capability": "file_descriptor"},
+    {"from": "shell", "to": "net", "capability": "network_client"}
+  ]
+}

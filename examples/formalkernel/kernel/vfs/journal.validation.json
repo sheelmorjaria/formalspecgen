@@ -1,0 +1,18 @@
+{
+  "status": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+  "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+  "judge": "tlc",
+  "scope": "declared_persistence_contract",
+  "tlc_version": "2.19 of 08 August 2024",
+  "generated_tla_sha256": "68cd88bba480f1e9e713f8c841038d5f51e7e06cc782d7283d882b15b31f6e01",
+  "distinct_states": 39,
+  "properties": [
+    "TYPE_OK",
+    "COMMIT_IMPLIES_NEW",
+    "RECOVERY_WRITE_STABLE",
+    "CRASH_ATOMICITY"
+  ],
+  "physical_fua_semantics_proved": false,
+  "device_firmware_proved": false,
+  "crash_injection_validated": false
+}

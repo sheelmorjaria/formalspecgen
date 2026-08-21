@@ -14,7 +14,10 @@ ir_cfg_correspondence pattern applied to memory ordering.
 """
 from __future__ import annotations
 
+import hashlib
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 MEMORY_MODELS = {
@@ -133,4 +136,70 @@ def barrier_correspondence(source: str | Path, memory_model: str) -> dict:
         "note": "structural correspondence is deterministic and "
                 "machine-checked; WEAK_MEMORY_SAFETY_PROVED requires a "
                 "weak-memory judge (herd7/RC11) and is never minted here",
+    }
+
+
+def herd7_model_check(litmus: str | Path, memory_model: str, *,
+                      expected_sha256: str | None = None) -> dict:
+    """Run herd7 over one hash-bound forbidden-outcome litmus test.
+
+    A successful process is not sufficient: herd7 must report the test's
+    observation as ``Never``.  ``Sometimes``/``Always``, malformed output,
+    input drift, and execution errors all fail closed.  Tool absence is a
+    named gap rather than a failure of the model.
+    """
+    path = Path(litmus)
+    if not path.is_file():
+        return _fail("input_unavailable", str(path))
+    if path.suffix.lower() != ".litmus":
+        return _fail("UNSUPPORTED_BOUNDARY", "herd7 requires a .litmus input")
+    if memory_model not in MEMORY_MODELS:
+        return _fail("unknown_memory_model", f"unknown model {memory_model!r}")
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if expected_sha256 is not None and digest != expected_sha256:
+        return _fail("LITMUS_HASH_MISMATCH",
+                     "litmus bytes do not match the reviewed SHA-256",
+                     expected_sha256=expected_sha256, actual_sha256=digest)
+    executable = shutil.which("herd7")
+    if executable is None:
+        return {
+            "status": "judge_pending", "claim": "NO_PROOF",
+            "code": "herd7_unavailable", "judge_pending": "herd7",
+            "memory_model": memory_model, "litmus_sha256": digest,
+        }
+    try:
+        run = subprocess.run([executable, str(path)], capture_output=True,
+                             text=True, timeout=60, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return _fail("HERD7_EXECUTION_FAILED", str(exc),
+                     memory_model=memory_model, litmus_sha256=digest)
+    output = run.stdout + run.stderr
+    output_sha256 = hashlib.sha256(output.encode("utf-8")).hexdigest()
+    if run.returncode != 0:
+        return _fail("HERD7_EXECUTION_FAILED",
+                     f"herd7 exited with status {run.returncode}",
+                     memory_model=memory_model, litmus_sha256=digest,
+                     output_sha256=output_sha256)
+    observations = re.findall(r"(?m)^Observation\s+\S+\s+(Never|Sometimes|Always)\b",
+                              output)
+    if not observations:
+        return _fail("HERD7_RESULT_UNRECOGNIZED",
+                     "herd7 emitted no parseable Observation result",
+                     memory_model=memory_model, litmus_sha256=digest,
+                     output_sha256=output_sha256)
+    if any(result != "Never" for result in observations):
+        return _fail("WEAK_MEMORY_COUNTEREXAMPLE",
+                     "the forbidden weak-memory outcome is observable",
+                     observations=observations, memory_model=memory_model,
+                     litmus_sha256=digest, output_sha256=output_sha256)
+    return {
+        "status": "WEAK_MEMORY_SAFETY_PROVED",
+        "claim": "WEAK_MEMORY_SAFETY_PROVED", "judge": "herd7",
+        "scope": f"herd7_forbidden_outcome_{memory_model}",
+        "memory_model": memory_model, "litmus_sha256": digest,
+        "output_sha256": output_sha256,
+        "observation": "Never",
+        "epistemic_boundary": ("model-level litmus evidence; not compiled-code "
+                                "refinement or physical-silicon proof"),
     }

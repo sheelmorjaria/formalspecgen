@@ -1,10 +1,14 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import argparse
+
+import pytest
 
 import mcp_server
 from pipeline import cli
-from pipeline.capability_registry import CAPABILITIES, capability, mcp_capabilities
+from pipeline.capability_registry import (CAPABILITIES, add_cli_parser, capability,
+                                          mcp_capabilities)
 
 
 def test_registry_names_and_bindings_are_unique():
@@ -33,3 +37,11 @@ def test_human_trust_actions_are_never_mcp_capabilities():
     trust_actions = {item.name for item in CAPABILITIES if item.trust_action}
     assert trust_actions == {"promote_domain", "sign_artifact", "manage_trust"}
     assert exposed.isdisjoint(trust_actions)
+
+
+def test_registry_rejects_unknown_and_non_generated_cli_capabilities():
+    with pytest.raises(KeyError):
+        capability("missing")
+    parsers = argparse.ArgumentParser().add_subparsers()
+    with pytest.raises(ValueError):
+        add_cli_parser(parsers, "doctor")

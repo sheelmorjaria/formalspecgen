@@ -1,0 +1,14 @@
+{
+  "x86_tso": {
+    "litmus": "weak_memory/x86_message_passing.litmus",
+    "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+  },
+  "armv8_sc": {
+    "litmus": "weak_memory/aarch64_message_passing.litmus",
+    "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+  },
+  "claims_forbidden": [
+    "COMPILED_SOURCE_LITMUS_REFINEMENT_PROVED",
+    "PHYSICAL_SILICON_MEMORY_MODEL_PROVED"
+  ]
+}

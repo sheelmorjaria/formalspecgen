@@ -1,0 +1,19 @@
+{
+  "target": "intel_n150",
+  "architecture": "x86_64",
+  "linker_script": "../boot/layout-n150.ld",
+  "linker_sha256": "8ba037888cb0f147ca00747482f88e0f2b7c923f21c2b1d91ecd74b13d0b269e",
+  "vtd": {
+    "model": "human_declared_intel_vtd",
+    "devices": {
+      "nic_dev": {"requester_id": "00:1f.6", "allowed_dma": [69632, 70144]},
+      "blk_dev": {"requester_id": "00:17.0", "allowed_dma": [71680, 72192]}
+    },
+    "protected_ranges": {"kstack_pool": [16384, 32768]}
+  },
+  "physical_tests": {
+    "boot_observed": null,
+    "vtd_fault_observed": null,
+    "tso_litmus_on_silicon_observed": null
+  }
+}

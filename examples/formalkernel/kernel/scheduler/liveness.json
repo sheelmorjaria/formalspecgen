@@ -1,0 +1,8 @@
+{
+  "module": "SchedulerStarvationFreedom",
+  "source": "runqueue.c",
+  "source_sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b",
+  "task_count": 3,
+  "policy": "bounded_round_robin",
+  "validation": "liveness.validation.json"
+}

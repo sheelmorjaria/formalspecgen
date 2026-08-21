@@ -1,0 +1,10 @@
+{
+  "source": "user/heap.rs",
+  "source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "proof_source": "../boot/proofs/src/lib.rs",
+  "proof_sha256": "678372042516c19a0c11fb3f569c6f7f741872c94733417617b2f5ffbd264318",
+  "heap_blocks": 16,
+  "block_bytes": 256,
+  "heap_bytes": 4096,
+  "exhaustion": "Err(HeapError::Exhausted)"
+}

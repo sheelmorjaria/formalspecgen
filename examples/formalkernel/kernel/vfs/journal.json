@@ -1,0 +1,17 @@
+{
+  "module": "VfsCrashConsistency",
+  "source_model": "../../../../domains/candidates/vfs_bounded.v2.yaml",
+  "validation": "journal.validation.json",
+  "persistence_contract": {
+    "old_state": 0,
+    "new_state": 1,
+    "torn_state": 2,
+    "intent_and_data_may_reorder": true,
+    "commit_requires_durable_intent_and_data": true,
+    "volatile_cache_lost_on_crash": true,
+    "recovery_may_crash": true
+  },
+  "physical_fua_semantics_proved": false,
+  "device_firmware_proved": false,
+  "crash_injection_validated": false
+}

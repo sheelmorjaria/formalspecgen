@@ -1,0 +1,18 @@
+{
+  "module": "ExceptionLevelTransition",
+  "validation": "exception_transition.validation.json",
+  "bindings": {
+    "mmu": {
+      "path": "mmu.json",
+      "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+    },
+    "syscalls": {
+      "path": "syscalls.json",
+      "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+    },
+    "elf_loader": {
+      "path": "elf_loader.json",
+      "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+    }
+  }
+}

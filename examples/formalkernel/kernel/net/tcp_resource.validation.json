@@ -1,0 +1,19 @@
+{
+  "status": "TCP_RESOURCE_CONTAINMENT_PROVED",
+  "claim": "TCP_RESOURCE_CONTAINMENT_PROVED",
+  "judge": "tlc",
+  "scope": "bounded_adversarial_network_and_partitioned_quotas",
+  "tlc_version": "2.19 of 08 August 2024",
+  "generated_tla_sha256": "26cf47abdad4bfdc8d54f04e2b2984d5b4358a1e728a700d53b3b14cc81e387f",
+  "distinct_states": 49,
+  "properties": [
+    "TYPE_OK",
+    "POOL_BOUND",
+    "PER_CLIENT_QUOTA",
+    "LEGITIMATE_RESERVE",
+    "BLIND_RST_CONTAINED"
+  ],
+  "rfc9293_conformance_proved": false,
+  "rfc5961_conformance_proved": false,
+  "implementation_refinement_proved": false
+}

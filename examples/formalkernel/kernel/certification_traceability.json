@@ -1,0 +1,30 @@
+{
+  "frameworks": ["DO-178C-objective-aid", "ISO-26262-work-product-aid"],
+  "requirements": [
+    {"id": "FK-RT-001", "claim": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-WCET-002", "claim": "WCET_BOUND_PROVEN", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-MEM-003", "claim": "HARDWARE_MEMORY_BOUND_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-DMA-004", "claim": "DMA_ISOLATION_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-WM-005", "claim": "WEAK_MEMORY_SAFETY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-R52-006", "claim": "R52_TCM_PLACEMENT_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-SMMU-007", "claim": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-N150-008", "claim": "N150_PLATFORM_CONFIGURATION_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-SPACE-009", "claim": "SPATIAL_ISOLATION_PROVED", "profiles": ["microkernel"]},
+    {"id": "FK-SYSCALL-010", "claim": "SYSCALL_BOUNDARY_PROVED", "profiles": ["microkernel"]},
+    {"id": "FK-AUTH-011", "claim": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED", "profiles": ["microkernel"]},
+    {"id": "FK-UNI-012", "claim": "UNIKERNEL_BUILD_PROVED", "profiles": ["unikernel"]},
+    {"id": "FK-MC-013", "claim": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-RCU-014", "claim": "RCU_RECLAMATION_SAFETY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-FS-015", "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-TCP-016", "claim": "TCP_RESOURCE_CONTAINMENT_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-MIT-017", "claim": "MICROARCH_MITIGATION_POLICY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-MIT-WCET-018", "claim": "MITIGATION_WCET_BUDGET_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-TOOL-019", "claim": "TOOL_QUALIFICATION_EVIDENCE_READY", "profiles": ["microkernel", "monolithic", "unikernel"]}
+  ],
+  "required_physical_closures": [
+    "R52_PHYSICAL_EXECUTION_PENDING",
+    "R52_PHYSICAL_SMMU_VALIDATION_PENDING",
+    "N150_PHYSICAL_EXECUTION_PENDING"
+  ],
+  "certification_claim_forbidden": true
+}

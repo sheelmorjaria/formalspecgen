@@ -1,4 +1,4 @@
-# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M60)
+# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M75, including M71.5)
 
 TDD plan for building a hybrid-kernel development flow on top of the
 M36–M40 OS verification framework. Governing rule, unchanged: *The LLM
@@ -371,6 +371,237 @@ are `PQ_COOPERATIVE_WCET_BOUND_PROVED` scopes, not microkernel preemption
 evidence. The registry forbids both hardware interrupt-delivery proof and any
 monolithic preemptive-isolation claim.
 
+### M61 — herd7 weak-memory simulation
+
+The structural M37 gate still checks that every shared-access function carries
+an ordering primitive. M61 adds SHA-256-bound message-passing litmus tests for
+the declared `x86_tso` and `armv8_sc` profiles and invokes the real `herd7`
+judge. A claim is minted only when herd7 exits successfully and reports the
+forbidden observation as `Never`; `Sometimes`, `Always`, malformed output,
+execution failure, and artifact drift all fail closed.
+
+On a host without herd7 the deployment bundle remains `judge_pending`. The
+declared development environment now carries herdtools7 7.58; both reviewed
+litmus tests report the forbidden observation as `Never`. This is model-level
+evidence only: source-to-litmus/compiled-code refinement and physical-silicon
+conformance remain explicitly forbidden claims.
+
+### M62 — exception-level transition model
+
+A deterministic TLA+ model covers preparation of an EL0 return context,
+modeled `ERET`, syscall trap entry, dispatch validation, and return to user
+mode. TLC 2.19 explores six distinct states and proves that EL0 is reachable
+only with the MMU enabled and user-class SPSR/ELR state, and that every return
+after a trap has passed dispatch validation. The evidence binds the generated
+model to the exact MMU map, syscall table, and ELF load plan hashes.
+
+The AArch64/R52 microkernel profile mints
+`EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED`; the monolith
+records an explicit omission because it has no EL0 process boundary. This is
+not `HARDWARE_EXCEPTION_LEVEL_TRANSITION_PROVED`: ARM's physical `ERET`
+behavior and refinement of compiled vector assembly remain named assumptions.
+
+### M63 — per-task scheduler starvation freedom
+
+The scheduler model contains three reviewed task identities and a bounded
+round-robin cursor. TLC 2.19 explores 36 distinct states and checks, for every
+task, that readiness leads to either that task being scheduled or the task
+being explicitly blocked. This is stronger and more precise than a global
+`[]<>(ready)` predicate, which does not identify which task made progress.
+
+The temporal result depends on the declared `WF_vars(Schedule)` assumption:
+when scheduling remains enabled, the scheduler action eventually executes.
+Both deployment profiles mint
+`SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED`, bound to the exact runqueue C
+witness and generated TLA+ bytes. Unbounded task creation, physical timer/IRQ
+fairness, and C-to-model refinement remain forbidden claims.
+
+### M64 — bounded EL0 user heap
+
+The microkernel grants each process a fixed 4,096-byte heap represented by 16
+allocation-free 256-byte slots. The Rust ledger returns deterministic
+`HeapError::Exhausted` backpressure and rejects invalid or duplicate releases.
+Kani verifies the exact path-included Rust implementation over bounded
+nondeterministic allocate/release sequences, and the bundle binds both source
+and proof-harness hashes. The monolith explicitly omits the separate EL0 heap.
+
+`USER_HEAP_CAPACITY_PROVED` establishes allocator occupancy never exceeds its
+grant. It does not prove physical frame assignment or general-purpose libc
+allocator semantics; those remain forbidden claims.
+
+### M65 — multi-server capability confinement
+
+The microkernel's reviewed finite capability table separates VFS, network,
+and shell authority. Z3 proves the forbidden cross-server combinations are
+unsatisfiable: VFS cannot exercise raw-packet authority, and Net cannot
+exercise file-descriptor authority. The evidence binds both the exact JSON
+table and generated SMT encoding. Any server grant or route drift fails
+closed before a claim is emitted.
+
+`SERVER_CAPABILITY_NONINTERFERENCE_PROVED` is a bounded policy theorem. It
+depends on M48 spatial isolation and M49 syscall mediation; it does not prove
+capability-token unforgeability or physical enforcement. The monolith records
+`SERVER_CAPABILITY_BOUNDARY_OMITTED` because no separate EL0 authority
+boundary exists there.
+
+### M66 — feature-gated unikernel profile
+
+`unikernel.json` selects scheduler, network, and VFS from the same source tree
+while the deployment gate rejects MMU, syscall, IPC, ELF-loader, exception,
+EL0-heap, and server-capability artifacts. A dedicated no-std Rust crate must
+build with `cargo build --features unikernel`; its manifest and source hashes
+are retained in the evidence. The resulting bundle currently contains 29
+entries and records `UNIKERNEL_BOUNDARIES_STRIPPED` as a named boundary.
+
+`UNIKERNEL_BUILD_PROVED` establishes feature-gated compilation and the
+declared single-EL1 structure. It does not prove a bootable VM image, runtime
+behavior, or fault containment. Those claims are forbidden rather than
+inferred from compilation.
+
+### M67 — Cortex-R52 TCM placement
+
+The R52 hardware profile is bound to a dedicated linker script with 16 KiB
+ITCM for executable/read-only sections and 16 KiB DTCM for writable state. The
+declared `tcm_kernel` pool must exactly equal the DTCM range, and the evidence
+hash-binds both the port artifact and linker bytes. All three deployment
+profiles share `R52_TCM_PLACEMENT_PROVED`.
+
+This is placement evidence over human-declared addresses, not physical-board
+evidence. `R52_PHYSICAL_EXECUTION_PENDING` records that boot, SoC address-map
+conformance, and measured WCET still require an attached Cortex-R52 target.
+
+### M68 — R52 SMMU configuration and physical-test protocol
+
+The reviewed SMMUv3 table assigns distinct stream IDs to NIC and block
+devices, requires each allowed window to equal its M39 DMA contract, and
+proves every window is disjoint from protected DTCM. The artifact also fixes
+the physical experiment: attempt a device DMA write into `tcm_kernel` and
+require a translation fault with no memory change.
+
+Only `SMMU_CONFIGURATION_CORRESPONDENCE_PROVED` is currently minted. The
+experiment's `observed` field must remain null until real board evidence is
+captured; otherwise validation fails closed. Consequently
+`EXTERNAL_IO_SAFETY_PROVED` and `PHYSICAL_SMMU_DMA_BLOCK_PROVED` remain
+forbidden, and the registry records M68 step 1 of 2 as partial.
+
+### M69 — Intel N150 x86_64 and VT-d configuration
+
+The N150 artifact binds a page-aligned 1 MiB kernel linker window and distinct
+PCI requester IDs to the profile's NIC and block DMA contracts. VT-d protected
+ranges must equal the declared kernel pool and remain disjoint from every DMA
+window. The existing herd7 `x86_tso` result remains a separate model-level
+claim rather than being promoted to silicon evidence.
+
+`N150_PLATFORM_CONFIGURATION_PROVED` covers only this static correspondence.
+Physical boot, firmware placement, VT-d fault behavior, and silicon TSO
+conformance remain null observations guarded by
+`N150_PHYSICAL_EXECUTION_PENDING`. M69 is therefore step 1 of 2 until evidence
+is captured from an actual Intel N150 system.
+
+### M70 — hard-real-time pre-certification traceability
+
+The deployment-specific matrix maps reviewed FormalKernel requirements to
+actual, non-pending evidence entries. Each row records its claim, judges, and
+sources, while a SHA-256 fingerprint binds the complete evidence tuple set.
+Microkernel-only isolation requirements are excluded from monolith and
+unikernel applicability rather than silently reported as satisfied.
+
+`CERTIFICATION_TRACEABILITY_COMPLETE` means every applicable requirement has
+evidence in the current bundle. It deliberately carries
+`certification_ready: false` and `regulatory_certification_proved: false`.
+The three physical M67–M69 closures remain listed, and DO-178C Level A,
+ISO 26262 certification, and physical hard-real-time claims are forbidden.
+M70 therefore provides a pre-certification work product, not authority
+approval or a certification result.
+
+### M71.5 — shared-hardware interference inventory
+
+Both hardware profiles must disposition the complete reviewed channel set:
+cache, memory bandwidth, interconnect, DMA, interrupts, and SMT. Each channel
+names a control and a bounded, pending, or not-applicable status. The gate
+rejects missing channels and refuses hand-entered measurement results; future
+WCET inflation data must arrive through an authenticated evidence-ingestion
+lane carrying target identity, workload and raw-sample hashes, an inflation
+bound, and a reviewer signature.
+
+`MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED` covers the twelve inventory rows.
+It does not validate a target WCET bound. The latter remains
+`TARGET_WCET_INTERFERENCE_BOUND_PENDING`, while
+`MULTICORE_TIMING_INTERFERENCE_PROVED` is forbidden.
+
+### M71 — parameterized RCU reclamation safety
+
+`RCURefinement.tla` defines the epoch, active-reader, callback, and reclaimed
+state for an arbitrary `Readers` set. TLAPS discharges all ten initialization
+and inductiveness obligations. A separate two-reader pthread witness uses
+explicit ESBMC atomic sections for reader publication and the updater's
+reclamation snapshot; ESBMC checks it with unwind 5 and context bound 3. The
+initial unprotected witness produced real publication/snapshot counterexamples
+and was corrected before evidence was minted.
+
+`RCU_RECLAMATION_SAFETY_PROVED` is scoped to the parameterized grace-period
+invariant plus that bounded SC witness. It is not implementation refinement:
+IRQ/NMI interaction, callback-pressure bounds, weak-memory lowering, and exact
+C/model correspondence remain named pending obligations.
+
+### M72 — crash-consistent VFS journal
+
+The bounded write-ahead-log model separates volatile pending writes from
+durable filesystem and journal state. Intent and data writes may reorder;
+intent, data, and commit records may tear; crashes discard the volatile cache;
+and recovery itself may crash after restoring data but before clearing the
+journal. TLC 2.19 explores 39 distinct states and checks type safety, commit
+ordering, stable recovery writes, and old-or-new crash atomicity. TLC initially
+found a repeat-data issuance path that allowed a torn rewrite before commit;
+an explicit single-issuance ledger corrected the protocol before publication.
+
+`FILESYSTEM_CRASH_ATOMICITY_PROVED` is scoped to this declared persistence
+contract. Physical FUA semantics, device-firmware behavior, and
+CrashMonkey-style injected-crash validation remain pending and forbidden as
+stronger claims.
+
+### M73 — adversarial TCP resource containment
+
+The bounded TCP model tracks half-open, established, and TIME_WAIT occupancy
+for attacker and legitimate principals under a four-slot pool with two-slot
+per-principal quotas. It includes eight-value modular sequence arithmetic,
+receive-window ACK validation, duplicate SYNs, dropped/reordered ACKs,
+retransmission expiry, TIME_WAIT pressure, and challenge ACKs for blind RSTs.
+TLC 2.19 explores 49 distinct states and proves pool capacity, each principal's
+quota, the legitimate two-slot reserve, and bounded challenge-ACK state.
+
+`TCP_RESOURCE_CONTAINMENT_PROVED` is scoped to this two-principal adversarial
+envelope and quota policy. It is not comprehensive RFC 9293 or RFC 5961
+conformance, sequence-space refinement, congestion-control verification, or
+native lwIP/mbedTLS implementation refinement; those remain locked claims.
+
+### M74 — microarchitectural mitigation policy
+
+The N150 policy declares CPUID capabilities, a minimum reviewed microcode
+revision, SMT state, and the active MDS, TAA, L1TF, SRSO, and BHI hazards. Z3
+checks for a counterexample in which any active hazard lacks its corresponding
+mitigation; `unsat` mints `MICROARCH_MITIGATION_POLICY_PROVED`. Selected
+mitigations also require their declared CPUID capabilities.
+
+The separate `MITIGATION_WCET_BUDGET_PROVED` claim is arithmetic over declared
+costs: the selected mitigations total 105 cycles against a 160-cycle budget.
+Neither claim authenticates runtime CPUID or microcode, measures physical
+latency, or proves speculative information-flow noninterference. Those three
+boundaries remain named `judge_pending` entries in every deployment bundle.
+
+### M75 — tool qualification-support evidence
+
+A standalone Python standard-library oracle script checks a reviewed golden corpus
+without importing FormalSpecGen or its pipeline. Two vectors compare canonical
+semantic digests of reviewed and emitted V2 ASTs; a third independently parses
+the supported Boolean SMT assertion form and compares it with reviewed variable
+assignments. The evidence binds SHA-256 hashes of both the corpus and oracle.
+
+`TOOL_QUALIFICATION_EVIDENCE_READY` means only that this finite corpus passed an
+independent implementation. It does not prove the serializers generally correct,
+qualify FormalSpecGen under DO-330, or replace context-specific external authority
+review. `DO330_EXTERNAL_QUALIFICATION_PENDING` records that remaining boundary.
+
 ## Evidence lattice shipped per subsystem
 
 ```
@@ -378,11 +609,28 @@ SOURCE_MODEL_REFINEMENT            (Prusti/TLC — proved once, arch-agnostic)
 HARDWARE_MEMORY_BOUND_PROVEN       (Z3 + M41 profile — per subsystem)
 LOCK_FREE_LINEARIZABILITY_PROVED   (ESBMC over the C witness — once)
 BARRIER_CORRESPONDENCE_PROVED      (per profile: x86_tso | armv8_sc)
+WEAK_MEMORY_SAFETY_PROVED          (herd7 forbidden-outcome check; judge_pending when absent)
 WCET_BOUND_PROVEN                  (per profile cost model; binary_cfg when toolchain present)
 DMA_ISOLATION_PROVED               (per profile memory map)
 SYSTEM_COMPOSITION_PROVED          (deterministic precondition flow — M46)
 SPATIAL_ISOLATION_PROVED           (descriptor math + walker decode — M48)
 SYSCALL_BOUNDARY_PROVED            (dispatch table — judge_pending hardware trap — M49)
+EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED (TLC EL1/EL0 control-state model — M62)
+SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED (per-task TLC leads-to under WF — M63)
+USER_HEAP_CAPACITY_PROVED          (Kani fixed EL0 allocator — M64)
+SERVER_CAPABILITY_NONINTERFERENCE_PROVED (Z3 finite routing policy — M65)
+UNIKERNEL_BUILD_PROVED              (Cargo no-std feature build — M66)
+R52_TCM_PLACEMENT_PROVED            (deterministic linker/profile binding — M67)
+SMMU_CONFIGURATION_CORRESPONDENCE_PROVED (R52 stream/DMA arithmetic — M68 step 1)
+N150_PLATFORM_CONFIGURATION_PROVED (x86_64 linker/VT-d binding — M69 step 1)
+CERTIFICATION_TRACEABILITY_COMPLETE (requirements/evidence fingerprint — M70)
+MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED (profile inventory — M71.5)
+RCU_RECLAMATION_SAFETY_PROVED     (TLAPS invariant + ESBMC witness — M71)
+FILESYSTEM_CRASH_ATOMICITY_PROVED (TLC declared persistence contract — M72)
+TCP_RESOURCE_CONTAINMENT_PROVED   (TLC partitioned adversarial quotas — M73)
+MICROARCH_MITIGATION_POLICY_PROVED (Z3 declared hazard-policy completeness — M74)
+MITIGATION_WCET_BUDGET_PROVED    (declared mitigation-cost equation — M74)
+TOOL_QUALIFICATION_EVIDENCE_READY (independent reviewed golden corpus — M75)
 MPSC_BOUNDED_PARTITION_PROVED      (ESBMC per-lane + total — M50)
 IPC_ENDPOINT_TABLE_PROVED          (cross-artifact routing — M50)
 RUST_WITNESS_REFINEMENT_PROVED     (Kani over the image's own witness.rs — M53)

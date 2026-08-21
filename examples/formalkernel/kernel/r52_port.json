@@ -1,0 +1,11 @@
+{
+  "target": "cortex-r52",
+  "board": "human_declared_r52_profile",
+  "tcm_regions": {
+    "itcm": [0, 16384],
+    "dtcm": [16384, 32768]
+  },
+  "linker_script": "../boot/layout-r52.ld",
+  "linker_sha256": "02a11f9fe1590b686bec9ace9630b644571dc15008097668b57bfc65f25507db",
+  "physical_execution_evidence": null
+}

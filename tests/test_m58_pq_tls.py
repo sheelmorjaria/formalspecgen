@@ -65,6 +65,30 @@ def test_valid_capacity_mints_nothing_when_z3_is_absent(monkeypatch):
     assert verdict["code"] == "z3_unavailable"
 
 
+def test_pool_rejects_missing_and_malformed_resource_inputs():
+    artifact, profile = _json(NET / "pq_tls.json"), _json(PROFILES[0])
+    cases = []
+    bad = copy.deepcopy(artifact); bad["profile_budgets"] = {}; cases.append((bad, "PQ_TLS_PROFILE_MISSING"))
+    bad = copy.deepcopy(artifact); bad["session_components_bytes"] = {}; cases.append((bad, "PQ_TLS_COMPONENTS_MISSING"))
+    bad = copy.deepcopy(artifact); bad["capacity"] = 0; cases.append((bad, "PQ_TLS_CAPACITY_INVALID"))
+    bad = copy.deepcopy(artifact); bad["alignment_bytes"] = 0; cases.append((bad, "PQ_TLS_ALIGNMENT_INVALID"))
+    bad = copy.deepcopy(artifact); bad["profile_budgets"]["n150"] = 0; cases.append((bad, "PQ_TLS_BUDGET_INVALID"))
+    for candidate, code in cases:
+        assert verify_pq_tls_pool(candidate, profile)["code"] == code
+
+
+def test_z3_execution_and_non_unsat_fail_closed(monkeypatch):
+    artifact, profile = _json(NET / "pq_tls.json"), _json(PROFILES[0])
+    monkeypatch.setattr("pipeline.pq_tls_pool.shutil.which", lambda _name: "z3")
+    monkeypatch.setattr("pipeline.pq_tls_pool.subprocess.run",
+                        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("boom")))
+    assert verify_pq_tls_pool(artifact, profile)["code"] == "z3_failed"
+    result = type("Result", (), {"returncode": 0, "stdout": "sat\n"})()
+    monkeypatch.setattr("pipeline.pq_tls_pool.subprocess.run",
+                        lambda *_args, **_kwargs: result)
+    assert verify_pq_tls_pool(artifact, profile)["code"] == "PQ_TLS_CAPACITY_NOT_EXACT"
+
+
 def test_pool_source_is_hash_bound_bounded_and_panic_free():
     artifact = _json(NET / "pq_tls.json")
     source = (NET / artifact["source"]).read_text(encoding="utf-8")

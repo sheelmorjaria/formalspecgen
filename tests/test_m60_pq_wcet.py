@@ -73,6 +73,30 @@ def test_hash_yield_and_deadline_drift_fail_closed():
                           "monolithic")["code"] == "PQ_COOPERATIVE_WCET_MISSED"
 
 
+def test_gate_names_profile_source_and_scheduler_refusals(tmp_path):
+    artifact, workload, scheduler = _inputs()
+    profile = _json(PROFILES[0])
+    cases = [(artifact, scheduler, {**profile, "target": "other"}, "other",
+              "PQ_WCET_PROFILE_UNSUPPORTED")]
+    bad = copy.deepcopy(artifact); bad["width"] = 255
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_WCET_BOUND_INVALID"))
+    bad = copy.deepcopy(artifact); bad["layers"] = 7
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_WCET_SOURCE_BOUND_MISMATCH"))
+    cases.append((artifact, scheduler, {**profile, "cost_model": {}}, "microkernel", "PQ_WCET_COST_MODEL_MISSING"))
+    bad = copy.deepcopy(artifact); bad["microkernel"]["execution_level"] = "EL1"
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_PREEMPTION_LEVEL_INVALID"))
+    cases.append((artifact, tmp_path / "missing.c", profile, "microkernel", "PQ_SCHEDULER_SOURCE_MISSING"))
+    bad = copy.deepcopy(artifact); bad["microkernel"]["scheduler_source_sha256"] = "0" * 64
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_SCHEDULER_SOURCE_HASH_MISMATCH"))
+    bad = copy.deepcopy(artifact); bad["microkernel"]["max_preemption_cycles"] = {}
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_PREEMPTION_DEADLINE_MISSING"))
+    bad = copy.deepcopy(artifact); bad["microkernel"]["max_preemption_cycles"]["n150"] = 1
+    cases.append((bad, scheduler, profile, "microkernel", "PQ_PREEMPTION_DEADLINE_MISSED"))
+    cases.append((artifact, scheduler, profile, "other", "PQ_WCET_DEPLOYMENT_UNSUPPORTED"))
+    for candidate, sched, hardware, deployment, code in cases:
+        assert verify_pq_wcet(candidate, workload, sched, hardware, deployment)["code"] == code
+
+
 def test_bundle_claims_diverge_at_the_execution_boundary():
     micro = verify_kernel(DEMO / "kernel", PROFILES)
     mono = verify_kernel(DEMO / "kernel", PROFILES, "monolith.json")

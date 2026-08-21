@@ -10,6 +10,8 @@ tools/frama-c-33.0/
 tools/prusti/
 .frama-c/
 tools/tla2tools.jar
+.tools/
+.tlacache/
 
 # Python caches, environments, coverage, and packaging
 *.class
@@ -95,3 +97,4 @@ Thumbs.db
 *~
 formalkernel.elf
 examples/formalkernel/boot/proofs/target/
+examples/formalkernel/unikernel/target/

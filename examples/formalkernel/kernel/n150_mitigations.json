@@ -1,0 +1,42 @@
+{
+  "target": "n150",
+  "profile_source": "human_declared_not_runtime_cpuid",
+  "cpuid": {
+    "vendor": "GenuineIntel",
+    "smt_enabled": false,
+    "ibrs_available": true,
+    "md_clear_available": true,
+    "tsx_available": false
+  },
+  "microcode": {
+    "declared_revision": 1,
+    "minimum_reviewed_revision": 1,
+    "runtime_revision_validated": false
+  },
+  "hazards": {
+    "MDS": true,
+    "TAA": true,
+    "L1TF": true,
+    "SRSO": false,
+    "BHI": true
+  },
+  "selected_mitigations": {
+    "verw_clear": true,
+    "tsx_disabled": true,
+    "pte_inversion": true,
+    "srso_safe_ret": false,
+    "eibrs_bhb_clear": true,
+    "smt_disabled": true
+  },
+  "declared_cycle_costs": {
+    "verw_clear": 40,
+    "tsx_disabled": 5,
+    "pte_inversion": 10,
+    "srso_safe_ret": 0,
+    "eibrs_bhb_clear": 50,
+    "smt_disabled": 0
+  },
+  "mitigation_budget_cycles": 160,
+  "measured_cost_validated": false,
+  "speculative_noninterference_proved": false
+}

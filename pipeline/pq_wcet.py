@@ -71,7 +71,7 @@ def verify_pq_wcet(artifact: dict, workload: bytes, scheduler_path: Path,
             "hardware_interrupt_delivery_proved": False,
             "note": "EL0 work cannot extend the statically bounded EL1 scheduler handler",
         }
-    if deployment == "monolithic":
+    if deployment in {"monolithic", "unikernel"}:
         spec = artifact.get("monolithic", {})
         symbol = artifact.get("cooperative_yield_symbol")
         if spec.get("execution_level") != "EL1" or not isinstance(symbol, str) \

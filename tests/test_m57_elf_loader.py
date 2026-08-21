@@ -69,6 +69,26 @@ def test_gate_refuses_unbounded_ambiguous_or_unsafe_elf_shapes():
         assert verdict["code"] == code
 
 
+def test_gate_names_remaining_header_segment_and_spatial_refusals():
+    cases = []
+    bad = _artifact(); bad["max_load_segments"] = 0
+    cases.append((bad, "ELF_SEGMENT_BOUND_INVALID"))
+    bad = _artifact(); bad["file_size"] = 0
+    cases.append((bad, "ELF_HEADER_INVALID"))
+    bad = _artifact(); del bad["segments"][0]["frame"]
+    cases.append((bad, "ELF_SEGMENT_FIELD_MISSING"))
+    bad = _artifact(); bad["segments"][0]["frame"] = True
+    cases.append((bad, "ELF_SEGMENT_FIELD_INVALID"))
+    bad = _artifact(); bad["segments"][0]["file_size"] = 1024; bad["segments"][0]["memory_size"] = 2048
+    cases.append((bad, "ELF_SEGMENT_UNALIGNED"))
+    bad = _artifact(); bad["segments"][0]["flags"] = 8
+    cases.append((bad, "ELF_FLAGS_INVALID"))
+    bad = _artifact(); bad["segments"][0]["frame"] = 1
+    cases.append((bad, "FRAME_OUTSIDE_USER_REGION"))
+    for artifact, code in cases:
+        assert verify_elf_load(artifact, _map())["code"] == code
+
+
 def test_rust_loader_is_bounded_panic_free_and_statically_checked():
     source = (KERNEL / "loader/elf_loader.rs").read_text(encoding="utf-8")
     assert "MAX_LOAD_SEGMENTS: usize = 4" in source

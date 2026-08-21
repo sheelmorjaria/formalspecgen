@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "scope": "reviewed_golden_vector_corpus_only",
+  "oracle_independence": "stdlib_only_no_pipeline_imports",
+  "vectors": [
+    {
+      "id": "v2-counter-serializer",
+      "kind": "serializer_ast_identity",
+      "reviewed_ast": {"domain": "counter", "state": {"count": {"type": "int", "min": 0, "max": 4}}, "operation": {"name": "inc", "guard": {"lt": [{"var": "count"}, 4]}, "effect": {"add": [{"var": "count"}, 1]}}},
+      "emitted_ast": {"operation": {"effect": {"add": [{"var": "count"}, 1]}, "guard": {"lt": [{"var": "count"}, 4]}, "name": "inc"}, "state": {"count": {"max": 4, "min": 0, "type": "int"}}, "domain": "counter"},
+      "expected_semantic_sha256": "48664bbf03763bf1da9b9ebe69f6a17d4b849baf040daa5d8d902bb7c4726166"
+    },
+    {
+      "id": "v2-lock-serializer",
+      "kind": "serializer_ast_identity",
+      "reviewed_ast": {"domain": "lock", "state": {"held": {"type": "bool"}, "owner": {"type": "int", "min": 0, "max": 2}}, "invariant": {"implies": [{"var": "held"}, {"gt": [{"var": "owner"}, 0]}]}},
+      "emitted_ast": {"invariant": {"implies": [{"var": "held"}, {"gt": [{"var": "owner"}, 0]}]}, "domain": "lock", "state": {"owner": {"max": 2, "type": "int", "min": 0}, "held": {"type": "bool"}}},
+      "expected_semantic_sha256": "4952e79fb3e99ce15e3e7d2ce21d1437b5997ef2307a24d09ab6ae92da8567c3"
+    },
+    {
+      "id": "z3-hazard-mapping",
+      "kind": "smt_boolean_mapping",
+      "reviewed_assignments": {"hazard_MDS": true, "mitigation_verw_clear": true, "hazard_SRSO": false, "mitigation_srso_safe_ret": false},
+      "emitted_assertions": [
+        "(assert (= hazard_MDS true))",
+        "(assert (= mitigation_verw_clear true))",
+        "(assert (= hazard_SRSO false))",
+        "(assert (= mitigation_srso_safe_ret false))"
+      ]
+    }
+  ],
+  "external_authority_reviewed": false,
+  "do330_qualified": false,
+  "general_transformation_correctness_proved": false
+}

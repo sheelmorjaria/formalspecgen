@@ -1,0 +1,10 @@
+{
+  "algorithm": "epoch_rcu_grace_period",
+  "source": "rcu_witness.c",
+  "bounded_readers": 2,
+  "parameterized_invariant": "reclaimed => forall reader in Readers: ~active[reader] \\/ reader_epoch[reader] > callback_epoch",
+  "parameterized_proof": "RCURefinement.tla",
+  "irq_nmi_interaction": "judge_pending",
+  "callback_pressure_bound": "judge_pending",
+  "source_model_refinement": "judge_pending"
+}

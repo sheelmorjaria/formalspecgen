@@ -1,0 +1,16 @@
+{
+  "claim": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+  "distinct_states": 36,
+  "fairness": "WF_vars(Schedule)",
+  "generated_tla_sha256": "009cf86a15f99bf312e72ffc4fac95b8fd6450b04b2f8655aa50599549956a53",
+  "hardware_timer_fairness_proved": false,
+  "judge": "tlc",
+  "policy": "bounded_round_robin",
+  "property": "per-task ready leads-to scheduled-or-blocked",
+  "source_model_refinement_proved": false,
+  "source_sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b",
+  "status": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+  "task_count": 3,
+  "tlc_version": "2.19 of 08 August 2024",
+  "unbounded_task_liveness_proved": false
+}

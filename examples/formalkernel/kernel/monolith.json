@@ -2,5 +2,14 @@
   "deployment": "monolithic",
   "subsystems": ["scheduler", "net", "ipc", "vfs"],
   "composition": "composition.json",
+  "r52_port": "r52_port.json",
+  "r52_smmu": "r52_smmu.json",
+  "n150_port": "n150_port.json",
+  "certification_traceability": "certification_traceability.json",
+  "multicore_interference": "multicore_interference.json",
+  "rcu": "scheduler/rcu.json",
+  "microarch_policy": "n150_mitigations.json",
+  "tool_qualification": "tool_qualification.json",
+  "weak_memory_models": "weak_memory.json",
   "kani_proofs": "../boot/proofs"
 }

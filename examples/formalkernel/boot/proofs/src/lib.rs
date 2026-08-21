@@ -15,6 +15,9 @@
 #[path = "../../src/witness.rs"]
 pub mod witness;
 
+#[path = "../../../kernel/user/heap.rs"]
+pub mod user_heap;
+
 /// M36 refinement: the SPSC ring's capacity invariant over any
 /// bounded sequence of posts and fetches — a full ring DROPS, it
 /// never overflows, and the consumer never passes the producer.
@@ -84,5 +87,29 @@ fn mpsc_partition_total_invariant() {
         assert!(q.posted + q.dropped == attempts);
         assert!(q.posted == q.head[0] + q.head[1]);
         assert!(q.consumed == q.tail[0] + q.tail[1]);
+    }
+}
+
+/// M64: any bounded sequence of allocations and releases stays within the
+/// kernel-granted fixed pool; exhaustion returns an error without overflow.
+#[kani::proof]
+#[kani::unwind(24)]
+fn user_heap_capacity_invariant() {
+    let mut heap = user_heap::UserHeap::new();
+    let mut handles = [None; user_heap::HEAP_BLOCKS];
+    for _ in 0..20 {
+        let index: usize = kani::any();
+        if index < user_heap::HEAP_BLOCKS {
+            if kani::any() {
+                if let Ok(block) = heap.allocate() {
+                    handles[index] = Some(block);
+                }
+            } else if let Some(block) = handles[index] {
+                let _result = heap.release(block);
+                handles[index] = None;
+            }
+        }
+        assert!(heap.allocated() <= user_heap::HEAP_BLOCKS);
+        assert!(user_heap::HEAP_BYTES == 4096);
     }
 }

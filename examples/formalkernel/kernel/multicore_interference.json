@@ -1,0 +1,32 @@
+{
+  "standard_context": "FAA_AC_20-193_assurance_aid",
+  "targets": {
+    "r52": {
+      "core_count": 4,
+      "channels": {
+        "cache": {"control": "tcm_placement", "status": "bounded_by_architecture"},
+        "memory_bandwidth": {"control": "static_budget", "status": "measurement_pending"},
+        "interconnect": {"control": "static_budget", "status": "measurement_pending"},
+        "dma": {"control": "smmu_domains", "status": "fault_injection_pending"},
+        "interrupts": {"control": "bounded_irq_budget", "status": "measurement_pending"},
+        "smt": {"control": "not_present", "status": "not_applicable"}
+      },
+      "wcet_interference_measurement": null
+    },
+    "n150": {
+      "core_count": 4,
+      "channels": {
+        "cache": {"control": "partition_or_flush_policy", "status": "measurement_pending"},
+        "memory_bandwidth": {"control": "bandwidth_budget", "status": "measurement_pending"},
+        "interconnect": {"control": "uncore_budget", "status": "measurement_pending"},
+        "dma": {"control": "vtd_domains", "status": "fault_injection_pending"},
+        "interrupts": {"control": "bounded_irq_budget", "status": "measurement_pending"},
+        "smt": {"control": "disable_or_core_schedule", "status": "firmware_validation_pending"}
+      },
+      "wcet_interference_measurement": null
+    }
+  },
+  "validated_measurement_schema": {
+    "required": ["target_serial", "workload_sha256", "raw_samples_sha256", "max_inflation_ppm", "reviewer_signature"]
+  }
+}
