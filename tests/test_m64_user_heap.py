@@ -5,7 +5,9 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 from pipeline.capability_registry import capability
+from pipeline.kani_refinement import KANI_AVAILABLE
 from pipeline.kernel_lattice import verify_kernel
 
 ROOT = Path(__file__).parents[1]
@@ -23,6 +25,7 @@ def test_heap_artifact_binds_exact_rust_and_kani_harness():
     assert artifact["heap_blocks"] * artifact["block_bytes"] == artifact["heap_bytes"] == 4096
 
 
+@pytest.mark.skipif(not KANI_AVAILABLE, reason="Kani not installed")
 def test_microkernel_mints_heap_and_monolith_records_omission():
     micro = verify_kernel(KERNEL, PROFILES)
     heap = next(item for item in micro["claims"]

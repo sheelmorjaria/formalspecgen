@@ -59,6 +59,17 @@ def verify_microarch_policy(path: str | Path, profile: dict) -> dict:
         "MDS": "verw_clear", "TAA": "tsx_disabled",
         "L1TF": "pte_inversion", "SRSO": "srso_safe_ret",
         "BHI": "eibrs_bhb_clear"}
+    missing = [mitigation for hazard, mitigation in expected.items()
+               if hazards[hazard] and not selected[mitigation]]
+    if cpuid.get("smt_enabled") is True and not selected["smt_disabled"]:
+        missing.append("smt_disabled")
+    if missing:
+        return _fail("MICROARCH_MITIGATION_INCOMPLETE", ", ".join(missing))
+    total_cost = sum(costs[name] for name in MITIGATIONS if selected[name])
+    budget = artifact.get("mitigation_budget_cycles")
+    if not isinstance(budget, int) or isinstance(budget, bool) or total_cost > budget:
+        return _fail("MITIGATION_WCET_BUDGET_EXCEEDED",
+                     f"declared cost {total_cost} exceeds budget {budget}")
     lines = ["(set-logic QF_UF)"]
     for name in HAZARDS:
         lines.append(f"(declare-const hazard_{name} Bool)")
@@ -85,11 +96,6 @@ def verify_microarch_policy(path: str | Path, profile: dict) -> dict:
         return _fail("MICROARCH_Z3_EXECUTION_FAILED", str(exc))
     if run.returncode != 0 or run.stdout.strip() != "unsat":
         return _fail("MICROARCH_MITIGATION_INCOMPLETE", run.stdout + run.stderr)
-    total_cost = sum(costs[name] for name in MITIGATIONS if selected[name])
-    budget = artifact.get("mitigation_budget_cycles")
-    if not isinstance(budget, int) or isinstance(budget, bool) or total_cost > budget:
-        return _fail("MITIGATION_WCET_BUDGET_EXCEEDED",
-                     f"declared cost {total_cost} exceeds budget {budget}")
     return {
         "status": "MICROARCH_MITIGATION_POLICY_PROVED",
         "claims": ["MICROARCH_MITIGATION_POLICY_PROVED",

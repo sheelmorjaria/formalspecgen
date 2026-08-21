@@ -994,6 +994,10 @@ def verify_kernel(kernel_dir: str | Path,
                      "exhaustion": heap["exhaustion"],
                      "physical_frame_assignment_proved": False,
                  })
+        elif kani_result is not None and kani_result.get("code") == \
+                "kani_unavailable":
+            pending("USER_HEAP_CAPACITY_PROVED", "kani_fixed_el0_heap_pool",
+                    None, str(heap_name), "kani")
         else:
             fail({"claim": "USER_HEAP_CAPACITY_PROVED",
                   "source": str(heap_name),

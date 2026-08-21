@@ -101,6 +101,7 @@ def test_pool_source_is_hash_bound_bounded_and_panic_free():
         assert forbidden not in source
 
 
+@pytest.mark.skipif(shutil.which("z3") is None, reason="real Z3 not installed")
 def test_both_bundles_mint_only_the_memory_claim_and_name_crypto_boundary():
     for manifest in ("kernel.json", "monolith.json"):
         bundle = verify_kernel(DEMO / "kernel", PROFILES, manifest)

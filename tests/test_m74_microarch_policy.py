@@ -1,8 +1,10 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
 import json
+import shutil
 from pathlib import Path
 
+import pytest
 from pipeline.capability_registry import capability
 from pipeline.microarch_policy import verify_microarch_policy
 
@@ -11,6 +13,7 @@ ARTIFACT = Path("examples/formalkernel/kernel/n150_mitigations.json")
 PROFILE = json.loads(Path("examples/formalkernel/profiles/n150.json").read_text())
 
 
+@pytest.mark.skipif(shutil.which("z3") is None, reason="real Z3 not installed")
 def test_declared_n150_policy_is_complete_and_within_budget():
     verdict = verify_microarch_policy(ARTIFACT, PROFILE)
     assert verdict["status"] == "MICROARCH_MITIGATION_POLICY_PROVED"
