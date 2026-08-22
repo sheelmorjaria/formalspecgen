@@ -1,9 +1,14 @@
-# FormalKernel — the Bounded-Pool Hybrid Kernel (M41–M75, including M71.5)
+# FormalKernel — the Formally Governed Kernel (M41–M85, including M71.5 and active M76.3)
 
 TDD plan for building a hybrid-kernel development flow on top of the
 M36–M40 OS verification framework. Governing rule, unchanged: *The LLM
 proposes; deterministic compilers transform; formal tools judge; humans
 control trusted assumptions.*
+
+This document records implemented work through M85. The prospective Gate 0 and
+M86–M120 program is maintained separately in
+[`FORMALKERNEL_M86_M120_ROADMAP.md`](FORMALKERNEL_M86_M120_ROADMAP.md); its
+claims are proposals and are not part of the current evidence ledger.
 
 The kernel is not one artifact — it is an **evidence lattice** over
 subsystems (scheduler, VFS, network), each extracted from legacy C,
@@ -227,17 +232,22 @@ interleaving stays with ESBMC.
 
 ### M54 — deployment profiles (v9.9)
 
-`pipeline/deployment_profile.py`: one tree, two honest bundles, no
+`pipeline/deployment_profile.py`: one tree, explicit scoped bundles, no
 code fork. The root manifest declares its deployment; a monolith
 carrying any boundary lane (mmu/syscalls/ipc) refuses
 `MONOLITH_BOUNDARY_CONTRADICTION`. `verify-kernel --manifest
-monolith.json` mints the 19-claim monolithic bundle (boundary claims
+monolith.json` originally minted the 19-claim M54 monolithic bundle (boundary claims
 omitted; the note says the driver is the kernel — containment does not
-exist) from the SAME sources as the 24-claim microkernel bundle. The
+exist) from the same sources as the original 24-claim microkernel bundle. The
 anti-drift guarantee is a test: every shared claim is the byte-identical
 tuple. M60 introduces one deliberate, registry-declared divergence:
 microkernels mint the EL0 preemption scope while monoliths mint only the
 cooperative EL1 chunk bound.
+
+After M85 the same anti-drift test covers five executable manifests. Current
+fully judged counts are microkernel 66, monolith 54, unikernel 53, Safety 31,
+and Desktop 41. Counts describe scoped evidence entries, not comparative
+assurance scores.
 
 ### M55 — VFS portability lane (deliverables 1–2 of 4)
 
@@ -450,7 +460,7 @@ boundary exists there.
 while the deployment gate rejects MMU, syscall, IPC, ELF-loader, exception,
 EL0-heap, and server-capability artifacts. A dedicated no-std Rust crate must
 build with `cargo build --features unikernel`; its manifest and source hashes
-are retained in the evidence. The resulting bundle currently contains 29
+are retained in the evidence. The resulting bundle currently contains 53
 entries and records `UNIKERNEL_BOUNDARIES_STRIPPED` as a named boundary.
 
 `UNIKERNEL_BUILD_PROVED` establishes feature-gated compilation and the
@@ -463,8 +473,9 @@ inferred from compilation.
 The R52 hardware profile is bound to a dedicated linker script with 16 KiB
 ITCM for executable/read-only sections and 16 KiB DTCM for writable state. The
 declared `tcm_kernel` pool must exactly equal the DTCM range, and the evidence
-hash-binds both the port artifact and linker bytes. All three deployment
-profiles share `R52_TCM_PLACEMENT_PROVED`.
+hash-binds both the port artifact and linker bytes. The microkernel, monolith,
+unikernel, and Safety manifests carry `R52_TCM_PLACEMENT_PROVED`; the N150-only
+Desktop manifest does not.
 
 This is placement evidence over human-declared addresses, not physical-board
 evidence. `R52_PHYSICAL_EXECUTION_PENDING` records that boot, SoC address-map
@@ -602,6 +613,194 @@ independent implementation. It does not prove the serializers generally correct,
 qualify FormalSpecGen under DO-330, or replace context-specific external authority
 review. `DO330_EXTERNAL_QUALIFICATION_PENDING` records that remaining boundary.
 
+### M76 steps 1–3b-r1 — vertical refinement and foundational judge qualification
+
+The first vertical deliverable binds the promoted VFS model, its Prusti
+certificate, and exact `Vfs.rs` bytes. A deterministic pass removes only
+Prusti ghost attributes; rustc emits host LLVM IR and an ELF object whose
+hashes and compiler provenance enter the evidence envelope. The five modeled
+operation symbols must remain observable in IR.
+
+`REFINEMENT_CHAIN_ARTIFACTS_BOUND` is identity evidence, not semantics.
+Rust-to-LLVM refinement, verified compilation, target binary semantics, and
+`END_TO_END_REFINEMENT_CHAIN_ESTABLISHED` remain locked for later M76 steps.
+
+Step 2 generates a Rust relational harness directly from the reviewed V2 guard
+and effect AST. It executes the exact ghost-erased implementation over all 255
+states satisfying the VFS invariants and all four operations, checking 1,020
+state/operation transitions plus the constructor. Explicit process exit codes
+replace panic paths. `BOUNDED_COMPILED_REFINEMENT_VALIDATED` records this finite
+exhaustive result; it is not a theorem about arbitrary Rust or LLVM programs.
+
+Step 3a activates the installed RefinedRust 0.1.0, Rocq 9.2, Iris/stdpp, and
+lifetime-logic stack through the isolated `refinedrust` opam switch. A minimal
+Rust identity function is translated into Radium/Rocq and its generated proof
+build completes. An unchanged identity postcondition rejects a deliberately
+mutated `value + 1` implementation as an incomplete proof. This establishes a
+non-vacuous judge smoke test only: `RUST_IMPLEMENTATION_REFINEMENT_PROVED`
+remains locked until step 3b proves an actual allocator or capability primitive.
+
+Step 3b-r1 isolates and corrects a RefinedRust 0.1.0 semantic translation defect
+without changing the production allocator. Standalone `[T; N]` translated to
+`array_t N T`, but the same array embedded in a struct was assigned `list T` rather
+than the required `list (place_rfn T)`. The generic correction is retained as a
+hash-bound local tool patch and validated for `N = 0, 1, 2, 4, 16`; all standalone
+and embedded cases translate and complete their Rocq builds. Reverting the rule to
+the malformed representation is rejected by Rocq with the captured type mismatch.
+This mints only `REFINEDRUST_ARRAY_TRANSLATION_VALIDATED`. The patch is explicitly
+not upstream-accepted, the allocator functional proof remains step 3b-r2, and all
+Rust-wide/compiler/end-to-end refinement claims remain locked.
+
+Step 3b-r2 then applies a ghost-only annotation overlay to the exact production
+allocator; deterministic erasure reproduces `user/heap.rs` byte-for-byte. The
+judge stops before functional obligations on three independent unsupported
+constructs: named-constant normalization for the `HEAP_BLOCKS` array length,
+iterator/enumerate pattern lowering in `allocate`, and the slice-index trait used
+by `get_mut` in `release`. A generic constant-normalization prototype reached the
+latter two boundaries but was not added to the qualified local patch. Replacing
+the constant with `16`, rewriting the iterator, or proving a surrogate allocator
+is forbidden. Consequently the mutation suite has not run and
+`BOUNDED_ALLOCATOR_IMPLEMENTATION_REFINEMENT_PROVED` remains locked.
+
+Step 3c does not introduce a verifier-shaped capability primitive because none
+exists in the production Rust tree. A non-evidentiary feasibility scanner records
+only qualified syntax observations and ranks all existing production components.
+The scalar `BlockDevice::complete` transition in `virtio_blk.rs` ranks first and
+is probed through a byte-identical ghost overlay. An initial ICE is reduced to an
+incomplete overlay: with specifications on both trait methods and the impl, a
+minimal generic `Adapter<P>` translates and its Rocq proofs complete. The exact
+adapter remains blocked because its sibling `submit` method uses `?`, whose
+`core::result::branch` procedure is not modeled. ELF loading and both fixed
+pool ledgers contain already-recorded array, iterator, slice, or closure blockers.
+The report is therefore `NO_PROOF`: no existing production primitive is currently
+inside the qualified fragment, and no M76.3c refinement claim is minted.
+
+Step 3c-u1 records this correction as qualification evidence, not a theorem and
+not an upstream bug report. The inherent control completes 2,220 Rocq steps; the
+generic local-trait reproducer completes 492 and 2,293 steps. A machine-readable
+boundary ledger now distinguishes the qualified generic trait-registration shape
+from the open Result/Try shim, and is consumed by both `doctor --judges --json`
+and feasibility ranking. No additional local RefinedRust patch is introduced.
+
+### M77 — dynamic VM and bounded NUMA accounting
+
+`dynamic_vm.json` replaces a single fixed global pool with ownership accounting
+for three admitted processes across two static NUMA nodes. Z3 checks inductive
+preservation for allocation, release, mapping, fork/COW reservation, and exec
+reclamation. It proves each process remains below its page quota, each node
+remains below capacity, and the sum of charged pages remains below admitted
+memory. Deterministic quota exhaustion stutters instead of invoking an OOM
+killer.
+
+The two minted claims, `VM_RESOURCE_ISOLATION_PROVED` and
+`NUMA_ACCOUNTING_PROVED`, have scope
+`three_process_two_node_symbolic_accounting`. They do not establish arbitrary
+process cardinality, NUMA hotplug, hardware TLB coherence, page-walker behavior,
+or native allocator refinement.
+
+### M78 — parameterized SMP scheduler invariants
+
+`SmpSchedulerRefinement.tla` and its reviewed scheduler policy cover per-CPU
+run queues, affinity, and migration. TLAPS discharges nine obligations over
+arbitrary finite CPU and task sets: unique run-queue ownership, affinity
+compliance, ownership preservation, and migration conservation.
+
+`SMP_SCHEDULER_INVARIANTS_PROVED` is the only arbitrary-finite-set theorem in
+this Phase 7 group. Native load-balancer refinement, IRQ/IPI delivery, CPU
+hotplug, temporal liveness, composition with M77, and measured interference
+bounds remain pending.
+
+### M79 — IOMMU, PCIe, and multiqueue device domains
+
+`device_fabric.json` assigns unique PCIe requester IDs and IOMMU domains to the
+NVMe and network devices, gives them disjoint DMA windows outside kernel and
+page-table memory, and binds six MSI-X/multiqueue capacities to reserved buffer
+pages. Z3 proves queue occupancy cannot exceed those reservations; the reset
+contract increments an epoch and clears outstanding accounting.
+
+`DEVICE_DMA_DOMAIN_ISOLATION_PROVED` covers the declared requester table,
+ranges, and queue budgets. Physical IOMMU enforcement, PCIe/NVMe firmware,
+device behavior, MSI-X delivery, and native driver refinement remain pending.
+
+### M80 — bounded process concurrency model
+
+The TLC process model covers `fork`, `exec`, `exit`, futex wait, and futex wake
+for two processes and two threads under a two-page quota. TLC checks 15 states
+for cleanup, futex consistency, and deadlock freedom. A separate Z3 query proves
+that exec resets the old page charge and inherited capability state.
+
+`PROCESS_CONCURRENCY_MODEL_PROVED` is therefore a bounded lifecycle theorem,
+not full POSIX conformance. Native syscall/futex refinement, hardware futex
+atomicity, signals, credentials, and unbounded process populations remain
+outside the claim.
+
+### M81 — measured boot and rollback policy
+
+`boot_integrity.json` binds a reviewed source measurement, PCR index, root-key
+identity, current version, minimum accepted version, and recovery response. TLC
+checks 10 reachable control states and excludes a rollback path to Running. Z3
+proves an admitted boot cannot have a mismatched measurement, missing
+authorization, or stale version.
+
+`BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED` is scoped to the declared policy and
+hash bindings. It does not prove physical TPM semantics, firmware measurements,
+key custody, SHA-256 collision resistance, final-image measurement, or physical
+boot-chain enforcement.
+
+### M82 — bounded network-scale partitioning
+
+The network model covers IPv6 TCP/UDP classification, default-drop firewalling,
+public/internal routing, four statically partitioned queues, and deterministic
+backpressure. TLC checks 49 states for type safety, terminal routing decisions,
+and firewall preservation. Z3 proves tenant queue occupancy cannot consume the
+system reservation or exceed the total descriptor budget.
+
+`NETWORK_RESOURCE_PARTITION_PROVED` is limited to two principals and four
+queues. Full IPv6/RFC conformance, native network-stack refinement, RSS/MSI-X
+behavior, cryptographic packet authenticity, and physical delivery remain
+pending.
+
+### M83 — fault containment and recovery
+
+`fault_recovery.json` models one correctable ECC fault, uncorrectable MCE,
+watchdog expiry, or device failure across a workload, supervisor, and three
+pages. TLC checks eight distinct states: every pending fault has a recovery
+action, poisoned page zero is no longer owned, accounting remains exact, and
+the supervisor stays schedulable. Z3 proves poisoning removes one page from
+both charged and allocatable totals.
+
+`FAULT_CONTAINMENT_RECOVERY_PROVED` is scoped to this single-fault recovery
+model. Physical ECC/MCE/watchdog delivery, firmware reset behavior, native
+handler refinement, and repeated or simultaneous faults remain pending.
+
+### M84 — guest isolation domains
+
+The guest model gives two guests static CPU-slot, memory-page,
+network-descriptor, and distinct IOMMU-domain reservations. TLC checks nine
+states and 31 generated transitions over create, pause, resume, and destroy,
+including exact reservation/reclamation and lifecycle progress. Z3 proves all
+per-guest and aggregate ceilings and the domain-ID separation.
+
+`GUEST_RESOURCE_NONINTERFERENCE_PROVED` is policy evidence for those two static
+guests. Hardware VM-exit semantics, nested-page enforcement, interrupt
+remapping, native hypervisor refinement, speculative side channels, and
+arbitrary guest populations remain pending.
+
+### M85 — compatibility and operations evidence
+
+The reviewed ABI-v1 baseline freezes numbers, names, symbols, and signatures
+for `open`, `read`, `write`, `close`, and `exit`. The gate compares the active
+ABI byte-for-byte with that baseline, checks implementation symbols, compiles
+the exact C compatibility shim with warnings as errors, and runs nine host
+behavior vectors. It also structurally checks trace fields, profiling counters,
+the crash-dump header, and the minimum-version/recovery upgrade policy.
+
+The resulting names deliberately describe empirical evidence:
+`ABI_STABILITY_CHECKED` and `POSIX_CONFORMANCE_TESTED`, both scoped to
+`five_call_host_compiled_compatibility_shim`. They do not prove full POSIX,
+kernel-dispatch refinement, target runtime behavior, production observability,
+complete crash dumps, or atomic field upgrades.
+
 ## Evidence lattice shipped per subsystem
 
 ```
@@ -631,11 +830,60 @@ TCP_RESOURCE_CONTAINMENT_PROVED   (TLC partitioned adversarial quotas — M73)
 MICROARCH_MITIGATION_POLICY_PROVED (Z3 declared hazard-policy completeness — M74)
 MITIGATION_WCET_BUDGET_PROVED    (declared mitigation-cost equation — M74)
 TOOL_QUALIFICATION_EVIDENCE_READY (independent reviewed golden corpus — M75)
+REFINEMENT_CHAIN_ARTIFACTS_BOUND (V2/Prusti/Rust/LLVM/object identity — M76 step 1)
+BOUNDED_COMPILED_REFINEMENT_VALIDATED (255 states/1,020 transitions — M76 step 2)
+VM_RESOURCE_ISOLATION_PROVED       (Z3 symbolic dynamic quotas — M77)
+NUMA_ACCOUNTING_PROVED             (Z3 two-node ownership accounting — M77)
+SMP_SCHEDULER_INVARIANTS_PROVED   (TLAPS arbitrary finite CPU/task sets — M78)
+DEVICE_DMA_DOMAIN_ISOLATION_PROVED (IOMMU/range + Z3 multiqueue budgets — M79)
+PROCESS_CONCURRENCY_MODEL_PROVED   (TLC lifecycle + Z3 exec cleanup — M80)
+BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED (declared TLC/Z3 boot policy — M81)
+NETWORK_RESOURCE_PARTITION_PROVED (TLC routing + Z3 queue partitions — M82)
+FAULT_CONTAINMENT_RECOVERY_PROVED (TLC recovery + Z3 poison accounting — M83)
+GUEST_RESOURCE_NONINTERFERENCE_PROVED (TLC lifecycle + Z3 partitions — M84)
+ABI_STABILITY_CHECKED                (reviewed ABI baseline equality — M85)
+POSIX_CONFORMANCE_TESTED             (host-compiled five-call vectors — M85)
 MPSC_BOUNDED_PARTITION_PROVED      (ESBMC per-lane + total — M50)
 IPC_ENDPOINT_TABLE_PROVED          (cross-artifact routing — M50)
 RUST_WITNESS_REFINEMENT_PROVED     (Kani over the image's own witness.rs — M53)
 UNVERIFIED_EXTERNAL_ADAPTER        (M45 — driver glue, explicitly not proved)
 ```
+
+### Phase 7 assurance-profile matrix
+
+These roadmap profiles classify intended assurance and resource policies.
+`safety.json` and `desktop.json` are now executable and registry-mapped to
+`FK-Safety` and `FK-Desktop`. The existing `microkernel`, `monolith`, and
+`unikernel` names still describe deployment mechanics; they are not silently
+relabeled as the other three assurance profiles.
+
+| FormalKernel profile | Optimizes for | Resource philosophy |
+| --- | --- | --- |
+| `FK-Safety` | DO-178C-style assurance, restricted silicon | Fixed pools, bounded task population, deterministic backpressure |
+| `FK-Secure` | seL4-like isolation, minimal TCB | Strong isolation with controlled dynamic user resources |
+| `FK-Scale` | 64–256 core NUMA servers, high throughput | Dynamic pages, quotas, reclamation, RCU, bounded local invariants |
+| `FK-Desktop` | Richer POSIX/device compatibility | Dynamic pages, broad driver support, relaxed timing |
+| `FK-Lab` | New mechanisms, experimental proofs | Explicit `judge_pending` claims, unverified boundaries |
+
+### Executable manifest matrix after M85
+
+| Manifest | Registry assurance mapping | Hardware input | Required/forbidden policy |
+| --- | --- | --- | --- |
+| `kernel.json` | None; mechanical microkernel scope | N150 + R52 | EL0 boundary lanes enabled |
+| `monolith.json` | None; mechanical monolithic scope | N150 + R52 | EL0 boundary lanes forbidden |
+| `unikernel.json` | None; mechanical unikernel scope | N150 + R52 | Boundary lanes stripped; feature build required |
+| `safety.json` | `FK-Safety` | R52 | Fixed resources, one core, hard WCET; dynamic/SMP/user-space claims forbidden |
+| `desktop.json` | `FK-Desktop` | N150 | Dynamic/POSIX/guest lanes enabled; hard-WCET/interference claims forbidden |
+
+`SAFETY_DYNAMIC_RESOURCE_CONTRADICTION` rejects a Safety manifest that carries
+M77/M78, RCU, process, guest, or POSIX/user-boundary lanes or relaxes its fixed
+resource flags. `DESKTOP_HARD_REALTIME_CONTRADICTION` rejects a Desktop
+manifest that requests hard real-time or multicore-interference assurance. A
+final registry-based minted-claim audit repeats both checks after all lanes run.
+
+The Desktop bundle does not reuse the AArch64-only M57 ELF loader or M62 ERET
+model. `DESKTOP_X86_PROCESS_ENTRY_REFINEMENT_PENDING` names the missing x86_64
+ELF/ring-3/native-exec refinement explicitly.
 
 Fail-closed is the default posture at every seam; no LLM output ever
 becomes evidence.

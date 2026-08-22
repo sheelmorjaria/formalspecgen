@@ -1,0 +1,13 @@
+{
+  "algorithm": "parameterized_per_cpu_owner_function",
+  "parameterized_proof": "SmpSchedulerRefinement.tla",
+  "theorems": ["InitImpliesInv", "InvIsInductive", "MigrationConservesRunnable"],
+  "properties": ["unique_runqueue_ownership", "affinity_compliance", "migration_conservation"],
+  "arbitrary_finite_cpu_and_task_sets": true,
+  "load_balancer_implementation_refinement_proved": false,
+  "irq_ipi_delivery_proved": false,
+  "cpu_hotplug_proved": false,
+  "scheduler_liveness_proved": false,
+  "m77_quota_composition_proved": false,
+  "m71_5_interference_bound_validated": false
+}

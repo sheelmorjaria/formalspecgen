@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from pipeline.deployment_profile import verify_deployment_profile
+from pipeline.capability_registry import DEPLOYMENT_PROFILE_POLICIES
 from pipeline.kani_refinement import KANI_AVAILABLE
 
 KERNEL = Path("examples/formalkernel/kernel")
@@ -48,10 +49,29 @@ def test_gate_units():
     assert gate({"deployment": "unikernel", "unikernel_build": "x",
                  "ipc": "ipc.json"})["code"] == \
         "UNIKERNEL_BOUNDARY_CONTRADICTION"
+    safety = gate({"deployment": "safety", "assurance_profile": "FK-Safety",
+                   "hard_realtime": True,
+                   "dynamic_resources": False, "smp": False, "mmu": "mmu.json"})
+    assert safety["status"] == "DEPLOYMENT_PROFILE_OK"
+    assert safety["boundary_lanes"] == ["mmu"]
+    assert gate({"deployment": "safety", "assurance_profile": "FK-Safety",
+                 "hard_realtime": True,
+                 "dynamic_resources": False, "smp": False,
+                 "dynamic_vm": "dynamic_vm.json"})["code"] == \
+        "SAFETY_DYNAMIC_RESOURCE_CONTRADICTION"
+    desktop = gate({"deployment": "desktop", "assurance_profile": "FK-Desktop",
+                    "hard_realtime": False,
+                    "mmu": "mmu.json", "syscalls": "syscalls.json"})
+    assert desktop["status"] == "DEPLOYMENT_PROFILE_OK"
+    assert gate({"deployment": "desktop", "assurance_profile": "FK-Desktop",
+                 "hard_realtime": True})["code"] == \
+        "DESKTOP_HARD_REALTIME_CONTRADICTION"
+    assert DEPLOYMENT_PROFILE_POLICIES["safety"]["assurance_profile"] == "FK-Safety"
+    assert DEPLOYMENT_PROFILE_POLICIES["desktop"]["assurance_profile"] == "FK-Desktop"
 
 
 @pytest.mark.skipif(not KANI_AVAILABLE, reason="kani not installed")
-def test_one_tree_two_bundles_no_drift():
+def test_one_tree_five_bundles_no_drift():
     """The M54 flex: the SAME sources mint a monolith bundle and a
     microkernel bundle; after M60 their explicit timing claims diverge, and
     every genuinely shared claim is the identical (claim, scope, subsystem,
@@ -59,7 +79,12 @@ def test_one_tree_two_bundles_no_drift():
     from pipeline.kernel_lattice import verify_kernel
     mono = verify_kernel(KERNEL, PROFILES, manifest_name="monolith.json")
     micro = verify_kernel(KERNEL, PROFILES)
+    safety = verify_kernel(KERNEL, [PROFILES[1]], manifest_name="safety.json")
+    desktop = verify_kernel(KERNEL, [PROFILES[0]], manifest_name="desktop.json")
+    unikernel = verify_kernel(KERNEL, PROFILES, manifest_name="unikernel.json")
     assert mono["status"] == micro["status"] == "KERNEL_EVIDENCE_BUNDLE"
+    assert safety["status"] == desktop["status"] == unikernel["status"] == \
+        "KERNEL_EVIDENCE_BUNDLE"
     assert mono["deployment"] == "monolithic"
     assert micro["deployment"] == "microkernel"
 
@@ -81,8 +106,21 @@ def test_one_tree_two_bundles_no_drift():
         item for item in mono["boundaries"]
         if item["claim"] == "SERVER_CAPABILITY_BOUNDARY_OMITTED")
     assert capability_boundary["scope"] == "single_address_space"
-    assert len(micro["claims"]) == 53
-    assert len(mono["claims"]) == 41
+    assert len(micro["claims"]) == 66
+    assert len(mono["claims"]) == 54
+    assert len(safety["claims"]) == 31
+    assert len(desktop["claims"]) == 41
+    assert len(unikernel["claims"]) == 53
+    safety_claims = {c["claim"] for c in safety["claims"]}
+    desktop_claims = {c["claim"] for c in desktop["claims"]}
+    assert not (set(DEPLOYMENT_PROFILE_POLICIES["safety"]["claims_forbidden"])
+                & safety_claims)
+    assert not (set(DEPLOYMENT_PROFILE_POLICIES["desktop"]["claims_forbidden"])
+                & desktop_claims)
+    assert set(DEPLOYMENT_PROFILE_POLICIES["safety"]["claims_required"]) <= safety_claims
+    assert set(DEPLOYMENT_PROFILE_POLICIES["desktop"]["claims_required"]) <= desktop_claims
+    assert {"VM_RESOURCE_ISOLATION_PROVED", "SMP_SCHEDULER_INVARIANTS_PROVED",
+            "PROCESS_CONCURRENCY_MODEL_PROVED", "POSIX_CONFORMANCE_TESTED"} <= desktop_claims
     driver_boundary = next(item for item in mono["boundaries"]
                            if item["claim"] == "UNVERIFIED_IN_KERNEL_DRIVER")
     assert driver_boundary["in_kernel_fault_can_crash_kernel"] is True
@@ -98,6 +136,13 @@ def test_one_tree_two_bundles_no_drift():
         if c["claim"] in DIVERGENT_CLAIMS:
             continue
         assert key(c) in micro_keys, f"drift: {c}"
+    shared_core = {"SOURCE_MODEL_REFINEMENT", "BOUNDED_ARCHITECTURE_EVIDENCE",
+                   "FILESYSTEM_CRASH_ATOMICITY_PROVED"}
+    bundles = (micro, mono, unikernel, safety, desktop)
+    for claim in shared_core:
+        identities = [{key(c) for c in bundle["claims"] if c["claim"] == claim}
+                      for bundle in bundles]
+        assert set.intersection(*identities), f"shared claim drift: {claim}"
 
 
 @pytest.mark.skipif(not KANI_AVAILABLE, reason="kani not installed")
@@ -156,7 +201,8 @@ def test_cli_manifest_flag_selects_the_profile(tmp_path):
     # Hardware-port artifacts bind linker scripts outside this copied kernel
     # directory. They are orthogonal to this CLI manifest-selection test.
     for lane in ("r52_port", "r52_smmu", "n150_port",
-                 "multicore_interference", "certification_traceability"):
+                 "multicore_interference", "certification_traceability",
+                 "refinement_spine", "boot_integrity"):
         mf.pop(lane, None)
     # The copied demo intentionally excludes repository-root formal-domain
     # artifacts; remove that externally bound subsystem just as above.

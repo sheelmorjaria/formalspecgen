@@ -1,0 +1,8 @@
+{
+  "status": "GUEST_LIFECYCLE_MODEL_PROVED",
+  "judge": "tlc",
+  "tlc_version": "2.19 of 08 August 2024",
+  "tla_sha256": "430aeb1908615bf57ca4b99046c705e95cad18d876ebe718cea695e54ee0e233",
+  "distinct_states": 9,
+  "deadlock_free": true
+}

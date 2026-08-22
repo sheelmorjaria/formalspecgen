@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "claim": "NO_PROOF",
+  "judge": "RefinedRust 0.1.0 (349fb6236b8770d8a699b59d5d4b7ef896875763)",
+  "boundaries": [
+    {
+      "id": "embedded_array_place_rfn",
+      "status": "CLOSED_LOCALLY",
+      "qualified": true,
+      "upstream_accepted": false,
+      "activation": "explicit workspace-local patched frontend",
+      "patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a"
+    },
+    {
+      "id": "named_const_array_len",
+      "status": "OPEN",
+      "qualified": false
+    },
+    {
+      "id": "iterator_enumerate_lowering",
+      "status": "OPEN",
+      "qualified": false
+    },
+    {
+      "id": "slice_get_mut_trait_semantics",
+      "status": "OPEN",
+      "qualified": false
+    },
+    {
+      "id": "generic_local_trait_impl_registration",
+      "status": "QUALIFIED_SUPPORTED",
+      "qualified": true,
+      "condition": "trait methods and the trait impl carry complete RefinedRust specifications"
+    },
+    {
+      "id": "result_try_branch",
+      "status": "OPEN",
+      "qualified": false,
+      "diagnostic": "Unknown procedure: core::result::branch"
+    }
+  ]
+}

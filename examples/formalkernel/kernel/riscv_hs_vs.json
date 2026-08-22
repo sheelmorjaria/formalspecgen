@@ -1,0 +1,20 @@
+{
+  "module": "RiscvGuestPrivilege",
+  "validation": "riscv_hs_vs.validation.json",
+  "reviewed_policy": {
+    "path": "examples/formalkernel/kernel/riscv_hs_vs_policy.reviewed.json",
+    "sha256": "39cb2d6d51a3baf0d4d9f75549109654200f11ddac9c91fe03dc0cd8e3b1465e"
+  },
+  "reviewed_profile": {
+    "path": "examples/formalkernel/profiles/riscv64-qemu.reviewed.json",
+    "sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122"
+  },
+  "feasibility": {
+    "path": "examples/formalkernel/kernel/m91_riscv_feasibility.json",
+    "sha256": "b33da68008b6a00b08f967356100e272a27234625dec0ba9127bc3b876c4ed81"
+  },
+  "host_transition_evidence": {
+    "path": "examples/formalkernel/kernel/riscv_privilege_transition.validation.json",
+    "sha256": "1a929b0acc67409389a3ab9bb5a21781f7ae8c045fdd135ebae785ada04920c7"
+  }
+}

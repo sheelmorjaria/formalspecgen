@@ -1,0 +1,19 @@
+{
+  "deployment": "safety",
+  "assurance_profile": "FK-Safety",
+  "hard_realtime": true,
+  "dynamic_resources": false,
+  "smp": false,
+  "subsystems": ["scheduler", "net", "ipc", "vfs"],
+  "composition": "composition.json",
+  "mmu": "mmu.json",
+  "r52_port": "r52_port.json",
+  "r52_smmu": "r52_smmu.json",
+  "tool_qualification": "tool_qualification.json",
+  "refinement_spine": "refinement_spine.json",
+  "boot_integrity": "boot_integrity.json",
+  "network_scale": "network_scale.json",
+  "fault_recovery": "fault_recovery.json",
+  "weak_memory_models": "weak_memory.json",
+  "kani_proofs": "../boot/proofs"
+}

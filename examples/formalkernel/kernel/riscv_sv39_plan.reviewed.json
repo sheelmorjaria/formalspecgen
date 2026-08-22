@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "status": "REVIEWED_RISCV_SV39_MAPPING_PLAN",
+  "mode": "Sv39",
+  "root_ppn": 524304,
+  "satp": 9223372036855300112,
+  "protected_frames": [
+    {
+      "name": "kernel_image_and_tables",
+      "start": 2149580800,
+      "end": 2153775104
+    }
+  ],
+  "tables": [
+    {
+      "ppn": 524304,
+      "level": 2,
+      "entries": [
+        {
+          "index": 256,
+          "ppn": 524305,
+          "flags": {
+            "V": true
+          },
+          "encoded": 536888321
+        },
+        {
+          "index": 0,
+          "ppn": 524307,
+          "flags": {
+            "V": true
+          },
+          "encoded": 536890369
+        }
+      ]
+    },
+    {
+      "ppn": 524305,
+      "level": 1,
+      "entries": [
+        {
+          "index": 0,
+          "ppn": 524306,
+          "flags": {
+            "V": true
+          },
+          "encoded": 536889345
+        }
+      ]
+    },
+    {
+      "ppn": 524306,
+      "level": 0,
+      "entries": [
+        {
+          "index": 0,
+          "ppn": 524800,
+          "flags": {
+            "V": true,
+            "R": true,
+            "X": true,
+            "A": true
+          },
+          "encoded": 537395275
+        },
+        {
+          "index": 1,
+          "ppn": 524801,
+          "flags": {
+            "V": true,
+            "R": true,
+            "W": true,
+            "A": true,
+            "D": true
+          },
+          "encoded": 537396423
+        }
+      ]
+    },
+    {
+      "ppn": 524307,
+      "level": 1,
+      "entries": [
+        {
+          "index": 2,
+          "ppn": 524308,
+          "flags": {
+            "V": true
+          },
+          "encoded": 536891393
+        }
+      ]
+    },
+    {
+      "ppn": 524308,
+      "level": 0,
+      "entries": [
+        {
+          "index": 0,
+          "ppn": 528384,
+          "flags": {
+            "V": true,
+            "R": true,
+            "X": true,
+            "U": true,
+            "A": true
+          },
+          "encoded": 541065307
+        },
+        {
+          "index": 1,
+          "ppn": 528385,
+          "flags": {
+            "V": true,
+            "R": true,
+            "W": true,
+            "U": true,
+            "A": true,
+            "D": true
+          },
+          "encoded": 541066455
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "class": "kernel_text",
+      "va": 18446743798831644672,
+      "pa": 2149580800,
+      "permissions": {
+        "R": true,
+        "W": false,
+        "X": true,
+        "U": false
+      }
+    },
+    {
+      "class": "kernel_data",
+      "va": 18446743798831648768,
+      "pa": 2149584896,
+      "permissions": {
+        "R": true,
+        "W": true,
+        "X": false,
+        "U": false
+      }
+    },
+    {
+      "class": "user_text",
+      "va": 4194304,
+      "pa": 2164260864,
+      "permissions": {
+        "R": true,
+        "W": false,
+        "X": true,
+        "U": true
+      }
+    },
+    {
+      "class": "user_data",
+      "va": 4198400,
+      "pa": 2164264960,
+      "permissions": {
+        "R": true,
+        "W": true,
+        "X": false,
+        "U": true
+      }
+    },
+    {
+      "class": "guard",
+      "va": 4202496,
+      "pa": null,
+      "permissions": {
+        "R": false,
+        "W": false,
+        "X": false,
+        "U": false
+      }
+    }
+  ],
+  "invalid_virtual_addresses": [
+    549755813888,
+    18446743523953737728
+  ],
+  "accepted_candidate_sha256": "f68b05c2b5614d20a64dca7e2fc3ad75ce65b2acabf62b259a90bbaf13158492",
+  "review_scope": "descriptor_mapping_intent_not_hardware_page_walk"
+}

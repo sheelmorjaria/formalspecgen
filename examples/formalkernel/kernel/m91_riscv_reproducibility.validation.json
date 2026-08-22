@@ -1,0 +1,33 @@
+{
+  "builds": [
+    {
+      "label": "clean_a",
+      "raw_elf_sha256": "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c"
+    },
+    {
+      "label": "clean_b",
+      "raw_elf_sha256": "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c"
+    }
+  ],
+  "canonical_evidence_root": "99e70fcb3172092dca66c8e4991190b2ac0227dbeabc0cd6ba284df8a73b7d7f",
+  "canonical_evidence_root_reproducible": true,
+  "claim": "REPRODUCIBLE_RISCV_BINARY_BUILD_OBSERVED",
+  "claims_minted": [
+    "REPRODUCIBLE_RISCV_BINARY_BUILD_OBSERVED",
+    "REPRODUCIBLE_RISCV_EVIDENCE_ROOT_OBSERVED"
+  ],
+  "forbidden_claims": [
+    "REPRODUCIBLE_BUILD_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ],
+  "normalization": {
+    "elf_bytes": "NONE",
+    "evidence_root": "canonical_json"
+  },
+  "raw_elf_reproducible": true,
+  "scope": "two_independent_qemu_riscv64_clean_builds",
+  "status": "REPRODUCIBLE_RISCV_BUILD_OBSERVATION_COMPLETE",
+  "structural_digest_reproducible": true
+}

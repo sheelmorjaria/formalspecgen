@@ -1,0 +1,99 @@
+{
+  "status": "RISCV_PLATFORM_FEASIBILITY_RECORDED",
+  "claim": "NO_PROOF",
+  "lane": "M91.1_riscv_platform_feasibility",
+  "profile_candidate": {
+    "path": "examples/formalkernel/profiles/riscv64-qemu.candidate.json",
+    "sha256": "ee9aac65f24fefd33279729bae609f2c9a9338683c786f3947d53dae1b67233a",
+    "review_status": "HUMAN_REVIEW_PENDING"
+  },
+  "toolchain": {
+    "rustc": {
+      "name": "rustc",
+      "status": "READY",
+      "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "028fd60b0e0add5505c661cd3ccde91393d615c8729bd95d94ab1e91409b36a1",
+      "version": "rustc 1.92.0 (ded5c06cf 2025-12-08)"
+    },
+    "rust_lld": {
+      "name": "rust-lld",
+      "status": "READY",
+      "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "sha256": "5cd8306e6589847a21f0430ea0842f3305fb6ec83fefa6ce8a42e83a63576c82",
+      "version": "LLD 21.1.3 (/checkout/src/llvm-project/llvm 4f74b76fb69688474e073fb26b316d9ea571388f) (compatible with GNU linkers)"
+    },
+    "cross_gcc": {
+      "name": "riscv64-linux-gnu-gcc",
+      "status": "ABSENT",
+      "path": null,
+      "sha256": null,
+      "version": null
+    },
+    "objdump": {
+      "name": "riscv64-linux-gnu-objdump",
+      "status": "READY",
+      "path": "/usr/bin/riscv64-linux-gnu-objdump",
+      "sha256": "daf66b1c00efdb573d259c70c66d211d19ffa9355cf043060ca8024e04e4b59b",
+      "version": "GNU objdump (GNU Binutils for Ubuntu) 2.42"
+    },
+    "rust_target": {
+      "target": "riscv64gc-unknown-none-elf",
+      "status": "INSTALLED"
+    }
+  },
+  "emulator": {
+    "qemu": {
+      "name": "qemu-system-riscv64",
+      "status": "READY",
+      "path": "/usr/bin/qemu-system-riscv64",
+      "sha256": "49b77f94862a9ae0e6e31d031a31cce9a668d647b5e827d706bf1e9951e96710",
+      "version": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)"
+    },
+    "machine_probe": {
+      "machine": "virt",
+      "status": "AVAILABLE",
+      "aclint": "AVAILABLE_CONFIGURABLE",
+      "aia": "AVAILABLE_APLIC_IMSIC_CONFIGURABLE",
+      "h_extension": "AVAILABLE_IN_RV64_CPU_MODEL",
+      "iommu": "RISCV_IOMMU_DEVICE_ABSENT"
+    }
+  },
+  "normative_trust_roots": [
+    {
+      "name": "RISC-V Privileged Architecture",
+      "release": "20260120 / Machine-Level ISA 1.13",
+      "official_url": "https://docs.riscv.org/reference/isa/priv/priv-index.html",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    },
+    {
+      "name": "RISC-V Advanced Interrupt Architecture",
+      "release": "1.0 / clarification release 20250312",
+      "official_url": "https://docs.riscv.org/reference/aia/",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    },
+    {
+      "name": "RISC-V IOMMU Architecture",
+      "release": "1.0.1 / 20260222",
+      "official_url": "https://docs.riscv.org/reference/iommu/index.html",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    }
+  ],
+  "blockers": [],
+  "claims_locked": [
+    "RISCV_PRIVILEGE_TRANSITION_MODEL_PROVED",
+    "RISCV_SPATIAL_ISOLATION_PROVED",
+    "RISCV_INTERRUPT_ROUTING_PROVED",
+    "RISCV_IOMMU_CONFIGURATION_PROVED",
+    "PROOF_CARRYING_BINARY_VALIDATED"
+  ],
+  "boundaries": [
+    "normative documents are release/URL pinned but not content-hash bound until vendored",
+    "QEMU and physical hardware behavior are unproved",
+    "QEMU exposes configurable AIA/APLIC/IMSIC and an rv64 H-extension CPU model",
+    "QEMU 8.2.2 does not expose a RISC-V IOMMU architecture device",
+    "the candidate memory map is human-owned and not yet reviewed"
+  ]
+}

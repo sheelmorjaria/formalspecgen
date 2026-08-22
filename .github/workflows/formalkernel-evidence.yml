@@ -1,0 +1,117 @@
+name: FormalKernel evidence integrity
+
+on:
+  pull_request:
+    paths:
+      - "examples/formalkernel/**"
+      - "pipeline/**"
+      - "tests/test_m7*.py"
+      - "tests/test_m8*.py"
+      - "tests/test_m9*.py"
+      - ".github/workflows/formalkernel-evidence.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formalkernel-evidence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  TLC_VERSION: "1.7.4"
+  TLC_SHA256: "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+  TLC_JAR: ${{ github.workspace }}/tools/tla2tools.jar
+
+jobs:
+  evidence-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: riscv64gc-unknown-none-elf,aarch64-unknown-none-softfloat
+      - name: Install system judges and RV64 runtime tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            z3 qemu-system-misc binutils-riscv64-linux-gnu
+      - name: Install FormalSpecGen test dependencies
+        run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
+      - name: Restore pinned TLC
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$TLC_JAR" \
+            "https://github.com/tlaplus/tlaplus/releases/download/v${TLC_VERSION}/tla2tools.jar"
+          echo "$TLC_SHA256  $TLC_JAR" | sha256sum --check --strict
+          java -jar "$TLC_JAR" -help >/dev/null
+      - name: Rebuild and validate the exact RV64 deployment candidate
+        run: formalspecgen verify-riscv-deployment --project-root .
+      - name: Verify deployment and evidence regression lanes
+        run: >-
+          python -m pytest --no-cov
+          tests/test_m76_refinement_spine.py
+          tests/test_m77_dynamic_vm.py
+          tests/test_m78_smp_scheduler.py
+          tests/test_m79_device_fabric.py
+          tests/test_m80_process_model.py
+          tests/test_m81_boot_integrity.py
+          tests/test_m82_network_scale.py
+          tests/test_m83_fault_recovery.py
+          tests/test_m84_guest_isolation.py
+          tests/test_m85_compatibility_ops.py
+          tests/test_m87_atomic_feasibility.py
+          tests/test_m88_information_flow.py
+          tests/test_m88_declassification.py
+          tests/test_m89_capability_authority.py
+          tests/test_m90_proof_carrying_build.py
+          tests/test_m90_evidence_invalidation.py
+          tests/test_m91_riscv_feasibility.py
+          tests/test_m91_riscv_privilege_transition.py
+          tests/test_m91_riscv_sv39.py
+          tests/test_m91_riscv_aia.py
+          tests/test_m91_riscv_guest_privilege.py
+          tests/test_m91_riscv_gstage.py
+          tests/test_m91_riscv_guest_interrupt.py
+          tests/test_m91_riscv_guest_isolation_composition.py
+          tests/test_m91_riscv_deployment.py
+      - name: Verify committed RV64 identities remain stable
+        run: |
+          test "$(sha256sum examples/formalkernel/boot/m91-qemu-riscv64.elf | cut -d' ' -f1)" = \
+            "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          binary = json.loads(Path("examples/formalkernel/kernel/m91_riscv_binary_evidence.json").read_text())
+          assert binary["coverage"]["ratio"] == "1/1"
+          assert [item["claim"] for item in binary["applicable_claims"]] == ["SYSTEM_COMPOSITION_PROVED"]
+          assert all(item["status"] != "COMPILED_AND_APPLICABLE"
+                     for item in binary["compiled_mechanism_inventory"]
+                     if item["claim"].startswith("RISCV_"))
+          PY
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formalkernel-rv64-evidence
+          path: |
+            examples/formalkernel/boot/m91-qemu-riscv64.elf
+            examples/formalkernel/kernel/m91_riscv_*.json
+            examples/formalkernel/releases/formalkernel-m91-qemu-riscv64-2026.08.22.sealed.json
+          if-no-files-found: error
+          retention-days: 30

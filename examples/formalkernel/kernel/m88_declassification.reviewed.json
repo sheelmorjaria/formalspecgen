@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "lane": "M88.4_explicit_declassification_correctness",
+  "status": "REVIEWED_DECLASSIFICATION_POLICY",
+  "claim": "NO_PROOF",
+  "review_status": "reviewed",
+  "rules": [
+    {
+      "id": "AUTH_RESULT_PUBLIC",
+      "high_source": "capability_token_internal_state.authorization_result",
+      "low_sink": "capability_decision",
+      "enabling_condition": "requested_operation_is_mediated && caller_identity_is_public",
+      "released_projection": "authorization_result:boolean"
+    }
+  ],
+  "information_flow_scope_sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913",
+  "trace_evidence_sha256": "664b78a472d583211fdf68b02a144f58bb84d6adcc29e6bfbf1b360e1629c5c8",
+  "trace_depth": 3,
+  "termination_sensitive": false,
+  "timing_sensitive": false,
+  "proof_families_executed": [],
+  "policy_mutations_rejected": 0,
+  "claims_locked": [
+    "DECLASSIFICATION_POLICY_PROVED",
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED"
+  ],
+  "accepted_candidate_sha256": "7b649e2b6c02742efba463690b80bdb532e54d3a14732634d4fff1036b7001b8"
+}

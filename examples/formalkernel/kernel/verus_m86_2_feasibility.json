@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "lane": "M86.2a_verus_production_coverage_candidate_scan",
+  "status": "NO_PROOF",
+  "claim": "NO_PROOF",
+  "scanner": "pipeline/verus_feasibility.py",
+  "scanner_sha256": "47a58d7b54d0ad7f659388ed5c967d0a6e4f59799a921e61fcbdb70b6e96c192",
+  "boundary_ledger": "examples/formalkernel/kernel/verus_allocator/bridges/evidence.json",
+  "boundary_ledger_sha256": "ecb1ea5c8c3bc005d915d51c71c05923425e66a3a8e8ae6b9399dee00925e965",
+  "selection_policy": {
+    "production_safe_rust_required": true,
+    "known_blockers_penalized": true,
+    "semantic_usefulness_rewarded": true,
+    "mutation_points_rewarded": true,
+    "verification_directories_excluded": true,
+    "score_is_evidence": false
+  },
+  "m77_assessment": {
+    "abstract_model": "examples/formalkernel/kernel/dynamic_vm.json",
+    "production_rust_implementation_found": false,
+    "reason": "M77 currently has a symbolic model and Python/Z3 judge lane but no production Rust VM accounting module.",
+    "candidate_eligible": false
+  },
+  "ranked_candidates": [
+    {
+      "rank": 1,
+      "source": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+      "source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+      "classification": "UNKNOWN",
+      "score": 91,
+      "semantic_usefulness": 95,
+      "mutation_points": 4,
+      "safe_rust": true,
+      "known_blockers": [],
+      "unknown_constructs": ["result_try", "trait_or_generic"],
+      "supported_constructs": ["direct_scalar_mutation"],
+      "recommended_probe": "VirtioBlkAdapter::complete"
+    },
+    {
+      "rank": 2,
+      "source": "examples/formalkernel/kernel/loader/elf_loader.rs",
+      "source_sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1",
+      "classification": "KNOWN_BLOCKED",
+      "score": 53,
+      "semantic_usefulness": 85,
+      "mutation_points": 12,
+      "safe_rust": true,
+      "known_blockers": ["get_mut_frame_semantics"],
+      "unknown_constructs": ["iterator_adaptors", "slice_or_range", "result_try", "trait_or_generic"]
+    },
+    {
+      "rank": 3,
+      "source": "examples/formalkernel/kernel/user/heap.rs",
+      "source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+      "classification": "KNOWN_BLOCKED",
+      "score": -9,
+      "semantic_usefulness": 80,
+      "mutation_points": 3,
+      "safe_rust": true,
+      "known_blockers": ["iterator_traversal_semantics", "get_mut_frame_semantics", "occupancy_count_correspondence"]
+    },
+    {
+      "rank": 4,
+      "source": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+      "source_sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4",
+      "classification": "KNOWN_BLOCKED",
+      "score": -14,
+      "semantic_usefulness": 75,
+      "mutation_points": 3,
+      "safe_rust": true,
+      "known_blockers": ["iterator_traversal_semantics", "get_mut_frame_semantics", "occupancy_count_correspondence"]
+    }
+  ],
+  "selected_candidate": {
+    "source": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+    "operation": "VirtioBlkAdapter::complete",
+    "next_gate": "M86.2b_exact_module_overlay",
+    "selection_is_proof": false
+  },
+  "claims_locked": [
+    "VERUS_VIRTIO_BLK_OVERLAY_QUALIFIED",
+    "VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+    "VM_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

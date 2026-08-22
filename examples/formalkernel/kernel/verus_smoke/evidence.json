@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "lane": "M86.1a_verus_judge_qualification",
+  "status": "VERUS_JUDGE_QUALIFIED",
+  "claim": "VERUS_JUDGE_QUALIFIED",
+  "scope": "pinned_verus_positive_and_semantic_negative_smoke",
+  "invocation": [
+    ".tools/verus-download/verus-x86-linux/verus",
+    "--no-cheating",
+    "--output-json",
+    "<source>"
+  ],
+  "judge": {
+    "version": "0.2026.08.15.7d4628a",
+    "commit": "7d4628a8543d3e51e6e314c52032c9bab43f0f53",
+    "rust_toolchain": "1.97.1-x86_64-unknown-linux-gnu",
+    "verus_sha256": "8042cdd01331d939d4c3d03dd947c8b076b042d0016b98541ee895cf0e6c282d",
+    "rust_verify_sha256": "0ffb3ea465905815bf144e0c4a8d8e8de0970175299467845947d989eb59b903",
+    "z3_version": "4.16.0",
+    "z3_sha256": "e583c4186a45e72411fa2cb2048401eed03f0f8e5f24694676a8f6271a50b765",
+    "vstd_vir_sha256": "fa0d690bb82e6784681b6bd8e59497de5011559c15c9643757b3f59e32333f44",
+    "version_manifest_sha256": "1badf44daac8f388809adad1f250e96f29f958dd97ec065947f7ae600dff70cc"
+  },
+  "positive": {
+    "source": "examples/formalkernel/kernel/verus_smoke/preserve.rs",
+    "source_sha256": "d893873ae6e0ca41a34030614c3fa0adbc0c8b19859991a794497bc488fc3cb9",
+    "exit_code": 0,
+    "verified": 1,
+    "errors": 0,
+    "output_sha256": "96aaae0519171fc5a8d1ebf623bbfc5f49209669245ea8b5ba8db0d82c9f2503"
+  },
+  "anti_vacuity": {
+    "source": "examples/formalkernel/kernel/verus_smoke/preserve_mutated.rs",
+    "source_sha256": "f4a81441122a8e1419a7cfdc60547f89541cf5cc6a44eb331a1205447a4e1469",
+    "mutation": "memory_safe_semantic_change_value_plus_one",
+    "exit_code": 1,
+    "verified": 0,
+    "errors": 1,
+    "failure_fingerprint": "postcondition not satisfied",
+    "output_sha256": "40b9a6b5c491cc30ec1fa28292f3a151066d9849ba0d0e33fd9322de1e98fb24"
+  },
+  "claims_locked": [
+    "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "lane": "M84_virtualization_isolation_domains",
+  "module": "GuestIsolation",
+  "guests": ["guest_a", "guest_b"],
+  "lifecycle": ["create", "pause", "resume", "destroy"],
+  "quotas": {
+    "guest_a": {"cpu_slots": 2, "memory_pages": 4, "network_descriptors": 64, "iommu_domain": 10},
+    "guest_b": {"cpu_slots": 2, "memory_pages": 4, "network_descriptors": 64, "iommu_domain": 11}
+  },
+  "admitted": {"cpu_slots": 4, "memory_pages": 8, "network_descriptors": 128},
+  "exhaustion": "GuestQuotaExceeded_and_stutter",
+  "validation": "guest_isolation.validation.json",
+  "hardware_virtualization_semantics_proved": false,
+  "nested_page_table_enforcement_proved": false,
+  "interrupt_remapping_proved": false,
+  "native_hypervisor_refinement_proved": false,
+  "side_channel_noninterference_proved": false,
+  "arbitrary_guest_population_proved": false
+}

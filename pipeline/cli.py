@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import shlex
+import subprocess
 import sys
 import yaml
 from dataclasses import asdict
@@ -614,6 +615,9 @@ def command_doctor(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Report judge readiness without minting verification evidence."""
     from .doctor import inspect_environment, required_failures
     report = inspect_environment()
+    if args.judges:
+        report["judge_manifest"] = {
+            item["name"]: item for item in report["capabilities"]}
     failures = required_failures(report, args.require)
     report["required_failures"] = failures
     if args.json:
@@ -1065,6 +1069,243 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0
 
 
+def command_promote_queue_model(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Accept and replay the human-only M86.3 queue-model promotion gate."""
+    from .virtio_queue_promotion import promote_virtio_queue_model
+    try:
+        evidence = promote_virtio_queue_model(
+            args.project_root,
+            accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        ui.console.print(
+            f"[bold red]Queue-model promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M86.3 virtio queue model[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  scope: {evidence['scope']}\n"
+        f"  accepted candidate: {evidence['candidate_model_sha256']}")
+    return 0
+
+
+def command_promote_information_flow_scope(
+        args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Accept the exact M88 scope without minting a security theorem."""
+    from .information_flow_promotion import promote_information_flow_scope
+    try:
+        evidence = promote_information_flow_scope(
+            args.project_root,
+            accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(
+            f"[bold red]Information-flow scope promotion failed:[/bold red] "
+            f"{escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M88 information-flow scope[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed scope: {evidence['reviewed_scope']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}")
+    return 0
+
+
+def command_promote_declassification_policy(
+        args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Accept an exact M88 release policy without minting its theorem."""
+    from .declassification_promotion import promote_declassification_policy
+    try:
+        evidence = promote_declassification_policy(
+            args.project_root,
+            accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(
+            f"[bold red]Declassification promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M88 declassification policy[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed policy: {evidence['reviewed_policy']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}")
+    return 0
+
+
+def command_promote_capability_authority(
+        args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Accept the exact M89 algebra without minting an authority theorem."""
+    from .capability_authority_promotion import promote_capability_authority_model
+    try:
+        evidence = promote_capability_authority_model(
+            args.project_root,
+            accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(
+            f"[bold red]Capability-authority promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M89 capability-authority model[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed model: {evidence['reviewed_model']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}")
+    return 0
+
+
+def command_seal_deployment_evidence(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Human-only exact-hash authorization of one deployment evidence envelope."""
+    from .deployment_sealing import seal_deployment_evidence
+    evidence = seal_deployment_evidence(
+        args.project_root,
+        accept_elf_sha256=args.accept_elf_sha256,
+        accept_evidence_root_sha256=args.accept_evidence_root_sha256,
+        release=args.release,
+        allowed_pending=args.allow_pending,
+        output_path=args.out)
+    if evidence.get("status") != "SEALED_DEPLOYMENT_EVIDENCE":
+        ui.console.print(
+            f"[bold red]Deployment sealing refused:[/bold red] "
+            f"{escape(evidence.get('code', 'unknown'))}")
+        return 2
+    ui.console.print(
+        "[green]Sealed FormalKernel deployment evidence[/green]\n"
+        f"  release: {evidence['release_identity']}\n"
+        f"  ELF: {evidence['binary']['elf_sha256']}\n"
+        f"  evidence root: {evidence['canonical_evidence_root_sha256']}\n"
+        f"  seal: {evidence['seal_sha256']}\n"
+        f"  artifact: {evidence['sealed_artifact']}")
+    return 0
+
+
+def command_promote_riscv_platform(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Accept the M91.1 platform intent without claiming hardware conformance."""
+    from .riscv_platform_promotion import promote_riscv_platform
+    try:
+        evidence = promote_riscv_platform(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(
+            f"[bold red]RISC-V platform promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.1 RISC-V platform profile[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed profile: {evidence['reviewed_profile']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}")
+    return 0
+
+
+def command_promote_riscv_sv39_plan(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Human-only exact-hash acceptance of the M91.3 mapping plan."""
+    from .riscv_sv39_promotion import promote_riscv_sv39_plan
+    try:
+        evidence = promote_riscv_sv39_plan(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V Sv39 promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.3 RISC-V Sv39 mapping plan[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed plan: {evidence['reviewed_plan']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}\n"
+        f"  post-promotion claim: {evidence['post_promotion_claim']}")
+    return 0
+
+
+def command_promote_riscv_aia_policy(args: argparse.Namespace, ui: TerminalUI) -> int:
+    """Human-only exact-hash acceptance of the M91.4 routing policy."""
+    from .riscv_aia_promotion import promote_riscv_aia_policy
+    try:
+        evidence = promote_riscv_aia_policy(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V AIA promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.4 RISC-V AIA routing policy[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed policy: {evidence['reviewed_policy']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}\n"
+        f"  post-promotion claim: {evidence['post_promotion_claim']}")
+    return 0
+
+def command_promote_riscv_guest_policy(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .riscv_guest_promotion import promote_riscv_guest_policy
+    try:
+        evidence = promote_riscv_guest_policy(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V guest promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.5a HS/VS guest policy[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed policy: {evidence['reviewed_policy']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}\n"
+        f"  post-promotion claim: {evidence['post_promotion_claim']}")
+    return 0
+
+def command_promote_riscv_gstage_plan(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .riscv_gstage_promotion import promote_riscv_gstage_plan
+    try:
+        evidence = promote_riscv_gstage_plan(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V G-stage promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.5b G-stage plan[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed plan: {evidence['reviewed_plan']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}\n"
+        f"  post-promotion claim: {evidence['post_promotion_claim']}")
+    return 0
+
+def command_promote_riscv_guest_interrupt_policy(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .riscv_guest_interrupt_promotion import promote_riscv_guest_interrupt_policy
+    try:
+        evidence = promote_riscv_guest_interrupt_policy(
+            args.project_root, accept_candidate_sha256=args.accept_candidate_sha256)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V VS IMSIC promotion failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Promoted reviewed M91.5c VS IMSIC policy[/green]\n"
+        f"  claim: {evidence['claim']}\n"
+        f"  reviewed policy: {evidence['reviewed_policy']}\n"
+        f"  accepted candidate: {evidence['accepted_candidate_sha256']}\n"
+        f"  post-promotion claim: {evidence['post_promotion_claim']}")
+    return 0
+
+def command_verify_riscv_deployment(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .riscv_deployment import generate_riscv_deployment_artifacts
+    result = generate_riscv_deployment_artifacts(args.project_root)
+    if result.get("status") != "M91_RISCV_DEPLOYMENT_CANDIDATE_COMPLETE":
+        ui.console.print(f"[bold red]RISC-V deployment validation failed:[/bold red] {escape(str(result))}")
+        return 2
+    ui.console.print(
+        "[green]M91.6 RV64 deployment candidate complete[/green]\n"
+        f"  claim: {result['claim']}\n  ELF: {result['elf_sha256']}\n"
+        f"  evidence root: {result['evidence_root_sha256']}\n"
+        f"  applicable claims: {', '.join(result['applicable_claims'])}\n"
+        f"  coverage: {result['coverage']['ratio']}\n  seal: HUMAN_SEAL_PENDING")
+    return 0
+
+def command_seal_riscv_deployment(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .riscv_deployment import seal_riscv_deployment_evidence
+    try:
+        result = seal_riscv_deployment_evidence(
+            args.project_root, accept_elf_sha256=args.accept_elf_sha256,
+            accept_evidence_root_sha256=args.accept_evidence_root_sha256,
+            release=args.release)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]RISC-V deployment sealing failed:[/bold red] {escape(str(exc))}")
+        return 2
+    ui.console.print(
+        "[green]Sealed M91.6 RV64 deployment evidence[/green]\n"
+        f"  claim: {result['claim']}\n  release: {result['release']}\n"
+        f"  artifact: {result['path']}\n  seal: {result['content_seal_sha256']}")
+    return 0
+
+
 def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Compose reviewed V2 domains into orchestrators and let OpenJML ESC judge the glue."""
     from . import composition_render
@@ -1238,6 +1479,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="exit non-zero unless this judge is READY (repeatable)")
     doctor.add_argument("--strict", action="store_true",
                         help="exit non-zero on a misconfigured or broken installed judge")
+    doctor.add_argument("--judges", action="store_true",
+                        help="include the executable judge manifest (always NO_PROOF)")
 
     draft = sub.add_parser("draft", parents=[common], help="clarify NL and draft checked JML")
     draft.add_argument("requirement")
@@ -1433,6 +1676,76 @@ def build_parser() -> argparse.ArgumentParser:
     validate_domain.add_argument("--project-root", default=".")
     validate_domain.add_argument("--emit-tla")
     promote = sub.add_parser("promote-domain", help="promote a reviewed candidate domain")
+    promote_queue = sub.add_parser(
+        "promote-queue-model",
+        help="human-only hash-bound promotion of the M86.3 virtio queue model")
+    promote_queue.add_argument("--project-root", default=".")
+    promote_queue.add_argument("--accept-candidate-sha256", required=True)
+    promote_flow = sub.add_parser(
+        "promote-information-flow-scope",
+        help="human-only hash-bound promotion of the M88 high/low scope")
+    promote_flow.add_argument("--project-root", default=".")
+    promote_flow.add_argument("--accept-candidate-sha256", required=True)
+    promote_declass = sub.add_parser(
+        "promote-declassification-policy",
+        help="human-only hash-bound promotion of the M88 release policy")
+    promote_declass.add_argument("--project-root", default=".")
+    promote_declass.add_argument("--accept-candidate-sha256", required=True)
+    promote_authority = sub.add_parser(
+        "promote-capability-authority",
+        help="human-only hash-bound promotion of the M89 authority algebra")
+    promote_authority.add_argument("--project-root", default=".")
+    promote_authority.add_argument("--accept-candidate-sha256", required=True)
+    seal_deployment = sub.add_parser(
+        "seal-deployment-evidence",
+        help="human-only exact-hash approval of an M90 deployment envelope")
+    seal_deployment.add_argument("--project-root", default=".")
+    seal_deployment.add_argument("--accept-elf-sha256", required=True)
+    seal_deployment.add_argument("--accept-evidence-root-sha256", required=True)
+    seal_deployment.add_argument("--release", required=True)
+    seal_deployment.add_argument("--allow-pending", action="append", default=[])
+    seal_deployment.add_argument("--out")
+    promote_riscv = sub.add_parser(
+        "promote-riscv-platform",
+        help="human-only hash-bound promotion of the M91.1 RV64 platform profile")
+    promote_riscv.add_argument("--project-root", default=".")
+    promote_riscv.add_argument("--accept-candidate-sha256", required=True)
+    promote_riscv_sv39 = sub.add_parser(
+        "promote-riscv-sv39-plan",
+        help="human-only hash-bound promotion of the M91.3 Sv39 mapping plan")
+    promote_riscv_sv39.add_argument("--project-root", default=".")
+    promote_riscv_sv39.add_argument("--accept-candidate-sha256", required=True)
+    promote_riscv_aia = sub.add_parser(
+        "promote-riscv-aia-policy",
+        help="human-only hash-bound promotion of the M91.4 AIA routing policy")
+    promote_riscv_aia.add_argument("--project-root", default=".")
+    promote_riscv_aia.add_argument("--accept-candidate-sha256", required=True)
+    promote_riscv_guest = sub.add_parser(
+        "promote-riscv-guest-policy",
+        help="human-only hash-bound promotion of the M91.5a HS/VS guest policy")
+    promote_riscv_guest.add_argument("--project-root", default=".")
+    promote_riscv_guest.add_argument("--accept-candidate-sha256", required=True)
+    promote_riscv_gstage = sub.add_parser(
+        "promote-riscv-gstage-plan",
+        help="human-only hash-bound promotion of the M91.5b G-stage plan")
+    promote_riscv_gstage.add_argument("--project-root", default=".")
+    promote_riscv_gstage.add_argument("--accept-candidate-sha256", required=True)
+    promote_riscv_guest_interrupt = sub.add_parser(
+        "promote-riscv-guest-interrupt-policy",
+        help="human-only hash-bound promotion of the M91.5c VS IMSIC policy")
+    promote_riscv_guest_interrupt.add_argument("--project-root", default=".")
+    promote_riscv_guest_interrupt.add_argument("--accept-candidate-sha256", required=True)
+    verify_riscv_deployment = sub.add_parser(
+        "verify-riscv-deployment",
+        help="build, boot, inventory, and reproduce the M91.6 production RV64 ELF")
+    verify_riscv_deployment.add_argument("--project-root", default=".")
+    seal_riscv_deployment = sub.add_parser(
+        "seal-riscv-deployment-evidence",
+        help="human-only exact-hash authorization of the M91.6 RV64 release")
+    seal_riscv_deployment.add_argument("--project-root", default=".")
+    seal_riscv_deployment.add_argument("--accept-elf-sha256", required=True)
+    seal_riscv_deployment.add_argument("--accept-evidence-root-sha256", required=True)
+    seal_riscv_deployment.add_argument("--release", required=True)
     sign_cmd = sub.add_parser("sign-artifact",
                               help="create a detached GPG signature over an artifact")
     sign_cmd.add_argument("artifact")
@@ -1611,6 +1924,31 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
     if args.command == "domain": return command_domain(args, ui, store, state)
     if args.command == "validate-domain": return command_validate_domain(args, ui)
     if args.command == "promote-domain": return command_promote_domain(args, ui)
+    if args.command == "promote-queue-model": return command_promote_queue_model(args, ui)
+    if args.command == "promote-information-flow-scope":
+        return command_promote_information_flow_scope(args, ui)
+    if args.command == "promote-declassification-policy":
+        return command_promote_declassification_policy(args, ui)
+    if args.command == "promote-capability-authority":
+        return command_promote_capability_authority(args, ui)
+    if args.command == "seal-deployment-evidence":
+        return command_seal_deployment_evidence(args, ui)
+    if args.command == "promote-riscv-platform":
+        return command_promote_riscv_platform(args, ui)
+    if args.command == "promote-riscv-sv39-plan":
+        return command_promote_riscv_sv39_plan(args, ui)
+    if args.command == "promote-riscv-aia-policy":
+        return command_promote_riscv_aia_policy(args, ui)
+    if args.command == "promote-riscv-guest-policy":
+        return command_promote_riscv_guest_policy(args, ui)
+    if args.command == "promote-riscv-gstage-plan":
+        return command_promote_riscv_gstage_plan(args, ui)
+    if args.command == "promote-riscv-guest-interrupt-policy":
+        return command_promote_riscv_guest_interrupt_policy(args, ui)
+    if args.command == "verify-riscv-deployment":
+        return command_verify_riscv_deployment(args, ui)
+    if args.command == "seal-riscv-deployment-evidence":
+        return command_seal_riscv_deployment(args, ui)
     if args.command == "sign-artifact": return command_sign_artifact(args, ui)
     if args.command == "manage-trust": return command_manage_trust(args, ui)
     if args.command == "verify-heap":
@@ -1644,7 +1982,20 @@ def dispatch(args: argparse.Namespace, ui: TerminalUI, store: SessionStore,
 
 _REPL_COMMANDS = {"doctor", "draft", "implement", "verify", "verify-refactor", "discover-algorithms", "inspect",
                   "apply-refactor", "architecture", "design-system", "domain",
-                  "validate-domain", "promote-domain", "sign-artifact", "manage-trust",
+                  "validate-domain", "promote-domain", "promote-queue-model",
+                  "promote-information-flow-scope",
+                  "promote-declassification-policy",
+                  "promote-capability-authority",
+                  "seal-deployment-evidence",
+                  "promote-riscv-platform",
+                  "promote-riscv-sv39-plan",
+                  "promote-riscv-aia-policy",
+                  "promote-riscv-guest-policy",
+                  "promote-riscv-gstage-plan",
+                  "promote-riscv-guest-interrupt-policy",
+                  "verify-riscv-deployment",
+                  "seal-riscv-deployment-evidence",
+                  "sign-artifact", "manage-trust",
                   "verify-heap", "verify-hal", "verify-distributed",
                   "macro-dictionary", "verify-lockfree", "verify-kernel",
                   "verify-linearizability",

@@ -1,0 +1,19 @@
+{
+  "export_libs": [],
+  "items": [
+    {
+      "kind": "function",
+      "name": "preserve",
+      "path": [
+        "formalkernel_refinedrust_smoke",
+        "preserve"
+      ],
+      "spec": "type_of_preserve",
+      "trait_req_incl": "trait_incl_of_preserve"
+    }
+  ],
+  "module_dependencies": [],
+  "refinedrust_module": "generated_specs_formalkernel_refinedrust_smoke",
+  "refinedrust_name": "formalkernel_refinedrust_smoke",
+  "refinedrust_path": "refinedrust.examples.formalkernel_refinedrust_smoke.generated"
+}

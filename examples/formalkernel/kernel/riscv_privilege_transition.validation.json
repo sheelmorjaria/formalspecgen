@@ -1,0 +1,23 @@
+{
+  "accepted_profile_candidate_sha256": "ee9aac65f24fefd33279729bae609f2c9a9338683c786f3947d53dae1b67233a",
+  "claim": "RISCV_PRIVILEGE_TRANSITION_MODEL_PROVED",
+  "compiled_trap_vector_refinement_proved": false,
+  "distinct_states": 8,
+  "generated_cfg_sha256": "297e10a2ebb429533d4bbfd957080554551b082ae11c43a319e1b9ddca43e07a",
+  "generated_tla_sha256": "8d7562a3a47ab980b5c3b3cfa65c28fefaef3652f0a58b238db832e0783b1fe5",
+  "hardware_privilege_transition_proved": false,
+  "judge": "tlc",
+  "physical_execution_proved": false,
+  "properties": [
+    "TRAP_RETURN_REQUIRES_VALIDATED_DISPATCH",
+    "TYPE_SAFE",
+    "USER_CANNOT_SELECT_SUPERVISOR_RESUME",
+    "USER_REQUIRES_REVIEWED_PREPARATION"
+  ],
+  "qemu_semantics_proved": false,
+  "reviewed_profile_sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122",
+  "scope": "reviewed_qemu_virt_smode_umode_trap_return",
+  "status": "RISCV_PRIVILEGE_TRANSITION_MODEL_PROVED",
+  "tlc_output_sha256": "6b574d2d4a60c473073a37746c0e579549598280dc81e4a9d2973440ce30e54f",
+  "tlc_version": "2.19 of 08 August 2024"
+}

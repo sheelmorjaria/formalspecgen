@@ -35,7 +35,19 @@ def test_verify_kernel_schema_drives_cli_and_matches_mcp():
 def test_human_trust_actions_are_never_mcp_capabilities():
     exposed = {item.name for item in mcp_capabilities()}
     trust_actions = {item.name for item in CAPABILITIES if item.trust_action}
-    assert trust_actions == {"promote_domain", "sign_artifact", "manage_trust"}
+    assert trust_actions == {
+        "promote_domain", "promote_queue_model", "promote_information_flow_scope",
+        "promote_declassification_policy",
+        "promote_capability_authority",
+            "seal_deployment_evidence",
+            "promote_riscv_platform",
+            "promote_riscv_sv39_plan",
+            "promote_riscv_aia_policy",
+            "promote_riscv_guest_policy",
+            "promote_riscv_gstage_plan",
+            "promote_riscv_guest_interrupt_policy",
+            "seal_riscv_deployment_evidence",
+            "sign_artifact", "manage_trust"}
     assert exposed.isdisjoint(trust_actions)
 
 

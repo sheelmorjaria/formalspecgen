@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "lane": "M79_iommu_pcie_nvme",
+  "protected_ranges": {"kernel": [1048576, 2097152], "page_tables": [2097152, 2359296]},
+  "devices": {
+    "nvme0": {"requester_id": 256, "iommu_domain": 1, "dma_window": [268435456, 269484032], "msix_vectors": [32, 33, 34, 35], "queue_depths": [64, 64, 64, 64], "reserved_buffer_pages": 256},
+    "net0": {"requester_id": 512, "iommu_domain": 2, "dma_window": [270532608, 270794752], "msix_vectors": [40, 41], "queue_depths": [32, 32], "reserved_buffer_pages": 64}
+  },
+  "page_bytes": 4096,
+  "reset_contract": "increment_epoch_and_zero_all_outstanding",
+  "physical_iommu_enforcement_proved": false,
+  "pcie_firmware_correctness_proved": false,
+  "nvme_device_behavior_proved": false,
+  "msix_delivery_proved": false,
+  "native_driver_refinement_proved": false
+}

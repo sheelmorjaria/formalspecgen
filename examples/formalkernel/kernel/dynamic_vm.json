@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "lane": "M77_dynamic_vm_numa",
+  "processes": ["vfs", "net", "shell"],
+  "process_quotas_pages": {"vfs": 4, "net": 3, "shell": 2},
+  "numa_nodes": ["node0", "node1"],
+  "node_capacities_pages": {"node0": 5, "node1": 5},
+  "physical_pages": 10,
+  "admitted_memory_pages": 8,
+  "page_bytes": 4096,
+  "operations": ["alloc", "free", "map", "fork_reserve_cow", "exec_release"],
+  "quota_exhaustion": "QuotaExhausted_and_stutter",
+  "global_exhaustion": "AdmittedMemoryExhausted_and_stutter",
+  "node_exhaustion": "NodeExhausted_and_stutter",
+  "hardware_tlb_coherence_proved": false,
+  "hardware_page_table_walker_proved": false,
+  "arbitrary_process_count_proved": false,
+  "numa_hotplug_proved": false,
+  "allocator_implementation_refinement_proved": false
+}

@@ -165,4 +165,4 @@ def test_demo_bundle_mints_the_refinement_claim():
     assert bundle["status"] == "KERNEL_EVIDENCE_BUNDLE"
     claims = {e["claim"] for e in bundle["claims"]}
     assert "RUST_WITNESS_REFINEMENT_PROVED" in claims
-    assert len(bundle["claims"]) == 53
+    assert len(bundle["claims"]) == 66

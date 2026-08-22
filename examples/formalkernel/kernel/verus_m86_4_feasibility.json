@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "lane": "M86.4a_second_production_module_scan",
+  "status": "PARKED_NO_ELIGIBLE_PRODUCTION_MODULE",
+  "claim": "NO_PROOF",
+  "scan_status": "complete",
+  "selection_requirements": {
+    "exact_production_rust": true,
+    "structurally_distinct_from_queue": true,
+    "multiple_state_variables": true,
+    "authorization_or_conservation_invariant": true,
+    "success_and_rejected_paths": true,
+    "reviewable_abstract_model": true,
+    "production_code_may_be_invented_for_verification": false
+  },
+  "preferred_targets": [
+    {
+      "kind": "capability_authority_transition",
+      "model": "examples/formalkernel/kernel/server_capabilities.json",
+      "model_sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a",
+      "production_rust_found": false,
+      "eligible": false
+    },
+    {
+      "kind": "boot_rollback_policy",
+      "model": "examples/formalkernel/kernel/boot_integrity.json",
+      "model_sha256": "4871577bcafc2c2a0ab65b60945ba5a5421df2127dd9f6b57ceeed4f19eee2e6",
+      "production_rust_found": false,
+      "eligible": false
+    }
+  ],
+  "existing_rust_assessment": [
+    {
+      "source": "examples/formalkernel/boot/src/boot_order.rs",
+      "source_sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93",
+      "eligible": false,
+      "reason": "constant data only; no production state transition"
+    },
+    {
+      "source": "examples/formalkernel/lowered/timer_tick.rs",
+      "source_sha256": "4da74fa1ce6e781bd5a7b1215877c38fee71fbfd0b0e8650673234d7cfe983e6",
+      "eligible": false,
+      "reason": "single local counter; no authorization, rejection, or persistent state"
+    },
+    {
+      "source": "examples/formalkernel/boot/src/witness.rs",
+      "source_sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8",
+      "eligible": false,
+      "reason": "unsafe volatile operations and indexed arrays are outside the current broad Verus target fragment"
+    }
+  ],
+  "selected_candidate": null,
+  "reopen_when": [
+    "production_state_transition_exists",
+    "safe_rust_supported_fragment",
+    "meaningful_semantic_contract",
+    "negative_mutation_possible"
+  ],
+  "automatic_rescan": "triggered by a new or changed production Rust state-transition module",
+  "claims_locked": [
+    "VERUS_SECOND_MODULE_OVERLAY_QUALIFIED",
+    "SECOND_MODULE_IMPLEMENTATION_CORRECTNESS_PROVED",
+    "SECOND_MODULE_MODEL_BRIDGE_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

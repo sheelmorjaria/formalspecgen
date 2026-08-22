@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "lane": "M76_semantic_refinement_spine",
+  "step": 2,
+  "model": "../../../domains/v2/vfs_bounded.json",
+  "model_sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625",
+  "refinement_certificate": "../../../domains/v2/vfs_bounded.rust-refinement.yaml",
+  "refinement_certificate_sha256": "9206db286259dda1e2b9f8558966b4b16a3460b631a9e093ad0a06582bd0e675",
+  "rust_source": "../../../Vfs.rs",
+  "rust_source_sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00",
+  "crate_name": "formalkernel_vfs_spine",
+  "operations": ["new", "open", "close", "read", "write"],
+  "ghost_erasure": "prusti_attributes_only",
+  "bounded_translation_validation": {
+    "valid_state_count": 255,
+    "operation_transition_count": 1020,
+    "constructor_checked": true
+  },
+  "semantic_ir_refinement_proved": false,
+  "verified_compiler_proved": false,
+  "binary_semantics_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

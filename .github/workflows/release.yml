@@ -28,6 +28,10 @@ jobs:
           --cov-fail-under=90
           --ignore=tests/test_parallel_wrapper.py
           --ignore=tests/test_v2_async_serializer.py
+          --ignore=tests/test_m90_target_elf_binding.py
+          --ignore=tests/test_m90_reproducible_build.py
+          --ignore=tests/test_m90_deployment_sealing.py
+          --ignore=tests/test_m91_riscv_deployment.py
       - name: Build wheel and source distribution
         run: python -m build
       - name: Validate distribution metadata

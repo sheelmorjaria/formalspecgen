@@ -1,0 +1,35 @@
+{
+  "status": "CAPABILITY_REVOCATION_SAFETY_PROVED",
+  "claim": "CAPABILITY_REVOCATION_SAFETY_PROVED",
+  "judge": "tlapm",
+  "judge_version": "4600b24",
+  "judge_executable_sha256": "1de5983ac393658362fe61882e270b65648fa07945453e971fcf9eeabf5ec579",
+  "scope": "parameterized_transitive_revocation_and_generation_safety",
+  "reviewed_model_sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2",
+  "authority_evidence_sha256": "61a6ed093439b984a4c3c8fffd8a9d19bc17cecbebfbcc35968828cafc8f0357",
+  "proof_sha256": "9f05c774c3d3ac00c5ae0d055b37c6d6db7359f062101b0abb3f6f1f08454c0f",
+  "verifier_sha256": "661010ef1c9a22ea42dd2e0a22b143f68e5b62a0f329da9a8e29ab2d94dc80ba",
+  "proof_output_sha256": "d7575786bae0fa7a2483ab7c0240b7e0ac671a3bd7f295f6ec22a7a13f531f67",
+  "tlaps_obligations_proved": 10,
+  "mutations_executed": 9,
+  "mutations_rejected": 9,
+  "mutations": [
+    {"id": "revoke_parent_leaves_descendant_valid", "result": "rejected", "mutated_proof_sha256": "3c35b64703a8120b6bfcd69937c5a6dea4e09405d61010d62833acae34ebd633", "output_sha256": "8fdacb87fc6d422a13e0c8b9e70cf405e8c5efd7b651cb0fe5ff7020327429f2", "exit_code": 3},
+    {"id": "unrelated_mint_resets_revocation", "result": "rejected", "mutated_proof_sha256": "d19363cabd91e15d167adea5bff91d6fe6697738e94404b0a4b03a9c9922adad", "output_sha256": "5af45ee5621bf10d43eb28bc13d03da3e3d2af97ea532f0e63f8ce0767980a39", "exit_code": 3},
+    {"id": "generation_reuse_allowed", "result": "rejected", "mutated_proof_sha256": "a56d0b14e37d62f183d76677487588f4d10ec96b73a286c13225d22ab49184f6", "output_sha256": "c8b1592a8e4c98edc0d2522b2c8de7eb5e49c8d47f7c8f9ebbeef990fd4c56ed", "exit_code": 3},
+    {"id": "stale_generation_passes_check", "result": "rejected", "mutated_proof_sha256": "95d8ac24b747ba9f2da28ab8289420959bed6d2e04ef53be6b80df75f9b46a75", "output_sha256": "1baf76cf610af54b69e3803abe8f2b7da39b5e823fdbdd1cdcec6fa2ff6aa7c0", "exit_code": 3},
+    {"id": "stale_token_derives_child", "result": "rejected", "mutated_proof_sha256": "e8fc18a3ebc7399bf2767ff4899700a1a864c8b5e7d802fe18319b2ba4d447e2", "output_sha256": "87acfcf3bdba85f43e780503843d02cf653140f633c903ce92ade9281c56abc8", "exit_code": 3},
+    {"id": "stale_token_delegates_child", "result": "rejected", "mutated_proof_sha256": "51967f764d48d6224c7b1ec048706097f714c92075065a48a1182d53c2facb17", "output_sha256": "547a97393ab842fb1e67de7d40d00615541894df70923b88bcf76b538d0d338a", "exit_code": 3},
+    {"id": "revoke_unrelated_branches", "result": "rejected", "mutated_proof_sha256": "616ceabccc73a5920b32bc104c46f02ebcef111873f21af80c44782b0e6c461b", "output_sha256": "c8ec7b3974cc81cae1d881132eef2d02feb3058ad24d086a518eb6ba3a06fc1d", "exit_code": 3},
+    {"id": "stale_token_can_revoke", "result": "rejected", "mutated_proof_sha256": "c34180fc63f843309be4056e93b56a98e19bc912ad4756303de448b096cca885", "output_sha256": "9831a32f7d2dd1dbfa116abf1ea55f48464654454b90ce545c7bd6676bae32e0", "exit_code": 3},
+    {"id": "failed_stale_operation_mutates", "result": "rejected", "mutated_proof_sha256": "aa0055086b28b96274606f128f2ec700f9f8e42256e138d6f614375cfd5bd683", "output_sha256": "eac9e90fc5b65684349c9a8abb32d6dd49b0e1cf2a0eec4a592682295097bc18", "exit_code": 3}
+  ],
+  "generation_domain": "unbounded_natural",
+  "fixed_width_generation_wraparound_proved": false,
+  "claims_locked": [
+    "SERVER_AUTHORITY_SECURITY_MODEL_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "CAPABILITY_HARDWARE_ENFORCEMENT_PROVED",
+    "CAPABILITY_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "claim": "RISCV_QEMU_BOOT_OBSERVED",
+  "command": [
+    "/usr/bin/qemu-system-riscv64",
+    "-machine",
+    "virt",
+    "-cpu",
+    "rv64",
+    "-m",
+    "128M",
+    "-nographic",
+    "-kernel",
+    "/home/sheel/formalspecgen/examples/formalkernel/boot/m91-qemu-riscv64.elf",
+    "-no-reboot"
+  ],
+  "elf_sha256": "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c",
+  "hardware_semantics_proved": false,
+  "qemu": {
+    "path": "/usr/bin/qemu-system-riscv64",
+    "sha256": "49b77f94862a9ae0e6e31d031a31cce9a668d647b5e827d706bf1e9951e96710",
+    "version": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)"
+  },
+  "scope": "exact_m91_production_rv64_elf_qemu_virt_boot",
+  "status": "RISCV_QEMU_BOOT_OBSERVED",
+  "transcript": [
+    "FORMALKERNEL_RV64_BEGIN",
+    "COMPILED rv64_smode_boot",
+    "BOOT timer_init",
+    "BOOT pool_init",
+    "BOOT scheduler_start",
+    "BOOT net_start",
+    "NOT_COMPILED su_transition sv39 aia hs_vs gstage vs_imsic guest_composition",
+    "FORMALKERNEL_RV64_READY"
+  ],
+  "transcript_sha256": "fd75acd16fe8ec2ac163f87a89ac92437d87be58fc8d25eb5ad18694a996c437"
+}

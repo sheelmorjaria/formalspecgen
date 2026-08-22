@@ -1,0 +1,347 @@
+{
+  "schema_version": 1,
+  "status": "SEALED_DEPLOYMENT_EVIDENCE",
+  "claim": "NO_PROOF",
+  "release_identity": "formalkernel-m90-qemu-aarch64-2026.08.21",
+  "release_timestamp": "2026-08-21T22:30:59.829157+00:00",
+  "binary": {
+    "path": "examples/formalkernel/boot/m90-qemu-aarch64.elf",
+    "elf_sha256": "1a8d4e1113d9fdd2a948e0f9c739303d4690eb39588a3505475564165d88d3c9",
+    "elf_size": 156664,
+    "elf_structural_digest": "babe6f2eea14bf5954c525e190f13ce00b727ed984b02a123bdbacab3ef334dd",
+    "entry_point": 1075838976
+  },
+  "canonical_evidence_root_sha256": "36f4e6cd9ce8a26cebea3c9913935d143856b6593d29e57fa6c99cd6493ecd8e",
+  "deployment": {
+    "target": "aarch64-unknown-none-softfloat",
+    "profile": "microkernel",
+    "hardware_scope": "formalkernel-demo",
+    "deployment_manifest": {
+      "path": "examples/formalkernel/kernel/kernel.json",
+      "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+    },
+    "hardware_profile": {
+      "path": "examples/formalkernel/hardware_profile.json",
+      "sha256": "c7cd25ef4687beedb83c138e4fb85dd2d8205fdd5d373ec64511fa74fa96d759"
+    }
+  },
+  "applicable_claims": [
+    "SYSTEM_COMPOSITION_PROVED",
+    "RUST_WITNESS_REFINEMENT_PROVED"
+  ],
+  "empirical_observations": [
+    "REPRODUCIBLE_BINARY_BUILD_OBSERVED",
+    "REPRODUCIBLE_EVIDENCE_ROOT_OBSERVED"
+  ],
+  "evidence_operations": [
+    "EVIDENCE_DEPENDENCY_CLOSURE_VALIDATED",
+    "EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED"
+  ],
+  "residuals": {
+    "applicable_pending": [],
+    "allowed_pending": [],
+    "assumptions": [
+      "rustc and rust-lld are identity-bound but are not verified compilers",
+      "the claim binds evidence applicability and artifact identity, not ELF semantics",
+      "physical QEMU or silicon execution is outside this claim"
+    ],
+    "forbidden_claims": [
+      "COMPILER_REFINEMENT_CHAIN_PROVED",
+      "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+      "REPRODUCIBLE_BUILD_PROVED",
+      "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED"
+    ],
+    "not_applicable_bundle_claims": [
+      "ABI_STABILITY_CHECKED",
+      "BARRIER_CORRESPONDENCE_PROVED",
+      "BARRIER_CORRESPONDENCE_PROVED",
+      "BARRIER_CORRESPONDENCE_PROVED",
+      "BARRIER_CORRESPONDENCE_PROVED",
+      "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+      "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+      "CERTIFICATION_TRACEABILITY_COMPLETE",
+      "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+      "DMA_ISOLATION_PROVED",
+      "DMA_ISOLATION_PROVED",
+      "DMA_ISOLATION_PROVED",
+      "DMA_ISOLATION_PROVED",
+      "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "ELF_SEGMENT_LAYOUT_PROVED",
+      "EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED",
+      "FAULT_CONTAINMENT_RECOVERY_PROVED",
+      "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+      "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+      "HARDWARE_MEMORY_BOUND_PROVED",
+      "HARDWARE_MEMORY_BOUND_PROVED",
+      "HARDWARE_MEMORY_BOUND_PROVED",
+      "IPC_ENDPOINT_TABLE_PROVED",
+      "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "MICROARCH_MITIGATION_POLICY_PROVED",
+      "MITIGATION_WCET_BUDGET_PROVED",
+      "MPSC_BOUNDED_PARTITION_PROVED",
+      "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+      "N150_PLATFORM_CONFIGURATION_PROVED",
+      "NETWORK_RESOURCE_PARTITION_PROVED",
+      "NUMA_ACCOUNTING_PROVED",
+      "POSIX_CONFORMANCE_TESTED",
+      "PQ_PREEMPTION_BOUND_PROVED",
+      "PQ_PREEMPTION_BOUND_PROVED",
+      "PROCESS_CONCURRENCY_MODEL_PROVED",
+      "R52_TCM_PLACEMENT_PROVED",
+      "RCU_RECLAMATION_SAFETY_PROVED",
+      "REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+      "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+      "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+      "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+      "SMP_SCHEDULER_INVARIANTS_PROVED",
+      "SOURCE_MODEL_REFINEMENT",
+      "SPATIAL_ISOLATION_PROVED",
+      "SPATIAL_ISOLATION_PROVED",
+      "SYSCALL_BOUNDARY_PROVED",
+      "SYSCALL_BOUNDARY_PROVED",
+      "TCP_RESOURCE_CONTAINMENT_PROVED",
+      "TOOL_QUALIFICATION_EVIDENCE_READY",
+      "UNVERIFIED_EXTERNAL_ADAPTER",
+      "USER_HEAP_CAPACITY_PROVED",
+      "VM_RESOURCE_ISOLATION_PROVED",
+      "WCET_BOUND_PROVEN",
+      "WCET_BOUND_PROVEN",
+      "WCET_BOUND_PROVEN",
+      "WCET_BOUND_PROVEN",
+      "WEAK_MEMORY_SAFETY_PROVED",
+      "WEAK_MEMORY_SAFETY_PROVED",
+      "WEAK_MEMORY_SAFETY_PROVED",
+      "WEAK_MEMORY_SAFETY_PROVED"
+    ],
+    "repository_judge_pending_inventory": [
+      "ATOMIC_OPERATION_FUNCTIONAL_CORRECTNESS_PROVED",
+      "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+      "COMPILER_REFINEMENT_CHAIN_PROVED",
+      "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+      "GET_MUT_FRAME_SEMANTICS_PROVED",
+      "ITERATOR_TRAVERSAL_SEMANTICS_PROVED",
+      "OCCUPANCY_COUNT_CORRESPONDENCE_PROVED",
+      "PROOF_CARRYING_BINARY_VALIDATED",
+      "RUST_ATOMIC_LITMUS_CORRESPONDENCE_PROVED",
+      "RUST_ATOMIC_LOWERING_CORRESPONDENCE_VALIDATED",
+      "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+      "SECOND_MODULE_IMPLEMENTATION_CORRECTNESS_PROVED",
+      "SECOND_MODULE_MODEL_BRIDGE_PROVED",
+      "VERUS_SECOND_MODULE_OVERLAY_QUALIFIED",
+      "WEAK_MEMORY_IMPLEMENTATION_REFINEMENT_PROVED"
+    ],
+    "repository_assumption_inventory": [
+      "ARM ERET follows the architectural specification",
+      "C witness uses SC ESBMC atomic sections",
+      "CPUID and microcode profile is human declared",
+      "DMA physical isolation belongs to M39/M56",
+      "EL1-to-EL0 ERET transition belongs to M62",
+      "Exact allocator iterator and slice-index semantics:judge_pending",
+      "M48 spatial isolation",
+      "M49 syscall mediation",
+      "M61 litmus abstraction remains independently reviewed",
+      "M77 production Rust implementation is absent",
+      "M77 quota bound is two pages",
+      "PQ workload remains EL0 in the microkernel",
+      "Prusti ghost erasure has no runtime semantics",
+      "RefinedRust 0.1.0 array-field correction is local and not upstream-accepted",
+      "RefinedRust Result Try::branch standard-library shim:judge_pending",
+      "SHA-256 strength independently assumed",
+      "TLA atomic actions correspond to intended linearization points",
+      "Verus and bundled solver binaries match the recorded hashes",
+      "WF_vars(Schedule) weak fairness",
+      "a qualified self-composition judge is required from step 2",
+      "adversarial envelope is complete for this bounded model",
+      "affinity is human policy",
+      "algorithm parameter sizes are human-reviewed inputs",
+      "artifact identity is not machine-code semantic refinement",
+      "bounded task set of three reviewed task identities",
+      "candidate queue-model review is a human trust action",
+      "candidate ranking is guidance and not correctness evidence",
+      "candidate scan is non-evidentiary",
+      "channel inventory is complete for reviewed targets",
+      "declared WAL persistence and torn-write contract",
+      "device and SMMU implement the reviewed configuration",
+      "exception-vector assembly refines the reviewed model",
+      "external authority determines qualification context",
+      "external cryptographic outcomes are nondeterministic",
+      "finite CPU and task sets",
+      "firmware loads the image at the reviewed address",
+      "four static NIC queues",
+      "golden corpus is independently reviewed and representative",
+      "hardware IOMMU enforcement:judge_pending",
+      "hardware implements the declared architectural model",
+      "hardware page-table walker:judge_pending",
+      "hardware_page_table_walker:judge_pending",
+      "high/low partition is human-reviewed before proof",
+      "host runtime is an empirical surrogate",
+      "host rustc is not a verified compiler",
+      "human sealing remains outside agent-accessible interfaces",
+      "human-declared ARM SMMUv3 stream IDs",
+      "human-declared PCI requester IDs",
+      "human-declared SoC TCM base addresses",
+      "identical public inputs in both runs",
+      "implementation representation is outside the model",
+      "kernel grants the declared 4096-byte frame window",
+      "liboqs is an unverified external adapter",
+      "litmus abstraction is human-reviewed",
+      "measurement authenticity requires human review",
+      "monolith invokes the hash-bound cooperative yield",
+      "one page per queue entry",
+      "ordinary imported Rust with zero obligations is not proof",
+      "per-mitigation cycle costs are declared, not measured",
+      "physical Cortex-R52 execution remains judge_pending",
+      "physical M67-M69 closures remain pending",
+      "physical device honors reviewed FUA boundary",
+      "principals, objects, and rights are arbitrary finite nonempty sets",
+      "production architecture determines when a new primitive exists",
+      "profile instruction costs are human-owned",
+      "qualified compiler lowering is required only after an atomic candidate exists",
+      "requirements set is human-reviewed and complete",
+      "reviewed ABI v1 baseline",
+      "reviewed requester IDs and IOMMU roots",
+      "reviewed root key identity",
+      "root mint authority is human policy",
+      "single injected fault",
+      "static resource reservations",
+      "supervisor page remains healthy",
+      "termination-insensitive and timing-insensitive scope",
+      "the final deployable binary is not built at M90.1",
+      "three-process admitted topology",
+      "two admitted guests",
+      "two processes and two threads",
+      "two static NUMA nodes",
+      "two-principal queue policy",
+      "two-principal quota partition is the deployment policy",
+      "virtio device behavior:unverified_external",
+      "weak fairness applies to handshake control progress"
+    ]
+  },
+  "provenance": {
+    "build": {
+      "target": "aarch64-unknown-none-softfloat",
+      "deployment": "microkernel",
+      "deployment_manifest": {
+        "path": "examples/formalkernel/kernel/kernel.json",
+        "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+      },
+      "hardware_profile": {
+        "path": "examples/formalkernel/hardware_profile.json",
+        "sha256": "c7cd25ef4687beedb83c138e4fb85dd2d8205fdd5d373ec64511fa74fa96d759"
+      },
+      "config": {
+        "path": "examples/formalkernel/kernel/m90_build_config.json",
+        "sha256": "296a0f289bdf8de8b41b8dd10d51f64ded4e4241d2190515773480be55e36941"
+      },
+      "compiled_sources": [
+        {
+          "path": "examples/formalkernel/boot/src/boot_order.rs",
+          "sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93"
+        },
+        {
+          "path": "examples/formalkernel/boot/src/main.rs",
+          "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"
+        },
+        {
+          "path": "examples/formalkernel/boot/src/witness.rs",
+          "sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8"
+        }
+      ],
+      "source_closure_hash": "d22de00682b0b772ce3fd8dd9db3154b33aeec4cf915657e7571f5efc421ea70",
+      "compiler": {
+        "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "sha256": "028fd60b0e0add5505c661cd3ccde91393d615c8729bd95d94ab1e91409b36a1",
+        "version": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3"
+      },
+      "linker": {
+        "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "sha256": "5cd8306e6589847a21f0430ea0842f3305fb6ec83fefa6ce8a42e83a63576c82",
+        "version": "LLD 21.1.3 (/checkout/src/llvm-project/llvm 4f74b76fb69688474e073fb26b316d9ea571388f) (compatible with GNU linkers)"
+      },
+      "linker_script": {
+        "path": "examples/formalkernel/boot/layout.ld",
+        "sha256": "88f94fae9495f492af73a2aa104577b2b5f7b1f2e5ec6cc10f4c9778fd0d687d"
+      },
+      "invocation": [
+        "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition",
+        "2021",
+        "--target",
+        "aarch64-unknown-none-softfloat",
+        "--crate-type",
+        "bin",
+        "-Clinker=/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "-Clink-arg=-T/home/sheel/formalspecgen/examples/formalkernel/boot/layout.ld",
+        "-Cpanic=abort",
+        "-Copt-level=0",
+        "-Ccodegen-units=1",
+        "-Clto=no",
+        "-Crelocation-model=static",
+        "-Cdebuginfo=0",
+        "-Cstrip=debuginfo",
+        "-Clink-arg=--build-id=none",
+        "--remap-path-prefix=/home/sheel/formalspecgen=/formalkernel",
+        "-o",
+        "/home/sheel/formalspecgen/examples/formalkernel/boot/m90-qemu-aarch64.elf",
+        "/home/sheel/formalspecgen/examples/formalkernel/boot/src/main.rs"
+      ],
+      "codegen_environment": {}
+    },
+    "applicable_claim_closure_hash": "052d569b197c80892c84fec31c152794b006ebdb8cf9778bbfc384987a887f2b",
+    "dependency_graph_digest": "df0738121491f81df2692de551a3235dc6f9e125d32001c69f10e8be1efd235f",
+    "judge_nodes": [
+      {
+        "id": "artifact:pipeline/kernel_composition.py",
+        "kind": "deterministic_judge",
+        "digest": "4fcc9e35fea7c49b18357f3a04b0ab921369cfe88d82f56bd1d4f0c7aca962ae",
+        "path": "pipeline/kernel_composition.py"
+      },
+      {
+        "id": "judge:Kani",
+        "kind": "judge",
+        "digest": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+      }
+    ],
+    "reviewed_promotions": [
+      {
+        "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+        "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+      },
+      {
+        "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+        "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+      },
+      {
+        "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+        "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+      }
+    ],
+    "local_verifier_patches": [
+      {
+        "id": "embedded_array_place_rfn",
+        "status": "CLOSED_LOCALLY",
+        "qualified": true,
+        "upstream_accepted": false,
+        "activation": "explicit workspace-local patched frontend",
+        "patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a",
+        "ledger_path": "examples/formalkernel/kernel/refinement/refinedrust_boundary_ledger.json",
+        "ledger_sha256": "bf7ad02608feb434fcc170924198cf6ac031b14654f28c302e819490bc936c1c"
+      }
+    ],
+    "binary_evidence_sha256": "96fda8096b9ea6d86b85f9755504416893fc48203669e1653c5cb70b72de78f6",
+    "invalidation_evidence_sha256": "bf5c978b483c1b75ff82070c7f39d1709424a098d02eebe2592f8d0c4e58fce8",
+    "reproducibility_evidence_sha256": "f3d3b755d4a42a9daf6fb12f7f0cae030d2f020b5a8cc333bf5b4ae88d97ec9a"
+  },
+  "approval": {
+    "method": "human_explicit_hash_acceptance",
+    "accepted_elf_sha256": "1a8d4e1113d9fdd2a948e0f9c739303d4690eb39588a3505475564165d88d3c9",
+    "accepted_evidence_root_sha256": "36f4e6cd9ce8a26cebea3c9913935d143856b6593d29e57fa6c99cd6493ecd8e",
+    "private_key_signature": null,
+    "note": "Content seal only; hardware-backed signing and attestation are deferred."
+  },
+  "seal_sha256": "2b16df0fc7bb48863e33aabce79da5b2f3f4263e51128d4248dfafa3f8a21003"
+}

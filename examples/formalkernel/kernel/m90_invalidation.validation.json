@@ -1,0 +1,352 @@
+{
+  "status": "EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED",
+  "claim": "EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED",
+  "claims_minted": [
+    "EVIDENCE_DEPENDENCY_CLOSURE_VALIDATED",
+    "EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED"
+  ],
+  "scope": "m90_2_qemu_aarch64_deterministic_dependency_engine",
+  "dependency_graph": {
+    "status": "EVIDENCE_DEPENDENCY_GRAPH",
+    "claim": "NO_PROOF",
+    "nodes": [
+      {
+        "id": "artifact:examples/formalkernel/boot/layout.ld",
+        "kind": "linker_script",
+        "digest": "88f94fae9495f492af73a2aa104577b2b5f7b1f2e5ec6cc10f4c9778fd0d687d",
+        "path": "examples/formalkernel/boot/layout.ld"
+      },
+      {
+        "id": "artifact:examples/formalkernel/boot/proofs/Cargo.toml",
+        "kind": "proof_artifact",
+        "digest": "4384fe636cd32eb12162e564433592f8e01719d2a7a31b31bdc6dc0244f35914",
+        "path": "examples/formalkernel/boot/proofs/Cargo.toml",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/boot/proofs/src/lib.rs",
+        "kind": "proof_artifact",
+        "digest": "678372042516c19a0c11fb3f569c6f7f741872c94733417617b2f5ffbd264318",
+        "path": "examples/formalkernel/boot/proofs/src/lib.rs",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/boot/src/boot_order.rs",
+        "kind": "compiled_source",
+        "digest": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93",
+        "path": "examples/formalkernel/boot/src/boot_order.rs",
+        "claim": "SYSTEM_COMPOSITION_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/boot/src/main.rs",
+        "kind": "compiled_source",
+        "digest": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff",
+        "path": "examples/formalkernel/boot/src/main.rs",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/boot/src/witness.rs",
+        "kind": "compiled_source",
+        "digest": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8",
+        "path": "examples/formalkernel/boot/src/witness.rs",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/hardware_profile.json",
+        "kind": "hardware_profile",
+        "digest": "c7cd25ef4687beedb83c138e4fb85dd2d8205fdd5d373ec64511fa74fa96d759",
+        "path": "examples/formalkernel/hardware_profile.json"
+      },
+      {
+        "id": "artifact:examples/formalkernel/kernel/composition.json",
+        "kind": "proof_artifact",
+        "digest": "7cc9646544d053af9488f851f1ada1859aefcdc0a566cf56fcc065a39eeacf33",
+        "path": "examples/formalkernel/kernel/composition.json",
+        "claim": "SYSTEM_COMPOSITION_PROVED"
+      },
+      {
+        "id": "artifact:examples/formalkernel/kernel/kernel.json",
+        "kind": "deployment_profile",
+        "digest": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244",
+        "path": "examples/formalkernel/kernel/kernel.json"
+      },
+      {
+        "id": "artifact:examples/formalkernel/kernel/m90_build_config.json",
+        "kind": "build_configuration",
+        "digest": "296a0f289bdf8de8b41b8dd10d51f64ded4e4241d2190515773480be55e36941",
+        "path": "examples/formalkernel/kernel/m90_build_config.json"
+      },
+      {
+        "id": "artifact:examples/formalkernel/kernel/m90_evidence_root.candidate.json",
+        "kind": "canonical_prebuild_inventory",
+        "digest": "4b2e9cda55444a3c5397826630e767ea0542dd15bfc75009ff5a4170e9430e1c",
+        "path": "examples/formalkernel/kernel/m90_evidence_root.candidate.json"
+      },
+      {
+        "id": "artifact:examples/formalkernel/kernel/m90_kernel_evidence_bundle.json",
+        "kind": "proof_bundle",
+        "digest": "ccd12f2293db9b292ab8270436a71651d13fa0c06f72fdc9979e48e8d2849027",
+        "path": "examples/formalkernel/kernel/m90_kernel_evidence_bundle.json",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "artifact:pipeline/kernel_composition.py",
+        "kind": "deterministic_judge",
+        "digest": "4fcc9e35fea7c49b18357f3a04b0ab921369cfe88d82f56bd1d4f0c7aca962ae",
+        "path": "pipeline/kernel_composition.py"
+      },
+      {
+        "id": "binary:qemu_aarch64_elf",
+        "kind": "binary",
+        "digest": "1a8d4e1113d9fdd2a948e0f9c739303d4690eb39588a3505475564165d88d3c9",
+        "path": "examples/formalkernel/boot/m90-qemu-aarch64.elf"
+      },
+      {
+        "id": "build:target_elf",
+        "kind": "build",
+        "digest": "d6772df47253f7c3773ec750ac07bf48436b0238383689a7fac7fa6d6e802d50"
+      },
+      {
+        "id": "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "kind": "claim",
+        "digest": "94a91ad76a67ef470d7dfab2a73ae87886bfc9839a3bfcc018f9eb48594056a0",
+        "claim": "RUST_WITNESS_REFINEMENT_PROVED"
+      },
+      {
+        "id": "claim:SYSTEM_COMPOSITION_PROVED",
+        "kind": "claim",
+        "digest": "d240750adb977557e8bfccb14c9ea9200d873541e446ce43c1a086f22bd44ee5",
+        "claim": "SYSTEM_COMPOSITION_PROVED"
+      },
+      {
+        "id": "evidence:proof_carrying_binary",
+        "kind": "evidence_root",
+        "digest": "d0fa10444e95367912e16497764232937386af74795cd09cb4538e1f33e20fc3"
+      },
+      {
+        "id": "judge:Kani",
+        "kind": "judge",
+        "digest": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+      },
+      {
+        "id": "tool:rust-lld",
+        "kind": "build_tool",
+        "digest": "5cd8306e6589847a21f0430ea0842f3305fb6ec83fefa6ce8a42e83a63576c82"
+      },
+      {
+        "id": "tool:rustc",
+        "kind": "build_tool",
+        "digest": "028fd60b0e0add5505c661cd3ccde91393d615c8729bd95d94ab1e91409b36a1"
+      }
+    ],
+    "edges": [
+      [
+        "binary:qemu_aarch64_elf",
+        "build:target_elf"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/boot/layout.ld"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/boot/src/boot_order.rs"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/boot/src/main.rs"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/boot/src/witness.rs"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/hardware_profile.json"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/kernel/kernel.json"
+      ],
+      [
+        "build:target_elf",
+        "artifact:examples/formalkernel/kernel/m90_build_config.json"
+      ],
+      [
+        "build:target_elf",
+        "tool:rust-lld"
+      ],
+      [
+        "build:target_elf",
+        "tool:rustc"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "artifact:examples/formalkernel/boot/proofs/Cargo.toml"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "artifact:examples/formalkernel/boot/proofs/src/lib.rs"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "artifact:examples/formalkernel/boot/src/main.rs"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "artifact:examples/formalkernel/boot/src/witness.rs"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "artifact:examples/formalkernel/kernel/m90_kernel_evidence_bundle.json"
+      ],
+      [
+        "claim:RUST_WITNESS_REFINEMENT_PROVED",
+        "judge:Kani"
+      ],
+      [
+        "claim:SYSTEM_COMPOSITION_PROVED",
+        "artifact:examples/formalkernel/boot/src/boot_order.rs"
+      ],
+      [
+        "claim:SYSTEM_COMPOSITION_PROVED",
+        "artifact:examples/formalkernel/boot/src/main.rs"
+      ],
+      [
+        "claim:SYSTEM_COMPOSITION_PROVED",
+        "artifact:examples/formalkernel/kernel/composition.json"
+      ],
+      [
+        "claim:SYSTEM_COMPOSITION_PROVED",
+        "artifact:examples/formalkernel/kernel/m90_kernel_evidence_bundle.json"
+      ],
+      [
+        "claim:SYSTEM_COMPOSITION_PROVED",
+        "artifact:pipeline/kernel_composition.py"
+      ],
+      [
+        "evidence:proof_carrying_binary",
+        "artifact:examples/formalkernel/kernel/m90_evidence_root.candidate.json"
+      ],
+      [
+        "evidence:proof_carrying_binary",
+        "binary:qemu_aarch64_elf"
+      ],
+      [
+        "evidence:proof_carrying_binary",
+        "claim:RUST_WITNESS_REFINEMENT_PROVED"
+      ],
+      [
+        "evidence:proof_carrying_binary",
+        "claim:SYSTEM_COMPOSITION_PROVED"
+      ]
+    ],
+    "graph_digest": "df0738121491f81df2692de551a3235dc6f9e125d32001c69f10e8be1efd235f",
+    "root": "evidence:proof_carrying_binary"
+  },
+  "mutation_results": [
+    {
+      "case": "compiled_source",
+      "expected": "STALE_SOURCE",
+      "actual": "STALE_SOURCE",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "unused_source",
+      "expected": "VALID",
+      "actual": "VALID",
+      "passed": true,
+      "ignored_changes": [
+        "artifact:examples/formalkernel/kernel/vfs/Vfs.rs"
+      ]
+    },
+    {
+      "case": "kani_judge",
+      "expected": "REPLAY_REQUIRED",
+      "actual": "REPLAY_REQUIRED",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "deterministic_judge",
+      "expected": "REPLAY_REQUIRED",
+      "actual": "REPLAY_REQUIRED",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "unrelated_x86_profile",
+      "expected": "VALID",
+      "actual": "VALID",
+      "passed": true,
+      "ignored_changes": [
+        "artifact:examples/formalkernel/profiles/n150.json"
+      ]
+    },
+    {
+      "case": "unrelated_z3_judge",
+      "expected": "VALID",
+      "actual": "VALID",
+      "passed": true,
+      "ignored_changes": [
+        "judge:Z3"
+      ]
+    },
+    {
+      "case": "unrelated_tlaps_judge",
+      "expected": "VALID",
+      "actual": "VALID",
+      "passed": true,
+      "ignored_changes": [
+        "judge:TLAPS"
+      ]
+    },
+    {
+      "case": "linker_script",
+      "expected": "REBUILD_REQUIRED",
+      "actual": "REBUILD_REQUIRED",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "hardware_profile",
+      "expected": "PROFILE_INAPPLICABLE",
+      "actual": "PROFILE_INAPPLICABLE",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "elf",
+      "expected": "BINARY_IDENTITY_REJECTED",
+      "actual": "BINARY_IDENTITY_REJECTED",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "prebuild_inventory",
+      "expected": "CANONICAL_ROOT_REGENERATION_REQUIRED",
+      "actual": "CANONICAL_ROOT_REGENERATION_REQUIRED",
+      "passed": true,
+      "ignored_changes": []
+    },
+    {
+      "case": "forbidden_claim_promotion",
+      "expected": "FORBIDDEN",
+      "actual": "FORBIDDEN",
+      "passed": true
+    }
+  ],
+  "evidence_coverage": {
+    "applicable_proved_claims": 2,
+    "declared_compiled_mechanisms": 2,
+    "ratio": "2/2",
+    "boundary": "Counts declared mechanisms in this exact ELF; it is not the repository claim count or source-line proof coverage."
+  },
+  "forbidden_claims": [
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+    "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED"
+  ],
+  "note": "Changing the bound M90.1 candidate requires evidence-root regeneration but leaves claim-local closures valid when their dependencies are unchanged."
+}

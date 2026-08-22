@@ -494,6 +494,15 @@ def resolve_callbacks(source: str) -> dict[str, Any]:
         _workspace_path(source).read_text(encoding="utf-8")))
 
 
+def doctor_environment() -> dict[str, Any]:
+    """Report hash-bound judge readiness without minting evidence."""
+    from pipeline.doctor import inspect_environment
+    report = inspect_environment()
+    report["judge_manifest"] = {
+        item["name"]: item for item in report["capabilities"]}
+    return report
+
+
 def verify_kernel(kernel_dir: str, profile: list[str],
                   manifest: str = "kernel.json") -> dict[str, Any]:
     """Run the OS evidence lattice for an explicit deployment manifest.

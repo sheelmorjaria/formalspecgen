@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3c_u1_trait_implementation_boundary_qualification",
+  "status": "TRAIT_IMPLEMENTATION_BOUNDARY_QUALIFIED",
+  "claim": "NO_PROOF",
+  "initial_ice": {
+    "fingerprint": "translation/src/traits/registry.rs:1472:13 expected trait impl, found non-trait impl item",
+    "stack_sha256": "b23a71500098e2a1a418b8bb73a277761208103d679af78e2aa7c42c44fc7af7",
+    "cause": "incomplete ghost overlay omitted rr::verify on the local trait impl",
+    "upstream_bug_confirmed": false
+  },
+  "control": {
+    "shape": "inherent scalar completion method",
+    "source_sha256": "56ac573f01deb11ed3bf4a970cc76bf6cb561f8f704408fd1f52547e2042e1b2",
+    "translation": "passed",
+    "rocq_build": "passed",
+    "rocq_steps": 2220
+  },
+  "minimal_reproducer": {
+    "shape": "generic Adapter<P> implementing a local Complete trait",
+    "source_sha256": "f9f278689ea9e30d115c8aba60662679114a4d83528d57d1ad02cdd2599a0460",
+    "translation": "passed",
+    "rocq_build": "passed",
+    "rocq_steps": [492, 2293]
+  },
+  "exact_virtio_followup": {
+    "result": "KNOWN_BLOCKED",
+    "boundary": "result_try_branch",
+    "diagnostic": "Unknown procedure: core::result::branch",
+    "detail": "Trait impl registration succeeds when completely annotated; the unrelated submit method's ? operator prevents complete impl registration."
+  },
+  "judge": {
+    "refinedrust_version": "0.1.0",
+    "refinedrust_commit": "349fb6236b8770d8a699b59d5d4b7ef896875763",
+    "cargo_refinedrust_sha256": "2d231ab21eb60df91206a72fac7ea071d7dbb82c68c96913c48a8478dec1d369",
+    "refinedrust_rustc_sha256": "b8d3371d9278defcb2aabd2994521af29499f293be1a748df763cda4153f673e",
+    "rocq_version": "9.2",
+    "rustc": "1.99.0-nightly (3d6c19bb9 2026-08-11)",
+    "local_patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a"
+  },
+  "local_trait_patch_added": false,
+  "primitive_implementation_refinement_proved": false,
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

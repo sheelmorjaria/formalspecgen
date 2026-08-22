@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "SERVER_POLICY_TRACE_NONINTERFERENCE_PROVED",
+  "claim": "SERVER_POLICY_TRACE_NONINTERFERENCE_PROVED",
+  "judge": "z3",
+  "judge_version": "Z3 version 4.8.12 - 64 bit",
+  "judge_executable_sha256": "34ffd5418a419df041650767d9be168cf8d2f71422bb32b0e52255f1b0e06706",
+  "verifier_sha256": "e2bd6620edf3acdc2b4a9db343b4e2577ae69164fdb7f47458b9a02688b1bb97",
+  "scope": "reviewed_m49_m50_m65_bounded_trace_low_observables",
+  "reviewed_scope_sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913",
+  "trace_depth": 3,
+  "matched_public_input_steps": 3,
+  "low_observation_steps": 3,
+  "contains_multi_step_execution": true,
+  "history_dependent_mutations_executed": 2,
+  "history_dependent_mutations_rejected": 2,
+  "mutations": [
+    {"id": "hidden_then_route", "result": "sat", "smt_sha256": "9eb875c2d7b9b38d25a805ec3a4e676a5055a90359a976109aeeec70eaacb9a8", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "hidden_then_queue", "result": "sat", "smt_sha256": "ab3841be3ac5893a85b333bb4cb7c7643ee929d6b68b570d948d729cc66bbad5", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"}
+  ],
+  "smt_sha256": "d4141dbc2e1cbdaae140e01269bca5157ce2500963a6926ca2a57d145795303c",
+  "judge_output_sha256": "5c17dfcc2a8f1f30d9e96df6a9825a5030ade046d560332c19de74d93d591a18",
+  "termination_sensitive": false,
+  "timing_sensitive": false,
+  "claims_locked": [
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "DECLASSIFICATION_POLICY_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

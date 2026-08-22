@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "lane": "M86.1b_exact_ghost_spec_overlay",
+  "status": "VERUS_PRODUCTION_OVERLAY_QUALIFIED",
+  "claim": "VERUS_PRODUCTION_OVERLAY_QUALIFIED",
+  "scope": "exact_production_m64_allocator_constructor_only",
+  "production_source": "examples/formalkernel/kernel/user/heap.rs",
+  "production_source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "overlay_source": "examples/formalkernel/kernel/verus_allocator/allocator_overlay.rs",
+  "overlay_source_sha256": "9c84f41a16fdfff53b58b8a641d64abe6b8616d96da10cc2c0b308562cd40e42",
+  "erasure": {
+    "implementation": "pipeline.verus_evidence.erase_overlay",
+    "implementation_sha256": "2d252702d1180ee89bff2ea0303b4f3f98913a85c9b0e7b88257eacf0eacb6f8",
+    "byte_identical": true,
+    "erased_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746"
+  },
+  "judge": {
+    "version": "0.2026.08.15.7d4628a",
+    "qualification_evidence": "examples/formalkernel/kernel/verus_smoke/evidence.json",
+    "qualification_evidence_sha256": "14e71ab416d7e6570970407125a89009d14000148852fcc2a506c6b46fd52397",
+    "invocation": ["verus", "--no-cheating", "--output-json", "allocator_overlay.rs"],
+    "exit_code": 0,
+    "reported_verified": 6,
+    "reported_errors": 0,
+    "output_sha256": "e7a8d66d247c1fa85444466eced2ebf4a7fdfd215f7769cc97aa6d8f1cc4c516"
+  },
+  "anti_vacuity_policy": {
+    "implementation": "pipeline/judge_evidence.py",
+    "sha256": "e6203b03d075b1336f56f205da0f36fd35860262d224a3d3e3bb3d59520ae649",
+    "required_minimums": {
+      "verification_units": 1,
+      "proof_obligations": 1,
+      "semantic_postconditions": 1,
+      "mutation_failures": 1
+    }
+  },
+  "obligation_inventory": {
+    "verification_units": 1,
+    "proof_obligations": 1,
+    "semantic_postconditions": 1,
+    "units": ["allocator_overlay::UserHeap::new"],
+    "postconditions": ["all sixteen constructor slots are free"]
+  },
+  "anti_vacuity": {
+    "mutation": "examples/formalkernel/kernel/verus_allocator/constructor_occupied.mutation",
+    "mutation_sha256": "8947338adebe3bf54ac597fbf08f04143bb061852aebdb6a6e61dc905c82f585",
+    "mutated_overlay_sha256": "6ad32da7467a6811ad7e69bfb0419b15e0e9206be4ee831103fab5e357b5b3e9",
+    "exit_code": 1,
+    "failure_fingerprint": "postcondition not satisfied",
+    "mutation_failures": 1,
+    "output_sha256": "b2344d7012b0ba3bdef2ddd9a68e6a00c9a7976994e6cd06310b50effda72fae"
+  },
+  "excluded_from_claim": [
+    "allocate",
+    "release",
+    "allocated",
+    "Default::default"
+  ],
+  "claims_locked": [
+    "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

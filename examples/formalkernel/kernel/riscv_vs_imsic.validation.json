@@ -1,0 +1,30 @@
+{
+  "claim": "RISCV_GUEST_INTERRUPT_ROUTING_MODEL_PROVED",
+  "direct_device_assignment_proved": false,
+  "distinct_states": 60,
+  "generated_cfg_sha256": "347a48dc944e9e73b2d9d20c0a817071fa738609ea19d70b7722d841ed8cefb3",
+  "generated_tla_sha256": "3f9f0cfb269ec81deff629a238c7a35b0e63075baeece8301d0203e5fc8e1e95",
+  "gstage_evidence_sha256": "0673c99517fa166e56a90d4deca20f26baa9edf7556e22664c93574ffcac9570",
+  "guest_transition_evidence_sha256": "de3370ec7fa5d41728e82ed78d04306b27e2bd48e7193b9725ea9e4d4f2937ed",
+  "hardware_interrupt_delivery_proved": false,
+  "judge": "tlc",
+  "properties": [
+    "GUEST_FILE_UNIQUE_OWNER",
+    "ACTIVE_GUEST_IDENTITY_ALIGNED",
+    "ZERO_OR_INVALID_VGEIN_EXPOSES_NONE",
+    "GUEST_SWITCH_CLEARS_SELECTION",
+    "PENDING_STATE_ISOLATED",
+    "INTERRUPT_IDENTITY_SCOPED",
+    "SELECTED_FILE_ACK_FRAME",
+    "S_MODE_FILE_NOT_VS_VISIBLE",
+    "HGIEP_HGEIE_SEPARATED",
+    "REVIEWED_HS_VS_TRAP_PATH"
+  ],
+  "qemu_guest_imsic_configuration_observed": true,
+  "qemu_vs_imsic_routing_observed": false,
+  "reviewed_policy_sha256": "ca1f37f81a7fc2b8738f4783e82db0e78d9fc309236f4a70836569b0a92e6f36",
+  "riscv_iommu_guest_msi_remap_proved": false,
+  "scope": "reviewed_qemu_virt_h_extension_vs_imsic_guest_files",
+  "status": "RISCV_GUEST_INTERRUPT_ROUTING_MODEL_PROVED",
+  "tlc_version": "2.19 of 08 August 2024"
+}

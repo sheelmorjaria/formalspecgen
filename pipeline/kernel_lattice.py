@@ -30,10 +30,16 @@ from pathlib import Path
 import yaml
 
 from .certification_matrix import verify_certification_traceability
+from .boot_integrity import verify_boot_integrity
+from .compatibility_ops import verify_compatibility_operations
 from .deployment_profile import BOUNDARY_LANES, verify_deployment_profile
 from .dma_isolation import dma_isolation
+from .dynamic_vm import verify_dynamic_vm
+from .device_fabric import verify_device_fabric
 from .elf_loader import verify_elf_load
 from .exception_transition import verify_exception_evidence
+from .fault_recovery import verify_fault_recovery
+from .guest_isolation import verify_guest_isolation
 from .ipc_nameserver import verify_ipc_table
 from .kani_refinement import verify_rust_refinement
 from .kernel_composition import verify_composition
@@ -42,14 +48,18 @@ from .mmu_isolation import verify_spatial_isolation
 from .multicore_interference import enumerate_interference_channels
 from .microarch_policy import verify_microarch_policy
 from .n150_port import verify_n150_port
+from .network_scale import verify_network_scale
 from .pq_tls_pool import verify_pq_tls_pool
 from .pq_wcet import verify_pq_wcet
+from .process_model import verify_process_model
 from .realtime import wcet_bound
 from .r52_port import verify_r52_tcm_port
 from .r52_smmu import verify_r52_smmu
 from .rcu_verification import verify_rcu_bounded
+from .refinement_spine import verify_refinement_spine
 from .scheduler_liveness import verify_scheduler_liveness_evidence
 from .server_capabilities import verify_server_capabilities
+from .smp_scheduler import verify_smp_scheduler
 from .syscall_boundary import verify_syscall_boundary
 from .tcp_resource import verify_tcp_resource_evidence
 from .tls_handshake import verify_tls_handshake_evidence
@@ -137,6 +147,19 @@ def verify_kernel(kernel_dir: str | Path,
 
     def fail(entry: dict) -> None:
         failures.append(entry)
+
+    if profile_check["deployment"] == "desktop":
+        boundaries.extend((
+            {"claim": "HARD_WCET_BOUND_OMITTED", "scope": "desktop_dvfs_cache_speculation",
+             "status": "boundary", "judge": "none", "profile": None},
+            {"claim": "MULTICORE_INTERFERENCE_ASSURANCE_OMITTED",
+             "scope": "desktop_performance_tradeoff", "status": "boundary",
+             "judge": "none", "profile": None},
+            {"claim": "DESKTOP_X86_PROCESS_ENTRY_REFINEMENT_PENDING",
+             "scope": "x86_64_elf_loader_ring3_transition_and_native_exec",
+             "status": "judge_pending", "judge": "none", "profile": None,
+             "judge_pending": "x86_64_loader_and_privilege_transition"},
+        ))
 
     # --- M66: stripped, feature-gated single-EL1 build ---------------
     unikernel_build = manifest.get("unikernel_build")
@@ -311,7 +334,7 @@ def verify_kernel(kernel_dir: str | Path,
                           "code": "adapter_static_check_failed",
                           "message": syntax.get("output", "")})
                 else:
-                    microkernel = profile_check["deployment"] == "microkernel"
+                    microkernel = profile_check["deployment"] in {"microkernel", "desktop"}
                     boundary = {
                         "claim": ("UNVERIFIED_EXTERNAL_ADAPTER" if microkernel
                                   else "UNVERIFIED_IN_KERNEL_DRIVER"),
@@ -684,7 +707,9 @@ def verify_kernel(kernel_dir: str | Path,
                           "message": verdict.get("message", "")})
 
             profile_timing = profile.get("timing", {})
-            for name, file_timing in sub_manifest.get("wcet", {}).items():
+            wcet_items = ({} if profile_check["deployment"] == "desktop" else
+                          sub_manifest.get("wcet", {}))
+            for name, file_timing in wcet_items.items():
                 timing = {**profile_timing, **(file_timing or {})}
                 if "max_cycles" not in timing:
                     return _refuse("profile_field_missing",
@@ -771,7 +796,8 @@ def verify_kernel(kernel_dir: str | Path,
                           "source": str(pq_name), "code": verdict.get("code"),
                           "message": verdict.get("message", "")})
 
-            pq_wcet_name = sub_manifest.get("pq_wcet")
+            pq_wcet_name = (None if profile_check["deployment"] == "desktop"
+                            else sub_manifest.get("pq_wcet"))
             if pq_wcet_name is not None:
                 try:
                     pq_wcet_artifact = _load_json(sub_root / str(pq_wcet_name))
@@ -780,7 +806,9 @@ def verify_kernel(kernel_dir: str | Path,
                         "scheduler_source"]).resolve()
                     verdict = verify_pq_wcet(
                         pq_wcet_artifact, workload, scheduler_path, profile,
-                        profile_check["deployment"])
+                        ("microkernel" if profile_check["deployment"] == "desktop"
+                         else "monolithic" if profile_check["deployment"] == "safety"
+                         else profile_check["deployment"]))
                 except (OSError, ValueError, KeyError, TypeError) as exc:
                     fail({"claim": "PQ_WCET", "profile": target,
                           "subsystem": sub_name, "code": "PQ_WCET_ARTIFACT_INVALID",
@@ -812,7 +840,7 @@ def verify_kernel(kernel_dir: str | Path,
                 "note": "M58 proves session-pool capacity and ERR_MEM admission only",
             })
         if sub_manifest.get("pq_wcet") is not None:
-            microkernel = profile_check["deployment"] == "microkernel"
+            microkernel = profile_check["deployment"] in {"microkernel", "desktop"}
             boundaries.append({
                 "claim": ("HARDWARE_INTERRUPT_DELIVERY_PENDING" if microkernel
                           else "PQ_PREEMPTIVE_ISOLATION_NOT_AVAILABLE"),
@@ -1110,8 +1138,9 @@ def verify_kernel(kernel_dir: str | Path,
                           "profile": target, "source": str(loader_artifact),
                           "code": verdict.get("code"),
                           "message": verdict.get("message", "")})
-    elif profile_check["deployment"] in {"monolithic", "unikernel"}:
+    elif profile_check["deployment"] in {"monolithic", "unikernel", "safety"}:
         omission_prefix = ("UNIKERNEL" if profile_check["deployment"] == "unikernel"
+                           else "SAFETY" if profile_check["deployment"] == "safety"
                            else "EL0")
         boundaries.append({
             "claim": f"{omission_prefix}_PROCESS_LOADER_OMITTED",
@@ -1143,6 +1172,211 @@ def verify_kernel(kernel_dir: str | Path,
                 "omitted_lanes": sorted(BOUNDARY_LANES),
                 "runtime_behavior_proved": False,
             })
+
+    # --- M85: ABI compatibility and empirical POSIX-subset evidence --
+    compatibility_name = manifest.get("compatibility_operations")
+    if compatibility_name is not None and not failures:
+        verdict = verify_compatibility_operations(root / str(compatibility_name))
+        if verdict["status"] == "COMPATIBILITY_OPERATIONS_EVIDENCE_READY":
+            for entry in verdict["claims"]:
+                mint(entry["claim"], entry["scope"], None,
+                     str(compatibility_name), judge=entry["judge"], evidence=entry)
+            boundaries.append({"claim": "COMPATIBILITY_AND_OPERATIONS_REFINEMENT_PENDING",
+                "scope": "full_posix_kernel_syscalls_target_runtime_observability_and_atomic_upgrade",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "target_runtime_and_native_refinement"})
+        elif verdict["status"] == "judge_pending":
+            for claim in ("ABI_STABILITY_CHECKED", "POSIX_CONFORMANCE_TESTED"):
+                pending(claim, "five_call_host_compiled_compatibility_shim", None,
+                        str(compatibility_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "M85_COMPATIBILITY_OPERATIONS",
+                  "source": str(compatibility_name), "code": verdict.get("code")})
+
+    # --- M84: bounded guest lifecycle and resource noninterference ----
+    guest_isolation_name = manifest.get("guest_isolation")
+    if guest_isolation_name is not None and not failures:
+        verdict = verify_guest_isolation(root / str(guest_isolation_name))
+        if verdict["status"] == "GUEST_RESOURCE_NONINTERFERENCE_PROVED":
+            mint(verdict["claim"], verdict["scope"], None,
+                 str(guest_isolation_name), judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "HARDWARE_VIRTUALIZATION_REFINEMENT_PENDING",
+                "scope": "vm_exits_nested_paging_interrupt_remapping_native_hypervisor_and_side_channels",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "hardware_virtualization_and_native_refinement"})
+        elif verdict["status"] == "judge_pending":
+            pending("GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+                    "two_guest_static_cpu_memory_network_iommu_partitions", None,
+                    str(guest_isolation_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+                  "source": str(guest_isolation_name), "code": verdict.get("code")})
+
+    # --- M83: bounded fault containment and poisoned-page recovery ---
+    fault_recovery_name = manifest.get("fault_recovery")
+    if fault_recovery_name is not None and not failures:
+        verdict = verify_fault_recovery(root / str(fault_recovery_name))
+        if verdict["status"] == "FAULT_CONTAINMENT_RECOVERY_PROVED":
+            mint(verdict["claim"], verdict["scope"], None,
+                 str(fault_recovery_name), judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "PHYSICAL_FAULT_DELIVERY_AND_REFINEMENT_PENDING",
+                "scope": "ecc_mce_watchdog_firmware_native_handlers_and_repeated_faults",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "physical_fault_injection_and_native_refinement"})
+        elif verdict["status"] == "judge_pending":
+            pending("FAULT_CONTAINMENT_RECOVERY_PROVED",
+                    "single_fault_two_process_three_page_recovery_model", None,
+                    str(fault_recovery_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+                  "source": str(fault_recovery_name), "code": verdict.get("code")})
+
+    # --- M82: routing/firewall terminality and queue partitioning -----
+    network_scale_name = manifest.get("network_scale")
+    if network_scale_name is not None and not failures:
+        verdict = verify_network_scale(root / str(network_scale_name))
+        if verdict["status"] == "NETWORK_RESOURCE_PARTITION_PROVED":
+            mint(verdict["claim"], verdict["scope"], None, str(network_scale_name),
+                 judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "NETWORK_SCALE_REFINEMENT_PENDING",
+                "scope": "ipv6_rfc_native_stack_rss_msix_and_physical_delivery",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "protocol_and_hardware_refinement"})
+        elif verdict["status"] == "judge_pending":
+            pending("NETWORK_RESOURCE_PARTITION_PROVED",
+                    "two_principal_ipv6_udp_tcp_four_queue_fabric", None,
+                    str(network_scale_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "NETWORK_RESOURCE_PARTITION_PROVED",
+                  "source": str(network_scale_name), "code": verdict.get("code")})
+
+    # --- M81: measured boot admission and rollback policy -------------
+    boot_integrity_name = manifest.get("boot_integrity")
+    if boot_integrity_name is not None and not failures:
+        verdict = verify_boot_integrity(root / str(boot_integrity_name))
+        if verdict["status"] == "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED":
+            mint(verdict["claim"], verdict["scope"], None,
+                 str(boot_integrity_name), judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "PHYSICAL_ROOT_OF_TRUST_PENDING",
+                "scope": "tpm_firmware_keys_hash_strength_and_built_image",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "physical_root_of_trust_validation"})
+        elif verdict["status"] == "judge_pending":
+            pending("BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+                    "declared_measurement_version_signature_and_pcr_policy", None,
+                    str(boot_integrity_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+                  "source": str(boot_integrity_name), "code": verdict.get("code")})
+
+    # --- M80: bounded fork/exec/futex lifecycle and cleanup -----------
+    process_name = manifest.get("process_model")
+    if process_name is not None and not failures:
+        verdict = verify_process_model(root / str(process_name))
+        if verdict["status"] == "PROCESS_CONCURRENCY_MODEL_PROVED":
+            mint(verdict["claim"], verdict["scope"], None, str(process_name),
+                 judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "PROCESS_RUNTIME_REFINEMENT_PENDING",
+                "scope": "posix_native_futex_signals_and_unbounded_population",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "native_and_hardware_refinement"})
+        elif verdict["status"] == "judge_pending":
+            pending("PROCESS_CONCURRENCY_MODEL_PROVED",
+                    "two_process_two_thread_fork_exec_futex", None,
+                    str(process_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "PROCESS_CONCURRENCY_MODEL_PROVED",
+                  "source": str(process_name), "code": verdict.get("code")})
+
+    # --- M79: scalable device DMA domains and multiqueue budgets ------
+    fabric_name = manifest.get("device_fabric")
+    if fabric_name is not None and not failures:
+        verdict = verify_device_fabric(root / str(fabric_name))
+        if verdict["status"] == "DEVICE_DMA_DOMAIN_ISOLATION_PROVED":
+            mint(verdict["claim"], verdict["scope"], None, str(fabric_name),
+                 judge=verdict["judge"], evidence=verdict)
+            boundaries.append({"claim": "PHYSICAL_DEVICE_FABRIC_PENDING",
+                "scope": "iommu_pcie_nvme_msix_and_native_driver",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "physical_fault_injection_and_refinement"})
+        elif verdict["status"] == "judge_pending":
+            pending("DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+                    "declared_requester_domains_and_multiqueue_budgets", None,
+                    str(fabric_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+                  "source": str(fabric_name), "code": verdict.get("code")})
+
+    # --- M78: parameterized SMP ownership, affinity, and migration ----
+    smp_name = manifest.get("smp_scheduler")
+    if smp_name is not None and not failures:
+        verdict = verify_smp_scheduler(root / str(smp_name))
+        if verdict["status"] == "SMP_SCHEDULER_INVARIANTS_PROVED":
+            mint(verdict["claim"], verdict["scope"], None, str(smp_name),
+                 judge="tlapm", evidence=verdict)
+            boundaries.append({"claim": "SMP_IMPLEMENTATION_AND_LIVENESS_PENDING",
+                "scope": "load_balancer_irq_ipi_hotplug_fairness_composition",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "native_refinement_and_temporal_judges"})
+        elif verdict["status"] == "judge_pending":
+            pending("SMP_SCHEDULER_INVARIANTS_PROVED",
+                    "arbitrary_finite_cpu_task_sets_owner_affinity_migration",
+                    None, str(smp_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "SMP_SCHEDULER_INVARIANTS_PROVED",
+                  "source": str(smp_name), "code": verdict.get("code")})
+
+    # --- M77: symbolic dynamic quotas and NUMA ownership accounting --
+    dynamic_vm_name = manifest.get("dynamic_vm")
+    if dynamic_vm_name is not None and not failures:
+        verdict = verify_dynamic_vm(root / str(dynamic_vm_name))
+        if verdict["status"] == "VM_RESOURCE_ISOLATION_PROVED":
+            mint("VM_RESOURCE_ISOLATION_PROVED", verdict["scope"], None,
+                 str(dynamic_vm_name), judge="z3", evidence=verdict)
+            mint("NUMA_ACCOUNTING_PROVED", verdict["scope"], None,
+                 str(dynamic_vm_name), judge="z3", evidence=verdict)
+            boundaries.append({"claim": "DYNAMIC_VM_HARDWARE_REFINEMENT_PENDING",
+                "scope": "tlb_page_walker_hotplug_and_native_allocator",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "hardware_and_implementation_refinement"})
+        elif verdict["status"] == "judge_pending":
+            for claim in ("VM_RESOURCE_ISOLATION_PROVED", "NUMA_ACCOUNTING_PROVED"):
+                pending(claim, "three_process_two_node_symbolic_accounting",
+                        None, str(dynamic_vm_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "VM_RESOURCE_ISOLATION_PROVED",
+                  "source": str(dynamic_vm_name), "code": verdict.get("code")})
+
+    # --- M76 step 1: bind model, Rust, host LLVM IR, and object bytes -
+    spine_name = manifest.get("refinement_spine")
+    if spine_name is not None and not failures:
+        verdict = verify_refinement_spine(root / str(spine_name))
+        if verdict["status"] == "BOUNDED_COMPILED_REFINEMENT_VALIDATED":
+            mint("REFINEMENT_CHAIN_ARTIFACTS_BOUND", verdict["scope"], None,
+                 str(spine_name), judge=verdict["judge"], evidence=verdict)
+            mint(verdict["claim"], "vfs_all_bounded_states_and_operations", None,
+                 str(spine_name),
+                 judge=verdict["judge"], evidence=verdict)
+            boundaries.append({
+                "claim": "END_TO_END_REFINEMENT_CHAIN_PENDING",
+                "scope": "rust_llvm_object_semantic_correspondence",
+                "status": "judge_pending", "profile": None,
+                "judge_pending": "semantic_ir_and_verified_compiler_judges",
+                "semantic_ir_refinement_proved": False,
+                "verified_compiler_proved": False,
+                "binary_semantics_proved": False,
+            })
+        elif verdict["status"] == "judge_pending":
+            pending("REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+                    "vfs_promoted_model_to_host_object_artifact_identity", None,
+                    str(spine_name), verdict["judge_pending"])
+            pending("BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+                    "vfs_all_bounded_states_and_operations", None,
+                    str(spine_name), verdict["judge_pending"])
+        else:
+            fail({"claim": "REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+                  "source": str(spine_name), "code": verdict.get("code"),
+                  "message": verdict.get("message", "")})
 
     # --- M75: independently checked qualification-support corpus -----
     qualification_name = manifest.get("tool_qualification")
@@ -1187,6 +1421,15 @@ def verify_kernel(kernel_dir: str | Path,
     if failures:
         return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",
                 "code": failures[0].get("code"), "failures": failures,
+                "claims": claims, "boundaries": boundaries}
+    minted_names = {entry["claim"] for entry in claims if "status" not in entry}
+    forbidden = sorted(minted_names & set(profile_check["claims_forbidden"]))
+    if forbidden:
+        code = ("SAFETY_DYNAMIC_RESOURCE_CONTRADICTION"
+                if profile_check["deployment"] == "safety"
+                else "DESKTOP_HARD_REALTIME_CONTRADICTION")
+        return {"status": "KERNEL_VERIFICATION_FAILED", "claim": "NO_PROOF",
+                "code": code, "forbidden_claims": forbidden,
                 "claims": claims, "boundaries": boundaries}
     return {"status": "KERNEL_EVIDENCE_BUNDLE",
             "claim": "KERNEL_EVIDENCE_BUNDLE",

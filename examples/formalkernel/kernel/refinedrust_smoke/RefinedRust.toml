@@ -1,0 +1,2 @@
+output_dir = "output"
+lib_load_paths = ["../../../../.tools/refinedrust-dev/stdlib"]

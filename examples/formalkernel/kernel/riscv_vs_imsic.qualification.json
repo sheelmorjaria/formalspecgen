@@ -1,0 +1,22 @@
+{
+  "status": "RISCV_VS_IMSIC_CANDIDATE_QUALIFIED",
+  "claim": "NO_PROOF",
+  "candidate_policy_sha256": "0ee707fbe3a9b426731918e69d7fdc8fe23cdbac4095cd27f85137e5d460909b",
+  "base_status": "VERIFIED",
+  "distinct_states": 60,
+  "semantic_mutations_rejected": 6,
+  "mutation_results": {
+    "cross_guest_vgein": "TLC_FAILED",
+    "stale_vgein_switch": "TLC_FAILED",
+    "invalid_vgein_visible": "TLC_FAILED",
+    "cross_pending": "TLC_FAILED",
+    "wrong_vmid": "TLC_FAILED",
+    "trap_bypass": "TLC_FAILED"
+  },
+  "deterministic_policy_mutations": [
+    "duplicate_guest_file_owner",
+    "duplicate_interrupt_identity",
+    "s_mode_file_vs_visible",
+    "missing_hgeip_hgeie_state"
+  ]
+}

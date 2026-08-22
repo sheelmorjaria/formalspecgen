@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3b_foundational_bounded_allocator",
+  "status": "judge_pending",
+  "claim": "NO_PROOF",
+  "array_translation_blocker_status": "closed_by_M76_3b_r1",
+  "remaining_blocker": "allocator_functional_refinement_decomposition",
+  "production_source": "user/heap.rs",
+  "production_source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "target_scope": "fixed_16_slot_allocator",
+  "judge": {
+    "name": "RefinedRust/Rocq",
+    "refinedrust_version": "0.1.0",
+    "rocq_version": "9.2",
+    "opam_switch": "refinedrust"
+  },
+  "feasibility_results": [
+    {
+      "representation": "production_array_field",
+      "result": "FRONTEND_TYPE_TRANSLATION_REJECTED",
+      "detail": "The generated struct semantic type drops the per-element place_rfn required by array_t 16 bool_t."
+    },
+    {
+      "representation": "diagnostic_16_individual_slots",
+      "result": "PROOF_SEARCH_DID_NOT_COMPLETE_WITHIN_BOUNDED_ATTEMPT",
+      "detail": "Translation entered the concrete method proofs, but the 16-way allocation path did not terminate within the bounded feasibility run. This representation was not promoted or substituted for production."
+    }
+  ],
+  "required_closure": [
+    "array-in-struct semantic type correspondence",
+    "scalable decomposition of the 16-way allocation proof",
+    "functional allocate/release contracts rather than rr::verify safety-only specifications",
+    "all eight required anti-vacuity mutations"
+  ],
+  "bounded_allocator_implementation_refinement_proved": false,
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

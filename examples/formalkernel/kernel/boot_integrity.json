@@ -1,0 +1,16 @@
+{
+  "module": "BootRuntimeIntegrity",
+  "measured_artifact": "../unikernel/src/lib.rs",
+  "expected_measurement_sha256": "0e35b80ab5869afcedb0900865019bc8e6aac807a221fee24e345f4fee484800",
+  "current_version": 2,
+  "minimum_accepted_version": 2,
+  "root_key_id": "formalkernel-release-root-v1",
+  "pcr_index": 7,
+  "rollback_response": "Recovery",
+  "validation": "boot_integrity.validation.json",
+  "physical_tpm_semantics_proved": false,
+  "firmware_measurement_proved": false,
+  "key_custody_proved": false,
+  "sha256_collision_resistance_proved": false,
+  "built_image_measurement_proved": false
+}

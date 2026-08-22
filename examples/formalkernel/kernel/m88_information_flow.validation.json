@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "status": "SERVER_POLICY_TWO_RUN_NONINTERFERENCE_PROVED",
+  "claim": "SERVER_POLICY_TWO_RUN_NONINTERFERENCE_PROVED",
+  "judge": "z3",
+  "judge_version": "Z3 version 4.8.12 - 64 bit",
+  "judge_executable_sha256": "34ffd5418a419df041650767d9be168cf8d2f71422bb32b0e52255f1b0e06706",
+  "verifier_sha256": "e2bd6620edf3acdc2b4a9db343b4e2577ae69164fdb7f47458b9a02688b1bb97",
+  "scope": "reviewed_m49_m50_m65_one_step_low_observables",
+  "reviewed_scope_sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913",
+  "smt_sha256": "9fc8d2bfe4a2a534fd7558a58f6d46068911855686ea4ae3c400e8f5cd50957d",
+  "judge_output_sha256": "5c17dfcc2a8f1f30d9e96df6a9825a5030ade046d560332c19de74d93d591a18",
+  "two_run_judgment_executed": true,
+  "termination_sensitive": false,
+  "timing_sensitive": false,
+  "mutation_classes": ["model_leakage", "scope_weakening"],
+  "mutations_executed": 7,
+  "mutations_rejected": 7,
+  "mutations": [
+    {"id": "secret_leaks_to_syscall_result", "result": "sat", "smt_sha256": "de3a644c5c129d93ba4b3c06a19072cffb5f0f7437ef6c9e083488cc6cf75c0f", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "secret_leaks_to_ipc_route", "result": "sat", "smt_sha256": "4f870ee785866050855515d7195412cf90c5aa882ea46d76c149eb3d192cad5b", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "secret_leaks_to_capability_decision", "result": "sat", "smt_sha256": "1e25b60bda862228737ddaaa64cc337dfec3b2addf7dc6ae6aeaaeebed9cb98c", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "secret_leaks_to_public_queue_occupancy", "result": "sat", "smt_sha256": "20cfe8c8015eb38905113af03321e250f02d1d8924726fcf6aa0abd0d84def87", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "secret_leaks_to_explicitly_declassified_output", "result": "sat", "smt_sha256": "793ea8bcf26de7454628bbb75103748a4429bc5886cfec503491466cfb4755be", "output_sha256": "d9dbf94b05b8314af9ca7f2034e92685c33447917605a7243b1099c693a12e5e"},
+    {"id": "low_observable_removed", "result": "rejected_by_scope_coverage"},
+    {"id": "declassification_rule_widened", "result": "rejected_by_review_gate"}
+  ],
+  "claims_locked": [
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "SERVER_POLICY_TRACE_NONINTERFERENCE_PROVED",
+    "DECLASSIFICATION_POLICY_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

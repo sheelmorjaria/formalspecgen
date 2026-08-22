@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "MUTATION_CLOSURE_PASSED",
+  "source_overlay_sha256": "4b10d5e3da28f787e24cd4f4b7811a7bfca82fa9cbb8a07ce8f73f6beca781ee",
+  "executed": 6,
+  "rejected": 6,
+  "survived": 0,
+  "mutations": [
+    {
+      "id": "bad_constructor",
+      "change": "constructor begins with one in-flight request",
+      "mutated_source_sha256": "ce0242fa9b818d1f56cff404196cc626c07351d710c6fde4c0d72137bfe6129c",
+      "output_sha256": "2cf00ca7ac5d6bd5b95d3f730b8bcded7413c0d3c4e8df9fe678254e204fdb9f",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    },
+    {
+      "id": "submit_no_increment",
+      "change": "successful submission increments by zero",
+      "mutated_source_sha256": "374160693d76993779df5bfa8657105f3a9d02aa7a90c14bfa70b37554604a89",
+      "output_sha256": "c573c4e54ad380bf3e1d2f4b7a1e7a52d2e4b11de9bf9fffa74f4a3181e0646c",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    },
+    {
+      "id": "queue_full_returns_success",
+      "change": "capacity refusal incorrectly returns success",
+      "mutated_source_sha256": "817ae592f4b24c17fab847f89987b69b8821cbe63b6e28ee294d51f38403c7c2",
+      "output_sha256": "7ab3601abb27290b625a2677613ee8df919fa09c876f87d4dfb261a54d52f207",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    },
+    {
+      "id": "complete_no_decrement",
+      "change": "successful completion decrements by zero",
+      "mutated_source_sha256": "a02d4d8ecbc59d58bf7ff031e1b5b19b29fd38dc91f4ff833f49e2003b90b752",
+      "output_sha256": "0a7b1c037eab5d1cd8bd7ad795a46f559f85823eeae412113be793a8ef475b37",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    },
+    {
+      "id": "empty_complete_returns_success",
+      "change": "empty-queue completion incorrectly returns success",
+      "mutated_source_sha256": "0119168c8d7a0e198927148c0931644bd2e0fb74a0499b46c488db6aab604753",
+      "output_sha256": "787b6fba6ce84d095fa80e35a715bbcc5807cfce9f7b42a7211f949fa86079af",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    },
+    {
+      "id": "weakened_submit_model",
+      "change": "accepted submission model incorrectly stutters",
+      "mutated_source_sha256": "6e5727e2e7c7e12ac34895212f8d9b32de91127ef12b4e6fc91a4afab438c7c9",
+      "output_sha256": "55c9457b5214292e0c2576a9dd6086171b4ccf162e4e94b30a68cfd664f13a5f",
+      "exit_code": 1,
+      "failure": "postcondition not satisfied"
+    }
+  ]
+}

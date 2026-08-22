@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3c_production_primitive_selection",
+  "status": "judge_pending",
+  "claim": "NO_PROOF",
+  "scanner_sha256": "864afa77801f1dcb43a5b0c95516c9162e5f6998654c9f9db7705d48c55e7dd2",
+  "classification_semantics": {
+    "SUPPORTED": "Observed qualified syntax only; not correctness evidence.",
+    "LIKELY_SUPPORTED": "Not a known blocker; requires a real judge probe.",
+    "KNOWN_BLOCKED": "Observed unsupported frontend or standard-library semantics.",
+    "UNKNOWN": "No qualified classification available."
+  },
+  "ranked_candidates": [
+    {
+      "rank": 1,
+      "source": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+      "source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+      "static_classification": "KNOWN_BLOCKED",
+      "probe_operation": "BlockDevice::complete",
+      "probe_result": "KNOWN_BLOCKED",
+      "diagnostic": "Unknown procedure: core::result::branch in the submit method's ? operator; generic local trait registration is qualified when the impl annotation is complete."
+    },
+    {
+      "rank": 2,
+      "source": "examples/formalkernel/kernel/loader/elf_loader.rs",
+      "source_sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1",
+      "static_classification": "KNOWN_BLOCKED",
+      "avoid_constructs": ["named_const_array_len", "slice_get_or_get_mut", "slice_type", "closure"]
+    },
+    {
+      "rank": 3,
+      "source": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+      "source_sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4",
+      "static_classification": "KNOWN_BLOCKED",
+      "avoid_constructs": ["named_const_array_len", "iterator_enumerate", "slice_get_or_get_mut", "closure"]
+    },
+    {
+      "rank": 4,
+      "source": "examples/formalkernel/kernel/user/heap.rs",
+      "source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+      "static_classification": "KNOWN_BLOCKED",
+      "avoid_constructs": ["named_const_array_len", "iterator_enumerate", "slice_get_or_get_mut", "closure"]
+    }
+  ],
+  "exact_probe_overlay": {
+    "source": "examples/formalkernel/kernel/refinement/refinedrust_virtio_complete/src/lib.rs",
+    "source_sha256": "8919796c974d70d647588a1b349bd7b80ad6aca8994d05b03f381fe58518ce14",
+    "ghost_erasure_byte_identical": true,
+    "semantic_source_rewrite": false
+  },
+  "known_backlog": [
+    "named constant array-length normalization",
+    "iterator/enumerate pattern lowering",
+    "slice get/get_mut index trait semantics",
+    "Result Try::branch standard-library shim"
+  ],
+  "eligible_production_primitive_found": false,
+  "primitive_implementation_refinement_proved": false,
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

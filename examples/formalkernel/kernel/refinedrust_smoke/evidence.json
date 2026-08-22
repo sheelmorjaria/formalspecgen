@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3a_refinedrust_smoke",
+  "status": "REFINEDRUST_SMOKE_THEOREM_CHECKED",
+  "claim": "NO_PROOF",
+  "scope": "refinedrust_identity_translation_and_rocq_obligation",
+  "source_sha256": "32d4892d193ab64556d5afd7fb504bad9ef2420b1f069bce1877c888c100bda2",
+  "generated_code_sha256": "35f947f7e294df295309377732f7fd87e8308cfe253e2ea8eec72cab8aae2ac0",
+  "generated_specs_sha256": "59b3fbcec7de759a0d5ae0cfd641ea384136f10fa8bc528e6877ef1a927d4295",
+  "generated_template_sha256": "c03c9bff19653c02a7600dc4abc81c3258489921f56ea26a32efda7e94ef8848",
+  "proof_sha256": "ecc75069e3d4489342b77e93e8804eb3375472369485d177d948206324bc079b",
+  "judge": {
+    "refinedrust_version": "0.1.0",
+    "refinedrust_executable_sha256": "4a2afaabe14e4bf58c78683218869b1bb35b9b71c73519a9cc3f6ab34f001216",
+    "refinedrust_rustc_sha256": "d95d19e448b13c241d5dff2402a8bb60cd11f8254a2edee68b1a8a4707529e66",
+    "rocq_version": "9.2",
+    "rocq_executable_sha256": "0c5e28a2ba81b04887bc03436a5a707b023a495de2d3b6e8f37dacfcadc012fe",
+    "dune_version": "3.23.1",
+    "dune_executable_sha256": "2d79ff40a4b9e3916b5437626f37283202deaecec645c0fd7808d3998741ef23",
+    "rustc": "1.99.0-nightly (3d6c19bb9 2026-08-11)",
+    "llvm": "23.1.0",
+    "invocation_environment": "opam_switch_refinedrust"
+  },
+  "anti_vacuity": {
+    "mutation": "return_value_plus_one_with_identity_postcondition",
+    "expected_result": "ROCQ_INCOMPLETE_PROOF",
+    "observed_result": "ROCQ_INCOMPLETE_PROOF"
+  },
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

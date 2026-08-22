@@ -1,0 +1,19 @@
+{
+  "validation": "riscv_sv39.validation.json",
+  "reviewed_profile": {
+    "path": "examples/formalkernel/profiles/riscv64-qemu.reviewed.json",
+    "sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122"
+  },
+  "transition_artifact": {
+    "path": "examples/formalkernel/kernel/riscv_privilege_transition.json",
+    "sha256": "2d84eea7ed7586bfb1aa311a25012d345b5bbc1adf946f08695123e24c26887d"
+  },
+  "transition_evidence": {
+    "path": "examples/formalkernel/kernel/riscv_privilege_transition.validation.json",
+    "sha256": "1a929b0acc67409389a3ab9bb5a21781f7ae8c045fdd135ebae785ada04920c7"
+  },
+  "mapping_plan": {
+    "path": "examples/formalkernel/kernel/riscv_sv39_plan.reviewed.json",
+    "sha256": "8d1e20f8541009ce062f15b5ba2393110fc88156e9b6e1124b8b75bd6980de73"
+  }
+}

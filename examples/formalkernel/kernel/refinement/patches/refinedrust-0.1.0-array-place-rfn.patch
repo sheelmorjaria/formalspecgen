@@ -1,0 +1,45 @@
+diff --git a/rr_frontend/radium/src/specs/mod.rs b/rr_frontend/radium/src/specs/mod.rs
+index d5882f3..18885f5 100644
+--- a/rr_frontend/radium/src/specs/mod.rs
++++ b/rr_frontend/radium/src/specs/mod.rs
+@@ -157,7 +157,9 @@ impl Type<'_> {
+                 coq::term::Type::Literal(su.get_rfn_type())
+             },
+ 
+-            Self::Array(ty, _) => coq::term::Type::List(Box::new(ty.get_rfn_type())),
++            Self::Array(ty, _) => coq::term::Type::List(Box::new(
++                model::Type::PlaceRfn(Box::new(ty.get_rfn_type())).into(),
++            )),
+ 
+             Self::Unit | Self::Never | Self::Uninit(_) => {
+                 // NOTE: could also choose to use an uninhabited type for Never
+@@ -178,6 +180,29 @@ impl Type<'_> {
+     }
+ }
+ 
++#[cfg(test)]
++mod tests {
++    use super::Type;
++
++    #[test]
++    fn array_refinement_tracks_per_element_places_for_generic_lengths() {
++        for len in [0, 1, 2, 4, 16] {
++            let array = Type::Array(Box::new(Type::Bool), len);
++            assert_eq!(
++                array.get_rfn_type().to_string(),
++                "list ((place_rfnRT bool))",
++                "array length {len} lost its per-element place refinement"
++            );
++        }
++    }
++
++    #[test]
++    fn malformed_array_refinement_is_detectably_different() {
++        let array = Type::Array(Box::new(Type::Bool), 16);
++        assert_ne!(array.get_rfn_type().to_string(), "list bool");
++    }
++}
++
+ /// Encodes a RR type with an accompanying refinement.
+ #[derive(Clone, Eq, PartialEq, Debug, Display, Constructor)]
+ #[display("{} :@: {}", _1, _0)]

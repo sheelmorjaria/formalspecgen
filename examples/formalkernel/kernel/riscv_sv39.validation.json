@@ -1,0 +1,75 @@
+{
+  "claim": "RISCV_SPATIAL_ISOLATION_PROVED",
+  "compiled_mmu_refinement_proved": false,
+  "hardware_page_walk_proved": false,
+  "judge": "deterministic_sv39_walker",
+  "mapping_plan_sha256": "8d1e20f8541009ce062f15b5ba2393110fc88156e9b6e1124b8b75bd6980de73",
+  "mappings_checked": [
+    {
+      "class": "kernel_text",
+      "pa": 2149580800,
+      "permissions": {
+        "R": true,
+        "U": false,
+        "W": false,
+        "X": true
+      },
+      "va": 18446743798831644672
+    },
+    {
+      "class": "kernel_data",
+      "pa": 2149584896,
+      "permissions": {
+        "R": true,
+        "U": false,
+        "W": true,
+        "X": false
+      },
+      "va": 18446743798831648768
+    },
+    {
+      "class": "user_text",
+      "pa": 2164260864,
+      "permissions": {
+        "R": true,
+        "U": true,
+        "W": false,
+        "X": true
+      },
+      "va": 4194304
+    },
+    {
+      "class": "user_data",
+      "pa": 2164264960,
+      "permissions": {
+        "R": true,
+        "U": true,
+        "W": true,
+        "X": false
+      },
+      "va": 4198400
+    },
+    {
+      "class": "guard",
+      "resolved": false,
+      "va": 4202496
+    }
+  ],
+  "physical_spatial_isolation_proved": false,
+  "properties": [
+    "EXACT_DESCRIPTOR_ENCODING",
+    "SV39_WALK_CORRESPONDENCE",
+    "SUPERVISOR_USER_SEPARATION",
+    "USER_W_X",
+    "GUARD_UNMAPPED",
+    "NONCANONICAL_REJECTED",
+    "REVIEWED_SATP_ROOT_REQUIRED"
+  ],
+  "reviewed_profile_sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122",
+  "root_ppn": 524304,
+  "satp": 9223372036855300112,
+  "scope": "reviewed_qemu_virt_sv39_descriptor_and_walk_model",
+  "status": "RISCV_SV39_SPATIAL_ISOLATION_PROVED",
+  "tlb_coherence_proved": false,
+  "transition_evidence_sha256": "1a929b0acc67409389a3ab9bb5a21781f7ae8c045fdd135ebae785ada04920c7"
+}

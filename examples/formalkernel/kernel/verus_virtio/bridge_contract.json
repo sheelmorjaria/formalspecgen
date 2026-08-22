@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "implementation_claim": "VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+  "model_candidate_sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e",
+  "model_review_status": "reviewed",
+  "reviewed_model_sha256": "cb3d2de50ac57c90f73d8aa67a95a1fa5ac8e085a0d3c89c753f7409ca90a67c",
+  "overlay_sha256": "4b10d5e3da28f787e24cd4f4b7811a7bfca82fa9cbb8a07ce8f73f6beca781ee",
+  "production_source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+  "verification_units": 5,
+  "semantic_obligations": 12,
+  "mutations": {
+    "executed": 6,
+    "rejected": 6
+  },
+  "bridge_status": "PROVED",
+  "trusted_assumptions": [
+    "Verus and its bundled solver match the recorded toolchain hashes",
+    "human acceptance applies only to the exact candidate SHA-256"
+  ],
+  "forbidden_claims": [
+    "DRIVER_DEVICE_BEHAVIOR_PROVED",
+    "EXTERNAL_IO_SAFETY_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

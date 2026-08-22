@@ -74,4 +74,17 @@ def test_unikernel_bundle_builds_and_records_stripped_boundaries():
     assert "MICROARCH_MITIGATION_POLICY_PROVED" in claims
     assert "MITIGATION_WCET_BUDGET_PROVED" in claims
     assert "TOOL_QUALIFICATION_EVIDENCE_READY" in claims
-    assert len(bundle["claims"]) == 40
+    assert "REFINEMENT_CHAIN_ARTIFACTS_BOUND" in claims
+    assert "BOUNDED_COMPILED_REFINEMENT_VALIDATED" in claims
+    assert "VM_RESOURCE_ISOLATION_PROVED" in claims
+    assert "NUMA_ACCOUNTING_PROVED" in claims
+    assert "SMP_SCHEDULER_INVARIANTS_PROVED" in claims
+    assert "DEVICE_DMA_DOMAIN_ISOLATION_PROVED" in claims
+    assert "PROCESS_CONCURRENCY_MODEL_PROVED" in claims
+    assert "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED" in claims
+    assert "NETWORK_RESOURCE_PARTITION_PROVED" in claims
+    assert "FAULT_CONTAINMENT_RECOVERY_PROVED" in claims
+    assert "GUEST_RESOURCE_NONINTERFERENCE_PROVED" in claims
+    assert "ABI_STABILITY_CHECKED" in claims
+    assert "POSIX_CONFORMANCE_TESTED" in claims
+    assert len(bundle["claims"]) == 53

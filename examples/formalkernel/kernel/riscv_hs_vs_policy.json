@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "HUMAN_REVIEW_PENDING",
+  "scope": "reviewed_qemu_virt_h_extension_hs_vs",
+  "qemu_machine": "virt",
+  "cpu_model": "rv64",
+  "guests": [
+    {"guest": "guest1", "vmid": 1, "context": "guest1_reviewed_context"},
+    {"guest": "guest2", "vmid": 2, "context": "guest2_reviewed_context"}
+  ],
+  "normative_reference": {
+    "name": "RISC-V H Extension 1.0",
+    "url": "https://docs.riscv.org/reference/isa/priv/hypervisor"
+  },
+  "excluded": [
+    "G-stage translation",
+    "VS-mode IMSIC routing",
+    "direct device assignment",
+    "RISC-V IOMMU",
+    "compiled trap-vector semantics",
+    "QEMU and physical hardware conformance"
+  ]
+}

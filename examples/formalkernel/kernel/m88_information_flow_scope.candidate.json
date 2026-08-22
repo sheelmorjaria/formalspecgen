@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "lane": "M88.1_relational_noninterference_feasibility",
+  "status": "HYPERPROPERTY_SCOPE_CANDIDATE",
+  "claim": "NO_PROOF",
+  "scope_review_status": "candidate",
+  "reviewed_scope_sha256": null,
+  "scope": {
+    "security_property_class": "two_run_noninterference",
+    "high_state_fields": [
+      "vfs.private_payload",
+      "net.private_payload",
+      "capability_token_internal_state"
+    ],
+    "public_inputs": [
+      "requesting_server",
+      "requested_syscall_id",
+      "requested_ipc_endpoint",
+      "declared_capability_kind"
+    ],
+    "low_observables": [
+      "syscall_result",
+      "ipc_route",
+      "capability_decision",
+      "public_queue_occupancy",
+      "explicitly_declassified_output"
+    ],
+    "declassification_rules": [],
+    "termination_sensitive": false,
+    "timing_sensitive": false
+  },
+  "artifact_sha256": {
+    "examples/formalkernel/kernel/server_capabilities.json": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a",
+    "examples/formalkernel/kernel/syscalls.json": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e",
+    "examples/formalkernel/kernel/ipc.json": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+  },
+  "two_run_judgment_executed": false,
+  "confidentiality_mutation_rejected": false,
+  "trusted_assumptions": [
+    "the high/low partition requires human review before M88.2",
+    "both runs receive identical declared public inputs",
+    "termination and timing channels are outside this property"
+  ],
+  "forbidden_claims": [
+    "SERVER_POLICY_NONINTERFERENCE_MODEL_PROVED",
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

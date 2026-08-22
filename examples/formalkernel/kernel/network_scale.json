@@ -1,0 +1,18 @@
+{
+  "module": "NetworkScale",
+  "principals": ["tenant", "system"],
+  "protocols": ["IPv6_TCP", "IPv6_UDP"],
+  "queue_partitions": {"tenant": [0, 1], "system": [2, 3]},
+  "queue_depth": 64,
+  "principal_quota": 128,
+  "total_descriptors": 256,
+  "firewall_default": "drop",
+  "allowed_routes": ["tenant_to_public", "system_to_internal", "system_to_public"],
+  "exhaustion": "Backpressure_and_stutter",
+  "validation": "network_scale.validation.json",
+  "full_ipv6_conformance_proved": false,
+  "native_network_stack_refinement_proved": false,
+  "physical_rss_msix_delivery_proved": false,
+  "physical_packet_delivery_proved": false,
+  "cryptographic_packet_authenticity_proved": false
+}

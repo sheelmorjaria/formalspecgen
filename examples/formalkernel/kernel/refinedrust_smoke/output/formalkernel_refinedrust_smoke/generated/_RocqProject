@@ -1,0 +1,24 @@
+-arg -w
+-arg -notation-overridden
+-arg -w
+-arg -redundant-canonical-projection
+-arg -w
+-arg -deprecated-native-compiler-option
+-arg -w
+-arg -native-compiler-disabled
+-arg -native-compiler
+-arg ondemand
+-arg -boot
+-R /home/sheel/.opam/refinedrust/lib/coq/theories Corelib
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/stdpp stdpp
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/iris iris
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/iris_contrib iris_contrib
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/Ltac2 Ltac2
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/Equations Equations
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/lrust lrust
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/radium radium
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/lithium lithium
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/refinedrust refinedrust
+-Q /home/sheel/.opam/refinedrust/lib/coq/user-contrib/Stdlib Stdlib
+-R . refinedrust.examples.formalkernel_refinedrust_smoke.generated
+-R ../../_build/default/formalkernel_refinedrust_smoke/generated refinedrust.examples.formalkernel_refinedrust_smoke.generated

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "lane": "M86.1c_verus_allocator_semantic_bridges",
+  "status": "NO_PROOF",
+  "claim": "NO_PROOF",
+  "judge": {
+    "version": "0.2026.08.15.7d4628a",
+    "invocation": ["verus", "--no-cheating", "--output-json", "<bridge>.rs"]
+  },
+  "production_source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "trusted_escape_hatches_used": false,
+  "bridges": [
+    {
+      "id": "iterator_traversal_semantics",
+      "status": "NO_PROOF",
+      "source": "iterator_enumerate.rs",
+      "source_sha256": "3f657dd6423bad35dc3eeed33412b146d80379e1a57da0f35d4f6c77b7bc09a3",
+      "exit_code": 1,
+      "output_sha256": "fd6d411b9447d9963cdd2ada53587aa403513911a26292900a76edc091234a60",
+      "failure_fingerprints": [
+        "core::iter::adapters::enumerate::Enumerate is not supported",
+        "core::slice::iter::IterMut is not supported",
+        "core::slice::iter_mut is not supported"
+      ],
+      "claim_locked": "ITERATOR_TRAVERSAL_SEMANTICS_PROVED"
+    },
+    {
+      "id": "get_mut_frame_semantics",
+      "status": "NO_PROOF",
+      "source": "get_mut.rs",
+      "source_sha256": "3bd37e7966d1e82da37970edf98feb79dec769d3ab8e3b90ec314bfdbbb660a1",
+      "exit_code": 1,
+      "output_sha256": "1c4bd34e3bf69a325362150eeeaace5eac4fc4c747bf424bf3b9e1a107df320f",
+      "failure_fingerprints": ["core::slice::get_mut is not supported"],
+      "claim_locked": "GET_MUT_FRAME_SEMANTICS_PROVED"
+    },
+    {
+      "id": "occupancy_count_correspondence",
+      "status": "NO_PROOF",
+      "source": "filtered_count.rs",
+      "source_sha256": "af992444b8c5522300ec56b7adaa5acd4637934ed7b67b92c2a7673379e136f4",
+      "exit_code": 1,
+      "output_sha256": "5d8545e8ab6769a2467ea5b54daea59b1c669d069a190b7ba917545b5503d7b4",
+      "failure_fingerprints": [
+        "core::iter::adapters::filter::Filter is not supported",
+        "Iterator::filter is not supported",
+        "Filter::count is not supported"
+      ],
+      "claim_locked": "OCCUPANCY_COUNT_CORRESPONDENCE_PROVED"
+    }
+  ],
+  "rejected_shortcuts": [
+    "assume_specification",
+    "external_body",
+    "verification-specific allocator rewrite",
+    "manual-index replacement of production iterator"
+  ],
+  "claims_locked": [
+    "ITERATOR_TRAVERSAL_SEMANTICS_PROVED",
+    "GET_MUT_FRAME_SEMANTICS_PROVED",
+    "OCCUPANCY_COUNT_CORRESPONDENCE_PROVED",
+    "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

@@ -1,0 +1,283 @@
+{
+  "applicable_claims": [
+    "SYSTEM_COMPOSITION_PROVED"
+  ],
+  "approval": {
+    "accepted_elf_sha256": "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c",
+    "accepted_evidence_root_sha256": "99e70fcb3172092dca66c8e4991190b2ac0227dbeabc0cd6ba284df8a73b7d7f",
+    "method": "human_explicit_hash_acceptance"
+  },
+  "assumptions": [
+    "rustc and rust-lld are identity-bound, not verified",
+    "QEMU and OpenSBI semantics are empirical boundaries"
+  ],
+  "binary": {
+    "identity": {
+      "build_id": null,
+      "elf_class": "ELF64",
+      "elf_type": "EXEC",
+      "endian": "little",
+      "entry_point": 2149580800,
+      "header_flags": 5,
+      "header_size": 64,
+      "machine": "RISC-V",
+      "machine_id": 243,
+      "program_headers": [
+        {
+          "align": 4096,
+          "filesz": 2242,
+          "flags": 5,
+          "memsz": 2242,
+          "offset": 4096,
+          "paddr": 2149580800,
+          "type": 1,
+          "vaddr": 2149580800
+        },
+        {
+          "align": 4096,
+          "filesz": 1642,
+          "flags": 4,
+          "memsz": 1642,
+          "offset": 6344,
+          "paddr": 2149583048,
+          "type": 1,
+          "vaddr": 2149583048
+        },
+        {
+          "align": 4096,
+          "filesz": 0,
+          "flags": 6,
+          "memsz": 16384,
+          "offset": 8000,
+          "paddr": 2149584704,
+          "type": 1,
+          "vaddr": 2149584704
+        },
+        {
+          "align": 0,
+          "filesz": 0,
+          "flags": 6,
+          "memsz": 0,
+          "offset": 0,
+          "paddr": 0,
+          "type": 1685382481,
+          "vaddr": 0
+        },
+        {
+          "align": 1,
+          "filesz": 116,
+          "flags": 4,
+          "memsz": 116,
+          "offset": 8000,
+          "paddr": 0,
+          "type": 1879048195,
+          "vaddr": 0
+        }
+      ],
+      "sections": [
+        {
+          "address": 0,
+          "alignment": 0,
+          "entry_size": 0,
+          "flags": 0,
+          "info": 0,
+          "link": 0,
+          "name": "",
+          "offset": 0,
+          "size": 0,
+          "type": 0
+        },
+        {
+          "address": 2149580800,
+          "alignment": 2,
+          "entry_size": 0,
+          "flags": 6,
+          "info": 0,
+          "link": 0,
+          "name": ".text",
+          "offset": 4096,
+          "size": 2242,
+          "type": 1
+        },
+        {
+          "address": 2149583048,
+          "alignment": 8,
+          "entry_size": 0,
+          "flags": 50,
+          "info": 0,
+          "link": 0,
+          "name": ".rodata",
+          "offset": 6344,
+          "size": 1642,
+          "type": 1
+        },
+        {
+          "address": 2149584704,
+          "alignment": 16,
+          "entry_size": 0,
+          "flags": 3,
+          "info": 0,
+          "link": 0,
+          "name": ".bss",
+          "offset": 8000,
+          "size": 16384,
+          "type": 8
+        },
+        {
+          "address": 0,
+          "alignment": 1,
+          "entry_size": 0,
+          "flags": 0,
+          "info": 0,
+          "link": 0,
+          "name": ".riscv.attributes",
+          "offset": 8000,
+          "size": 116,
+          "type": 1879048195
+        },
+        {
+          "address": 0,
+          "alignment": 8,
+          "entry_size": 24,
+          "flags": 0,
+          "info": 1788,
+          "link": 7,
+          "name": ".symtab",
+          "offset": 8120,
+          "size": 43008,
+          "type": 2
+        },
+        {
+          "address": 0,
+          "alignment": 1,
+          "entry_size": 0,
+          "flags": 0,
+          "info": 0,
+          "link": 0,
+          "name": ".shstrtab",
+          "offset": 51128,
+          "size": 64,
+          "type": 3
+        },
+        {
+          "address": 0,
+          "alignment": 1,
+          "entry_size": 0,
+          "flags": 0,
+          "info": 0,
+          "link": 0,
+          "name": ".strtab",
+          "offset": 51192,
+          "size": 12100,
+          "type": 3
+        }
+      ]
+    },
+    "path": "examples/formalkernel/boot/m91-qemu-riscv64.elf",
+    "sha256": "33033c93818e32a8718f012c5c851ee68dd3f151f1306f8f977a06ecdd9aba3c",
+    "size": 63808,
+    "structural_digest": "71bfc66bd3b3aceabc7d5d6491d7430cb206ed95e70f97352e6d7e112518dc49"
+  },
+  "claim": "NO_PROOF",
+  "compiled_mechanism_inventory": [
+    {
+      "claim": "SYSTEM_COMPOSITION_PROVED",
+      "mechanism": "boot_composition",
+      "status": "COMPILED_AND_APPLICABLE"
+    },
+    {
+      "claim": "RISCV_PRIVILEGE_TRANSITION_MODEL_PROVED",
+      "mechanism": "riscv_privilege_transition_model",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_SPATIAL_ISOLATION_PROVED",
+      "mechanism": "riscv_spatial_isolation",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_INTERRUPT_ROUTING_MODEL_PROVED",
+      "mechanism": "riscv_interrupt_routing_model",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_GUEST_PRIVILEGE_TRANSITION_MODEL_PROVED",
+      "mechanism": "riscv_guest_privilege_transition_model",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_G_STAGE_ISOLATION_PROVED",
+      "mechanism": "riscv_g_stage_isolation",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_GUEST_INTERRUPT_ROUTING_MODEL_PROVED",
+      "mechanism": "riscv_guest_interrupt_routing_model",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_GUEST_ISOLATION_MODEL_PROVED",
+      "mechanism": "riscv_guest_isolation_model",
+      "status": "MODEL_ONLY_NOT_COMPILED"
+    },
+    {
+      "claim": "RISCV_IOMMU_CONFIGURATION_PROVED",
+      "mechanism": "riscv_iommu_configuration",
+      "status": "PARKED"
+    },
+    {
+      "claim": "RISCV_GUEST_DEVICE_DMA_ISOLATION_PROVED",
+      "mechanism": "riscv_guest_device_dma_isolation",
+      "status": "PARKED"
+    },
+    {
+      "claim": "RISCV_DIRECT_DEVICE_ASSIGNMENT_PROVED",
+      "mechanism": "riscv_direct_device_assignment",
+      "status": "PARKED"
+    },
+    {
+      "claim": "RISCV_IOMMU_GUEST_MSI_REMAP_PROVED",
+      "mechanism": "riscv_iommu_guest_msi_remap",
+      "status": "PARKED"
+    }
+  ],
+  "content_seal_sha256": "d5e451a3e1ffdebfb183ae7a2dbffeeeeb56ac224c8f05fbdd6e17574f415359",
+  "empirical_observations": [
+    "RISCV_QEMU_BOOT_OBSERVED",
+    "REPRODUCIBLE_RISCV_BINARY_BUILD_OBSERVED",
+    "REPRODUCIBLE_RISCV_EVIDENCE_ROOT_OBSERVED"
+  ],
+  "evidence_bindings": {
+    "binary": {
+      "path": "examples/formalkernel/kernel/m91_riscv_binary_evidence.json",
+      "sha256": "10c60e143bb67d247ebdc249763b242fe8780bfda449290963c05a7dd5a343fc"
+    },
+    "boot": {
+      "path": "examples/formalkernel/kernel/m91_riscv_boot.validation.json",
+      "sha256": "ba02c400db12cb868cbf677f0eb2982a464a90e71560405b9643e54b82b87cad"
+    },
+    "invalidation": {
+      "path": "examples/formalkernel/kernel/m91_riscv_invalidation.validation.json",
+      "sha256": "829c61141e9db5db007ad4e142ec9debb4f425b9fcbdb67131e3985d83e74c62"
+    },
+    "reproducibility": {
+      "path": "examples/formalkernel/kernel/m91_riscv_reproducibility.validation.json",
+      "sha256": "719ab8dd787d20ed3ad5cfeb070ebbca869b5a16b7779ee46e7027e85790814e"
+    }
+  },
+  "forbidden_claims": [
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ],
+  "parked_claims": [
+    "RISCV_IOMMU_CONFIGURATION_PROVED",
+    "RISCV_GUEST_DEVICE_DMA_ISOLATION_PROVED",
+    "RISCV_DIRECT_DEVICE_ASSIGNMENT_PROVED",
+    "RISCV_IOMMU_GUEST_MSI_REMAP_PROVED"
+  ],
+  "release_identity": "formalkernel-m91-qemu-riscv64-2026.08.22",
+  "schema_version": 1,
+  "scope": "qemu_riscv64_elf_artifact_identity_and_applicable_evidence_closure",
+  "status": "SEALED_DEPLOYMENT_EVIDENCE"
+}

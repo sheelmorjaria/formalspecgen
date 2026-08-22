@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "lane": "M89.1_reviewed_authority_algebra",
+  "status": "REVIEWED_CAPABILITY_AUTHORITY_MODEL",
+  "claim": "NO_PROOF",
+  "review_status": "reviewed",
+  "parameterization": "arbitrary_finite_principals_objects_rights",
+  "capability_fields": [
+    "object",
+    "rights",
+    "owner",
+    "generation",
+    "validity"
+  ],
+  "operations": [
+    {
+      "name": "mint_root",
+      "precondition": "caller_is_reviewed_root_authority && slot_invalid",
+      "effect": "create_valid_root_for_declared_object_rights_owner_generation",
+      "refusal": "stutter"
+    },
+    {
+      "name": "derive",
+      "precondition": "parent_valid && requested_rights_subset_parent",
+      "effect": "child_authority_subset_parent_same_object",
+      "refusal": "stutter"
+    },
+    {
+      "name": "delegate",
+      "precondition": "source_valid && target_principal_admitted",
+      "effect": "new_owner_target_and_authority_subset_source",
+      "refusal": "stutter"
+    },
+    {
+      "name": "revoke",
+      "precondition": "capability_valid",
+      "effect": "invalidate_capability_and_all_descendants_without_authority_growth",
+      "refusal": "stutter"
+    },
+    {
+      "name": "check",
+      "precondition": "capability_valid && generation_current && requested_right_present",
+      "effect": "return_authorized_without_state_change",
+      "refusal": "stutter"
+    }
+  ],
+  "invariants": [
+    "authority(child) subseteq authority(parent)",
+    "derive cannot increase rights or change object",
+    "delegate cannot increase authority",
+    "revoke cannot increase any descendant authority",
+    "invalid capability authorizes nothing",
+    "valid capability creation is closed under prior existence or authorized mint/derive/delegate",
+    "stale generation authorizes nothing",
+    "failed operations preserve all authority state"
+  ],
+  "proof_judge": "TLAPS",
+  "proof_executed": false,
+  "mutation_suite_executed": false,
+  "claims_locked": [
+    "CAPABILITY_AUTHORITY_ALGEBRA_PROVED",
+    "CAPABILITY_TOKEN_CREATION_CLOSED_PROVED",
+    "CAPABILITY_REVOCATION_SAFETY_PROVED",
+    "SERVER_AUTHORITY_SECURITY_MODEL_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "CAPABILITY_HARDWARE_ENFORCEMENT_PROVED",
+    "CAPABILITY_IMPLEMENTATION_REFINEMENT_PROVED"
+  ],
+  "accepted_candidate_sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77"
+}

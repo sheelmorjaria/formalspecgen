@@ -1,0 +1,8 @@
+{
+  "status": "FAULT_RECOVERY_MODEL_PROVED",
+  "judge": "tlc",
+  "tlc_version": "2.19 of 08 August 2024",
+  "tla_sha256": "90aaf116fd1bd2d98b5cc203a7cf1a71871cdad12bafc0cc79c76d316dd62ada",
+  "distinct_states": 8,
+  "deadlock_free": true
+}

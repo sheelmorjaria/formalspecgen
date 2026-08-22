@@ -1,0 +1,9 @@
+{
+  "validation": "riscv_guest_isolation_composition.validation.json",
+  "guest_transition_artifact": {"path": "examples/formalkernel/kernel/riscv_hs_vs.json", "sha256": "ba4bf3b9405c77753fdc08ce46af0b1a684314d013e1a6d03cb3861c63baab13"},
+  "guest_transition_evidence": {"path": "examples/formalkernel/kernel/riscv_hs_vs.validation.json", "sha256": "de3370ec7fa5d41728e82ed78d04306b27e2bd48e7193b9725ea9e4d4f2937ed"},
+  "gstage_artifact": {"path": "examples/formalkernel/kernel/riscv_gstage.json", "sha256": "ab8b81aa438d615093d457f3b8fb2f5271d063c99d5f5f70829f284c70af9e4e"},
+  "gstage_evidence": {"path": "examples/formalkernel/kernel/riscv_gstage.validation.json", "sha256": "0673c99517fa166e56a90d4deca20f26baa9edf7556e22664c93574ffcac9570"},
+  "guest_interrupt_artifact": {"path": "examples/formalkernel/kernel/riscv_vs_imsic.json", "sha256": "23edeb599d93bce16f19d3dcd37387c480df7815f8dca545c7bbe0a370ab7990"},
+  "guest_interrupt_evidence": {"path": "examples/formalkernel/kernel/riscv_vs_imsic.validation.json", "sha256": "cc814fb0691931bba2d9336dc720c9caaf2070636d96c7c5cbd5fdf0d2ecec35"}
+}

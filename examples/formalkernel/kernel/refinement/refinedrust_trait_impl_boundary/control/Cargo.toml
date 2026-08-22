@@ -1,0 +1,9 @@
+[package]
+name = "refinedrust_trait_control"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]

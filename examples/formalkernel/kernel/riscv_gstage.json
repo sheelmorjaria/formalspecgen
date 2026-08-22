@@ -1,0 +1,15 @@
+{
+  "validation": "riscv_gstage.validation.json",
+  "reviewed_plan": {
+    "path": "examples/formalkernel/kernel/riscv_gstage_plan.reviewed.json",
+    "sha256": "928a3d419250727f2f295cde415c046e033965ff4e6e5fbe7ccf0cf38b30c724"
+  },
+  "guest_transition_artifact": {
+    "path": "examples/formalkernel/kernel/riscv_hs_vs.json",
+    "sha256": "ba4bf3b9405c77753fdc08ce46af0b1a684314d013e1a6d03cb3861c63baab13"
+  },
+  "guest_transition_evidence": {
+    "path": "examples/formalkernel/kernel/riscv_hs_vs.validation.json",
+    "sha256": "de3370ec7fa5d41728e82ed78d04306b27e2bd48e7193b9725ea9e4d4f2937ed"
+  }
+}

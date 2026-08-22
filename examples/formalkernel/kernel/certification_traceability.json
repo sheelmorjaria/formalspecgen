@@ -19,7 +19,20 @@
     {"id": "FK-TCP-016", "claim": "TCP_RESOURCE_CONTAINMENT_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
     {"id": "FK-MIT-017", "claim": "MICROARCH_MITIGATION_POLICY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
     {"id": "FK-MIT-WCET-018", "claim": "MITIGATION_WCET_BUDGET_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
-    {"id": "FK-TOOL-019", "claim": "TOOL_QUALIFICATION_EVIDENCE_READY", "profiles": ["microkernel", "monolithic", "unikernel"]}
+    {"id": "FK-TOOL-019", "claim": "TOOL_QUALIFICATION_EVIDENCE_READY", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-SPINE-020", "claim": "REFINEMENT_CHAIN_ARTIFACTS_BOUND", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-SPINE-021", "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-VM-022", "claim": "VM_RESOURCE_ISOLATION_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-NUMA-023", "claim": "NUMA_ACCOUNTING_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-SMP-024", "claim": "SMP_SCHEDULER_INVARIANTS_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-DEVICE-025", "claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-PROC-026", "claim": "PROCESS_CONCURRENCY_MODEL_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-BOOT-027", "claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-NET-028", "claim": "NETWORK_RESOURCE_PARTITION_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-FAULT-029", "claim": "FAULT_CONTAINMENT_RECOVERY_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-GUEST-030", "claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-ABI-031", "claim": "ABI_STABILITY_CHECKED", "profiles": ["microkernel", "monolithic", "unikernel"]},
+    {"id": "FK-POSIX-032", "claim": "POSIX_CONFORMANCE_TESTED", "profiles": ["microkernel", "monolithic", "unikernel"]}
   ],
   "required_physical_closures": [
     "R52_PHYSICAL_EXECUTION_PENDING",

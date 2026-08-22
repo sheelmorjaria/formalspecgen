@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "lane": "M87.1_atomic_primitive_feasibility",
+  "status": "PARKED_NO_PRODUCTION_ATOMIC_TRANSITION",
+  "claim": "NO_PROOF",
+  "scanner": "pipeline/atomic_feasibility.py",
+  "scanner_sha256": "b2e861dddce1f8a91efcb282c9d94a080e5e7b8a6b6668e223ff15ae86daa0fe",
+  "eligibility": [
+    "production_atomic_transition_exists",
+    "explicit_memory_ordering",
+    "small_reviewed_state_relation",
+    "architecture_relevant",
+    "negative_litmus_possible"
+  ],
+  "scan_result": {
+    "scanned_source_count": 10,
+    "eligible_candidate_count": 0,
+    "atomic_types_found": [],
+    "atomic_operations_found": [],
+    "memory_orderings_found": []
+  },
+  "production_source_bindings": [
+    {"source": "examples/formalkernel/boot/src/boot_order.rs", "sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93"},
+    {"source": "examples/formalkernel/boot/src/main.rs", "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"},
+    {"source": "examples/formalkernel/boot/src/witness.rs", "sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8"},
+    {"source": "examples/formalkernel/driver/nic_driver.rs", "sha256": "d64d06234ab9652e69ebccfbe14d3f9f6c9805760ef6dd8cd46f588e17b819ef"},
+    {"source": "examples/formalkernel/kernel/loader/elf_loader.rs", "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"},
+    {"source": "examples/formalkernel/kernel/net/pq_tls_pool.rs", "sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"},
+    {"source": "examples/formalkernel/kernel/user/heap.rs", "sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746"},
+    {"source": "examples/formalkernel/kernel/vfs/virtio_blk.rs", "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"},
+    {"source": "examples/formalkernel/lowered/timer_tick.rs", "sha256": "4da74fa1ce6e781bd5a7b1215877c38fee71fbfd0b0e8650673234d7cfe983e6"},
+    {"source": "examples/formalkernel/unikernel/src/lib.rs", "sha256": "0e35b80ab5869afcedb0900865019bc8e6aac807a221fee24e345f4fee484800"}
+  ],
+  "m61_boundary": {
+    "manifest": "examples/formalkernel/kernel/weak_memory.json",
+    "manifest_sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a",
+    "x86_litmus_sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87",
+    "aarch64_litmus_sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f",
+    "source_atomic_binding_exists": false,
+    "compiled_lowering_binding_exists": false,
+    "physical_silicon_correspondence_exists": false
+  },
+  "reopen_when": [
+    "production_atomic_transition_exists",
+    "explicit_memory_ordering",
+    "reviewable_state_relation",
+    "ordering_mutation_has_expected_forbidden_outcome"
+  ],
+  "claims_locked": [
+    "ATOMIC_OPERATION_FUNCTIONAL_CORRECTNESS_PROVED",
+    "RUST_ATOMIC_LITMUS_CORRESPONDENCE_PROVED",
+    "RUST_ATOMIC_LOWERING_CORRESPONDENCE_VALIDATED",
+    "WEAK_MEMORY_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

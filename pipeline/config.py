@@ -66,6 +66,9 @@ RAC_TIMEOUT = int(os.environ.get("RAC_TIMEOUT", "180"))
 TLC_JAR = os.environ.get("TLC_JAR", str(ROOT / "tools" / "tla2tools.jar"))
 TLC_TIMEOUT = int(os.environ.get("TLC_TIMEOUT", "60"))
 JAVA_BIN = os.environ.get("JAVA_BIN", "java")
+# TLAPS is installed as a repository-local, self-contained distribution so its
+# Isabelle and backend dependencies do not alter the host environment.
+TLAPM_BIN = os.environ.get("TLAPM_BIN", str(ROOT / ".tools" / "bin" / "tlapm"))
 
 # Experimental Prusti lane. The extension installs the verifier and its pinned rustup
 # toolchain into global storage; CLI users may point at an existing prusti-rustc.
@@ -81,6 +84,23 @@ FRAMAC_BIN = os.environ.get(
 FRAMAC_TIMEOUT = int(os.environ.get("FRAMAC_TIMEOUT", "180"))
 FRAMAC_PROVERS = os.environ.get("FRAMAC_PROVERS", "z3")
 CC_BIN = os.environ.get("CC_BIN", "gcc")
+
+# Foundational Rust judges. RefinedRust is intentionally invoked through an
+# isolated opam switch so its Rocq/Iris dependencies cannot contaminate the
+# application's Python or system-Rocq environments.
+OPAM_BIN = os.environ.get("OPAM_BIN", "opam")
+REFINEDRUST_SWITCH = os.environ.get("REFINEDRUST_SWITCH", "refinedrust")
+REFINEDRUST_BOUNDARY_LEDGER = os.environ.get(
+    "REFINEDRUST_BOUNDARY_LEDGER",
+    str(ROOT / "examples" / "formalkernel" / "kernel" / "refinement" /
+        "refinedrust_boundary_ledger.json"))
+VERUS_BIN = os.environ.get(
+    "VERUS_BIN", str(ROOT / ".tools" / "verus-download" /
+                     "verus-x86-linux" / "verus"))
+VERUS_BOUNDARY_LEDGER = os.environ.get(
+    "VERUS_BOUNDARY_LEDGER",
+    str(ROOT / "examples" / "formalkernel" / "kernel" / "verus_allocator" /
+        "bridges" / "evidence.json"))
 
 # GLM / Zhipu BigModel (OpenAI-compatible v4 API)
 GLM_API_KEY = os.environ.get("GLM_API_KEY", "")

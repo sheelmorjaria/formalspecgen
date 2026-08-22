@@ -1,0 +1,30 @@
+{
+  "claim": "RISCV_G_STAGE_ISOLATION_PROVED",
+  "compiled_hgatp_refinement_proved": false,
+  "distinct_states": 28,
+  "g_stage_tlb_coherence_proved": false,
+  "generated_cfg_sha256": "89350b6f5020305619d6c3c17a18bc2e205ca161ad6907c85221ca70a178cda8",
+  "generated_tla_sha256": "99405d8064251d87bb929bfc4a64b3ded418fa107d1fc8d9b589a99b62aab1e8",
+  "guest_transition_evidence_sha256": "de3370ec7fa5d41728e82ed78d04306b27e2bd48e7193b9725ea9e4d4f2937ed",
+  "hardware_g_stage_walk_proved": false,
+  "judge": "deterministic_sv39x4_gate+tlc",
+  "physical_guest_memory_isolation_proved": false,
+  "properties": [
+    "GUEST_SPA_OWNERSHIP",
+    "GUEST_GUEST_DISJOINTNESS",
+    "GUEST_HS_DISJOINTNESS",
+    "VS_WALK_PAGE_OWNERSHIP",
+    "SV39X4_ROOT_16K_ALIGNED",
+    "ACTIVE_VMID_SEPARATION",
+    "REVIEWED_HGATP_ROOT",
+    "HFENCE_GVMA_EPOCH_REQUIRED",
+    "BARE_MODE_REJECTED",
+    "GPA_BOUNDED"
+  ],
+  "qemu_g_stage_semantics_proved": false,
+  "reviewed_plan_sha256": "928a3d419250727f2f295cde415c046e033965ff4e6e5fbe7ccf0cf38b30c724",
+  "scope": "reviewed_qemu_virt_sv39x4_guest_translation",
+  "status": "RISCV_G_STAGE_ISOLATION_PROVED",
+  "tlc_version": "2.19 of 08 August 2024",
+  "vmidlen_assumption": 7
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "status": "REVIEWED_RISCV_AIA_ROUTING_POLICY",
+  "scope": "reviewed_qemu_virt_aia_aplic_imsic_smode",
+  "qemu_machine": "virt,aia=aplic-imsic,aia-guests=0",
+  "harts": [
+    0,
+    1
+  ],
+  "imsic_s_files": [
+    {
+      "hart": 0,
+      "privilege": "S",
+      "address": 671088640
+    },
+    {
+      "hart": 1,
+      "privilege": "S",
+      "address": 671092736
+    }
+  ],
+  "grants": [
+    {
+      "source": "uart",
+      "owner": "console",
+      "enabled": true,
+      "initial": {
+        "hart": 0,
+        "interrupt_id": 32,
+        "imsic_address": 671088640
+      },
+      "reconfigured": {
+        "hart": 0,
+        "interrupt_id": 32,
+        "imsic_address": 671088640
+      }
+    },
+    {
+      "source": "virtio_blk",
+      "owner": "block",
+      "enabled": true,
+      "initial": {
+        "hart": 1,
+        "interrupt_id": 33,
+        "imsic_address": 671092736
+      },
+      "reconfigured": {
+        "hart": 0,
+        "interrupt_id": 34,
+        "imsic_address": 671088640
+      }
+    },
+    {
+      "source": "debug",
+      "owner": "disabled",
+      "enabled": false,
+      "initial": {
+        "hart": 0,
+        "interrupt_id": 35,
+        "imsic_address": 671088640
+      },
+      "reconfigured": {
+        "hart": 0,
+        "interrupt_id": 35,
+        "imsic_address": 671088640
+      }
+    }
+  ],
+  "normative_references": [
+    {
+      "name": "RISC-V AIA 1.0",
+      "url": "https://docs.riscv.org/reference/aia/v1.0/intro.html"
+    },
+    {
+      "name": "RISC-V Server SoC Requirements 1.0",
+      "url": "https://docs.riscv.org/reference/server-soc/v1.0/server_soc_requirements.html"
+    }
+  ],
+  "accepted_candidate_sha256": "840e178cf825013b5600326a1a2defd98d7c5e201e1d38f16b87fea0c7f79576",
+  "review_scope": "source_hart_smode_file_interrupt_identity_policy"
+}

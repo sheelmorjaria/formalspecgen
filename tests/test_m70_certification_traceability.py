@@ -27,7 +27,7 @@ def test_complete_matrix_is_not_a_certification_claim():
     verdict = verify_certification_traceability(
         ARTIFACT, "microkernel", _claims("microkernel"), boundaries)
     assert verdict["status"] == "CERTIFICATION_TRACEABILITY_COMPLETE"
-    assert verdict["mapped"] == verdict["total"] == 18
+    assert verdict["mapped"] == verdict["total"] == 31
     assert verdict["certification_ready"] is False
     assert verdict["regulatory_certification_proved"] is False
     assert len(verdict["physical_closures_pending"]) == 3

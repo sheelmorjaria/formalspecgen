@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3_foundational_rust_subset",
+  "step": "3a",
+  "rust_source": "../../../Vfs.rs",
+  "rust_source_sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00",
+  "v2_model": "../../../domains/v2/vfs_bounded.json",
+  "v2_model_sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625",
+  "rocq_obligations": "refinement/VfsSubset.v",
+  "rocq_obligations_sha256": "46de149294eef39feb0bc1d472615cfbb896c8e71bf0b3cd47dd640f88dc2157",
+  "operations": ["new", "open", "close", "read", "write"],
+  "accepted_subset": {
+    "integer_type": "i32_bounded",
+    "booleans": true,
+    "fixed_arrays": true,
+    "mutable_struct_methods": true,
+    "conditionals": true,
+    "checked_index_cast": "i32_to_usize_under_invariant",
+    "heap_allocation": false,
+    "loops": false,
+    "recursion": false,
+    "unsafe_rust": false,
+    "concurrency": false,
+    "panics": false
+  },
+  "translation_status": "manual_abstract_obligations_only",
+  "rust_model_functional_refinement_proved": false,
+  "rust_to_rocq_translation_proved": false,
+  "unsafe_rust_semantics_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

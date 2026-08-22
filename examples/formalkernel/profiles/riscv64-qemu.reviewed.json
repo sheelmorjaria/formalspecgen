@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "status": "REVIEWED_RISCV_PLATFORM_PROFILE",
+  "profile": "FK-Lab-RISCV64-QEMU",
+  "platform": "qemu-virt-riscv64",
+  "isa": "RV64GC",
+  "rust_target": "riscv64gc-unknown-none-elf",
+  "privilege_modes": [
+    "M",
+    "S",
+    "U"
+  ],
+  "page_table_mode": "Sv39",
+  "hart_count": 4,
+  "qemu_machine": "virt",
+  "interrupt_architecture": {
+    "baseline": "PLIC+ACLINT",
+    "aia": "desired_unprobed",
+    "imsic": "desired_unprobed"
+  },
+  "timer": "ACLINT_MTIME_MTIMECMP",
+  "protection": {
+    "pmp": "required",
+    "epmp_smepmp": "desired_unprobed"
+  },
+  "virtualization": {
+    "h_extension": "desired_unprobed"
+  },
+  "iommu": {
+    "architecture": "RISC-V IOMMU 1.0.1",
+    "availability": "desired_unprobed"
+  },
+  "memory_map": {
+    "aclint": {
+      "base": 33554432,
+      "size": 65536
+    },
+    "plic": {
+      "base": 201326592,
+      "size": 67108864
+    },
+    "uart0": {
+      "base": 268435456,
+      "size": 256
+    },
+    "dram": {
+      "base": 2147483648,
+      "size": 536870912
+    }
+  },
+  "normative_specifications": [
+    {
+      "name": "RISC-V Privileged Architecture",
+      "release": "20260120 / Machine-Level ISA 1.13",
+      "official_url": "https://docs.riscv.org/reference/isa/priv/priv-index.html",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    },
+    {
+      "name": "RISC-V Advanced Interrupt Architecture",
+      "release": "1.0 / clarification release 20250312",
+      "official_url": "https://docs.riscv.org/reference/aia/",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    },
+    {
+      "name": "RISC-V IOMMU Architecture",
+      "release": "1.0.1 / 20260222",
+      "official_url": "https://docs.riscv.org/reference/iommu/index.html",
+      "content_sha256": null,
+      "hash_status": "JUDGE_PENDING_UNTIL_VENDORED"
+    }
+  ],
+  "accepted_candidate_sha256": "ee9aac65f24fefd33279729bae609f2c9a9338683c786f3947d53dae1b67233a",
+  "review_scope": "configuration_intent_not_hardware_conformance",
+  "claims_minted": []
+}

@@ -1,0 +1,8 @@
+{
+  "module": "RiscvPrivilegeTransition",
+  "validation": "riscv_privilege_transition.validation.json",
+  "reviewed_profile": {
+    "path": "examples/formalkernel/profiles/riscv64-qemu.reviewed.json",
+    "sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122"
+  }
+}

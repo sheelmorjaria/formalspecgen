@@ -1,0 +1,1 @@
+{"status":"BOOT_POLICY_MODEL_PROVED","judge":"tlc","tlc_version":"2.19 of 08 August 2024","tla_sha256":"378047488c88a71c020dd15b8fe3fdbc71d96341baa46b3a018592216a9b98a0","distinct_states":10,"deadlock_free":true}

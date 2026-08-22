@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "lane": "M83_fault_hardware_resilience",
+  "module": "FaultRecovery",
+  "processes": ["workload", "supervisor"],
+  "pages": [0, 1, 2],
+  "initial_page_owner": ["workload", "supervisor", "free"],
+  "faults": ["correctable_ecc", "uncorrectable_mce", "watchdog", "device_failure"],
+  "poison_target_page": 0,
+  "device_outstanding_limit": 2,
+  "recovery_policy": "isolate_poison_kill_affected_or_reset_device",
+  "validation": "fault_recovery.validation.json",
+  "physical_ecc_delivery_proved": false,
+  "physical_mce_semantics_proved": false,
+  "physical_watchdog_delivery_proved": false,
+  "device_firmware_reset_proved": false,
+  "native_fault_handler_refinement_proved": false,
+  "arbitrary_fault_multiplicity_proved": false
+}

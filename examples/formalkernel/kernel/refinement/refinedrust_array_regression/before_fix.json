@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "upstream_commit": "349fb6236b8770d8a699b59d5d4b7ef896875763",
+  "standalone_array_semantic_type": "array_t N bool_t : type (list (place_rfn boolRT))",
+  "embedded_array_generated_refinement_before_fix": "list bool",
+  "embedded_array_expected_refinement": "list (place_rfn boolRT)",
+  "observed_rocq_result": "TYPE_MISMATCH_REJECTED",
+  "observed_rocq_diagnostic": "cannot unify plistRT [list (place_rfn boolRT)] with reverse_coercion (plistRT [list bool])",
+  "minimal_failing_length": 0,
+  "production_allocator_modified": false
+}

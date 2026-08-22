@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "lane": "M86.3_reviewed_queue_model_refinement",
+  "status": "CANDIDATE",
+  "capacity": 2,
+  "state": {
+    "outstanding_min": 0,
+    "outstanding_max": 2
+  },
+  "operations": {
+    "submit": [
+      {"pre": 0, "result": "Accepted", "post": 1},
+      {"pre": 0, "result": "Rejected", "post": 0},
+      {"pre": 1, "result": "Accepted", "post": 2},
+      {"pre": 1, "result": "Rejected", "post": 1},
+      {"pre": 2, "result": "Full", "post": 2}
+    ],
+    "complete": [
+      {"pre": 0, "result": "Empty", "post": 0},
+      {"pre": 1, "result": "Completed", "post": 0},
+      {"pre": 2, "result": "Completed", "post": 1}
+    ]
+  },
+  "state_relation": "model.outstanding == rust.queue_depth()",
+  "external_boundary": {
+    "port_rejection_is_nondeterministic": true,
+    "device_behavior_proved": false,
+    "interrupt_delivery_proved": false,
+    "virtio_protocol_semantics_proved": false
+  },
+  "human_review": {
+    "accepted": false,
+    "accepted_candidate_sha256": null
+  }
+}

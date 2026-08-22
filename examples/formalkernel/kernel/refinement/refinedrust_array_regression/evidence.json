@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3b_r1_refinedrust_array_translation",
+  "status": "REFINEDRUST_ARRAY_TRANSLATION_VALIDATED",
+  "claim": "REFINEDRUST_ARRAY_TRANSLATION_VALIDATED",
+  "scope": "generic_array_fields_for_lengths_0_1_2_4_16",
+  "representation_theorem": "translate(struct_field([T; N])) == array_sem_type(translate(T), N)",
+  "regression_lengths": [0, 1, 2, 4, 16],
+  "regression_suite_sha256": "31c8a05cedb6dcc721a0970990a79c785d34817c3d4c269335a9da18a7a8c27e",
+  "generated_rocq_sha256": "c75e5636d210a89512c5024ebebf4cd832654043b49da89b659fcb10ade6b1b6",
+  "production_allocator_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "production_allocator_modified": false,
+  "judge": {
+    "upstream_name": "RefinedRust",
+    "upstream_version": "0.1.0",
+    "upstream_commit": "349fb6236b8770d8a699b59d5d4b7ef896875763",
+    "rocq_version": "9.2",
+    "local_patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a",
+    "local_patch_purpose": "Preserve each array element's place_rfn when deriving an embedded field refinement type.",
+    "patched_cargo_refinedrust_sha256": "2d231ab21eb60df91206a72fac7ea071d7dbb82c68c96913c48a8478dec1d369",
+    "patched_refinedrust_rustc_sha256": "b8d3371d9278defcb2aabd2994521af29499f293be1a748df763cda4153f673e",
+    "upstream_accepted": false
+  },
+  "positive_validation": {
+    "radium_unit_tests": "passed",
+    "standalone_and_embedded_translation": "passed",
+    "rocq_build": "passed",
+    "rocq_build_step_counts": [324, 324, 329, 324, 324, 328, 328, 328, 324, 328]
+  },
+  "anti_vacuity": {
+    "mutation": "remove_per_element_place_rfn_from_array_refinement_translation",
+    "expected_result": "ROCQ_TYPE_MISMATCH_REJECTED",
+    "observed_result": "ROCQ_TYPE_MISMATCH_REJECTED",
+    "before_fix_evidence_sha256": "aef8610604cd96431c73039485d419b985fb4261ea6d4f491ce008ec3a8e73fa"
+  },
+  "bounded_allocator_implementation_refinement_proved": false,
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

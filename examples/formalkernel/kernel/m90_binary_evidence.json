@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "lane": "M90.2_target_elf_evidence_binding",
+  "status": "PROOF_CARRYING_BINARY_VALIDATED",
+  "claim": "PROOF_CARRYING_BINARY_VALIDATED",
+  "scope": "qemu_aarch64_elf_artifact_identity_and_applicable_evidence_closure",
+  "prebuild_candidate": {
+    "path": "examples/formalkernel/kernel/m90_evidence_root.candidate.json",
+    "sha256": "4b2e9cda55444a3c5397826630e767ea0542dd15bfc75009ff5a4170e9430e1c"
+  },
+  "build_record": {
+    "target": "aarch64-unknown-none-softfloat",
+    "deployment": "microkernel",
+    "deployment_manifest": {
+      "path": "examples/formalkernel/kernel/kernel.json",
+      "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+    },
+    "hardware_profile": {
+      "path": "examples/formalkernel/hardware_profile.json",
+      "sha256": "c7cd25ef4687beedb83c138e4fb85dd2d8205fdd5d373ec64511fa74fa96d759"
+    },
+    "config": {
+      "path": "examples/formalkernel/kernel/m90_build_config.json",
+      "sha256": "296a0f289bdf8de8b41b8dd10d51f64ded4e4241d2190515773480be55e36941"
+    },
+    "compiled_sources": [
+      {
+        "path": "examples/formalkernel/boot/src/boot_order.rs",
+        "sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93"
+      },
+      {
+        "path": "examples/formalkernel/boot/src/main.rs",
+        "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"
+      },
+      {
+        "path": "examples/formalkernel/boot/src/witness.rs",
+        "sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8"
+      }
+    ],
+    "source_closure_hash": "d22de00682b0b772ce3fd8dd9db3154b33aeec4cf915657e7571f5efc421ea70",
+    "compiler": {
+      "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "028fd60b0e0add5505c661cd3ccde91393d615c8729bd95d94ab1e91409b36a1",
+      "version": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3"
+    },
+    "linker": {
+      "path": "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "sha256": "5cd8306e6589847a21f0430ea0842f3305fb6ec83fefa6ce8a42e83a63576c82",
+      "version": "LLD 21.1.3 (/checkout/src/llvm-project/llvm 4f74b76fb69688474e073fb26b316d9ea571388f) (compatible with GNU linkers)"
+    },
+    "linker_script": {
+      "path": "examples/formalkernel/boot/layout.ld",
+      "sha256": "88f94fae9495f492af73a2aa104577b2b5f7b1f2e5ec6cc10f4c9778fd0d687d"
+    },
+    "invocation": [
+      "/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "--edition",
+      "2021",
+      "--target",
+      "aarch64-unknown-none-softfloat",
+      "--crate-type",
+      "bin",
+      "-Clinker=/home/sheel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "-Clink-arg=-T/home/sheel/formalspecgen/examples/formalkernel/boot/layout.ld",
+      "-Cpanic=abort",
+      "-Copt-level=0",
+      "-Ccodegen-units=1",
+      "-Clto=no",
+      "-Crelocation-model=static",
+      "-Cdebuginfo=0",
+      "-Cstrip=debuginfo",
+      "-Clink-arg=--build-id=none",
+      "--remap-path-prefix=/home/sheel/formalspecgen=/formalkernel",
+      "-o",
+      "/home/sheel/formalspecgen/examples/formalkernel/boot/m90-qemu-aarch64.elf",
+      "/home/sheel/formalspecgen/examples/formalkernel/boot/src/main.rs"
+    ],
+    "codegen_environment": {}
+  },
+  "elf": {
+    "path": "examples/formalkernel/boot/m90-qemu-aarch64.elf",
+    "sha256": "1a8d4e1113d9fdd2a948e0f9c739303d4690eb39588a3505475564165d88d3c9",
+    "size": 156664,
+    "identity": {
+      "elf_class": "ELF64",
+      "endian": "little",
+      "machine": "AArch64",
+      "machine_id": 183,
+      "elf_type": "EXEC",
+      "entry_point": 1075838976,
+      "header_flags": 0,
+      "header_size": 64,
+      "program_headers": [
+        {
+          "type": 1,
+          "flags": 5,
+          "offset": 65536,
+          "vaddr": 1075838976,
+          "paddr": 1075838976,
+          "filesz": 20556,
+          "memsz": 20556,
+          "align": 65536
+        },
+        {
+          "type": 1,
+          "flags": 4,
+          "offset": 86096,
+          "vaddr": 1075859536,
+          "paddr": 1075859536,
+          "filesz": 6632,
+          "memsz": 6632,
+          "align": 65536
+        },
+        {
+          "type": 1,
+          "flags": 6,
+          "offset": 131072,
+          "vaddr": 1075904512,
+          "paddr": 1075904512,
+          "filesz": 0,
+          "memsz": 36904,
+          "align": 65536
+        },
+        {
+          "type": 1685382481,
+          "flags": 6,
+          "offset": 0,
+          "vaddr": 0,
+          "paddr": 0,
+          "filesz": 0,
+          "memsz": 0,
+          "align": 0
+        }
+      ],
+      "sections": [
+        {
+          "name": "",
+          "type": 0,
+          "flags": 0,
+          "address": 0,
+          "offset": 0,
+          "size": 0,
+          "link": 0,
+          "info": 0,
+          "alignment": 0,
+          "entry_size": 0
+        },
+        {
+          "name": ".text",
+          "type": 1,
+          "flags": 6,
+          "address": 1075838976,
+          "offset": 65536,
+          "size": 20556,
+          "link": 0,
+          "info": 0,
+          "alignment": 2048,
+          "entry_size": 0
+        },
+        {
+          "name": ".rodata",
+          "type": 1,
+          "flags": 50,
+          "address": 1075859536,
+          "offset": 86096,
+          "size": 6632,
+          "link": 0,
+          "info": 0,
+          "alignment": 8,
+          "entry_size": 0
+        },
+        {
+          "name": ".bss",
+          "type": 8,
+          "flags": 3,
+          "address": 1075904512,
+          "offset": 131072,
+          "size": 36904,
+          "link": 0,
+          "info": 0,
+          "alignment": 65536,
+          "entry_size": 0
+        },
+        {
+          "name": ".symtab",
+          "type": 2,
+          "flags": 0,
+          "address": 0,
+          "offset": 131072,
+          "size": 14880,
+          "link": 6,
+          "info": 595,
+          "alignment": 8,
+          "entry_size": 24
+        },
+        {
+          "name": ".shstrtab",
+          "type": 3,
+          "flags": 0,
+          "address": 0,
+          "offset": 145952,
+          "size": 46,
+          "link": 0,
+          "info": 0,
+          "alignment": 1,
+          "entry_size": 0
+        },
+        {
+          "name": ".strtab",
+          "type": 3,
+          "flags": 0,
+          "address": 0,
+          "offset": 145998,
+          "size": 10215,
+          "link": 0,
+          "info": 0,
+          "alignment": 1,
+          "entry_size": 0
+        }
+      ],
+      "build_id": null
+    },
+    "structural_digest": "babe6f2eea14bf5954c525e190f13ce00b727ed984b02a123bdbacab3ef334dd"
+  },
+  "applicable_claims": [
+    {
+      "claim": "SYSTEM_COMPOSITION_PROVED",
+      "scope": "deterministic_precondition_flow",
+      "judge": "deterministic_gate",
+      "mechanism": "boot_composition",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/boot/src/boot_order.rs",
+          "sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93"
+        },
+        {
+          "path": "examples/formalkernel/boot/src/main.rs",
+          "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"
+        },
+        {
+          "path": "examples/formalkernel/kernel/composition.json",
+          "sha256": "7cc9646544d053af9488f851f1ada1859aefcdc0a566cf56fcc065a39eeacf33"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m90_kernel_evidence_bundle.json",
+          "sha256": "ccd12f2293db9b292ab8270436a71651d13fa0c06f72fdc9979e48e8d2849027"
+        }
+      ]
+    },
+    {
+      "claim": "RUST_WITNESS_REFINEMENT_PROVED",
+      "scope": "bounded_nondet_operation_sequences",
+      "judge": "kani",
+      "mechanism": "bounded_queue_witness",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/boot/proofs/Cargo.toml",
+          "sha256": "4384fe636cd32eb12162e564433592f8e01719d2a7a31b31bdc6dc0244f35914"
+        },
+        {
+          "path": "examples/formalkernel/boot/proofs/src/lib.rs",
+          "sha256": "678372042516c19a0c11fb3f569c6f7f741872c94733417617b2f5ffbd264318"
+        },
+        {
+          "path": "examples/formalkernel/boot/src/main.rs",
+          "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"
+        },
+        {
+          "path": "examples/formalkernel/boot/src/witness.rs",
+          "sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m90_kernel_evidence_bundle.json",
+          "sha256": "ccd12f2293db9b292ab8270436a71651d13fa0c06f72fdc9979e48e8d2849027"
+        }
+      ]
+    }
+  ],
+  "applicable_claim_closure_hash": "052d569b197c80892c84fec31c152794b006ebdb8cf9778bbfc384987a887f2b",
+  "evidence_dag": {
+    "nodes": {
+      "prebuild_candidate": "4b2e9cda55444a3c5397826630e767ea0542dd15bfc75009ff5a4170e9430e1c",
+      "build_record": "d6772df47253f7c3773ec750ac07bf48436b0238383689a7fac7fa6d6e802d50",
+      "elf": "1a8d4e1113d9fdd2a948e0f9c739303d4690eb39588a3505475564165d88d3c9",
+      "elf_structure": "babe6f2eea14bf5954c525e190f13ce00b727ed984b02a123bdbacab3ef334dd",
+      "applicable_claim_closure": "052d569b197c80892c84fec31c152794b006ebdb8cf9778bbfc384987a887f2b"
+    },
+    "edges": [
+      [
+        "build_record",
+        "prebuild_candidate"
+      ],
+      [
+        "elf",
+        "build_record"
+      ],
+      [
+        "elf_structure",
+        "elf"
+      ],
+      [
+        "applicable_claim_closure",
+        "elf"
+      ]
+    ],
+    "root_digest": "d0fa10444e95367912e16497764232937386af74795cd09cb4538e1f33e20fc3"
+  },
+  "trusted_assumptions": [
+    "rustc and rust-lld are identity-bound but are not verified compilers",
+    "the claim binds evidence applicability and artifact identity, not ELF semantics",
+    "physical QEMU or silicon execution is outside this claim"
+  ],
+  "locked_claims": [
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+    "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED"
+  ],
+  "forbidden_claims": [
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+    "TARGET_BINARY_FUNCTIONAL_CORRECTNESS_PROVED"
+  ],
+  "release_seal_status": "HUMAN_SEAL_PENDING"
+}

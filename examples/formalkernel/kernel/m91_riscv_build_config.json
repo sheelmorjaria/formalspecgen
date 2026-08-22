@@ -1,0 +1,24 @@
+{
+  "target": "riscv64gc-unknown-none-elf",
+  "deployment_manifest": "examples/formalkernel/kernel/kernel.json",
+  "hardware_profile": "examples/formalkernel/profiles/riscv64-qemu.reviewed.json",
+  "linker_script": "examples/formalkernel/boot/layout-riscv64.ld",
+  "crate_root": "examples/formalkernel/boot/src/riscv64_main.rs",
+  "compiled_sources": [
+    "examples/formalkernel/boot/src/boot_order.rs",
+    "examples/formalkernel/boot/src/riscv64_main.rs"
+  ],
+  "enabled_mechanisms": ["boot_composition"],
+  "rustc_flags": [
+    "-Cpanic=abort",
+    "-Copt-level=0",
+    "-Ccodegen-units=1",
+    "-Clto=no",
+    "-Crelocation-model=static",
+    "-Cdebuginfo=0",
+    "-Cstrip=debuginfo",
+    "-Clink-arg=--build-id=none",
+    "--remap-path-prefix={PROJECT_ROOT}=/formalkernel"
+  ],
+  "codegen_environment": {}
+}

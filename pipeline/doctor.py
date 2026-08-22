@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -13,6 +15,59 @@ from . import config
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Which = Callable[[str], str | None]
+
+
+def _executable_sha256(path: str | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        digest = hashlib.sha256()
+        with Path(path).open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def _tool_binding(path: Path) -> dict[str, str | None]:
+    resolved = str(path.resolve()) if path.is_file() else None
+    return {"path": resolved, "sha256": _executable_sha256(resolved)}
+
+
+def _refinedrust_boundaries() -> dict[str, Any]:
+    path = Path(config.REFINEDRUST_BOUNDARY_LEDGER).expanduser()
+    base = {"path": str(path.resolve()), "sha256": None, "claim": "NO_PROOF"}
+    try:
+        raw = path.read_bytes()
+        ledger = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {**base, "status": "UNAVAILABLE", "boundaries": [], "message": str(exc)}
+    return {
+        **base,
+        "status": "LOADED",
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "schema_version": ledger.get("schema_version"),
+        "boundaries": ledger.get("boundaries", []),
+    }
+
+
+def _verus_boundaries() -> dict[str, Any]:
+    path = Path(config.VERUS_BOUNDARY_LEDGER).expanduser()
+    base = {"path": str(path.resolve()), "sha256": None, "claim": "NO_PROOF"}
+    try:
+        raw = path.read_bytes()
+        ledger = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {**base, "status": "UNAVAILABLE", "bridges": [], "message": str(exc)}
+    return {
+        **base,
+        "status": "LOADED",
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "schema_version": ledger.get("schema_version"),
+        "bridges": ledger.get("bridges", []),
+        "trusted_escape_hatches_used": ledger.get("trusted_escape_hatches_used"),
+    }
 
 
 def _resolve(command: str, which: Which) -> str | None:
@@ -27,6 +82,7 @@ def _probe(name: str, command: list[str], claims: list[str], pending: str,
            success_codes: tuple[int, ...] = (0,), env: dict[str, str] | None = None) -> dict[str, Any]:
     resolved = _resolve(command[0], which)
     base = {"name": name, "configured_command": command, "resolved_executable": resolved,
+            "executable_sha256": _executable_sha256(resolved),
             "configuration_source": source, "claims_enabled": claims,
             "judge_pending": pending}
     if resolved is None:
@@ -76,6 +132,10 @@ def inspect_environment(*, runner: Runner = subprocess.run,
         ("Z3", ["z3", "--version"], ["SMT_MODEL_PROVED"], "z3", "PATH"),
         ("Semgrep", ["semgrep", "--version"], ["SAST_CLEAN"], "semgrep", "PATH"),
         ("herd7", ["herd7", "-version"], ["WEAK_MEMORY_SAFETY"], "herd7_or_rc11", "PATH"),
+        ("TLAPS", [config.TLAPM_BIN, "--version"],
+         ["PARAMETERIZED_TLA_PROOF"], "tlapm", "TLAPM_BIN"),
+        ("Rustc", [config.RUSTC_BIN, "--version", "--verbose"],
+         ["RUST_SOURCE_COMPILABLE"], "rustc", "RUSTC_BIN"),
     ]
     checks = [_probe(name, command, claims, pending, runner=runner, which=which,
                      source=source if source == "PATH" or os.environ.get(source) else "default")
@@ -96,6 +156,52 @@ def inspect_environment(*, runner: Runner = subprocess.run,
                     message=(f"KANI_BIN={config.KANI_BIN!r} is incompatible with the generic "
                              "lane; configure 'cargo' or 'kani-driver'"))
     checks.append(kani)
+    foundational = [
+        _probe(
+            "Rocq",
+            [config.OPAM_BIN, "exec", f"--switch={config.REFINEDRUST_SWITCH}",
+             "--", "rocq", "--version"],
+            ["FOUNDATIONAL_PROOF_CHECKED"], "rocq",
+            runner=runner, which=which, source="isolated_opam_switch"),
+        _probe(
+            "RefinedRust",
+            [config.OPAM_BIN, "exec", f"--switch={config.REFINEDRUST_SWITCH}",
+             "--", "cargo", "refinedrust", "--version"],
+            ["RUST_IMPLEMENTATION_REFINEMENT_PROVED"], "refinedrust",
+            runner=runner, which=which, source="isolated_opam_switch", timeout=15),
+        _probe(
+            "Verus", [config.VERUS_BIN, "--version"],
+            ["SAFE_RUST_FUNCTIONAL_CORRECTNESS_PROVED"], "verus",
+            runner=runner, which=which,
+            source="VERUS_BIN" if os.environ.get("VERUS_BIN") else "default"),
+    ]
+    for item in foundational:
+        item["invocation_environment"] = (
+            {"opam_switch": config.REFINEDRUST_SWITCH}
+            if item["name"] in {"Rocq", "RefinedRust"} else
+            {"pinned_toolchain": "1.97.1-x86_64-unknown-linux-gnu"})
+        if item["name"] in {"Rocq", "RefinedRust"}:
+            switch_bin = Path.home() / ".opam" / config.REFINEDRUST_SWITCH / "bin"
+            item["judge_executables"] = {
+                "rocq": _tool_binding(switch_bin / "rocq"),
+                "dune": _tool_binding(switch_bin / "dune"),
+            }
+            if item["name"] == "RefinedRust":
+                cargo_bin = Path.home() / ".cargo" / "bin"
+                item["judge_executables"].update({
+                    "cargo-refinedrust": _tool_binding(cargo_bin / "cargo-refinedrust"),
+                    "refinedrust-rustc": _tool_binding(cargo_bin / "refinedrust-rustc"),
+                })
+        elif item["name"] == "Verus":
+            verus_root = Path(config.VERUS_BIN).expanduser().resolve().parent
+            item["judge_executables"] = {
+                "verus": _tool_binding(verus_root / "verus"),
+                "rust_verify": _tool_binding(verus_root / "rust_verify"),
+                "z3": _tool_binding(verus_root / "z3"),
+                "vstd.vir": _tool_binding(verus_root / "vstd.vir"),
+                "version.json": _tool_binding(verus_root / "version.json"),
+            }
+    checks.extend(foundational)
     counts = {status: sum(item["status"] == status for item in checks)
               for status in ("READY", "ABSENT", "MISCONFIGURED", "ERROR")}
     from .domains.registry import PLUGINS
@@ -129,7 +235,9 @@ def inspect_environment(*, runner: Runner = subprocess.run,
     return {"status": "READY" if not counts["MISCONFIGURED"] and not counts["ERROR"]
             else "ATTENTION_REQUIRED", "claim": "NO_PROOF", "evidence_minted": False,
             "scope": "judge_readiness_at_report_time", "summary": counts,
-            "capabilities": checks, "domains": maturity_report(PLUGINS), "lanes": lanes}
+            "capabilities": checks, "domains": maturity_report(PLUGINS), "lanes": lanes,
+            "refinedrust_boundaries": _refinedrust_boundaries(),
+            "verus_boundaries": _verus_boundaries()}
 
 
 def required_failures(report: dict[str, Any], required: list[str]) -> list[str]:

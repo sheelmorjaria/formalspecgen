@@ -10,6 +10,16 @@
   "rcu": "scheduler/rcu.json",
   "microarch_policy": "n150_mitigations.json",
   "tool_qualification": "tool_qualification.json",
+  "refinement_spine": "refinement_spine.json",
+  "dynamic_vm": "dynamic_vm.json",
+  "smp_scheduler": "scheduler/smp_scheduler.json",
+  "device_fabric": "device_fabric.json",
+  "process_model": "process_model.json",
+  "boot_integrity": "boot_integrity.json",
+  "network_scale": "network_scale.json",
+  "fault_recovery": "fault_recovery.json",
+  "guest_isolation": "guest_isolation.json",
+  "compatibility_operations": "posix_compat_abi.json",
   "weak_memory_models": "weak_memory.json",
   "unikernel_build": "../unikernel/Cargo.toml"
 }

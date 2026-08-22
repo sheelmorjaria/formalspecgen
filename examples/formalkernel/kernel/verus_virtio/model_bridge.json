@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "lane": "M86.3_reviewed_queue_model_refinement",
+  "status": "VIRTIO_QUEUE_MODEL_BRIDGE_PROVED",
+  "claim": "VIRTIO_QUEUE_MODEL_BRIDGE_PROVED",
+  "scope": "production_virtio_blk_queue_accounting",
+  "candidate_model_sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e",
+  "reviewed_model": "examples/formalkernel/kernel/verus_virtio/queue_model.reviewed.json",
+  "reviewed_model_sha256": "cb3d2de50ac57c90f73d8aa67a95a1fa5ac8e085a0d3c89c753f7409ca90a67c",
+  "validation_sha256": "6db13cf7bbfb6cfc87aa14edc0b783382e6ceaeddc736cc4c7508df3fd058f1b",
+  "production_source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+  "overlay_source_sha256": "4b10d5e3da28f787e24cd4f4b7811a7bfca82fa9cbb8a07ce8f73f6beca781ee",
+  "state_relation": "model.outstanding == rust.queue_depth()",
+  "judge": {
+    "name": "verus",
+    "invocation": [
+      "verus",
+      "--no-cheating",
+      "--output-json"
+    ],
+    "exit_code": 0,
+    "reported_verified": 7,
+    "reported_errors": 0,
+    "output_sha256": "b03ab98c631162fd99ef42ced4c5f620859e4de1a3de4e9649b6b85486c070b0"
+  },
+  "anti_vacuity": {
+    "executed": 6,
+    "rejected": 6,
+    "mutations": [
+      {
+        "id": "bad_constructor",
+        "source_sha256": "ce0242fa9b818d1f56cff404196cc626c07351d710c6fde4c0d72137bfe6129c",
+        "output_sha256": "0f0295c09c351b31d510cd5ddb0d6f91a17e02ba153e9f4bf547bcfaae306928",
+        "exit_code": 1,
+        "reported_verified": 6
+      },
+      {
+        "id": "submit_no_increment",
+        "source_sha256": "374160693d76993779df5bfa8657105f3a9d02aa7a90c14bfa70b37554604a89",
+        "output_sha256": "7d2d49bdda9e81db0123bccc29e93200b713d68c7b6e0d84d40ec424c6255729",
+        "exit_code": 1,
+        "reported_verified": 6
+      },
+      {
+        "id": "queue_full_returns_success",
+        "source_sha256": "817ae592f4b24c17fab847f89987b69b8821cbe63b6e28ee294d51f38403c7c2",
+        "output_sha256": "443b9bfefa70dc66498fad8411dd394ea7f0cf7c27ab3a84da8ec41319e05727",
+        "exit_code": 1,
+        "reported_verified": 6
+      },
+      {
+        "id": "complete_no_decrement",
+        "source_sha256": "a02d4d8ecbc59d58bf7ff031e1b5b19b29fd38dc91f4ff833f49e2003b90b752",
+        "output_sha256": "813f4ac1d000749756921441284dc5f4315f477644eccc94b1ebbbc652c726b3",
+        "exit_code": 1,
+        "reported_verified": 6
+      },
+      {
+        "id": "empty_complete_returns_success",
+        "source_sha256": "0119168c8d7a0e198927148c0931644bd2e0fb74a0499b46c488db6aab604753",
+        "output_sha256": "1c561841b28c556dfb1000035fc529a62ac0af840b7cfc99ee112d152dc2bcc7",
+        "exit_code": 1,
+        "reported_verified": 6
+      },
+      {
+        "id": "weakened_submit_model",
+        "source_sha256": "6e5727e2e7c7e12ac34895212f8d9b32de91127ef12b4e6fc91a4afab438c7c9",
+        "output_sha256": "3dc34eba2b330b9954475d34a700cfd1367716cd33fa3a365357e11d3ff2011c",
+        "exit_code": 1,
+        "reported_verified": 6
+      }
+    ]
+  },
+  "external_boundaries": [
+    "virtio device behavior",
+    "interrupt delivery",
+    "DMA completion",
+    "virtio protocol semantics",
+    "external I/O correctness"
+  ],
+  "claims_locked": [
+    "DRIVER_DEVICE_BEHAVIOR_PROVED",
+    "EXTERNAL_IO_SAFETY_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

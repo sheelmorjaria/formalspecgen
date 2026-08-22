@@ -1,0 +1,27 @@
+{
+  "aia_implementation_refinement_proved": false,
+  "claim": "RISCV_INTERRUPT_ROUTING_MODEL_PROVED",
+  "distinct_states": 37,
+  "generated_cfg_sha256": "724660926156527499c643bf1f053251a0733ca27a2a4e8ae2fcc94a2721029c",
+  "generated_tla_sha256": "25813f1fb033151addd05a054ac0f94f0d47c90a4e28fe03d18848236bde42b2",
+  "hardware_interrupt_delivery_proved": false,
+  "interrupt_latency_bound_proved": false,
+  "judge": "tlc",
+  "physical_interrupt_routing_proved": false,
+  "properties": [
+    "AUTHORIZED_DELIVERY",
+    "DISABLED_SOURCE_BLOCKED",
+    "IMSIC_TARGET_FILE_EXACT",
+    "DECLARED_IDENTITY_DISPATCH",
+    "STALE_ROUTE_REJECTED",
+    "M91_TRAP_PATH_REQUIRED",
+    "ACKNOWLEDGEMENT_NO_FABRICATION"
+  ],
+  "reviewed_policy_sha256": "c21a59980e4b8b62c534c4739e2b729c903590468f6fd96f7ed4bbf1a008bf6e",
+  "reviewed_profile_sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122",
+  "scope": "reviewed_qemu_virt_aia_aplic_imsic_smode",
+  "status": "RISCV_INTERRUPT_ROUTING_MODEL_PROVED",
+  "tlc_output_sha256": "cf1e261c724b135ec64fcc904c6eb891b835a06f52ff68425593e69530c970bf",
+  "tlc_version": "2.19 of 08 August 2024",
+  "transition_evidence_sha256": "1a929b0acc67409389a3ab9bb5a21781f7ae8c045fdd135ebae785ada04920c7"
+}

@@ -1,0 +1,62 @@
+{
+  "status": "CAPABILITY_TOKEN_CREATION_CLOSED_PROVED",
+  "claim": "CAPABILITY_TOKEN_CREATION_CLOSED_PROVED",
+  "claims_minted": [
+    "CAPABILITY_AUTHORITY_ALGEBRA_PROVED",
+    "CAPABILITY_TOKEN_CREATION_CLOSED_PROVED"
+  ],
+  "judge": "tlapm",
+  "judge_version": "4600b24",
+  "judge_executable_sha256": "1de5983ac393658362fe61882e270b65648fa07945453e971fcf9eeabf5ec579",
+  "scope": "arbitrary_finite_capability_authority_algebra",
+  "reviewed_model_sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2",
+  "accepted_candidate_sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77",
+  "proof_sha256": "1cf8e735045271e6d412a17491e4ea80cb722d1eb73559cf1e7c18deb0796e40",
+  "verifier_sha256": "c6f0b823d7e9bc8f19432e5b2bd597db5ae0e3c1cde171cc92fb368e19e50573",
+  "proof_output_sha256": "fa09b9aac44c2d616c888ada4548516af4f86000329c3834b57b24f89259ce15",
+  "tlaps_obligations_proved": 12,
+  "mutations_executed": 4,
+  "mutations_rejected": 4,
+  "mutations": [
+    {
+      "id": "unauthorized_root_mint",
+      "result": "rejected",
+      "mutated_proof_sha256": "583f540e4b74c499c39c672b09c1b2aacade434859379037d3442af20210cb47",
+      "output_sha256": "977eac8981d5fdae3200da7e426ab416a80887d8aa172e33d4f5bb61868462f7",
+      "exit_code": 3
+    },
+    {
+      "id": "derive_rights_amplification",
+      "result": "rejected",
+      "mutated_proof_sha256": "808677425c831b6eaaf0bd1c2d9b7b6d75107b8e17e7468d96371a663762ff96",
+      "output_sha256": "826be47727a4dc0fd9900b6748eae246ff5f3b5f0291b1697ed341d5ccb731a3",
+      "exit_code": 3
+    },
+    {
+      "id": "derive_object_substitution",
+      "result": "rejected",
+      "mutated_proof_sha256": "ddee3b41d68c12cca032979ba1d868df1d445dfc7af8a5e2975a7d86788c165e",
+      "output_sha256": "49ee7c01d72ff81eb0cc18bc2aef2d332808eac373022ca7b69c9af7ca946863",
+      "exit_code": 3
+    },
+    {
+      "id": "forged_creation_origin",
+      "result": "rejected",
+      "mutated_proof_sha256": "99a7a5b61175db64e8f26753227568bbbb29b1f0c7a9d32627d943ef5b04bbc2",
+      "output_sha256": "38c6f215dca6dc33a4924aeebd206972bad12b3799a2d14bc48867e1ec01e132",
+      "exit_code": 3
+    }
+  ],
+  "parameterized_over": [
+    "finite principals",
+    "finite objects",
+    "finite rights"
+  ],
+  "claims_locked": [
+    "CAPABILITY_REVOCATION_SAFETY_PROVED",
+    "SERVER_AUTHORITY_SECURITY_MODEL_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "CAPABILITY_HARDWARE_ENFORCEMENT_PROVED",
+    "CAPABILITY_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

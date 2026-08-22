@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "lane": "M86.2c_virtio_queue_accounting_functional_correctness",
+  "status": "VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+  "claim": "VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+  "judge": "verus",
+  "scope": "exact_production_virtio_queue_transitions",
+  "production_source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+  "overlay_source_sha256": "4b10d5e3da28f787e24cd4f4b7811a7bfca82fa9cbb8a07ce8f73f6beca781ee",
+  "judge_output_sha256": "fef22f66bbe43b0e2fa77b309052d010258b21cf716eedb09ec1380969440b66",
+  "properties": [
+    "0 <= in_flight <= REQUEST_CAPACITY",
+    "constructor initializes in_flight to zero",
+    "getter returns the abstract queue depth",
+    "successful submit increments exactly once below capacity",
+    "failed submit stutters",
+    "empty completion errors and stutters",
+    "nonempty completion succeeds and decrements exactly once",
+    "submit results refine the candidate queue transition relation",
+    "completion results refine the candidate queue transition relation"
+  ],
+  "mutation_suite": "examples/formalkernel/kernel/verus_virtio/mutation_suite.json",
+  "mutation_suite_sha256": "8fe0e88e012cbe144da6c698ae098c70e195eb760407dcbc1a72bc047af88301",
+  "mutation_executed": 6,
+  "mutation_rejected": 6,
+  "trusted_escape_hatches_used": false,
+  "common_judge_envelope": {
+    "verification_units": 5,
+    "semantic_obligations": 12,
+    "negative_mutations_executed": 6,
+    "negative_mutations_rejected": 6,
+    "artifact_identity_verified": true,
+    "trusted_assumptions": [
+      "Verus, rustc, and bundled solver match their recorded toolchain hashes",
+      "BlockSyscall device behavior is outside the queue-accounting claim"
+    ]
+  },
+  "claims_locked": [
+    "VIRTIO_QUEUE_MODEL_BRIDGE_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

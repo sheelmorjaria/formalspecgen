@@ -1,0 +1,3 @@
+# Generated proof and patch artifacts preserve exact upstream/tool output.
+*.v whitespace=-trailing-space
+*.patch whitespace=-trailing-space

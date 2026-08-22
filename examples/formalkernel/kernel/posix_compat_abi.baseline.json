@@ -1,0 +1,10 @@
+{
+  "abi_version": 1,
+  "calls": [
+    {"number": 200, "name": "open", "symbol": "fk_open", "signature": "int(const char*)"},
+    {"number": 201, "name": "read", "symbol": "fk_read", "signature": "int(int,char*,unsigned)"},
+    {"number": 202, "name": "write", "symbol": "fk_write", "signature": "int(int,const char*,unsigned)"},
+    {"number": 203, "name": "close", "symbol": "fk_close", "signature": "int(int)"},
+    {"number": 204, "name": "exit", "symbol": "fk_exit", "signature": "void(int)"}
+  ]
+}

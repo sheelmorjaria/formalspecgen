@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "status": "REVIEWED_RISCV_G_STAGE_PLAN",
+  "scope": "reviewed_qemu_virt_sv39x4_guest_translation",
+  "mode": "Sv39x4",
+  "vmidlen_assumption": 7,
+  "root_alignment": 16384,
+  "hs_protected": [
+    {
+      "start": 2149580800,
+      "end": 2153775104
+    }
+  ],
+  "guests": [
+    {
+      "guest": "guest1",
+      "vmid": 1,
+      "hgatp_root": 2149711872,
+      "owned_spa": [
+        {
+          "start": 2181038080,
+          "end": 2183135232
+        }
+      ],
+      "vs_page_table_spa": [
+        2181042176
+      ],
+      "mappings": [
+        {
+          "gpa": 0,
+          "spa": 2181038080,
+          "permissions": "RX"
+        },
+        {
+          "gpa": 4096,
+          "spa": 2181042176,
+          "permissions": "RW"
+        }
+      ]
+    },
+    {
+      "guest": "guest2",
+      "vmid": 2,
+      "hgatp_root": 2149777408,
+      "owned_spa": [
+        {
+          "start": 2185232384,
+          "end": 2187329536
+        }
+      ],
+      "vs_page_table_spa": [
+        2185236480
+      ],
+      "mappings": [
+        {
+          "gpa": 0,
+          "spa": 2185232384,
+          "permissions": "RX"
+        },
+        {
+          "gpa": 4096,
+          "spa": 2185236480,
+          "permissions": "RW"
+        }
+      ]
+    }
+  ],
+  "invalid_gpas": [
+    2199023255552,
+    -1
+  ],
+  "lifecycle": {
+    "initial_epoch": 0,
+    "require_hfence_gvma_after": [
+      "page_table_modification",
+      "vmid_reuse",
+      "mode_change",
+      "root_change"
+    ]
+  },
+  "normative_reference": {
+    "name": "RISC-V H Extension 1.0",
+    "url": "https://docs.riscv.org/reference/isa/priv/hypervisor.html"
+  },
+  "accepted_candidate_sha256": "ba8b2d846ecb04878c1ef848fc529b726eee576581d9ca5e97932ef4380c9325",
+  "review_scope": "guest_spa_vmid_hgatp_and_hfence_policy"
+}

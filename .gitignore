@@ -98,3 +98,18 @@ Thumbs.db
 formalkernel.elf
 examples/formalkernel/boot/proofs/target/
 examples/formalkernel/unikernel/target/
+
+# FormalKernel verifier/build scratch (generated proof sources remain tracked)
+e2e-null-object/
+/sel4-port/
+**/target/
+**/_build/
+**/*.vo
+**/*.vos
+**/*.vok
+**/*.glob
+**/*.aux
+**/.lia.cache
+**/.digest-db
+**/.filesystem-clock
+rustc-ice-*.txt

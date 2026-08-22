@@ -1,0 +1,15 @@
+RefinedRust 0.1.0 (349fb6236b8770d8a699b59d5d4b7ef896875763)
+rustc 1.99.0-nightly (3d6c19bb9 2026-08-11)
+
+internal compiler error: translation/src/traits/registry.rs:1472:13
+expected trait impl, found non-trait impl item
+
+Key stack frames:
+translation::traits::registry::TR::get_trait_impl_info
+translation::types::scope::Params::add_trait_requirements
+translation::body::signature::TX::setup_local_scope
+
+Reduction result:
+The ICE is not reproduced when every local trait method and the trait impl carry
+complete RefinedRust annotations. No upstream RefinedRust defect is asserted by
+this artifact.

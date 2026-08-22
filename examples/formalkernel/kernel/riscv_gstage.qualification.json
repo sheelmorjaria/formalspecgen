@@ -1,0 +1,18 @@
+{
+  "status": "RISCV_G_STAGE_CANDIDATE_QUALIFIED",
+  "claim": "NO_PROOF",
+  "candidate_plan_sha256": "ba8b2d846ecb04878c1ef848fc529b726eee576581d9ca5e97932ef4380c9325",
+  "base_status": "VERIFIED",
+  "distinct_states": 28,
+  "semantic_mutations_rejected": 3,
+  "mutation_results": {
+    "missing_hfence": "TLC_FAILED",
+    "wrong_root": "TLC_FAILED",
+    "bare_active": "TLC_FAILED"
+  },
+  "deterministic_mutations": [
+    "cross_guest_spa", "hs_frame_target", "duplicate_vmid",
+    "root_4k_only_alignment", "vs_walk_page_outside_guest",
+    "malformed_gpa", "writable_executable_mapping"
+  ]
+}

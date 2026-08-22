@@ -1,0 +1,3459 @@
+{
+  "schema_version": 1,
+  "lane": "M90.1_canonical_evidence_manifest",
+  "status": "EVIDENCE_ROOT_CANDIDATE",
+  "claim": "NO_PROOF",
+  "binary_status": "BINARY_BUILD_PENDING",
+  "binary_sha256": null,
+  "source_tree_hash": "9e4d85fdf9926fb72aaa8e112f96feaa6bbb905d657ceeeda56179dc0739e919",
+  "source_files": [
+    {
+      "path": "examples/formalkernel/boot/src/boot_order.rs",
+      "sha256": "c6b8411d48f1e605117dd7e487e128419d267262dbe455d95dd7803b1159fd93"
+    },
+    {
+      "path": "examples/formalkernel/boot/src/main.rs",
+      "sha256": "41de26db473678d35c9c9144c96681759efa9c152ae80560b949bbf1d48e0eff"
+    },
+    {
+      "path": "examples/formalkernel/boot/src/witness.rs",
+      "sha256": "a29f4221d3710ccb8d2567282a993cf515370ad4b21ec282e9d237ee47ddf7f8"
+    },
+    {
+      "path": "examples/formalkernel/driver/nic_driver.rs",
+      "sha256": "d64d06234ab9652e69ebccfbe14d3f9f6c9805760ef6dd8cd46f588e17b819ef"
+    },
+    {
+      "path": "examples/formalkernel/kernel/ipc/mpsc.c",
+      "sha256": "6b5ebc2ea314339fc4cee3ad67f990fd320a8b1eddf5379f273f07acd76ed92e"
+    },
+    {
+      "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+      "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/mbedtls_handshake_legacy.c",
+      "sha256": "cbc61866bf7a7a1eca4b1d9ff5d8b2b7f3fe1d0a62432df7db2811a365cc513e"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/nic.c",
+      "sha256": "15955411546ec01e6d4aadd166b35b2a2950a5729d8750eb2110632e0b7dd846"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/pq_ntt_workload.c",
+      "sha256": "daa07b9ee6b87dddcefb81ad539a0f2412bec8f1e3cc05f6c915a55864e9c13e"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+      "sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/rx_ring.c",
+      "sha256": "252d45d5ede3a671abd747a70d78c7e198ad968d78a5bd74e4ce33d583c7d6a1"
+    },
+    {
+      "path": "examples/formalkernel/kernel/net/timer_tick.c",
+      "sha256": "d06187bd9ef778da3826d793afa8c0fa9b16cdc244a3bb9b26107ca6669dfae1"
+    },
+    {
+      "path": "examples/formalkernel/kernel/scheduler/rcu_witness.c",
+      "sha256": "74eed105766f8b3e46e73f51e5973251ab4b757bc9cf3faaa302f1c8ef1678e5"
+    },
+    {
+      "path": "examples/formalkernel/kernel/scheduler/runqueue.c",
+      "sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b"
+    },
+    {
+      "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+      "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+    },
+    {
+      "path": "examples/formalkernel/kernel/user/heap.rs",
+      "sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746"
+    },
+    {
+      "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+      "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+    },
+    {
+      "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+      "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+    },
+    {
+      "path": "examples/formalkernel/unikernel/src/lib.rs",
+      "sha256": "0e35b80ab5869afcedb0900865019bc8e6aac807a221fee24e345f4fee484800"
+    }
+  ],
+  "deployment_profile": {
+    "path": "examples/formalkernel/kernel/kernel.json",
+    "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+  },
+  "hardware_profiles": [
+    {
+      "path": "examples/formalkernel/profiles/n150.json",
+      "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+    },
+    {
+      "path": "examples/formalkernel/profiles/r52.json",
+      "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+    }
+  ],
+  "evidence_bundle": {
+    "path": "examples/formalkernel/kernel/m90_kernel_evidence_bundle.json",
+    "sha256": "ccd12f2293db9b292ab8270436a71651d13fa0c06f72fdc9979e48e8d2849027"
+  },
+  "claim_entries": [
+    {
+      "claim": "ABI_STABILITY_CHECKED",
+      "scope": "five_call_host_compiled_compatibility_shim",
+      "judge": "deterministic_abi_gate+host_c_runtime",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat.c",
+          "sha256": "2ad850ecaff1ebb4384eb84069551fbb3cada74d155f75c1d58fe65b184ecc8d"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat_abi.baseline.json",
+          "sha256": "7b2a701372525495787f4df5a459aaf45c9fdfc88f93f176ca5e4426394b9966"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat_abi.json",
+          "sha256": "7677d1772f2f4d23ca8b1da80bb8fee07db86b057336211b22bfb2bc70515d0e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "armv8_sc",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/runqueue.c",
+          "sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "armv8_sc",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/rx_ring.c",
+          "sha256": "252d45d5ede3a671abd747a70d78c7e198ad968d78a5bd74e4ce33d583c7d6a1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "x86_tso",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/runqueue.c",
+          "sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "x86_tso",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/rx_ring.c",
+          "sha256": "252d45d5ede3a671abd747a70d78c7e198ad968d78a5bd74e4ce33d583c7d6a1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+      "scope": "declared_measurement_version_signature_and_pcr_policy",
+      "judge": "tlc+z3+sha256",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/boot_integrity.json",
+          "sha256": "4871577bcafc2c2a0ab65b60945ba5a5421df2127dd9f6b57ceeed4f19eee2e6"
+        },
+        {
+          "path": "examples/formalkernel/kernel/boot_integrity.validation.json",
+          "sha256": "a149c6ed72700f131819e9cebe0815b8a884ba186ecc9fa68c821937711fb756"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "scope": "reviewed_v2_tlc",
+      "judge": "tlc",
+      "subsystem": "vfs",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/mbedtls_handshake_legacy.c",
+          "sha256": "cbc61866bf7a7a1eca4b1d9ff5d8b2b7f3fe1d0a62432df7db2811a365cc513e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tls_handshake.json",
+          "sha256": "dd55dbd72c6e7b37d87f98cbde28165a037d55510332ba16628a37393673a18f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tls_handshake.validation.json",
+          "sha256": "ffbd7f521e154f3d3a1296625e47af25f926292cb5c7ae47fad5243be1a9a4b0"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "scope": "tls_handshake_tlc",
+      "judge": "tlc",
+      "subsystem": "net",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/mbedtls_handshake_legacy.c",
+          "sha256": "cbc61866bf7a7a1eca4b1d9ff5d8b2b7f3fe1d0a62432df7db2811a365cc513e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tls_handshake.json",
+          "sha256": "dd55dbd72c6e7b37d87f98cbde28165a037d55510332ba16628a37393673a18f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tls_handshake.validation.json",
+          "sha256": "ffbd7f521e154f3d3a1296625e47af25f926292cb5c7ae47fad5243be1a9a4b0"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+      "scope": "vfs_all_bounded_states_and_operations",
+      "judge": "rustc+exhaustive_relational_harness",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "Vfs.rs",
+          "sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00"
+        },
+        {
+          "path": "domains/v2/vfs_bounded.json",
+          "sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/m76_3b_allocator_feasibility.json",
+          "sha256": "20bbf5ae37201cf90cd36774fdff8ea02edca10e04fcf18e042330b0ed3e3616"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/patches/refinedrust-0.1.0-array-place-rfn.patch",
+          "sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_allocator/feasibility.json",
+          "sha256": "53ab7507658334e6184bcf096b4e424e31f709b7997f622707eb5577a710d3bd"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_array_regression/evidence.json",
+          "sha256": "ea3a15d100e1134a43ea4d4f005808bb6dac5666324d430464fb6e72e60103f3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_boundary_ledger.json",
+          "sha256": "bf7ad02608feb434fcc170924198cf6ac031b14654f28c302e819490bc936c1c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_feasibility_report.json",
+          "sha256": "617215f3d027c46aa528634f6178711d561cdf37c3019945300d33c48129db97"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_trait_impl_boundary/evidence.json",
+          "sha256": "a18b46760552dd1ed6840bfb213213ec3e7cab4cfbab1df599139fab2da847cf"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement_spine.json",
+          "sha256": "9dbe696ddedd8813d8420468eab920c1dc53fde2858e870f5eaf35899f26586d"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "CAPABILITY_AUTHORITY_ALGEBRA_PROVED",
+      "scope": "arbitrary_finite_capability_authority_algebra",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M89_1_capability_authority_algebra",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityAuthorityRefinement.tla",
+          "sha256": "1cf8e735045271e6d412a17491e4ea80cb722d1eb73559cf1e7c18deb0796e40"
+        },
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityRevocationRefinement.tla",
+          "sha256": "9f05c774c3d3ac00c5ae0d055b37c6d6db7359f062101b0abb3f6f1f08454c0f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.candidate.json",
+          "sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+          "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.validation.json",
+          "sha256": "61a6ed093439b984a4c3c8fffd8a9d19bc17cecbebfbcc35968828cafc8f0357"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_revocation.validation.json",
+          "sha256": "1d5576691bb1587ecbb47c9c416308c8940b22342bef2f7a0869b8b488dfa146"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_server_authority_composition.validation.json",
+          "sha256": "81cf0f0d9379c344c7214ac366e865b15e01d7bbc145a67ddc5b207f4372ba18"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/capability_authority_model.py",
+          "sha256": "3ec43c5175b07742362dccccf67f011b12f26a917a640b0da065368ecd9be941"
+        },
+        {
+          "path": "pipeline/capability_authority_verification.py",
+          "sha256": "c6f0b823d7e9bc8f19432e5b2bd597db5ae0e3c1cde171cc92fb368e19e50573"
+        },
+        {
+          "path": "pipeline/capability_revocation_verification.py",
+          "sha256": "661010ef1c9a22ea42dd2e0a22b143f68e5b62a0f329da9a8e29ab2d94dc80ba"
+        },
+        {
+          "path": "pipeline/server_authority_composition.py",
+          "sha256": "19259e24d13b68230baee3abf6ae7a2517f3de4d95fdbf7cda741de55d5f2560"
+        }
+      ]
+    },
+    {
+      "claim": "CAPABILITY_REVOCATION_SAFETY_PROVED",
+      "scope": "parameterized_transitive_revocation_and_generation_safety",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M89_1_capability_authority_algebra",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityAuthorityRefinement.tla",
+          "sha256": "1cf8e735045271e6d412a17491e4ea80cb722d1eb73559cf1e7c18deb0796e40"
+        },
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityRevocationRefinement.tla",
+          "sha256": "9f05c774c3d3ac00c5ae0d055b37c6d6db7359f062101b0abb3f6f1f08454c0f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.candidate.json",
+          "sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+          "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.validation.json",
+          "sha256": "61a6ed093439b984a4c3c8fffd8a9d19bc17cecbebfbcc35968828cafc8f0357"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_revocation.validation.json",
+          "sha256": "1d5576691bb1587ecbb47c9c416308c8940b22342bef2f7a0869b8b488dfa146"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_server_authority_composition.validation.json",
+          "sha256": "81cf0f0d9379c344c7214ac366e865b15e01d7bbc145a67ddc5b207f4372ba18"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/capability_authority_model.py",
+          "sha256": "3ec43c5175b07742362dccccf67f011b12f26a917a640b0da065368ecd9be941"
+        },
+        {
+          "path": "pipeline/capability_authority_verification.py",
+          "sha256": "c6f0b823d7e9bc8f19432e5b2bd597db5ae0e3c1cde171cc92fb368e19e50573"
+        },
+        {
+          "path": "pipeline/capability_revocation_verification.py",
+          "sha256": "661010ef1c9a22ea42dd2e0a22b143f68e5b62a0f329da9a8e29ab2d94dc80ba"
+        },
+        {
+          "path": "pipeline/server_authority_composition.py",
+          "sha256": "19259e24d13b68230baee3abf6ae7a2517f3de4d95fdbf7cda741de55d5f2560"
+        }
+      ]
+    },
+    {
+      "claim": "CAPABILITY_TOKEN_CREATION_CLOSED_PROVED",
+      "scope": "arbitrary_finite_capability_authority_algebra",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M89_1_capability_authority_algebra",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityAuthorityRefinement.tla",
+          "sha256": "1cf8e735045271e6d412a17491e4ea80cb722d1eb73559cf1e7c18deb0796e40"
+        },
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityRevocationRefinement.tla",
+          "sha256": "9f05c774c3d3ac00c5ae0d055b37c6d6db7359f062101b0abb3f6f1f08454c0f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.candidate.json",
+          "sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+          "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.validation.json",
+          "sha256": "61a6ed093439b984a4c3c8fffd8a9d19bc17cecbebfbcc35968828cafc8f0357"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_revocation.validation.json",
+          "sha256": "1d5576691bb1587ecbb47c9c416308c8940b22342bef2f7a0869b8b488dfa146"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_server_authority_composition.validation.json",
+          "sha256": "81cf0f0d9379c344c7214ac366e865b15e01d7bbc145a67ddc5b207f4372ba18"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/capability_authority_model.py",
+          "sha256": "3ec43c5175b07742362dccccf67f011b12f26a917a640b0da065368ecd9be941"
+        },
+        {
+          "path": "pipeline/capability_authority_verification.py",
+          "sha256": "c6f0b823d7e9bc8f19432e5b2bd597db5ae0e3c1cde171cc92fb368e19e50573"
+        },
+        {
+          "path": "pipeline/capability_revocation_verification.py",
+          "sha256": "661010ef1c9a22ea42dd2e0a22b143f68e5b62a0f329da9a8e29ab2d94dc80ba"
+        },
+        {
+          "path": "pipeline/server_authority_composition.py",
+          "sha256": "19259e24d13b68230baee3abf6ae7a2517f3de4d95fdbf7cda741de55d5f2560"
+        }
+      ]
+    },
+    {
+      "claim": "CERTIFICATION_TRACEABILITY_COMPLETE",
+      "scope": "requirements_to_evidence_bundle",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/certification_traceability.json",
+          "sha256": "9b4e94a456321530eb18b5bd9f892a1aeaf6c3ea606aa1e643fd353bc4f7bcc8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "DECLASSIFICATION_POLICY_PROVED",
+      "scope": "reviewed_m49_m50_m65_explicit_release_rules",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M88_1_information_flow_scope",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.candidate.json",
+          "sha256": "7b649e2b6c02742efba463690b80bdb532e54d3a14732634d4fff1036b7001b8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.validation.json",
+          "sha256": "339ff864c331ed95e06aeb7d7c4f769375c141b7887142fe32134f14cf987238"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.trace.validation.json",
+          "sha256": "664b78a472d583211fdf68b02a144f58bb84d6adcc29e6bfbf1b360e1629c5c8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.validation.json",
+          "sha256": "9e1a64c1ccb934833cdec46411e72b8420801b1ca2cffc0b7fa56ebcdcf08bc5"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.candidate.json",
+          "sha256": "059fc89f109c8983f9a7b0b4036a77b7670a5958d6ac60eef67ab2a0140ee81f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/hyperproperty_evidence.py",
+          "sha256": "20b86223d2d6792ae39bf4011cc5aab3b9a2a45bc76365a33e17d316187ffcaf"
+        },
+        {
+          "path": "pipeline/information_flow.py",
+          "sha256": "e2bd6620edf3acdc2b4a9db343b4e2577ae69164fdb7f47458b9a02688b1bb97"
+        }
+      ]
+    },
+    {
+      "claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+      "scope": "declared_requester_domains_and_multiqueue_budgets",
+      "judge": "z3+range_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/device_fabric.json",
+          "sha256": "7ed61ff8f0a810c5be3f82ce2a4fdfd6b1cbb57c136622555b9564a8fd6ce275"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/nic.c",
+          "sha256": "15955411546ec01e6d4aadd166b35b2a2950a5729d8750eb2110632e0b7dd846"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "judge": "deterministic_gate",
+      "subsystem": "vfs",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/nic.c",
+          "sha256": "15955411546ec01e6d4aadd166b35b2a2950a5729d8750eb2110632e0b7dd846"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "judge": "deterministic_gate",
+      "subsystem": "vfs",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "scope": "elf_flags_to_m48_permissions_n150",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+          "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "scope": "elf_flags_to_m48_permissions_r52",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+          "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "ELF_SEGMENT_LAYOUT_PROVED",
+      "scope": "bounded_elf64_aarch64_parser",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+          "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED",
+      "scope": "tlc_aarch64_el1_el0_control_state",
+      "judge": "tlc",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/exception_transition.json",
+          "sha256": "7ef0384ec189b3f0859d1f1bb0d8beaa990fff1677aa7a6db05298f5454545e8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/exception_transition.validation.json",
+          "sha256": "bf093ef22546612586862c008a02a2e944a3e5ab7cea6c5adc8dc25faccd1b55"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+      "scope": "single_fault_two_process_three_page_recovery_model",
+      "judge": "tlc+z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/fault_recovery.json",
+          "sha256": "145542bae96eb53a3d42455ba6a2b254eb28ce4d03e0622a06e9685508bc12ed"
+        },
+        {
+          "path": "examples/formalkernel/kernel/fault_recovery.validation.json",
+          "sha256": "759d8081afddab85476e0c7c75619e2687d16ac425ec65a6b3117207aaba6876"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+      "scope": "declared_persistence_contract",
+      "judge": "tlc",
+      "subsystem": "vfs",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "domains/candidates/vfs_bounded.v2.yaml",
+          "sha256": "d19382bcee673c9329708602ad09ad8c96f6a8a0347b0f6eb6ff43ae38041589"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/journal.json",
+          "sha256": "51b8064c2f12e835445c065ae70b80fc762865c399a0503ad3d2f3b9d82d4e5c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/journal.validation.json",
+          "sha256": "aec282354b6763defbd10eacc9997e25215e3c4967a1ee9a9644029a1aa72fb7"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+      "scope": "two_guest_static_cpu_memory_network_iommu_partitions",
+      "judge": "tlc+z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/guest_isolation.json",
+          "sha256": "11662f624796e8701bf95f476fec51d2072ac9d83821e29bec0703adf6f42474"
+        },
+        {
+          "path": "examples/formalkernel/kernel/guest_isolation.validation.json",
+          "sha256": "f3f0f45825e4e6b7b3b315e71cbf7626d014b3af82a3b2671613f4bc6084f55a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "pq_tls_session_pool_n150",
+      "judge": "z3",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls.json",
+          "sha256": "f4d3b288a194e23b240469afed70f37faf95e2638ee5d7cc6eab62305a3240ac"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+          "sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "pq_tls_session_pool_r52",
+      "judge": "z3",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls.json",
+          "sha256": "f4d3b288a194e23b240469afed70f37faf95e2638ee5d7cc6eab62305a3240ac"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+          "sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "profile_bound_static_pool",
+      "judge": "z3",
+      "subsystem": "vfs",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls.json",
+          "sha256": "f4d3b288a194e23b240469afed70f37faf95e2638ee5d7cc6eab62305a3240ac"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_tls_pool.rs",
+          "sha256": "8753a268ba4ad3e473de0b2ea699d53d14adfef29004d4e282f715d731f810b4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "IPC_ENDPOINT_TABLE_PROVED",
+      "scope": "deterministic_capacity_partition",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "scope": "concurrent_interleaving_bmc",
+      "judge": "esbmc",
+      "subsystem": "scheduler",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/runqueue.c",
+          "sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "scope": "concurrent_interleaving_bmc",
+      "judge": "esbmc",
+      "subsystem": "net",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/rx_ring.c",
+          "sha256": "252d45d5ede3a671abd747a70d78c7e198ad968d78a5bd74e4ce33d583c7d6a1"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "MICROARCH_MITIGATION_POLICY_PROVED",
+      "scope": "declared_cpuid_microcode_mitigation_completeness",
+      "judge": "z3",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/n150_mitigations.json",
+          "sha256": "6824b36b2866de4a1dceda14646e935775af085815cc27188b557dd102e99501"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "MITIGATION_WCET_BUDGET_PROVED",
+      "scope": "declared_mitigation_cycle_cost_budget",
+      "judge": "deterministic_cost_equation",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/n150_mitigations.json",
+          "sha256": "6824b36b2866de4a1dceda14646e935775af085815cc27188b557dd102e99501"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "MPSC_BOUNDED_PARTITION_PROVED",
+      "scope": "partitioned_producer_interleaving_bmc",
+      "judge": "esbmc",
+      "subsystem": "ipc",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/ipc/mpsc.c",
+          "sha256": "6b5ebc2ea314339fc4cee3ad67f990fd320a8b1eddf5379f273f07acd76ed92e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+      "scope": "profile_bound_shared_hardware_inventory",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/multicore_interference.json",
+          "sha256": "5eb8cdf6f94f46496ad72de173f004fcec38f632db34a0d336312dee6c060b67"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "N150_PLATFORM_CONFIGURATION_PROVED",
+      "scope": "n150_x86_64_layout_vtd_correspondence",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/boot/layout-n150.ld",
+          "sha256": "8ba037888cb0f147ca00747482f88e0f2b7c923f21c2b1d91ecd74b13d0b269e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/n150_port.json",
+          "sha256": "7b2ba1064c64747802aa579fe4166d9710ec35e7ac6e31c0d4a0ae2fd4a65982"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "NETWORK_RESOURCE_PARTITION_PROVED",
+      "scope": "two_principal_ipv6_udp_tcp_four_queue_fabric",
+      "judge": "tlc+z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/network_scale.json",
+          "sha256": "f41ff9ee2e280f4fb80d12fb9966bb523cabdb72828a1ab2ee9816c6534abd3a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/network_scale.validation.json",
+          "sha256": "c0e84376381ed6fd9c44084a762ce67bca97aea9e0fb05f982fc3f1bba080f52"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "NUMA_ACCOUNTING_PROVED",
+      "scope": "three_process_two_node_symbolic_accounting",
+      "judge": "z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/dynamic_vm.json",
+          "sha256": "49e0be94643eb761b082cac0f311774ee941ed3c5789dd45d02f7f91a87fb310"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "POSIX_CONFORMANCE_TESTED",
+      "scope": "five_call_host_compiled_compatibility_shim",
+      "judge": "deterministic_abi_gate+host_c_runtime",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat.c",
+          "sha256": "2ad850ecaff1ebb4384eb84069551fbb3cada74d155f75c1d58fe65b184ecc8d"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat_abi.baseline.json",
+          "sha256": "7b2a701372525495787f4df5a459aaf45c9fdfc88f93f176ca5e4426394b9966"
+        },
+        {
+          "path": "examples/formalkernel/kernel/posix_compat_abi.json",
+          "sha256": "7677d1772f2f4d23ca8b1da80bb8fee07db86b057336211b22bfb2bc70515d0e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "PQ_COOPERATIVE_WCET_BOUND_PROVED",
+      "scope": "registry_lane:M60_pq_wcet",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M60_pq_wcet",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_ntt_workload.c",
+          "sha256": "daa07b9ee6b87dddcefb81ad539a0f2412bec8f1e3cc05f6c915a55864e9c13e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_wcet.json",
+          "sha256": "7e1a54f2c776ddd3314938f7ba6ca63cfe793cc5f091487d0f9ad35488e3dc99"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+          "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "PQ_PREEMPTION_BOUND_PROVED",
+      "scope": "el0_timer_preemption_n150",
+      "judge": "static_wcet",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_ntt_workload.c",
+          "sha256": "daa07b9ee6b87dddcefb81ad539a0f2412bec8f1e3cc05f6c915a55864e9c13e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_wcet.json",
+          "sha256": "7e1a54f2c776ddd3314938f7ba6ca63cfe793cc5f091487d0f9ad35488e3dc99"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+          "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "PQ_PREEMPTION_BOUND_PROVED",
+      "scope": "el0_timer_preemption_r52",
+      "judge": "static_wcet",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_ntt_workload.c",
+          "sha256": "daa07b9ee6b87dddcefb81ad539a0f2412bec8f1e3cc05f6c915a55864e9c13e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/pq_wcet.json",
+          "sha256": "7e1a54f2c776ddd3314938f7ba6ca63cfe793cc5f091487d0f9ad35488e3dc99"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+          "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "PROCESS_CONCURRENCY_MODEL_PROVED",
+      "scope": "two_process_two_thread_fork_exec_futex",
+      "judge": "tlc+z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/process_model.json",
+          "sha256": "e50307aeadda65cfe4f6c2dc9155dce64a10e8572587fc5783cb45f869d8505f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/process_model.validation.json",
+          "sha256": "24c3c09b0c1fd0f3c2005877f30b654837710128076df9fb143c52ff1bb5303b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "R52_TCM_PLACEMENT_PROVED",
+      "scope": "declared_r52_itcm_dtcm_placement",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/boot/layout-r52.ld",
+          "sha256": "02a11f9fe1590b686bec9ace9630b644571dc15008097668b57bfc65f25507db"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/r52_port.json",
+          "sha256": "2ef0853b953c604edbcae3f1e0d913aec87275c676321c2c0e37aa57955b9835"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "RCU_RECLAMATION_SAFETY_PROVED",
+      "scope": "parameterized_grace_period_invariant",
+      "judge": "tlapm+esbmc",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/RCURefinement.tla",
+          "sha256": "3837667c56a77501fa30a892732ba4cf41d285db0f8e5f2fff5e3913400f4f6a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/rcu.json",
+          "sha256": "e9b4fa8bb014f3c0be194ef2b003e012c9b6087d2374e69189835d48ad8e86e9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/rcu_witness.c",
+          "sha256": "74eed105766f8b3e46e73f51e5973251ab4b757bc9cf3faaa302f1c8ef1678e5"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "REFINEDRUST_ARRAY_TRANSLATION_VALIDATED",
+      "scope": "registry_lane:M76_semantic_refinement_spine",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M76_semantic_refinement_spine",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "Vfs.rs",
+          "sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00"
+        },
+        {
+          "path": "domains/v2/vfs_bounded.json",
+          "sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/m76_3b_allocator_feasibility.json",
+          "sha256": "20bbf5ae37201cf90cd36774fdff8ea02edca10e04fcf18e042330b0ed3e3616"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/patches/refinedrust-0.1.0-array-place-rfn.patch",
+          "sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_allocator/feasibility.json",
+          "sha256": "53ab7507658334e6184bcf096b4e424e31f709b7997f622707eb5577a710d3bd"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_array_regression/evidence.json",
+          "sha256": "ea3a15d100e1134a43ea4d4f005808bb6dac5666324d430464fb6e72e60103f3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_boundary_ledger.json",
+          "sha256": "bf7ad02608feb434fcc170924198cf6ac031b14654f28c302e819490bc936c1c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_feasibility_report.json",
+          "sha256": "617215f3d027c46aa528634f6178711d561cdf37c3019945300d33c48129db97"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_trait_impl_boundary/evidence.json",
+          "sha256": "a18b46760552dd1ed6840bfb213213ec3e7cab4cfbab1df599139fab2da847cf"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement_spine.json",
+          "sha256": "9dbe696ddedd8813d8420468eab920c1dc53fde2858e870f5eaf35899f26586d"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+      "scope": "vfs_promoted_model_to_host_object_artifact_identity",
+      "judge": "rustc+exhaustive_relational_harness",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "Vfs.rs",
+          "sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00"
+        },
+        {
+          "path": "domains/v2/vfs_bounded.json",
+          "sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/m76_3b_allocator_feasibility.json",
+          "sha256": "20bbf5ae37201cf90cd36774fdff8ea02edca10e04fcf18e042330b0ed3e3616"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/patches/refinedrust-0.1.0-array-place-rfn.patch",
+          "sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_allocator/feasibility.json",
+          "sha256": "53ab7507658334e6184bcf096b4e424e31f709b7997f622707eb5577a710d3bd"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_array_regression/evidence.json",
+          "sha256": "ea3a15d100e1134a43ea4d4f005808bb6dac5666324d430464fb6e72e60103f3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_boundary_ledger.json",
+          "sha256": "bf7ad02608feb434fcc170924198cf6ac031b14654f28c302e819490bc936c1c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_feasibility_report.json",
+          "sha256": "617215f3d027c46aa528634f6178711d561cdf37c3019945300d33c48129db97"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement/refinedrust_trait_impl_boundary/evidence.json",
+          "sha256": "a18b46760552dd1ed6840bfb213213ec3e7cab4cfbab1df599139fab2da847cf"
+        },
+        {
+          "path": "examples/formalkernel/kernel/refinement_spine.json",
+          "sha256": "9dbe696ddedd8813d8420468eab920c1dc53fde2858e870f5eaf35899f26586d"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "RUST_WITNESS_REFINEMENT_PROVED",
+      "scope": "bounded_nondet_operation_sequences",
+      "judge": "kani",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+      "scope": "tlc_per_task_under_weak_scheduler_fairness",
+      "judge": "tlc",
+      "subsystem": "scheduler",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/liveness.json",
+          "sha256": "b0165630f4ebecda3eab194ca5cdf74438f93685771c29691ea1b5082b5e5c9e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/liveness.validation.json",
+          "sha256": "0e359c81023e0fb13a44d045e97083467f3bb7bed983276f788d666647add837"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/runqueue.c",
+          "sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SERVER_AUTHORITY_SECURITY_MODEL_PROVED",
+      "scope": "reviewed_m49_m50_m65+parameterized_m89_creation_revocation+reviewed_m88_observables_declassification",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M89_1_capability_authority_algebra",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityAuthorityRefinement.tla",
+          "sha256": "1cf8e735045271e6d412a17491e4ea80cb722d1eb73559cf1e7c18deb0796e40"
+        },
+        {
+          "path": "examples/formalkernel/kernel/capability/CapabilityRevocationRefinement.tla",
+          "sha256": "9f05c774c3d3ac00c5ae0d055b37c6d6db7359f062101b0abb3f6f1f08454c0f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.candidate.json",
+          "sha256": "66c8e3455a412cc7a2246cf5afdc911d9a6974a9d439989c2675a5f7af7efb77"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+          "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_authority.validation.json",
+          "sha256": "61a6ed093439b984a4c3c8fffd8a9d19bc17cecbebfbcc35968828cafc8f0357"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_capability_revocation.validation.json",
+          "sha256": "1d5576691bb1587ecbb47c9c416308c8940b22342bef2f7a0869b8b488dfa146"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m89_server_authority_composition.validation.json",
+          "sha256": "81cf0f0d9379c344c7214ac366e865b15e01d7bbc145a67ddc5b207f4372ba18"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/capability_authority_model.py",
+          "sha256": "3ec43c5175b07742362dccccf67f011b12f26a917a640b0da065368ecd9be941"
+        },
+        {
+          "path": "pipeline/capability_authority_verification.py",
+          "sha256": "c6f0b823d7e9bc8f19432e5b2bd597db5ae0e3c1cde171cc92fb368e19e50573"
+        },
+        {
+          "path": "pipeline/capability_revocation_verification.py",
+          "sha256": "661010ef1c9a22ea42dd2e0a22b143f68e5b62a0f329da9a8e29ab2d94dc80ba"
+        },
+        {
+          "path": "pipeline/server_authority_composition.py",
+          "sha256": "19259e24d13b68230baee3abf6ae7a2517f3de4d95fdbf7cda741de55d5f2560"
+        }
+      ]
+    },
+    {
+      "claim": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+      "scope": "z3_bounded_server_capability_matrix",
+      "judge": "z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SERVER_POLICY_TRACE_NONINTERFERENCE_PROVED",
+      "scope": "reviewed_m49_m50_m65_bounded_trace_low_observables",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M88_1_information_flow_scope",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.candidate.json",
+          "sha256": "7b649e2b6c02742efba463690b80bdb532e54d3a14732634d4fff1036b7001b8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.validation.json",
+          "sha256": "339ff864c331ed95e06aeb7d7c4f769375c141b7887142fe32134f14cf987238"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.trace.validation.json",
+          "sha256": "664b78a472d583211fdf68b02a144f58bb84d6adcc29e6bfbf1b360e1629c5c8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.validation.json",
+          "sha256": "9e1a64c1ccb934833cdec46411e72b8420801b1ca2cffc0b7fa56ebcdcf08bc5"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.candidate.json",
+          "sha256": "059fc89f109c8983f9a7b0b4036a77b7670a5958d6ac60eef67ab2a0140ee81f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/hyperproperty_evidence.py",
+          "sha256": "20b86223d2d6792ae39bf4011cc5aab3b9a2a45bc76365a33e17d316187ffcaf"
+        },
+        {
+          "path": "pipeline/information_flow.py",
+          "sha256": "e2bd6620edf3acdc2b4a9db343b4e2577ae69164fdb7f47458b9a02688b1bb97"
+        }
+      ]
+    },
+    {
+      "claim": "SERVER_POLICY_TWO_RUN_NONINTERFERENCE_PROVED",
+      "scope": "reviewed_m49_m50_m65_one_step_low_observables",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M88_1_information_flow_scope",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.candidate.json",
+          "sha256": "7b649e2b6c02742efba463690b80bdb532e54d3a14732634d4fff1036b7001b8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+          "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_declassification.validation.json",
+          "sha256": "339ff864c331ed95e06aeb7d7c4f769375c141b7887142fe32134f14cf987238"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.trace.validation.json",
+          "sha256": "664b78a472d583211fdf68b02a144f58bb84d6adcc29e6bfbf1b360e1629c5c8"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow.validation.json",
+          "sha256": "9e1a64c1ccb934833cdec46411e72b8420801b1ca2cffc0b7fa56ebcdcf08bc5"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.candidate.json",
+          "sha256": "059fc89f109c8983f9a7b0b4036a77b7670a5958d6ac60eef67ab2a0140ee81f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+          "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+        },
+        {
+          "path": "examples/formalkernel/kernel/server_capabilities.json",
+          "sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/hyperproperty_evidence.py",
+          "sha256": "20b86223d2d6792ae39bf4011cc5aab3b9a2a45bc76365a33e17d316187ffcaf"
+        },
+        {
+          "path": "pipeline/information_flow.py",
+          "sha256": "e2bd6620edf3acdc2b4a9db343b4e2577ae69164fdb7f47458b9a02688b1bb97"
+        }
+      ]
+    },
+    {
+      "claim": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+      "scope": "r52_smmu_stream_dma_correspondence",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/r52_smmu.json",
+          "sha256": "e211a9e6ab1c62a74cb1786fe249beb8921ebe5480b4a66dac2650df2798d532"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SMP_SCHEDULER_INVARIANTS_PROVED",
+      "scope": "arbitrary_finite_cpu_task_sets_owner_affinity_migration",
+      "judge": "tlapm",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/SmpSchedulerRefinement.tla",
+          "sha256": "baf2cd02d1811bbf1bb990f308171a19a4c21e34a75dffbd69e22b9f712de666"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/smp_scheduler.json",
+          "sha256": "b2e96f4a5a10dbd83d765082a7e3e6554039d341e07ab2ea2436c1ba222efce4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SOURCE_MODEL_REFINEMENT",
+      "scope": "v2_atomic_contract_refinement",
+      "judge": "prusti",
+      "subsystem": "vfs",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "Vfs.rs",
+          "sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00"
+        },
+        {
+          "path": "domains/candidates/vfs_bounded.v2.validation.json",
+          "sha256": "d6e17c32a0b280620625a932c95780757308666a686bdc3cad14f39c319d3dab"
+        },
+        {
+          "path": "domains/candidates/vfs_bounded.v2.yaml",
+          "sha256": "d19382bcee673c9329708602ad09ad8c96f6a8a0347b0f6eb6ff43ae38041589"
+        },
+        {
+          "path": "domains/v2/vfs_bounded.json",
+          "sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625"
+        },
+        {
+          "path": "domains/v2/vfs_bounded.rust-refinement.yaml",
+          "sha256": "9206db286259dda1e2b9f8558966b4b16a3460b631a9e093ad0a06582bd0e675"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SPATIAL_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+          "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SPATIAL_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/elf_loader.json",
+          "sha256": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/loader/elf_loader.rs",
+          "sha256": "14f86035ebe361352564035a845bb7e9d8a7403459b7637e5dff6a2b81f8aec1"
+        },
+        {
+          "path": "examples/formalkernel/kernel/mmu.json",
+          "sha256": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SYSCALL_BOUNDARY_PROVED",
+      "scope": "deterministic_dispatch_table_n150",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SYSCALL_BOUNDARY_PROVED",
+      "scope": "deterministic_dispatch_table_r52",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "SYSTEM_COMPOSITION_PROVED",
+      "scope": "deterministic_precondition_flow",
+      "judge": "deterministic_gate",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/composition.json",
+          "sha256": "7cc9646544d053af9488f851f1ada1859aefcdc0a566cf56fcc065a39eeacf33"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "TCP_RESOURCE_CONTAINMENT_PROVED",
+      "scope": "bounded_adversarial_network_and_partitioned_quotas",
+      "judge": "tlc",
+      "subsystem": "net",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tcp_resource.json",
+          "sha256": "8c2e5b0977be243feb68544037eeb01a2f2c17d9abfec413ce682160d81371d2"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/tcp_resource.validation.json",
+          "sha256": "99f1e7c93824a5de39fd43d2b5dad974a6481eb58c78662913336191dcc93815"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "TOOL_QUALIFICATION_EVIDENCE_READY",
+      "scope": "reviewed_golden_vector_corpus_only",
+      "judge": "independent_stdlib_oracle",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/tool_qualification.json",
+          "sha256": "f90909be468c0c136cd9a99ab8d0930100b63b1585b7d329d19e4c1428343cf2"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        },
+        {
+          "path": "pipeline/qualification_oracle.py",
+          "sha256": "4987156e9b9eea60fdb865de95534916ca70ed5806f52fbe0131bfe0a27ab35a"
+        }
+      ]
+    },
+    {
+      "claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+      "scope": "external_device_behavior",
+      "judge": "none",
+      "subsystem": "vfs",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/ipc.json",
+          "sha256": "bff1b4888f8b9ae10172d9fbfac2c936e7fef85482f98c3646bf60ebe4ac7959"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/syscalls.json",
+          "sha256": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+          "sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+        },
+        {
+          "path": "examples/formalkernel/kernel/vfs/virtio_blk_dma.c",
+          "sha256": "51699f97c7363e89ec8233c2ff7e9849fc137e5097f6326855994d883722e588"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "USER_HEAP_CAPACITY_PROVED",
+      "scope": "kani_fixed_el0_heap_pool",
+      "judge": "kani",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/boot/proofs/src/lib.rs",
+          "sha256": "678372042516c19a0c11fb3f569c6f7f741872c94733417617b2f5ffbd264318"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/user/heap.rs",
+          "sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746"
+        },
+        {
+          "path": "examples/formalkernel/kernel/user_heap.json",
+          "sha256": "31266ca66f4042c30a2a33a61dd11891eb0fdabb577289084e0c38753893c51e"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VERUS_JUDGE_QUALIFIED",
+      "scope": "registry_lane:M86_verus_production_modules",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M86_verus_production_modules",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/bridges/evidence.json",
+          "sha256": "ecb1ea5c8c3bc005d915d51c71c05923425e66a3a8e8ae6b9399dee00925e965"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/feasibility.json",
+          "sha256": "417bab3f26dcff617c542f387ef78e776312a88698fa34f55556d2a2618fbb09"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/overlay_evidence.json",
+          "sha256": "7cce63cc98e7d3af9010e9d520d527972303e2b350fa73f15d2477c845278225"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_smoke/evidence.json",
+          "sha256": "14e71ab416d7e6570970407125a89009d14000148852fcc2a506c6b46fd52397"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VERUS_PRODUCTION_OVERLAY_QUALIFIED",
+      "scope": "registry_lane:M86_verus_production_modules",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M86_verus_production_modules",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/bridges/evidence.json",
+          "sha256": "ecb1ea5c8c3bc005d915d51c71c05923425e66a3a8e8ae6b9399dee00925e965"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/feasibility.json",
+          "sha256": "417bab3f26dcff617c542f387ef78e776312a88698fa34f55556d2a2618fbb09"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_allocator/overlay_evidence.json",
+          "sha256": "7cce63cc98e7d3af9010e9d520d527972303e2b350fa73f15d2477c845278225"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_smoke/evidence.json",
+          "sha256": "14e71ab416d7e6570970407125a89009d14000148852fcc2a506c6b46fd52397"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VERUS_VIRTIO_BLK_OVERLAY_QUALIFIED",
+      "scope": "registry_lane:M86_2_verus_production_coverage",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M86_2_verus_production_coverage",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_m86_2_feasibility.json",
+          "sha256": "27216b2da35d0ae524cc6b902ecff5ab5956a03ba66c8132271a17fc26617a00"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/evidence.json",
+          "sha256": "4dbfbbd9a88204760ae6c657138d9d1492d898ca952d42c6ec663ea86c2585c3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/functional_evidence.json",
+          "sha256": "8ea8cda7a7db76e5fa1aeb6a326948a84c96660978873aa7f08644d3f24ee97d"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/model_bridge.json",
+          "sha256": "b3d87e577bc0ab629f9d2fd5d1f2e56289f7b2e2575d7f51c1425d564324c8e0"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/mutation_suite.json",
+          "sha256": "8fe0e88e012cbe144da6c698ae098c70e195eb760407dcbc1a72bc047af88301"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.candidate.json",
+          "sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.reviewed.json",
+          "sha256": "cb3d2de50ac57c90f73d8aa67a95a1fa5ac8e085a0d3c89c753f7409ca90a67c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.validation.json",
+          "sha256": "6db13cf7bbfb6cfc87aa14edc0b783382e6ceaeddc736cc4c7508df3fd058f1b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED",
+      "scope": "registry_lane:M86_2_verus_production_coverage",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M86_2_verus_production_coverage",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_m86_2_feasibility.json",
+          "sha256": "27216b2da35d0ae524cc6b902ecff5ab5956a03ba66c8132271a17fc26617a00"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/evidence.json",
+          "sha256": "4dbfbbd9a88204760ae6c657138d9d1492d898ca952d42c6ec663ea86c2585c3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/functional_evidence.json",
+          "sha256": "8ea8cda7a7db76e5fa1aeb6a326948a84c96660978873aa7f08644d3f24ee97d"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/model_bridge.json",
+          "sha256": "b3d87e577bc0ab629f9d2fd5d1f2e56289f7b2e2575d7f51c1425d564324c8e0"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/mutation_suite.json",
+          "sha256": "8fe0e88e012cbe144da6c698ae098c70e195eb760407dcbc1a72bc047af88301"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.candidate.json",
+          "sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.reviewed.json",
+          "sha256": "cb3d2de50ac57c90f73d8aa67a95a1fa5ac8e085a0d3c89c753f7409ca90a67c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.validation.json",
+          "sha256": "6db13cf7bbfb6cfc87aa14edc0b783382e6ceaeddc736cc4c7508df3fd058f1b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VIRTIO_QUEUE_MODEL_BRIDGE_PROVED",
+      "scope": "registry_lane:M86_2_verus_production_coverage",
+      "judge": "registry_bound_evidence",
+      "subsystem": "M86_2_verus_production_coverage",
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_m86_2_feasibility.json",
+          "sha256": "27216b2da35d0ae524cc6b902ecff5ab5956a03ba66c8132271a17fc26617a00"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/evidence.json",
+          "sha256": "4dbfbbd9a88204760ae6c657138d9d1492d898ca952d42c6ec663ea86c2585c3"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/functional_evidence.json",
+          "sha256": "8ea8cda7a7db76e5fa1aeb6a326948a84c96660978873aa7f08644d3f24ee97d"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/model_bridge.json",
+          "sha256": "b3d87e577bc0ab629f9d2fd5d1f2e56289f7b2e2575d7f51c1425d564324c8e0"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/mutation_suite.json",
+          "sha256": "8fe0e88e012cbe144da6c698ae098c70e195eb760407dcbc1a72bc047af88301"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.candidate.json",
+          "sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.reviewed.json",
+          "sha256": "cb3d2de50ac57c90f73d8aa67a95a1fa5ac8e085a0d3c89c753f7409ca90a67c"
+        },
+        {
+          "path": "examples/formalkernel/kernel/verus_virtio/queue_model.validation.json",
+          "sha256": "6db13cf7bbfb6cfc87aa14edc0b783382e6ceaeddc736cc4c7508df3fd058f1b"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "VM_RESOURCE_ISOLATION_PROVED",
+      "scope": "three_process_two_node_symbolic_accounting",
+      "judge": "z3",
+      "subsystem": null,
+      "profile": null,
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/dynamic_vm.json",
+          "sha256": "49e0be94643eb761b082cac0f311774ee941ed3c5789dd45d02f7f91a87fb310"
+        },
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_n150",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+          "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_n150",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/timer_tick.c",
+          "sha256": "d06187bd9ef778da3826d793afa8c0fa9b16cdc244a3bb9b26107ca6669dfae1"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_r52",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/scheduler/sched_tick.c",
+          "sha256": "dfd781617e33ced3d42424c35301cfd27f7c1ddd618f6969c1c0fce6f028823c"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_r52",
+      "judge": "deterministic_gate",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/net/timer_tick.c",
+          "sha256": "d06187bd9ef778da3826d793afa8c0fa9b16cdc244a3bb9b26107ca6669dfae1"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "armv8_sc",
+      "judge": "herd7",
+      "subsystem": "scheduler",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "armv8_sc",
+      "judge": "herd7",
+      "subsystem": "net",
+      "profile": "r52",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "x86_tso",
+      "judge": "herd7",
+      "subsystem": "scheduler",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "x86_tso",
+      "judge": "herd7",
+      "subsystem": "net",
+      "profile": "n150",
+      "dependencies": [
+        {
+          "path": "examples/formalkernel/kernel/kernel.json",
+          "sha256": "4b2630a711053b9c9d89307ea73c6de45a44555b7e55dc8b792f6562e8ba4244"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory.json",
+          "sha256": "609197851772ce498408622c1c2a09a3c43601faf1d13d8eaecf3665ec75a08a"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/aarch64_message_passing.litmus",
+          "sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f"
+        },
+        {
+          "path": "examples/formalkernel/kernel/weak_memory/x86_message_passing.litmus",
+          "sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87"
+        },
+        {
+          "path": "examples/formalkernel/profiles/n150.json",
+          "sha256": "2cae1303aa42d2e21564f7d3763947140435a3c516adc4a733ee798ddffc5cc4"
+        },
+        {
+          "path": "examples/formalkernel/profiles/r52.json",
+          "sha256": "e6bcbdb551468dd19dda495607b52d934b38482781777df0d54e45584fc1ede3"
+        }
+      ]
+    }
+  ],
+  "claim_graph_hash": "6e096a5a1006975272eb7e369e752f0fd55ad833814dd90186f87078d9316353",
+  "judge_versions": [
+    {
+      "name": "OpenJML",
+      "status": "READY",
+      "version": "openjml 21.0.27",
+      "resolved_executable": "/home/sheel/formalspecgen/tools/openjml-dist/openjml",
+      "executable_sha256": "077efb88a059a09c43ccf5171031bdc0c70816765b8abf3cb7f0aeb151847adf"
+    },
+    {
+      "name": "TLC",
+      "status": "READY",
+      "version": "\u001b[1mNAME\u001b[0m",
+      "resolved_executable": "/usr/bin/java",
+      "executable_sha256": "41839c43fbb6c35f73d72f896ae2c885042fe98661128ae0d3324339f552fd53"
+    },
+    {
+      "name": "Prusti",
+      "status": "READY",
+      "version": "rustc 1.74.0-nightly (ca2b74f1a 2023-09-14)",
+      "resolved_executable": "/home/sheel/formalspecgen/tools/prusti/prusti-rustc",
+      "executable_sha256": "b232db53e167f27debfab86e7a00df2f184b199e8ddcfecf14ea0db8d0dceb70"
+    },
+    {
+      "name": "Frama-C",
+      "status": "READY",
+      "version": "33.0 (Arsenic)",
+      "resolved_executable": "/home/sheel/formalspecgen/tools/frama-c-33.0/bin/frama-c",
+      "executable_sha256": "03f393e273b6e6cd7fb1648b6c464bdc05068ec30d6ed3791279deeb1321a4d5"
+    },
+    {
+      "name": "ESBMC",
+      "status": "READY",
+      "version": "ESBMC version 8.4.0 64-bit x86_64 linux",
+      "resolved_executable": "/usr/bin/esbmc",
+      "executable_sha256": "e4337a2d9df2d3b95803cc8890fcc7c91635cc44c14c0e2018a116c519c9c9be"
+    },
+    {
+      "name": "Z3",
+      "status": "READY",
+      "version": "Z3 version 4.8.12 - 64 bit",
+      "resolved_executable": "/home/sheel/.local/bin/z3",
+      "executable_sha256": "34ffd5418a419df041650767d9be168cf8d2f71422bb32b0e52255f1b0e06706"
+    },
+    {
+      "name": "Semgrep",
+      "status": "ABSENT",
+      "version": null,
+      "resolved_executable": null,
+      "executable_sha256": null
+    },
+    {
+      "name": "herd7",
+      "status": "READY",
+      "version": "7.58, Rev: 30f1417565df3128048cc924dfa6a459d4de69bc",
+      "resolved_executable": "/home/sheel/.local/bin/herd7",
+      "executable_sha256": "042286fff80089ca1bf223ec7619e02725cca3bb6dc39dfadce4c37879440a5e"
+    },
+    {
+      "name": "TLAPS",
+      "status": "READY",
+      "version": "4600b24",
+      "resolved_executable": "/home/sheel/formalspecgen/.tools/tlaps/bin/tlapm",
+      "executable_sha256": "1de5983ac393658362fe61882e270b65648fa07945453e971fcf9eeabf5ec579"
+    },
+    {
+      "name": "Rustc",
+      "status": "READY",
+      "version": "rustc 1.92.0 (ded5c06cf 2025-12-08)",
+      "resolved_executable": "/home/sheel/.cargo/bin/rustc",
+      "executable_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+    },
+    {
+      "name": "Dafny",
+      "status": "READY",
+      "version": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
+      "resolved_executable": "/home/sheel/.dotnet/tools/dafny",
+      "executable_sha256": "e95d45630f5716e8b8fe9a999e97b4f330f1fc4b0f87a0acb5530a79bcefdcd9"
+    },
+    {
+      "name": "Kani",
+      "status": "READY",
+      "version": "cargo-kani 0.67.0",
+      "resolved_executable": "/home/sheel/.cargo/bin/cargo",
+      "executable_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+    },
+    {
+      "name": "Rocq",
+      "status": "READY",
+      "version": "The Rocq Prover, version 9.2",
+      "resolved_executable": "/usr/bin/opam",
+      "executable_sha256": "22222e47a7bbe31946500457a8e6da4fa789afc78bc0c7593b00a328a5b6f615",
+      "invocation_environment": {
+        "opam_switch": "refinedrust"
+      }
+    },
+    {
+      "name": "RefinedRust",
+      "status": "READY",
+      "version": "RefinedRust 0.1.0 for nightly-2026-08-12 (349fb62)",
+      "resolved_executable": "/usr/bin/opam",
+      "executable_sha256": "22222e47a7bbe31946500457a8e6da4fa789afc78bc0c7593b00a328a5b6f615",
+      "invocation_environment": {
+        "opam_switch": "refinedrust"
+      }
+    },
+    {
+      "name": "Verus",
+      "status": "READY",
+      "version": "Verus",
+      "resolved_executable": "/home/sheel/formalspecgen/.tools/verus-download/verus-x86-linux/verus",
+      "executable_sha256": "8042cdd01331d939d4c3d03dd947c8b076b042d0016b98541ee895cf0e6c282d",
+      "invocation_environment": {
+        "pinned_toolchain": "1.97.1-x86_64-unknown-linux-gnu"
+      }
+    }
+  ],
+  "judge_manifest_hash": "2fa4fc5e0898772fc15e32e359a4cea6fbfa3ce8bb614944fb017b50c4e64da4",
+  "compiler_toolchain": {
+    "rustc": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3",
+    "cc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "linker": "GNU ld (GNU Binutils for Ubuntu) 2.42\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis program is free software; you may redistribute it under the terms of\nthe GNU General Public License version 3 or (at your option) a later version.\nThis program has absolutely no warranty."
+  },
+  "trusted_assumptions": [
+    "ARM ERET follows the architectural specification",
+    "C witness uses SC ESBMC atomic sections",
+    "CPUID and microcode profile is human declared",
+    "DMA physical isolation belongs to M39/M56",
+    "EL1-to-EL0 ERET transition belongs to M62",
+    "Exact allocator iterator and slice-index semantics:judge_pending",
+    "M48 spatial isolation",
+    "M49 syscall mediation",
+    "M61 litmus abstraction remains independently reviewed",
+    "M77 production Rust implementation is absent",
+    "M77 quota bound is two pages",
+    "PQ workload remains EL0 in the microkernel",
+    "Prusti ghost erasure has no runtime semantics",
+    "RefinedRust 0.1.0 array-field correction is local and not upstream-accepted",
+    "RefinedRust Result Try::branch standard-library shim:judge_pending",
+    "SHA-256 strength independently assumed",
+    "TLA atomic actions correspond to intended linearization points",
+    "Verus and bundled solver binaries match the recorded hashes",
+    "WF_vars(Schedule) weak fairness",
+    "a qualified self-composition judge is required from step 2",
+    "adversarial envelope is complete for this bounded model",
+    "affinity is human policy",
+    "algorithm parameter sizes are human-reviewed inputs",
+    "artifact identity is not machine-code semantic refinement",
+    "bounded task set of three reviewed task identities",
+    "candidate queue-model review is a human trust action",
+    "candidate ranking is guidance and not correctness evidence",
+    "candidate scan is non-evidentiary",
+    "channel inventory is complete for reviewed targets",
+    "declared WAL persistence and torn-write contract",
+    "device and SMMU implement the reviewed configuration",
+    "exception-vector assembly refines the reviewed model",
+    "external authority determines qualification context",
+    "external cryptographic outcomes are nondeterministic",
+    "finite CPU and task sets",
+    "firmware loads the image at the reviewed address",
+    "four static NIC queues",
+    "golden corpus is independently reviewed and representative",
+    "hardware IOMMU enforcement:judge_pending",
+    "hardware implements the declared architectural model",
+    "hardware page-table walker:judge_pending",
+    "hardware_page_table_walker:judge_pending",
+    "high/low partition is human-reviewed before proof",
+    "host runtime is an empirical surrogate",
+    "host rustc is not a verified compiler",
+    "human sealing remains outside agent-accessible interfaces",
+    "human-declared ARM SMMUv3 stream IDs",
+    "human-declared PCI requester IDs",
+    "human-declared SoC TCM base addresses",
+    "identical public inputs in both runs",
+    "implementation representation is outside the model",
+    "kernel grants the declared 4096-byte frame window",
+    "liboqs is an unverified external adapter",
+    "litmus abstraction is human-reviewed",
+    "measurement authenticity requires human review",
+    "monolith invokes the hash-bound cooperative yield",
+    "one page per queue entry",
+    "ordinary imported Rust with zero obligations is not proof",
+    "per-mitigation cycle costs are declared, not measured",
+    "physical Cortex-R52 execution remains judge_pending",
+    "physical M67-M69 closures remain pending",
+    "physical device honors reviewed FUA boundary",
+    "principals, objects, and rights are arbitrary finite nonempty sets",
+    "production architecture determines when a new primitive exists",
+    "profile instruction costs are human-owned",
+    "qualified compiler lowering is required only after an atomic candidate exists",
+    "requirements set is human-reviewed and complete",
+    "reviewed ABI v1 baseline",
+    "reviewed requester IDs and IOMMU roots",
+    "reviewed root key identity",
+    "root mint authority is human policy",
+    "single injected fault",
+    "static resource reservations",
+    "supervisor page remains healthy",
+    "termination-insensitive and timing-insensitive scope",
+    "the final deployable binary is not built at M90.1",
+    "three-process admitted topology",
+    "two admitted guests",
+    "two processes and two threads",
+    "two static NUMA nodes",
+    "two-principal queue policy",
+    "two-principal quota partition is the deployment policy",
+    "virtio device behavior:unverified_external",
+    "weak fairness applies to handshake control progress"
+  ],
+  "judge_pending": [
+    "ATOMIC_OPERATION_FUNCTIONAL_CORRECTNESS_PROVED",
+    "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+    "GET_MUT_FRAME_SEMANTICS_PROVED",
+    "ITERATOR_TRAVERSAL_SEMANTICS_PROVED",
+    "OCCUPANCY_COUNT_CORRESPONDENCE_PROVED",
+    "PROOF_CARRYING_BINARY_VALIDATED",
+    "RUST_ATOMIC_LITMUS_CORRESPONDENCE_PROVED",
+    "RUST_ATOMIC_LOWERING_CORRESPONDENCE_VALIDATED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "SECOND_MODULE_IMPLEMENTATION_CORRECTNESS_PROVED",
+    "SECOND_MODULE_MODEL_BRIDGE_PROVED",
+    "VERUS_SECOND_MODULE_OVERLAY_QUALIFIED",
+    "WEAK_MEMORY_IMPLEMENTATION_REFINEMENT_PROVED"
+  ],
+  "forbidden_claims": [
+    "ABI_STABILITY_PROVED",
+    "ARBITRARY_PROCESS_COUNT_PROVED",
+    "ATOMIC_FIELD_UPGRADE_PROVED",
+    "BINARY_SEMANTICS_PROVED",
+    "CAPABILITY_HARDWARE_ENFORCEMENT_PROVED",
+    "CAPABILITY_IMPLEMENTATION_REFINEMENT_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "COMPILED_SOURCE_LITMUS_REFINEMENT_PROVED",
+    "COMPILED_VECTOR_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "CPU_HOTPLUG_PROVED",
+    "CRYPTOGRAPHIC_STRENGTH_PROVED",
+    "DEVICE_FIRMWARE_CRASH_SAFETY_PROVED",
+    "DO330_QUALIFIED",
+    "DO_178C_LEVEL_A_CERTIFIED",
+    "DRIVER_DEVICE_BEHAVIOR_PROVED",
+    "DYNAMIC_VM_IMPLEMENTATION_REFINEMENT_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED",
+    "END_TO_END_REFINEMENT_CHAIN_WITHOUT_IR_SEMANTICS",
+    "EXTERNAL_IO_SAFETY_PROVED",
+    "FAULT_HANDLER_IMPLEMENTATION_REFINEMENT_PROVED",
+    "FULL_IPV6_CONFORMANCE_PROVED",
+    "FULL_POSIX_CONFORMANCE_PROVED",
+    "GENERAL_PURPOSE_ALLOCATOR_PROVED",
+    "GENERAL_TRANSFORMATION_CORRECTNESS_PROVED",
+    "GUEST_SIDE_CHANNEL_NONINTERFERENCE_PROVED",
+    "HARDWARE_CAPABILITY_ENFORCEMENT_PROVED",
+    "HARDWARE_EXCEPTION_LEVEL_TRANSITION_PROVED",
+    "HARDWARE_INTERRUPT_DELIVERY_PROVED",
+    "HARDWARE_MEMORY_BOUND_PROVED_WITHOUT_PROFILE_BOUND_POOL",
+    "HARDWARE_PAGE_TABLE_WALK_PROVED",
+    "HARDWARE_TIMER_FAIRNESS_PROVED",
+    "HARDWARE_TLB_COHERENCE_PROVED",
+    "HYPERVISOR_IMPLEMENTATION_REFINEMENT_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED",
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "INTERRUPT_REMAP_HARDWARE_PROVED",
+    "IPI_DELIVERY_PROVED",
+    "ISO_26262_CERTIFIED",
+    "KERNEL_SYSCALL_REFINEMENT_PROVED",
+    "KEY_CUSTODY_PROVED",
+    "LIBOQS_IMPLEMENTATION_PROVED",
+    "MBEDTLS_IMPLEMENTATION_REFINEMENT_PROVED",
+    "MCE_HARDWARE_SEMANTICS_PROVED",
+    "MEASURED_MITIGATION_WCET_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "MONOLITH_PREEMPTIVE_ISOLATION_PROVED",
+    "MSIX_DELIVERY_PROVED",
+    "MULTICORE_TIMING_INTERFERENCE_PROVED",
+    "N150_PHYSICAL_BOOT_PROVED",
+    "N150_PHYSICAL_VTD_PROVED",
+    "NATIVE_FUTEX_PROVED",
+    "NESTED_PAGE_TABLE_ENFORCEMENT_PROVED",
+    "NETWORK_STACK_REFINEMENT_PROVED",
+    "NVME_DEVICE_BEHAVIOR_PROVED",
+    "PHYSICAL_CRASH_INJECTION_VALIDATED",
+    "PHYSICAL_ECC_DELIVERY_PROVED",
+    "PHYSICAL_FUA_SEMANTICS_PROVED",
+    "PHYSICAL_HARD_REALTIME_PROVED",
+    "PHYSICAL_IOMMU_ENFORCEMENT_PROVED",
+    "PHYSICAL_PACKET_DELIVERY_PROVED",
+    "PHYSICAL_SILICON_MEMORY_MODEL_PROVED",
+    "PHYSICAL_SMMU_DMA_BLOCK_PROVED",
+    "PHYSICAL_TPM_SEMANTICS_PROVED",
+    "PHYSICAL_USER_HEAP_MAPPING_PROVED",
+    "POSIX_CONFORMANCE_PROVED",
+    "PROCESS_IMPLEMENTATION_REFINEMENT_PROVED",
+    "PRODUCTION_UNTIL_ALL_STEP_4_GATES",
+    "R52_MEASURED_WCET_PROVED",
+    "R52_PHYSICAL_BOOT_PROVED",
+    "R52_SOC_ADDRESS_CONFORMANCE_PROVED",
+    "RCU_CALLBACK_PRESSURE_PROVED",
+    "RCU_IMPLEMENTATION_REFINEMENT_PROVED",
+    "RCU_IRQ_NMI_SAFETY_PROVED",
+    "RFC5961_CONFORMANCE_PROVED",
+    "RFC9293_CONFORMANCE_PROVED",
+    "RUNTIME_CPUID_PROFILE_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "SCHEDULER_SOURCE_MODEL_REFINEMENT_PROVED",
+    "SHA256_COLLISION_RESISTANCE_PROVED",
+    "SMP_IMPLEMENTATION_REFINEMENT_PROVED",
+    "SMP_SCHEDULER_LIVENESS_PROVED",
+    "SOURCE_MODEL_REFINEMENT_WITHOUT_NATIVE_GATE",
+    "SPECULATIVE_NONINTERFERENCE_PROVED",
+    "TARGET_WCET_INTERFERENCE_BOUND_VALIDATED",
+    "TCP_IMPLEMENTATION_REFINEMENT_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "TLS_TRANSCRIPT_AUTHENTICITY_PROVED",
+    "TOOL_CORRECTNESS_PROVED",
+    "UNBOUNDED_SCHEDULER_LIVENESS_PROVED",
+    "VERIFIED_COMPILER_PROVED",
+    "VM_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED"
+  ],
+  "local_tool_patches": [
+    {
+      "id": "embedded_array_place_rfn",
+      "status": "CLOSED_LOCALLY",
+      "qualified": true,
+      "upstream_accepted": false,
+      "activation": "explicit workspace-local patched frontend",
+      "patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a",
+      "ledger_path": "examples/formalkernel/kernel/refinement/refinedrust_boundary_ledger.json",
+      "ledger_sha256": "bf7ad02608feb434fcc170924198cf6ac031b14654f28c302e819490bc936c1c"
+    }
+  ],
+  "human_promotions": [
+    {
+      "path": "examples/formalkernel/kernel/m88_declassification.reviewed.json",
+      "sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9"
+    },
+    {
+      "path": "examples/formalkernel/kernel/m88_information_flow_scope.reviewed.json",
+      "sha256": "00729eb3be3f5ac130275cb5c4ef494558655a18afe52ec7987397cdf71ca913"
+    },
+    {
+      "path": "examples/formalkernel/kernel/m89_capability_authority.reviewed.json",
+      "sha256": "82529543fff1fc74fec959494e25b031153b9cd1120fedd6b2a5a439ccb7c1e2"
+    }
+  ],
+  "promotion_inventory_hash": "9e69dacae7c7f724e742d586e2c29aeae80d9a6f49cf0a64598fd06a8a3cbdfa",
+  "locked_claims": [
+    "PROOF_CARRYING_BINARY_VALIDATED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

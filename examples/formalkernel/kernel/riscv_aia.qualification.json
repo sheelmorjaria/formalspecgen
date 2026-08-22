@@ -1,0 +1,21 @@
+{
+  "status": "RISCV_AIA_CANDIDATE_QUALIFIED",
+  "claim": "NO_PROOF",
+  "candidate_policy_sha256": "840e178cf825013b5600326a1a2defd98d7c5e201e1d38f16b87fea0c7f79576",
+  "tlc_version": "2.19 of 08 August 2024",
+  "base_status": "VERIFIED",
+  "semantic_mutations_rejected": 5,
+  "mutation_results": {
+    "wrong_hart": "TLC_FAILED",
+    "wrong_interrupt_id": "TLC_FAILED",
+    "wrong_imsic_file": "TLC_FAILED",
+    "trap_bypass": "TLC_FAILED",
+    "ack_fabricates_pending": "TLC_FAILED"
+  },
+  "boundaries": [
+    "candidate policy is not reviewed",
+    "QEMU AIA behavior is not proved",
+    "VS-mode guest interrupt files are excluded",
+    "physical delivery and latency are not proved"
+  ]
+}

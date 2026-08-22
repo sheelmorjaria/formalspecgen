@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "lane": "M86.1b_exact_allocator_feasibility",
+  "status": "NO_PROOF",
+  "claim": "NO_PROOF",
+  "reason": "EXACT_PRODUCTION_MODULE_HAS_ZERO_VERIFIED_OBLIGATIONS",
+  "production_source": "examples/formalkernel/kernel/user/heap.rs",
+  "production_source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "harness": "examples/formalkernel/kernel/verus_allocator/allocator_feasibility.rs",
+  "harness_sha256": "4b098f73c58662cefda9f9d129534bd5dae7250f274820b749e1cd4ec69bfaa3",
+  "exact_source_link": "#[path = \"../user/heap.rs\"]",
+  "verus_exit_code": 0,
+  "verus_verified_obligations": 0,
+  "verus_errors": 0,
+  "output_sha256": "3d05249b60689d3cf06fec0968f0a63908728280962119596f71f96208dd09bc",
+  "interpretation": "Toolchain acceptance without a verification obligation is not evidence.",
+  "production_rewritten": false,
+  "claims_locked": [
+    "BOUNDED_ALLOCATOR_FUNCTIONAL_CORRECTNESS_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

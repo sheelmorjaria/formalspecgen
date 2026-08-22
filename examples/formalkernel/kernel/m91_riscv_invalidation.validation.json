@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "mutation": "compiled_rv64_source",
+      "status": "REBUILD_REQUIRED"
+    },
+    {
+      "mutation": "target_triple",
+      "status": "REBUILD_REQUIRED"
+    },
+    {
+      "mutation": "riscv_linker_script",
+      "status": "REBUILD_REQUIRED"
+    },
+    {
+      "mutation": "riscv_hardware_profile",
+      "status": "REBUILD_REQUIRED"
+    },
+    {
+      "mutation": "system_composition_evidence",
+      "status": "REPLAY_REQUIRED"
+    },
+    {
+      "mutation": "m91_guest_model_evidence",
+      "status": "UNCHANGED_OUTSIDE_APPLICABLE_CLOSURE"
+    },
+    {
+      "mutation": "aarch64_binary_evidence",
+      "status": "UNCHANGED_OUTSIDE_APPLICABLE_CLOSURE"
+    },
+    {
+      "mutation": "fabricate_guest_claim_applicability",
+      "status": "HARD_REFUSAL"
+    },
+    {
+      "mutation": "riscv_iommu_claim",
+      "status": "HARD_REFUSAL_PARKED"
+    }
+  ],
+  "claim": "NO_PROOF",
+  "mutations_executed": 9,
+  "mutations_passed": 9,
+  "scope": "qemu_riscv64_elf_artifact_identity_and_applicable_evidence_closure",
+  "status": "RISCV_EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED"
+}

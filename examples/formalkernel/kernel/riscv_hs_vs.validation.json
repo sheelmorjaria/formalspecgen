@@ -1,0 +1,26 @@
+{
+  "claim": "RISCV_GUEST_PRIVILEGE_TRANSITION_MODEL_PROVED",
+  "compiled_guest_vector_refinement_proved": false,
+  "distinct_states": 15,
+  "feasibility_sha256": "b33da68008b6a00b08f967356100e272a27234625dec0ba9127bc3b876c4ed81",
+  "g_stage_isolation_proved": false,
+  "generated_cfg_sha256": "450c993fc6cb69889c563a528f3ba33f1499ade20eccd1dd8582f6caf18d0f9c",
+  "generated_tla_sha256": "7e28fee2c610025515eafb1dab019a21b2ee16b63d81dfb20a271106f8e33a40",
+  "host_transition_evidence_sha256": "1a929b0acc67409389a3ab9bb5a21781f7ae8c045fdd135ebae785ada04920c7",
+  "judge": "tlc",
+  "physical_guest_execution_proved": false,
+  "properties": [
+    "REVIEWED_GUEST_CONTEXT_REQUIRED",
+    "CROSS_GUEST_SELECTION_REJECTED",
+    "HS_DISPATCH_PATH_REQUIRED",
+    "TRAPPED_RESUME_REQUIRES_DISPATCH",
+    "VMID_CONTEXT_CONSISTENCY"
+  ],
+  "qemu_h_extension_semantics_proved": false,
+  "reviewed_policy_sha256": "39cb2d6d51a3baf0d4d9f75549109654200f11ddac9c91fe03dc0cd8e3b1465e",
+  "reviewed_profile_sha256": "f75e4f6b1b2602089e8fedef8388f18dff4cd756b941e336dc091db1a72ec122",
+  "scope": "reviewed_qemu_virt_h_extension_hs_vs",
+  "status": "RISCV_GUEST_PRIVILEGE_TRANSITION_MODEL_PROVED",
+  "tlc_version": "2.19 of 08 August 2024",
+  "vs_interrupt_routing_proved": false
+}

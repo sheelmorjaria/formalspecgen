@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "status": "REVIEWED_RISCV_VS_IMSIC_POLICY",
+  "scope": "reviewed_qemu_virt_h_extension_vs_imsic_guest_files",
+  "delivery": "hypervisor_mediated",
+  "physical_hart": 0,
+  "s_mode_file": {
+    "owner": "hs",
+    "vs_visible": false
+  },
+  "guest_files": [
+    {
+      "guest": "guest1",
+      "vgein": 1,
+      "vmid": 1,
+      "interrupt_id": 48
+    },
+    {
+      "guest": "guest2",
+      "vgein": 2,
+      "vmid": 2,
+      "interrupt_id": 49
+    }
+  ],
+  "invalid_vgein": [
+    0,
+    3
+  ],
+  "state_fields": [
+    "guest_file_pending",
+    "guest_file_enabled",
+    "hgeip",
+    "hgeie",
+    "vgein",
+    "vseip"
+  ],
+  "identity_dependencies": {
+    "vs_context": "M91.5a",
+    "gstage_vmid": "M91.5b",
+    "host_trap_path": "M91.4"
+  },
+  "guest_switch_contract": "clear_vgein_before_vs_resume_preserve_unselected_pending",
+  "direct_device_assignment": false,
+  "normative_references": [
+    "https://docs.riscv.org/reference/aia/v1.0/IMSIC.html",
+    "https://docs.riscv.org/reference/isa/priv/hypervisor.html"
+  ],
+  "accepted_candidate_sha256": "0ee707fbe3a9b426731918e69d7fdc8fe23cdbac4095cd27f85137e5d460909b",
+  "review_scope": "guest_file_ownership_vgein_identity_and_switch_lifecycle"
+}

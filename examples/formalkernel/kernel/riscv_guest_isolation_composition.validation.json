@@ -1,0 +1,116 @@
+{
+  "claim": "RISCV_GUEST_ISOLATION_MODEL_PROVED",
+  "compiled_hypervisor_refinement_proved": false,
+  "composition_model_sha256": "bcb8e2292ef8073e1951d6c69add93574c82c1eb60b2c0a88cfb3c29f1573fdc",
+  "direct_device_assignment_proved": false,
+  "distinct_states": 16,
+  "generated_cfg_sha256": "38dc0983d2d67e6cfc55907b2d5051c27d302d63b1febceb3eb31847c294234b",
+  "generated_tla_sha256": "bcb8e2292ef8073e1951d6c69add93574c82c1eb60b2c0a88cfb3c29f1573fdc",
+  "gstage_evidence_sha256": "0673c99517fa166e56a90d4deca20f26baa9edf7556e22664c93574ffcac9570",
+  "guest_device_dma_isolation_proved": false,
+  "guest_interrupt_evidence_sha256": "cc814fb0691931bba2d9336dc720c9caaf2070636d96c7c5cbd5fdf0d2ecec35",
+  "guest_transition_evidence_sha256": "de3370ec7fa5d41728e82ed78d04306b27e2bd48e7193b9725ea9e4d4f2937ed",
+  "hardware_g_stage_walk_proved": false,
+  "hardware_guest_interrupt_delivery_proved": false,
+  "iommu_guest_msi_remap_proved": false,
+  "judge": "tlc_composition",
+  "judge_executable_sha256": {
+    "java": "41839c43fbb6c35f73d72f896ae2c885042fe98661128ae0d3324339f552fd53",
+    "tla2tools_jar": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+  },
+  "mutation_results": [
+    {
+      "generated_tla_sha256": "799df4318ca83af586a53dc68ffe2c54a62e70fb0207b122d79f4cec7d1bb89f",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "4aaf6d650944aaa09fda6f1dbf9b2c09bb99318e906efe5adb491ff4a332730f",
+      "mutation": "cpu_b_memory_a",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "0ab26ca15c59625eaf6d9442b3b0fd0007c485e8eb4683bfd5204255aae71eff",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "84e74166a8700a48368db92fbd545f2bc0a438d7379b332af04cb303656f85a8",
+      "mutation": "memory_b_interrupt_a",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "d6d14b37d373fda948a7023e3c4dc161f5bf06323163fd9612b8ac102c3b8a75",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "1b67d8cb10495271baa8b88df83270948a9b4eca4d95bf4536740c2167c77dda",
+      "mutation": "interrupt_before_quiesce",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "31a09d80661330ea6889e43dc2a66e8e062e820f73e16769d0a1211694428099",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "08665c7101e44a6f4f2d6e78e6dd78ea28a3212e8a1618e248085fddb76ea7bd",
+      "mutation": "resume_before_memory",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "06f3ee64697fc05cd8906718d16456486b09f9dfb2b90c0750f0c7cfb3affc7c",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "59118bb594daae1c68a731d88aa1118f7a58f27bc0c4742d7be988de4a8bc929",
+      "mutation": "stale_vmid_epoch",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "24f46dab57fb577b398f0eab96925e2db63d11fce66eac72d93ebd51e2d25c65",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "2510c662021185e0cc78e7bb766ebd3bdf21dbdabba068b648cac4c622b0837e",
+      "mutation": "stale_interrupt_visible",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "7e2c4b7bc2d6f733531c7e4d4031cbcd147948603e38a0d6fa56ce0a8115c507",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "8feec1b424a92dbcefa0decc48fe123d5d11e5dfe9055b163183483d112084dc",
+      "mutation": "cross_guest_memory",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "37d2f4f08af0daf414edc72e3a0061eeb4783674a81fed1784d2598374a99038",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "a4b5d3161970a503b1cd11694e84893d9e3afa91d8234c21c25f1aa5296aff00",
+      "mutation": "mismatch_continues",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    },
+    {
+      "generated_tla_sha256": "65954ee7935fac64c89cf51ed41486b2a12b601a2053f13b29661bd79716fc0b",
+      "judge_output_normalization": "canonical_mutation_and_status",
+      "judge_output_sha256": "2f53ba9fb4c4168cdc0bae75899b2031170fd971a8e65e05166ee79713f9ec4c",
+      "mutation": "unvalidated_switch",
+      "rejected": true,
+      "status": "TLC_FAILED"
+    }
+  ],
+  "mutations_executed": 9,
+  "mutations_rejected": 9,
+  "physical_guest_isolation_proved": false,
+  "properties": [
+    "CPU_MEMORY_IDENTITY_COHERENCE",
+    "CPU_INTERRUPT_IDENTITY_COHERENCE",
+    "MEMORY_INTERRUPT_IDENTITY_COHERENCE",
+    "QUIESCED_GUEST_SWITCH_ATOMICITY",
+    "MISMATCH_TRAP_CONTAINMENT",
+    "GUEST_MEMORY_OWNERSHIP",
+    "GUEST_INTERRUPT_OWNERSHIP",
+    "STALE_CONTEXT_REJECTION"
+  ],
+  "qemu_h_extension_semantics_proved": false,
+  "reviewed_gstage_plan_sha256": "928a3d419250727f2f295cde415c046e033965ff4e6e5fbe7ccf0cf38b30c724",
+  "reviewed_interrupt_policy_sha256": "ca1f37f81a7fc2b8738f4783e82db0e78d9fc309236f4a70836569b0a92e6f36",
+  "reviewed_transition_policy_sha256": "39cb2d6d51a3baf0d4d9f75549109654200f11ddac9c91fe03dc0cd8e3b1465e",
+  "scope": "reviewed_qemu_virt_hs_vs_gstage_imsic_composition",
+  "status": "RISCV_GUEST_ISOLATION_MODEL_PROVED",
+  "tlc_version": "2.19 of 08 August 2024",
+  "vmidlen_assumption": 7
+}

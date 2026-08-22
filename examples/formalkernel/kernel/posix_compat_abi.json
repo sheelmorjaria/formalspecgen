@@ -1,0 +1,25 @@
+{
+  "abi_version": 1,
+  "calls": [
+    {"number": 200, "name": "open", "symbol": "fk_open", "signature": "int(const char*)"},
+    {"number": 201, "name": "read", "symbol": "fk_read", "signature": "int(int,char*,unsigned)"},
+    {"number": 202, "name": "write", "symbol": "fk_write", "signature": "int(int,const char*,unsigned)"},
+    {"number": 203, "name": "close", "symbol": "fk_close", "signature": "int(int)"},
+    {"number": 204, "name": "exit", "symbol": "fk_exit", "signature": "void(int)"}
+  ],
+  "baseline": "posix_compat_abi.baseline.json",
+  "implementation": "posix_compat.c",
+  "tested_operations": ["open", "read", "write", "close", "exit"],
+  "operations": {
+    "trace_schema": ["timestamp", "pid", "syscall", "result"],
+    "profile_counters": ["syscall_count", "bytes_read", "bytes_written"],
+    "crash_dump_header": ["magic", "abi_version", "reason", "registers_sha256"],
+    "upgrade_policy": {"minimum_version": 2, "rollback_target": "recovery"}
+  },
+  "full_posix_conformance_proved": false,
+  "kernel_syscall_refinement_proved": false,
+  "production_observability_proved": false,
+  "atomic_field_upgrade_proved": false,
+  "crash_dump_completeness_proved": false,
+  "target_runtime_behavior_proved": false
+}

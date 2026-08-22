@@ -1,0 +1,15 @@
+{
+  "status": "RISCV_HS_VS_CANDIDATE_QUALIFIED",
+  "claim": "NO_PROOF",
+  "candidate_policy_sha256": "d70b227ff084ba8ef0f59c91dc9567857a1f75ac8df8d458ab8a7957fe95b643",
+  "tlc_version": "2.19 of 08 August 2024",
+  "base_status": "VERIFIED",
+  "distinct_states": 15,
+  "semantic_mutations_rejected": 4,
+  "mutation_results": {
+    "unprepared_vs_entry": "TLC_FAILED",
+    "cross_guest_resume": "TLC_FAILED",
+    "resume_without_dispatch": "TLC_FAILED",
+    "wrong_vmid": "TLC_FAILED"
+  }
+}

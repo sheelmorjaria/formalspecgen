@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "DECLASSIFICATION_POLICY_PROVED",
+  "claim": "DECLASSIFICATION_POLICY_PROVED",
+  "judge": "z3",
+  "judge_version": "Z3 version 4.8.12 - 64 bit",
+  "judge_executable_sha256": "34ffd5418a419df041650767d9be168cf8d2f71422bb32b0e52255f1b0e06706",
+  "verifier_sha256": "ba718de2b9cb246e6132b0a124e1ce31f98d0a3d8a97c2bebabf75dc392d02a8",
+  "scope": "reviewed_m49_m50_m65_explicit_release_rules",
+  "reviewed_policy_sha256": "e3104da0610bfacfd85635f91c008a27612e6536db446a55e53440aec72302f9",
+  "trace_depth": 3,
+  "termination_sensitive": false,
+  "timing_sensitive": false,
+  "proof_families": [
+    {"id": "release_authorization", "result": "unsat", "smt_sha256": "673f4fd4893e810396a979e3ed6d7dab55fab8bd6a746e442866efd96cbd0936"},
+    {"id": "release_precision", "result": "unsat", "smt_sha256": "41e5c7b1333fdb11481de794d7bc46dcf1afa0752c80ddb7e5cbd6532bac0d4e"},
+    {"id": "non_amplification_depth_3", "result": "unsat", "smt_sha256": "8825319c5efa76997280a4c9c4b56019c1ed416ec5d911eca564fe01e4696614"},
+    {"id": "rule_isolation", "result": "unsat", "smt_sha256": "c07cb6208d8c0c4577a5b8e7b4dbe6745784c8239331d48c9b51fdb6e635a0be"}
+  ],
+  "mutations_executed": 7,
+  "mutations_rejected": 7,
+  "mutations": [
+    {"id": "release_without_enabling_condition", "result": "sat", "smt_sha256": "6e53a6c91ab12545586bd9c1321b49d3d8a4d0fd008005e51539da45831f1ff7"},
+    {"id": "release_extra_secret_field", "result": "sat", "smt_sha256": "0c0bb62836f02f1d4b9e4fef87214aa33359392793a6565600eba3ee3931ba3a"},
+    {"id": "redirect_release_to_ipc_route", "result": "sat", "smt_sha256": "18846fcc66568122f445c3083441a2bfa91b7224e8a46c545484ef7090dbc0fc"},
+    {"id": "one_rule_enables_another", "result": "sat", "smt_sha256": "74f725646299de1cfce2d71c30b26149848ee9cb24fa5532e5383fa5abddb5ea"},
+    {"id": "remembered_secret_later_low_output", "result": "sat", "smt_sha256": "0e26ad97783caf60803c0bcbb4f19aaea7fb0629b3835a33393691b45d51dd30"},
+    {"id": "broaden_source_to_authority_state", "result": "rejected_by_exact_projection_gate"},
+    {"id": "delete_required_rule", "result": "rejected_by_policy_consistency_gate"}
+  ],
+  "claims_locked": [
+    "INFORMATION_FLOW_NONINTERFERENCE_PROVED",
+    "TIMING_NONINTERFERENCE_PROVED",
+    "MICROARCHITECTURAL_NONINTERFERENCE_PROVED",
+    "CAPABILITY_TOKEN_UNFORGEABILITY_PROVED",
+    "INFORMATION_FLOW_IMPLEMENTATION_REFINEMENT_PROVED"
+  ]
+}

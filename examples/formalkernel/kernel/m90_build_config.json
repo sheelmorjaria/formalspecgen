@@ -1,0 +1,28 @@
+{
+  "target": "aarch64-unknown-none-softfloat",
+  "deployment_manifest": "examples/formalkernel/kernel/kernel.json",
+  "hardware_profile": "examples/formalkernel/hardware_profile.json",
+  "linker_script": "examples/formalkernel/boot/layout.ld",
+  "crate_root": "examples/formalkernel/boot/src/main.rs",
+  "compiled_sources": [
+    "examples/formalkernel/boot/src/boot_order.rs",
+    "examples/formalkernel/boot/src/main.rs",
+    "examples/formalkernel/boot/src/witness.rs"
+  ],
+  "enabled_mechanisms": [
+    "boot_composition",
+    "bounded_queue_witness"
+  ],
+  "rustc_flags": [
+    "-Cpanic=abort",
+    "-Copt-level=0",
+    "-Ccodegen-units=1",
+    "-Clto=no",
+    "-Crelocation-model=static",
+    "-Cdebuginfo=0",
+    "-Cstrip=debuginfo",
+    "-Clink-arg=--build-id=none",
+    "--remap-path-prefix={PROJECT_ROOT}=/formalkernel"
+  ],
+  "codegen_environment": {}
+}

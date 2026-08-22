@@ -1,0 +1,11 @@
+{
+  "status": "RISCV_VS_IMSIC_QEMU_CONFIGURATION_OBSERVED",
+  "claim": "NO_PROOF",
+  "machine": "virt,aia=aplic-imsic,aia-guests=2",
+  "cpu": "rv64",
+  "aia_guests_range": "0..7",
+  "dtb_emitted": true,
+  "vs_routing_executed": false,
+  "qemu_semantics_proved": false,
+  "runtime_routing_claim": "PARKED_NO_VS_GUEST_EXECUTION_OBSERVATION"
+}

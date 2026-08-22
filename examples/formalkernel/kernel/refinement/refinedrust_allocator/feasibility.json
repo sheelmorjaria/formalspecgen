@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "lane": "M76_3b_r2_bounded_allocator_refinement",
+  "status": "judge_pending",
+  "claim": "NO_PROOF",
+  "scope": "production_fixed_16_slot_allocator",
+  "production_source": "examples/formalkernel/kernel/user/heap.rs",
+  "production_source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+  "ghost_overlay_sha256": "6ccb2ff24ff7484849024c046b804788671c9f50a42c3c60ff532c7407a8fb9f",
+  "ghost_erasure_byte_identical": true,
+  "dependencies": {
+    "claim": "REFINEDRUST_ARRAY_TRANSLATION_VALIDATED",
+    "refinedrust_local_patch_sha256": "8950cd6b8fe81b106905fb4d3d50f24f6655269a8ece6fc77c1b4849782a9c5a",
+    "upstream_accepted": false
+  },
+  "judge_results": [
+    {
+      "gate": "named_const_array_length",
+      "result": "FRONTEND_UNSUPPORTED",
+      "diagnostic": "Unsupported ConstKind AliasConst for HEAP_BLOCKS"
+    },
+    {
+      "gate": "allocation_iterator_pattern",
+      "result": "FRONTEND_UNSUPPORTED",
+      "diagnostic": "RefinedRust does not support Pat"
+    },
+    {
+      "gate": "release_slice_indexing",
+      "result": "FRONTEND_UNSUPPORTED",
+      "diagnostic": "Trait has not been registered with RefinedRust yet: core::slice::index"
+    }
+  ],
+  "acceptance_boundary": "No allocator-specific literals, source rewrites, proof surrogate, or unqualified invasive verifier changes.",
+  "required_upstream_closure": [
+    "named constant normalization for array lengths",
+    "iterator enumerate pattern lowering",
+    "slice get_mut index trait specification"
+  ],
+  "mutation_suite_executed": false,
+  "bounded_allocator_implementation_refinement_proved": false,
+  "rust_implementation_refinement_proved": false,
+  "compiler_refinement_chain_proved": false,
+  "end_to_end_refinement_chain_established": false
+}

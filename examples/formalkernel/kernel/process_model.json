@@ -1,0 +1,15 @@
+{
+  "module": "GeneralProcessModel",
+  "process_count": 2,
+  "thread_count": 2,
+  "page_quota": 2,
+  "operations": ["fork", "exec", "exit", "futex_wait", "futex_wake"],
+  "validation": "process_model.validation.json",
+  "exec_reclaims_old_pages": true,
+  "exec_drops_old_capabilities": true,
+  "posix_conformance_proved": false,
+  "native_syscall_refinement_proved": false,
+  "hardware_futex_atomicity_proved": false,
+  "signal_semantics_proved": false,
+  "unbounded_process_population_proved": false
+}

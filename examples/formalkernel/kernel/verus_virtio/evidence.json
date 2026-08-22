@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "lane": "M86.2b_exact_virtio_blk_overlay",
+  "status": "VERUS_VIRTIO_BLK_OVERLAY_QUALIFIED",
+  "claim": "VERUS_VIRTIO_BLK_OVERLAY_QUALIFIED",
+  "scope": "exact_production_virtio_blk_queue_api",
+  "production_source": "examples/formalkernel/kernel/vfs/virtio_blk.rs",
+  "production_source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+  "overlay_source": "examples/formalkernel/kernel/verus_virtio/virtio_blk_overlay.rs",
+  "overlay_source_sha256": "4b10d5e3da28f787e24cd4f4b7811a7bfca82fa9cbb8a07ce8f73f6beca781ee",
+  "erasure": {
+    "implementation": "pipeline.verus_evidence.erase_overlay",
+    "implementation_sha256": "2d252702d1180ee89bff2ea0303b4f3f98913a85c9b0e7b88257eacf0eacb6f8",
+    "byte_identical": true,
+    "erased_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84"
+  },
+  "judge": {
+    "version": "0.2026.08.15.7d4628a",
+    "qualification_evidence": "examples/formalkernel/kernel/verus_smoke/evidence.json",
+    "qualification_evidence_sha256": "14e71ab416d7e6570970407125a89009d14000148852fcc2a506c6b46fd52397",
+    "invocation": ["verus", "--no-cheating", "--output-json", "virtio_blk_overlay.rs"],
+    "exit_code": 0,
+    "reported_verified": 7,
+    "reported_errors": 0,
+    "output_sha256": "fef22f66bbe43b0e2fa77b309052d010258b21cf716eedb09ec1380969440b66"
+  },
+  "obligation_inventory": {
+    "verification_units": 5,
+    "proof_obligations": 12,
+    "semantic_postconditions": 11,
+    "units": [
+      "virtio_blk_overlay::VirtioBlkAdapter::queue_invariant",
+      "virtio_blk_overlay::VirtioBlkAdapter::new",
+      "virtio_blk_overlay::VirtioBlkAdapter::in_flight",
+      "virtio_blk_overlay::VirtioBlkAdapter::submit",
+      "virtio_blk_overlay::VirtioBlkAdapter::complete"
+    ],
+    "postconditions": [
+      "constructor starts at zero",
+      "occupancy getter corresponds to abstract queue depth",
+      "successful submit requires available capacity",
+      "successful submit increments exactly once",
+      "failed submit stutters",
+      "submit preserves the reviewed candidate transition relation",
+      "empty queue returns an error",
+      "empty queue stutters",
+      "nonempty queue returns success",
+      "nonempty queue decrements exactly once",
+      "completion preserves the reviewed candidate transition relation"
+    ]
+  },
+  "anti_vacuity_policy": {
+    "implementation": "pipeline/judge_evidence.py",
+    "sha256": "e6203b03d075b1336f56f205da0f36fd35860262d224a3d3e3bb3d59520ae649"
+  },
+  "anti_vacuity": {
+    "mutation": "examples/formalkernel/kernel/verus_virtio/complete_no_decrement.mutation",
+    "mutation_sha256": "1fad9a81c610e903f7efad2c2132efa216b870f0ef9baaea0b184ca7482d2fb8",
+    "mutated_overlay_sha256": "a02d4d8ecbc59d58bf7ff031e1b5b19b29fd38dc91f4ff833f49e2003b90b752",
+    "exit_code": 1,
+    "failure_fingerprint": "postcondition not satisfied",
+    "mutation_failures": 1,
+    "output_sha256": "0a7b1c037eab5d1cd8bd7ad795a46f559f85823eeae412113be793a8ef475b37"
+  },
+  "trusted_escape_hatches_used": false,
+  "claims_locked": [
+    "VIRTIO_QUEUE_MODEL_BRIDGE_PROVED",
+    "RUST_IMPLEMENTATION_REFINEMENT_PROVED",
+    "COMPILER_REFINEMENT_CHAIN_PROVED",
+    "END_TO_END_REFINEMENT_CHAIN_ESTABLISHED"
+  ]
+}

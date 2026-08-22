@@ -1,0 +1,1745 @@
+{
+  "status": "KERNEL_EVIDENCE_BUNDLE",
+  "claim": "KERNEL_EVIDENCE_BUNDLE",
+  "deployment": "microkernel",
+  "manifest": "kernel.json",
+  "profiles": [
+    "n150",
+    "r52"
+  ],
+  "claims": [
+    {
+      "claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "scope": "concurrent_interleaving_bmc",
+      "profile": null,
+      "source": "runqueue.c",
+      "judge": "esbmc",
+      "subsystem": "scheduler"
+    },
+    {
+      "claim": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+      "scope": "tlc_per_task_under_weak_scheduler_fairness",
+      "profile": null,
+      "source": "liveness.json",
+      "judge": "tlc",
+      "subsystem": "scheduler",
+      "evidence": {
+        "source_sha256": "717f422d8088ff052c10a3017eca9554dff4e294bae77bb3710a350988b5840b",
+        "generated_tla_sha256": "009cf86a15f99bf312e72ffc4fac95b8fd6450b04b2f8655aa50599549956a53",
+        "task_count": 3,
+        "policy": "bounded_round_robin",
+        "distinct_states": 36,
+        "fairness": "WF_vars(Schedule)",
+        "unbounded_task_liveness_proved": false,
+        "hardware_timer_fairness_proved": false,
+        "source_model_refinement_proved": false
+      }
+    },
+    {
+      "claim": "LOCK_FREE_LINEARIZABILITY_PROVED",
+      "scope": "concurrent_interleaving_bmc",
+      "profile": null,
+      "source": "rx_ring.c",
+      "judge": "esbmc",
+      "subsystem": "net"
+    },
+    {
+      "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "scope": "tls_handshake_tlc",
+      "profile": null,
+      "source": "tls_handshake.json",
+      "judge": "tlc",
+      "subsystem": "net"
+    },
+    {
+      "claim": "TCP_RESOURCE_CONTAINMENT_PROVED",
+      "scope": "bounded_adversarial_network_and_partitioned_quotas",
+      "profile": null,
+      "source": "tcp_resource.json",
+      "judge": "tlc",
+      "subsystem": "net",
+      "evidence": {
+        "status": "TCP_RESOURCE_EVIDENCE_BOUND",
+        "claim": "TCP_RESOURCE_CONTAINMENT_PROVED",
+        "judge": "tlc",
+        "scope": "bounded_adversarial_network_and_partitioned_quotas",
+        "tlc_version": "2.19 of 08 August 2024",
+        "generated_tla_sha256": "26cf47abdad4bfdc8d54f04e2b2984d5b4358a1e728a700d53b3b14cc81e387f",
+        "distinct_states": 49,
+        "properties": [
+          "TYPE_OK",
+          "POOL_BOUND",
+          "PER_CLIENT_QUOTA",
+          "LEGITIMATE_RESERVE",
+          "BLIND_RST_CONTAINED"
+        ],
+        "rfc9293_conformance_proved": false,
+        "rfc5961_conformance_proved": false,
+        "implementation_refinement_proved": false
+      }
+    },
+    {
+      "claim": "MPSC_BOUNDED_PARTITION_PROVED",
+      "scope": "partitioned_producer_interleaving_bmc",
+      "profile": null,
+      "source": "mpsc.c",
+      "judge": "esbmc",
+      "subsystem": "ipc"
+    },
+    {
+      "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
+      "scope": "reviewed_v2_tlc",
+      "profile": null,
+      "source": "/home/sheel/formalspecgen/domains/candidates/vfs_bounded.v2.validation.json",
+      "judge": "tlc",
+      "subsystem": "vfs"
+    },
+    {
+      "claim": "SOURCE_MODEL_REFINEMENT",
+      "scope": "v2_atomic_contract_refinement",
+      "profile": null,
+      "source": "/home/sheel/formalspecgen/Vfs.rs",
+      "judge": "prusti",
+      "subsystem": "vfs"
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "profile_bound_static_pool",
+      "profile": null,
+      "source": "/home/sheel/formalspecgen/Vfs.rs",
+      "judge": "z3",
+      "subsystem": "vfs"
+    },
+    {
+      "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+      "scope": "declared_persistence_contract",
+      "profile": null,
+      "source": "journal.json",
+      "judge": "tlc",
+      "subsystem": "vfs",
+      "evidence": {
+        "status": "VFS_CRASH_EVIDENCE_BOUND",
+        "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+        "judge": "tlc",
+        "scope": "declared_persistence_contract",
+        "tlc_version": "2.19 of 08 August 2024",
+        "generated_tla_sha256": "68cd88bba480f1e9e713f8c841038d5f51e7e06cc782d7283d882b15b31f6e01",
+        "distinct_states": 39,
+        "properties": [
+          "TYPE_OK",
+          "COMMIT_IMPLIES_NEW",
+          "RECOVERY_WRITE_STABLE",
+          "CRASH_ATOMICITY"
+        ],
+        "physical_fua_semantics_proved": false,
+        "device_firmware_proved": false,
+        "crash_injection_validated": false
+      }
+    },
+    {
+      "claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+      "scope": "external_device_behavior",
+      "profile": null,
+      "source": "virtio_blk.rs",
+      "status": "boundary",
+      "judge": "none",
+      "subsystem": "vfs",
+      "source_sha256": "77fd2856845a421bc0d437bc36710f882f41b3786da5db63807d1e1225ab1b84",
+      "external_io_safety_proved": false,
+      "driver_recovery_proved": false,
+      "in_kernel_fault_can_crash_kernel": false,
+      "confinement_claims": [
+        "DMA_ISOLATION_PROVED",
+        "SYSCALL_BOUNDARY_PROVED",
+        "IPC_ENDPOINT_TABLE_PROVED"
+      ]
+    },
+    {
+      "claim": "R52_TCM_PLACEMENT_PROVED",
+      "scope": "declared_r52_itcm_dtcm_placement",
+      "profile": "r52",
+      "source": "r52_port.json",
+      "judge": "deterministic_gate",
+      "evidence": {
+        "status": "R52_TCM_PLACEMENT_PROVED",
+        "claim": "R52_TCM_PLACEMENT_PROVED",
+        "judge": "deterministic_gate",
+        "artifact_sha256": "2ef0853b953c604edbcae3f1e0d913aec87275c676321c2c0e37aa57955b9835",
+        "linker_sha256": "02a11f9fe1590b686bec9ace9630b644571dc15008097668b57bfc65f25507db",
+        "itcm_bytes": 16384,
+        "dtcm_bytes": 16384,
+        "kernel_pool": [
+          16384,
+          32768
+        ],
+        "physical_boot_proved": false,
+        "measured_wcet_proved": false,
+        "soc_address_conformance_proved": false,
+        "judge_pending": "physical_cortex_r52_board"
+      }
+    },
+    {
+      "claim": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+      "scope": "r52_smmu_stream_dma_correspondence",
+      "profile": "r52",
+      "source": "r52_smmu.json",
+      "judge": "deterministic_gate",
+      "evidence": {
+        "status": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+        "claim": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+        "judge": "deterministic_gate",
+        "artifact_sha256": "e211a9e6ab1c62a74cb1786fe249beb8921ebe5480b4a66dac2650df2798d532",
+        "stream_ids": [
+          32,
+          33
+        ],
+        "dma_contracts": {
+          "nic_dev": [
+            69632,
+            70144
+          ],
+          "blk_dev": [
+            71680,
+            72192
+          ]
+        },
+        "protected_ranges": {
+          "tcm_kernel": [
+            16384,
+            32768
+          ]
+        },
+        "physical_dma_block_proved": false,
+        "external_io_safety_proved": false,
+        "judge_pending": "physical_r52_smmu_fault_injection"
+      }
+    },
+    {
+      "claim": "N150_PLATFORM_CONFIGURATION_PROVED",
+      "scope": "n150_x86_64_layout_vtd_correspondence",
+      "profile": "n150",
+      "source": "n150_port.json",
+      "judge": "deterministic_gate",
+      "evidence": {
+        "status": "N150_PLATFORM_CONFIGURATION_PROVED",
+        "claim": "N150_PLATFORM_CONFIGURATION_PROVED",
+        "judge": "deterministic_gate",
+        "artifact_sha256": "7b2ba1064c64747802aa579fe4166d9710ec35e7ac6e31c0d4a0ae2fd4a65982",
+        "linker_sha256": "8ba037888cb0f147ca00747482f88e0f2b7c923f21c2b1d91ecd74b13d0b269e",
+        "requester_ids": [
+          "00:17.0",
+          "00:1f.6"
+        ],
+        "memory_model": "x86_tso",
+        "physical_boot_proved": false,
+        "physical_vtd_proved": false,
+        "physical_tso_conformance_proved": false,
+        "judge_pending": "physical_intel_n150"
+      }
+    },
+    {
+      "claim": "MICROARCH_MITIGATION_POLICY_PROVED",
+      "scope": "declared_cpuid_microcode_mitigation_completeness",
+      "profile": "n150",
+      "source": "n150_mitigations.json",
+      "judge": "z3",
+      "evidence": {
+        "status": "MICROARCH_MITIGATION_POLICY_PROVED",
+        "claims": [
+          "MICROARCH_MITIGATION_POLICY_PROVED",
+          "MITIGATION_WCET_BUDGET_PROVED"
+        ],
+        "judge": "z3+deterministic_cost_equation",
+        "artifact_sha256": "6824b36b2866de4a1dceda14646e935775af085815cc27188b557dd102e99501",
+        "smt_sha256": "96268210d4358ce553f5b3451b6627638ac90548477fa9b6bac4ae1adcc7b4df",
+        "selected_mitigations": [
+          "eibrs_bhb_clear",
+          "pte_inversion",
+          "smt_disabled",
+          "tsx_disabled",
+          "verw_clear"
+        ],
+        "declared_cost_cycles": 105,
+        "budget_cycles": 160,
+        "runtime_cpuid_validated": false,
+        "runtime_microcode_validated": false,
+        "measured_cost_validated": false,
+        "speculative_noninterference_proved": false
+      }
+    },
+    {
+      "claim": "MITIGATION_WCET_BUDGET_PROVED",
+      "scope": "declared_mitigation_cycle_cost_budget",
+      "profile": "n150",
+      "source": "n150_mitigations.json",
+      "judge": "deterministic_cost_equation",
+      "evidence": {
+        "status": "MICROARCH_MITIGATION_POLICY_PROVED",
+        "claims": [
+          "MICROARCH_MITIGATION_POLICY_PROVED",
+          "MITIGATION_WCET_BUDGET_PROVED"
+        ],
+        "judge": "z3+deterministic_cost_equation",
+        "artifact_sha256": "6824b36b2866de4a1dceda14646e935775af085815cc27188b557dd102e99501",
+        "smt_sha256": "96268210d4358ce553f5b3451b6627638ac90548477fa9b6bac4ae1adcc7b4df",
+        "selected_mitigations": [
+          "eibrs_bhb_clear",
+          "pte_inversion",
+          "smt_disabled",
+          "tsx_disabled",
+          "verw_clear"
+        ],
+        "declared_cost_cycles": 105,
+        "budget_cycles": 160,
+        "runtime_cpuid_validated": false,
+        "runtime_microcode_validated": false,
+        "measured_cost_validated": false,
+        "speculative_noninterference_proved": false
+      }
+    },
+    {
+      "claim": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+      "scope": "profile_bound_shared_hardware_inventory",
+      "profile": null,
+      "source": "multicore_interference.json",
+      "judge": "deterministic_gate",
+      "evidence": {
+        "status": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+        "claim": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+        "judge": "deterministic_gate",
+        "artifact_sha256": "5eb8cdf6f94f46496ad72de173f004fcec38f632db34a0d336312dee6c060b67",
+        "targets": [
+          "n150",
+          "r52"
+        ],
+        "rows": [
+          {
+            "target": "n150",
+            "channel": "cache",
+            "control": "partition_or_flush_policy",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "n150",
+            "channel": "memory_bandwidth",
+            "control": "bandwidth_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "n150",
+            "channel": "interconnect",
+            "control": "uncore_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "n150",
+            "channel": "dma",
+            "control": "vtd_domains",
+            "status": "fault_injection_pending"
+          },
+          {
+            "target": "n150",
+            "channel": "interrupts",
+            "control": "bounded_irq_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "n150",
+            "channel": "smt",
+            "control": "disable_or_core_schedule",
+            "status": "firmware_validation_pending"
+          },
+          {
+            "target": "r52",
+            "channel": "cache",
+            "control": "tcm_placement",
+            "status": "bounded_by_architecture"
+          },
+          {
+            "target": "r52",
+            "channel": "memory_bandwidth",
+            "control": "static_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "r52",
+            "channel": "interconnect",
+            "control": "static_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "r52",
+            "channel": "dma",
+            "control": "smmu_domains",
+            "status": "fault_injection_pending"
+          },
+          {
+            "target": "r52",
+            "channel": "interrupts",
+            "control": "bounded_irq_budget",
+            "status": "measurement_pending"
+          },
+          {
+            "target": "r52",
+            "channel": "smt",
+            "control": "not_present",
+            "status": "not_applicable"
+          }
+        ],
+        "channel_count": 12,
+        "target_wcet_interference_bound_validated": false,
+        "physical_multicore_timing_proved": false,
+        "judge_pending": "authenticated_target_interference_measurements"
+      }
+    },
+    {
+      "claim": "RCU_RECLAMATION_SAFETY_PROVED",
+      "scope": "parameterized_grace_period_invariant",
+      "profile": null,
+      "source": "scheduler/rcu.json",
+      "judge": "tlapm+esbmc",
+      "evidence": {
+        "status": "RCU_RECLAMATION_SAFETY_PROVED",
+        "claim": "RCU_RECLAMATION_SAFETY_PROVED",
+        "judge": "tlapm+esbmc",
+        "scope": "parameterized_grace_period_invariant",
+        "artifact_sha256": "e9b4fa8bb014f3c0be194ef2b003e012c9b6087d2374e69189835d48ad8e86e9",
+        "source_sha256": "74eed105766f8b3e46e73f51e5973251ab4b757bc9cf3faaa302f1c8ef1678e5",
+        "proof_sha256": "3837667c56a77501fa30a892732ba4cf41d285db0f8e5f2fff5e3913400f4f6a",
+        "tlaps_obligations_proved": 10,
+        "bounded_readers": 2,
+        "unwind": 5,
+        "context_bound": 3,
+        "parameterized_grace_period_proved": true,
+        "implementation_refinement_proved": false,
+        "irq_nmi_interaction_proved": false,
+        "callback_pressure_proved": false,
+        "judge_pending": "rcu_source_model_refinement_irq_nmi_callback_pressure"
+      }
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "x86_tso",
+      "profile": "n150",
+      "source": "runqueue.c",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler"
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "x86_tso",
+      "profile": "n150",
+      "source": "weak_memory/x86_message_passing.litmus",
+      "judge": "herd7",
+      "subsystem": "scheduler",
+      "evidence": {
+        "litmus_sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87",
+        "output_sha256": "aadae393d11ac801758a1355fe4cb7a5ae84fd5102c5fe3a7e06c5a481becf88",
+        "observation": "Never",
+        "epistemic_boundary": "model-level litmus evidence; not compiled-code refinement or physical-silicon proof"
+      }
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_n150",
+      "profile": "n150",
+      "source": "sched_tick.c",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler"
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "x86_tso",
+      "profile": "n150",
+      "source": "rx_ring.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "x86_tso",
+      "profile": "n150",
+      "source": "weak_memory/x86_message_passing.litmus",
+      "judge": "herd7",
+      "subsystem": "net",
+      "evidence": {
+        "litmus_sha256": "65cb5ce2fb9c690286c09d44ef5e134be1e7ae70d7ddbe550eba28b0ca18ab87",
+        "output_sha256": "aadae393d11ac801758a1355fe4cb7a5ae84fd5102c5fe3a7e06c5a481becf88",
+        "observation": "Never",
+        "epistemic_boundary": "model-level litmus evidence; not compiled-code refinement or physical-silicon proof"
+      }
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_n150",
+      "profile": "n150",
+      "source": "timer_tick.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "profile": "n150",
+      "source": "nic.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "pq_tls_session_pool_n150",
+      "profile": "n150",
+      "source": "pq_tls.json",
+      "judge": "z3",
+      "subsystem": "net"
+    },
+    {
+      "claim": "PQ_PREEMPTION_BOUND_PROVED",
+      "scope": "el0_timer_preemption_n150",
+      "profile": "n150",
+      "source": "pq_wcet.json",
+      "judge": "static_wcet",
+      "subsystem": "net"
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "profile": "n150",
+      "source": "virtio_blk_dma.c",
+      "judge": "deterministic_gate",
+      "subsystem": "vfs"
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "armv8_sc",
+      "profile": "r52",
+      "source": "runqueue.c",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler"
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "armv8_sc",
+      "profile": "r52",
+      "source": "weak_memory/aarch64_message_passing.litmus",
+      "judge": "herd7",
+      "subsystem": "scheduler",
+      "evidence": {
+        "litmus_sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f",
+        "output_sha256": "67d2890c58ca332405e4f9d3a32c6fcc5d63752c97f8a5bf5398e291bb06d746",
+        "observation": "Never",
+        "epistemic_boundary": "model-level litmus evidence; not compiled-code refinement or physical-silicon proof"
+      }
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_r52",
+      "profile": "r52",
+      "source": "sched_tick.c",
+      "judge": "deterministic_gate",
+      "subsystem": "scheduler"
+    },
+    {
+      "claim": "BARRIER_CORRESPONDENCE_PROVED",
+      "scope": "armv8_sc",
+      "profile": "r52",
+      "source": "rx_ring.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "WEAK_MEMORY_SAFETY_PROVED",
+      "scope": "armv8_sc",
+      "profile": "r52",
+      "source": "weak_memory/aarch64_message_passing.litmus",
+      "judge": "herd7",
+      "subsystem": "net",
+      "evidence": {
+        "litmus_sha256": "11aea4a81f9c39c527c6eedcc87ac854863233d06725a5d6b18266553fad079f",
+        "output_sha256": "67d2890c58ca332405e4f9d3a32c6fcc5d63752c97f8a5bf5398e291bb06d746",
+        "observation": "Never",
+        "epistemic_boundary": "model-level litmus evidence; not compiled-code refinement or physical-silicon proof"
+      }
+    },
+    {
+      "claim": "WCET_BOUND_PROVEN",
+      "scope": "static_cfg_cost_model_r52",
+      "profile": "r52",
+      "source": "timer_tick.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "profile": "r52",
+      "source": "nic.c",
+      "judge": "deterministic_gate",
+      "subsystem": "net"
+    },
+    {
+      "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+      "scope": "pq_tls_session_pool_r52",
+      "profile": "r52",
+      "source": "pq_tls.json",
+      "judge": "z3",
+      "subsystem": "net"
+    },
+    {
+      "claim": "PQ_PREEMPTION_BOUND_PROVED",
+      "scope": "el0_timer_preemption_r52",
+      "profile": "r52",
+      "source": "pq_wcet.json",
+      "judge": "static_wcet",
+      "subsystem": "net"
+    },
+    {
+      "claim": "DMA_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "profile": "r52",
+      "source": "virtio_blk_dma.c",
+      "judge": "deterministic_gate",
+      "subsystem": "vfs"
+    },
+    {
+      "claim": "SYSTEM_COMPOSITION_PROVED",
+      "scope": "deterministic_precondition_flow",
+      "profile": null,
+      "source": "composition.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "SPATIAL_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_n150",
+      "profile": "n150",
+      "source": "mmu.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "SPATIAL_ISOLATION_PROVED",
+      "scope": "deterministic_range_disjointness_r52",
+      "profile": "r52",
+      "source": "mmu.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "SYSCALL_BOUNDARY_PROVED",
+      "scope": "deterministic_dispatch_table_n150",
+      "profile": "n150",
+      "source": "syscalls.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "SYSCALL_BOUNDARY_PROVED",
+      "scope": "deterministic_dispatch_table_r52",
+      "profile": "r52",
+      "source": "syscalls.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "IPC_ENDPOINT_TABLE_PROVED",
+      "scope": "deterministic_capacity_partition",
+      "profile": null,
+      "source": "ipc.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "RUST_WITNESS_REFINEMENT_PROVED",
+      "scope": "bounded_nondet_operation_sequences",
+      "profile": null,
+      "source": "../boot/proofs",
+      "judge": "kani"
+    },
+    {
+      "claim": "USER_HEAP_CAPACITY_PROVED",
+      "scope": "kani_fixed_el0_heap_pool",
+      "profile": null,
+      "source": "user_heap.json",
+      "judge": "kani",
+      "evidence": {
+        "source_sha256": "42c73357c3f6bb991e62159565857320306fdbd3c99e2e1a1f1022a26136c746",
+        "proof_sha256": "678372042516c19a0c11fb3f569c6f7f741872c94733417617b2f5ffbd264318",
+        "heap_blocks": 16,
+        "block_bytes": 256,
+        "heap_bytes": 4096,
+        "exhaustion": "Err(HeapError::Exhausted)",
+        "physical_frame_assignment_proved": false
+      }
+    },
+    {
+      "claim": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+      "scope": "z3_bounded_server_capability_matrix",
+      "profile": null,
+      "source": "server_capabilities.json",
+      "judge": "z3",
+      "evidence": {
+        "status": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+        "claim": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+        "judge": "z3",
+        "artifact_sha256": "fea70cfba1528f4d20aedbb9a2dd7658678276ab6e1c8c3bcb2d8cbf5946f15a",
+        "smt_sha256": "28b98c601bf947349d3602735a2e2dc133b899d65b2e897027e5621f32a30fed",
+        "servers": [
+          "net",
+          "shell",
+          "vfs"
+        ],
+        "route_count": 2,
+        "vfs_raw_packet": false,
+        "net_file_descriptor": false
+      }
+    },
+    {
+      "claim": "EXCEPTION_LEVEL_TRANSITION_MODEL_PROVED",
+      "scope": "tlc_aarch64_el1_el0_control_state",
+      "profile": "r52",
+      "source": "exception_transition.json",
+      "judge": "tlc",
+      "evidence": {
+        "bindings": {
+          "mmu": "92ce68ea011666a09ed0b22eaf11a3b65640b76dadd57de53e3721b67b127cd3",
+          "syscalls": "83269ed9367592f3a9eea54188d0d6d8a260d68a0b140a8f70c729eaa6befd4e",
+          "elf_loader": "4e50e304bdbf9f18d41b5615c517bd4628622441d84ed8d024110a494a4bb1eb"
+        },
+        "generated_tla_sha256": "7b495c7a4f3c8df4d36de4ed9778005902c8bfb9b95eb31d039aeba54790c093",
+        "tlc_version": "2.19 of 08 August 2024",
+        "distinct_states": 6,
+        "hardware_eret_semantics_proved": false,
+        "compiled_vector_refinement_proved": false
+      }
+    },
+    {
+      "claim": "ELF_SEGMENT_LAYOUT_PROVED",
+      "scope": "bounded_elf64_aarch64_parser",
+      "profile": null,
+      "source": "loader/elf_loader.rs",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "scope": "elf_flags_to_m48_permissions_n150",
+      "profile": "n150",
+      "source": "elf_loader.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "ELF_PERMISSION_CORRESPONDENCE_PROVED",
+      "scope": "elf_flags_to_m48_permissions_r52",
+      "profile": "r52",
+      "source": "elf_loader.json",
+      "judge": "deterministic_gate"
+    },
+    {
+      "claim": "ABI_STABILITY_CHECKED",
+      "scope": "five_call_host_compiled_compatibility_shim",
+      "profile": null,
+      "source": "posix_compat_abi.json",
+      "judge": "deterministic_abi_gate+host_c_runtime",
+      "evidence": {
+        "claim": "ABI_STABILITY_CHECKED",
+        "judge": "deterministic_abi_gate+host_c_runtime",
+        "scope": "five_call_host_compiled_compatibility_shim",
+        "artifact_sha256": "7677d1772f2f4d23ca8b1da80bb8fee07db86b057336211b22bfb2bc70515d0e",
+        "baseline_sha256": "7b2a701372525495787f4df5a459aaf45c9fdfc88f93f176ca5e4426394b9966",
+        "implementation_sha256": "2ad850ecaff1ebb4384eb84069551fbb3cada74d155f75c1d58fe65b184ecc8d",
+        "harness_sha256": "8ca67bbaec777a92c897c370faa3b5c1424df627f842e1e57e4fab60f416749d",
+        "compiler": "/usr/bin/cc",
+        "vectors_passed": 9,
+        "operations_schemas_checked": true,
+        "full_posix_conformance_proved": false,
+        "kernel_syscall_refinement_proved": false,
+        "production_observability_proved": false,
+        "atomic_field_upgrade_proved": false,
+        "crash_dump_completeness_proved": false,
+        "target_runtime_behavior_proved": false
+      }
+    },
+    {
+      "claim": "POSIX_CONFORMANCE_TESTED",
+      "scope": "five_call_host_compiled_compatibility_shim",
+      "profile": null,
+      "source": "posix_compat_abi.json",
+      "judge": "deterministic_abi_gate+host_c_runtime",
+      "evidence": {
+        "claim": "POSIX_CONFORMANCE_TESTED",
+        "judge": "deterministic_abi_gate+host_c_runtime",
+        "scope": "five_call_host_compiled_compatibility_shim",
+        "artifact_sha256": "7677d1772f2f4d23ca8b1da80bb8fee07db86b057336211b22bfb2bc70515d0e",
+        "baseline_sha256": "7b2a701372525495787f4df5a459aaf45c9fdfc88f93f176ca5e4426394b9966",
+        "implementation_sha256": "2ad850ecaff1ebb4384eb84069551fbb3cada74d155f75c1d58fe65b184ecc8d",
+        "harness_sha256": "8ca67bbaec777a92c897c370faa3b5c1424df627f842e1e57e4fab60f416749d",
+        "compiler": "/usr/bin/cc",
+        "vectors_passed": 9,
+        "operations_schemas_checked": true,
+        "full_posix_conformance_proved": false,
+        "kernel_syscall_refinement_proved": false,
+        "production_observability_proved": false,
+        "atomic_field_upgrade_proved": false,
+        "crash_dump_completeness_proved": false,
+        "target_runtime_behavior_proved": false
+      }
+    },
+    {
+      "claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+      "scope": "two_guest_static_cpu_memory_network_iommu_partitions",
+      "profile": null,
+      "source": "guest_isolation.json",
+      "judge": "tlc+z3",
+      "evidence": {
+        "status": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+        "claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+        "judge": "tlc+z3",
+        "scope": "two_guest_static_cpu_memory_network_iommu_partitions",
+        "artifact_sha256": "11662f624796e8701bf95f476fec51d2072ac9d83821e29bec0703adf6f42474",
+        "tla_sha256": "430aeb1908615bf57ca4b99046c705e95cad18d876ebe718cea695e54ee0e233",
+        "smt_sha256": "e0c76b6fe054d4458aa7d251747a299809f82274f4fa020b249ae309942610bc",
+        "distinct_states": 9,
+        "tlc_version": "2.19 of 08 August 2024",
+        "lifecycle_deadlock_free": true,
+        "iommu_domains_distinct": true,
+        "hardware_virtualization_semantics_proved": false,
+        "nested_page_table_enforcement_proved": false,
+        "interrupt_remapping_proved": false,
+        "native_hypervisor_refinement_proved": false,
+        "side_channel_noninterference_proved": false,
+        "arbitrary_guest_population_proved": false
+      }
+    },
+    {
+      "claim": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+      "scope": "single_fault_two_process_three_page_recovery_model",
+      "profile": null,
+      "source": "fault_recovery.json",
+      "judge": "tlc+z3",
+      "evidence": {
+        "status": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+        "claim": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+        "judge": "tlc+z3",
+        "scope": "single_fault_two_process_three_page_recovery_model",
+        "artifact_sha256": "145542bae96eb53a3d42455ba6a2b254eb28ce4d03e0622a06e9685508bc12ed",
+        "tla_sha256": "90aaf116fd1bd2d98b5cc203a7cf1a71871cdad12bafc0cc79c76d316dd62ada",
+        "smt_sha256": "5c17bc6847ecdee88198e948cb62523d23fc394ff37d7524a2c6c09c2ff7cc51",
+        "distinct_states": 8,
+        "tlc_version": "2.19 of 08 August 2024",
+        "poison_accounting_proved": true,
+        "supervisor_survival_proved": true,
+        "physical_ecc_delivery_proved": false,
+        "physical_mce_semantics_proved": false,
+        "physical_watchdog_delivery_proved": false,
+        "device_firmware_reset_proved": false,
+        "native_fault_handler_refinement_proved": false,
+        "arbitrary_fault_multiplicity_proved": false
+      }
+    },
+    {
+      "claim": "NETWORK_RESOURCE_PARTITION_PROVED",
+      "scope": "two_principal_ipv6_udp_tcp_four_queue_fabric",
+      "profile": null,
+      "source": "network_scale.json",
+      "judge": "tlc+z3",
+      "evidence": {
+        "status": "NETWORK_RESOURCE_PARTITION_PROVED",
+        "claim": "NETWORK_RESOURCE_PARTITION_PROVED",
+        "judge": "tlc+z3",
+        "scope": "two_principal_ipv6_udp_tcp_four_queue_fabric",
+        "artifact_sha256": "f41ff9ee2e280f4fb80d12fb9966bb523cabdb72828a1ab2ee9816c6534abd3a",
+        "tla_sha256": "f4c749da6d8db8e21d48482b6d9307ed045dd5931d6323ee5dd48de0af0d885c",
+        "smt_sha256": "165d42bb2a41b9bad1fecf2c6d30bdadfbfad46563b6e5fc814aed931774197d",
+        "distinct_states": 49,
+        "queue_count": 4,
+        "deterministic_backpressure": true,
+        "full_ipv6_conformance_proved": false,
+        "native_network_stack_refinement_proved": false,
+        "physical_rss_msix_delivery_proved": false,
+        "physical_packet_delivery_proved": false,
+        "cryptographic_packet_authenticity_proved": false
+      }
+    },
+    {
+      "claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+      "scope": "declared_measurement_version_signature_and_pcr_policy",
+      "profile": null,
+      "source": "boot_integrity.json",
+      "judge": "tlc+z3+sha256",
+      "evidence": {
+        "status": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+        "claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+        "judge": "tlc+z3+sha256",
+        "scope": "declared_measurement_version_signature_and_pcr_policy",
+        "artifact_sha256": "4871577bcafc2c2a0ab65b60945ba5a5421df2127dd9f6b57ceeed4f19eee2e6",
+        "measured_artifact_sha256": "0e35b80ab5869afcedb0900865019bc8e6aac807a221fee24e345f4fee484800",
+        "tla_sha256": "378047488c88a71c020dd15b8fe3fdbc71d96341baa46b3a018592216a9b98a0",
+        "smt_sha256": "0da408705812138764b6b6f211d3144c6dd3eadb7b6176ec8a814e8fae7d4fc1",
+        "distinct_states": 10,
+        "rollback_blocked": true,
+        "pcr_index": 7,
+        "physical_tpm_semantics_proved": false,
+        "firmware_measurement_proved": false,
+        "key_custody_proved": false,
+        "sha256_collision_resistance_proved": false,
+        "built_image_measurement_proved": false
+      }
+    },
+    {
+      "claim": "PROCESS_CONCURRENCY_MODEL_PROVED",
+      "scope": "two_process_two_thread_fork_exec_futex",
+      "profile": null,
+      "source": "process_model.json",
+      "judge": "tlc+z3",
+      "evidence": {
+        "status": "PROCESS_CONCURRENCY_MODEL_PROVED",
+        "claim": "PROCESS_CONCURRENCY_MODEL_PROVED",
+        "judge": "tlc+z3",
+        "scope": "two_process_two_thread_fork_exec_futex",
+        "artifact_sha256": "e50307aeadda65cfe4f6c2dc9155dce64a10e8572587fc5783cb45f869d8505f",
+        "tla_sha256": "c92a6e93b09f0bed162d814ed472ee676e77c44080e1005dc782db1628a86f7d",
+        "smt_sha256": "cda40c32c9487b14a844e33c4c9a2ea8cb7441cd6679ca7df93804db5df4488a",
+        "distinct_states": 15,
+        "tlc_version": "2.19 of 08 August 2024",
+        "exec_cleanup_proved": true,
+        "posix_conformance_proved": false,
+        "native_syscall_refinement_proved": false,
+        "hardware_futex_atomicity_proved": false,
+        "signal_semantics_proved": false,
+        "unbounded_process_population_proved": false
+      }
+    },
+    {
+      "claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+      "scope": "declared_requester_domains_and_multiqueue_budgets",
+      "profile": null,
+      "source": "device_fabric.json",
+      "judge": "z3+range_gate",
+      "evidence": {
+        "status": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+        "claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+        "judge": "z3+range_gate",
+        "scope": "declared_requester_domains_and_multiqueue_budgets",
+        "artifact_sha256": "7ed61ff8f0a810c5be3f82ce2a4fdfd6b1cbb57c136622555b9564a8fd6ce275",
+        "smt_sha256": "fd02c373950f7aef475e409afd88750a59b36a53bdfd182ef5dca3233b099bc1",
+        "device_count": 2,
+        "queue_count": 6,
+        "requester_ids": [
+          256,
+          512
+        ],
+        "iommu_domains": [
+          1,
+          2
+        ],
+        "reset_accounting_proved": true,
+        "physical_iommu_enforcement_proved": false,
+        "pcie_firmware_correctness_proved": false,
+        "nvme_device_behavior_proved": false,
+        "msix_delivery_proved": false,
+        "native_driver_refinement_proved": false
+      }
+    },
+    {
+      "claim": "SMP_SCHEDULER_INVARIANTS_PROVED",
+      "scope": "arbitrary_finite_cpu_task_sets_owner_affinity_migration",
+      "profile": null,
+      "source": "scheduler/smp_scheduler.json",
+      "judge": "tlapm",
+      "evidence": {
+        "status": "SMP_SCHEDULER_INVARIANTS_PROVED",
+        "claim": "SMP_SCHEDULER_INVARIANTS_PROVED",
+        "judge": "tlapm",
+        "scope": "arbitrary_finite_cpu_task_sets_owner_affinity_migration",
+        "artifact_sha256": "b2e96f4a5a10dbd83d765082a7e3e6554039d341e07ab2ea2436c1ba222efce4",
+        "proof_sha256": "baf2cd02d1811bbf1bb990f308171a19a4c21e34a75dffbd69e22b9f712de666",
+        "parameterized": true,
+        "theorems": [
+          "InitImpliesInv",
+          "InvIsInductive",
+          "MigrationConservesRunnable"
+        ],
+        "load_balancer_implementation_refinement_proved": false,
+        "irq_ipi_delivery_proved": false,
+        "cpu_hotplug_proved": false,
+        "scheduler_liveness_proved": false,
+        "m77_quota_composition_proved": false,
+        "m71_5_interference_bound_validated": false
+      }
+    },
+    {
+      "claim": "VM_RESOURCE_ISOLATION_PROVED",
+      "scope": "three_process_two_node_symbolic_accounting",
+      "profile": null,
+      "source": "dynamic_vm.json",
+      "judge": "z3",
+      "evidence": {
+        "status": "VM_RESOURCE_ISOLATION_PROVED",
+        "claims": [
+          "VM_RESOURCE_ISOLATION_PROVED",
+          "NUMA_ACCOUNTING_PROVED"
+        ],
+        "judge": "z3",
+        "scope": "three_process_two_node_symbolic_accounting",
+        "artifact_sha256": "49e0be94643eb761b082cac0f311774ee941ed3c5789dd45d02f7f91a87fb310",
+        "smt_sha256": "81fc235869ccbb634d90e00f63c744fd054c89d93c3ddbe1623666566651b815",
+        "process_count": 3,
+        "numa_node_count": 2,
+        "admitted_memory_pages": 8,
+        "physical_pages": 10,
+        "operations_proved_inductive": [
+          "alloc",
+          "free",
+          "map",
+          "fork_reserve_cow",
+          "exec_release"
+        ],
+        "deterministic_exhaustion": true,
+        "hardware_tlb_coherence_proved": false,
+        "hardware_page_table_walker_proved": false,
+        "arbitrary_process_count_proved": false,
+        "numa_hotplug_proved": false,
+        "allocator_implementation_refinement_proved": false
+      }
+    },
+    {
+      "claim": "NUMA_ACCOUNTING_PROVED",
+      "scope": "three_process_two_node_symbolic_accounting",
+      "profile": null,
+      "source": "dynamic_vm.json",
+      "judge": "z3",
+      "evidence": {
+        "status": "VM_RESOURCE_ISOLATION_PROVED",
+        "claims": [
+          "VM_RESOURCE_ISOLATION_PROVED",
+          "NUMA_ACCOUNTING_PROVED"
+        ],
+        "judge": "z3",
+        "scope": "three_process_two_node_symbolic_accounting",
+        "artifact_sha256": "49e0be94643eb761b082cac0f311774ee941ed3c5789dd45d02f7f91a87fb310",
+        "smt_sha256": "81fc235869ccbb634d90e00f63c744fd054c89d93c3ddbe1623666566651b815",
+        "process_count": 3,
+        "numa_node_count": 2,
+        "admitted_memory_pages": 8,
+        "physical_pages": 10,
+        "operations_proved_inductive": [
+          "alloc",
+          "free",
+          "map",
+          "fork_reserve_cow",
+          "exec_release"
+        ],
+        "deterministic_exhaustion": true,
+        "hardware_tlb_coherence_proved": false,
+        "hardware_page_table_walker_proved": false,
+        "arbitrary_process_count_proved": false,
+        "numa_hotplug_proved": false,
+        "allocator_implementation_refinement_proved": false
+      }
+    },
+    {
+      "claim": "REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+      "scope": "vfs_promoted_model_to_host_object_artifact_identity",
+      "profile": null,
+      "source": "refinement_spine.json",
+      "judge": "rustc+exhaustive_relational_harness",
+      "evidence": {
+        "status": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+        "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+        "judge": "rustc+exhaustive_relational_harness",
+        "scope": "vfs_promoted_model_to_host_object_artifact_identity",
+        "artifact_sha256": "9dbe696ddedd8813d8420468eab920c1dc53fde2858e870f5eaf35899f26586d",
+        "model_sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625",
+        "refinement_certificate_sha256": "9206db286259dda1e2b9f8558966b4b16a3460b631a9e093ad0a06582bd0e675",
+        "rust_source_sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00",
+        "runtime_source_sha256": "a82dde90aa18fa17fb76067c3e45525af4ca7d0e40b9cf68bd94c9324a3c2e3c",
+        "llvm_ir_sha256": "cde1b5f7d8821ddbb7a410171c7b2b00b04b033b3f71ec9cc2413ec5c33ed0ef",
+        "object_sha256": "56b214d619b7f346f467df408c2704c936479da92c4d9eae276abe28a956e067",
+        "compiler_provenance": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3",
+        "operations_observed_in_ir": [
+          "close",
+          "new",
+          "open",
+          "read",
+          "write"
+        ],
+        "valid_states_checked": 255,
+        "operation_transitions_checked": 1020,
+        "constructor_checked": true,
+        "harness_sha256": "ffba94b03b1377f2f04bf7e39556f041a32300242faeafd41e279916d53acc98",
+        "semantic_ir_refinement_proved": false,
+        "verified_compiler_proved": false,
+        "binary_semantics_proved": false,
+        "end_to_end_refinement_chain_established": false
+      }
+    },
+    {
+      "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+      "scope": "vfs_all_bounded_states_and_operations",
+      "profile": null,
+      "source": "refinement_spine.json",
+      "judge": "rustc+exhaustive_relational_harness",
+      "evidence": {
+        "status": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+        "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+        "judge": "rustc+exhaustive_relational_harness",
+        "scope": "vfs_promoted_model_to_host_object_artifact_identity",
+        "artifact_sha256": "9dbe696ddedd8813d8420468eab920c1dc53fde2858e870f5eaf35899f26586d",
+        "model_sha256": "2477806e322a3bdf85d0b6e23ccba50aedc6984907adcb1b26545cf927908625",
+        "refinement_certificate_sha256": "9206db286259dda1e2b9f8558966b4b16a3460b631a9e093ad0a06582bd0e675",
+        "rust_source_sha256": "16fdd3ae49f867a2999bb4b5292ace40b8d61c5a9da1367728b14b8ad97a3e00",
+        "runtime_source_sha256": "a82dde90aa18fa17fb76067c3e45525af4ca7d0e40b9cf68bd94c9324a3c2e3c",
+        "llvm_ir_sha256": "cde1b5f7d8821ddbb7a410171c7b2b00b04b033b3f71ec9cc2413ec5c33ed0ef",
+        "object_sha256": "56b214d619b7f346f467df408c2704c936479da92c4d9eae276abe28a956e067",
+        "compiler_provenance": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3",
+        "operations_observed_in_ir": [
+          "close",
+          "new",
+          "open",
+          "read",
+          "write"
+        ],
+        "valid_states_checked": 255,
+        "operation_transitions_checked": 1020,
+        "constructor_checked": true,
+        "harness_sha256": "ffba94b03b1377f2f04bf7e39556f041a32300242faeafd41e279916d53acc98",
+        "semantic_ir_refinement_proved": false,
+        "verified_compiler_proved": false,
+        "binary_semantics_proved": false,
+        "end_to_end_refinement_chain_established": false
+      }
+    },
+    {
+      "claim": "TOOL_QUALIFICATION_EVIDENCE_READY",
+      "scope": "reviewed_golden_vector_corpus_only",
+      "profile": null,
+      "source": "tool_qualification.json",
+      "judge": "independent_stdlib_oracle",
+      "evidence": {
+        "status": "TOOL_QUALIFICATION_EVIDENCE_READY",
+        "claim": "TOOL_QUALIFICATION_EVIDENCE_READY",
+        "judge": "independent_stdlib_oracle",
+        "scope": "reviewed_golden_vector_corpus_only",
+        "vectors_passed": [
+          "v2-counter-serializer",
+          "v2-lock-serializer",
+          "z3-hazard-mapping"
+        ],
+        "vector_count": 3,
+        "artifact_sha256": "f90909be468c0c136cd9a99ab8d0930100b63b1585b7d329d19e4c1428343cf2",
+        "oracle_sha256": "4987156e9b9eea60fdb865de95534916ca70ed5806f52fbe0131bfe0a27ab35a",
+        "external_authority_reviewed": false,
+        "do330_qualified": false,
+        "general_transformation_correctness_proved": false
+      }
+    },
+    {
+      "claim": "CERTIFICATION_TRACEABILITY_COMPLETE",
+      "scope": "requirements_to_evidence_bundle",
+      "profile": null,
+      "source": "certification_traceability.json",
+      "judge": "deterministic_gate",
+      "evidence": {
+        "status": "CERTIFICATION_TRACEABILITY_COMPLETE",
+        "claim": "CERTIFICATION_TRACEABILITY_COMPLETE",
+        "judge": "deterministic_gate",
+        "deployment": "microkernel",
+        "rows": [
+          {
+            "requirement": "FK-RT-001",
+            "claim": "SCHEDULER_STARVATION_FREEDOM_MODEL_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc"
+            ],
+            "sources": [
+              "liveness.json"
+            ]
+          },
+          {
+            "requirement": "FK-WCET-002",
+            "claim": "WCET_BOUND_PROVEN",
+            "status": "MAPPED",
+            "evidence_count": 4,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "sched_tick.c",
+              "timer_tick.c"
+            ]
+          },
+          {
+            "requirement": "FK-MEM-003",
+            "claim": "HARDWARE_MEMORY_BOUND_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 3,
+            "judges": [
+              "z3"
+            ],
+            "sources": [
+              "/home/sheel/formalspecgen/Vfs.rs",
+              "pq_tls.json"
+            ]
+          },
+          {
+            "requirement": "FK-DMA-004",
+            "claim": "DMA_ISOLATION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 4,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "nic.c",
+              "virtio_blk_dma.c"
+            ]
+          },
+          {
+            "requirement": "FK-WM-005",
+            "claim": "WEAK_MEMORY_SAFETY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 4,
+            "judges": [
+              "herd7"
+            ],
+            "sources": [
+              "weak_memory/aarch64_message_passing.litmus",
+              "weak_memory/x86_message_passing.litmus"
+            ]
+          },
+          {
+            "requirement": "FK-R52-006",
+            "claim": "R52_TCM_PLACEMENT_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "r52_port.json"
+            ]
+          },
+          {
+            "requirement": "FK-SMMU-007",
+            "claim": "SMMU_CONFIGURATION_CORRESPONDENCE_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "r52_smmu.json"
+            ]
+          },
+          {
+            "requirement": "FK-N150-008",
+            "claim": "N150_PLATFORM_CONFIGURATION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "n150_port.json"
+            ]
+          },
+          {
+            "requirement": "FK-SPACE-009",
+            "claim": "SPATIAL_ISOLATION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 2,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "mmu.json"
+            ]
+          },
+          {
+            "requirement": "FK-SYSCALL-010",
+            "claim": "SYSCALL_BOUNDARY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 2,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "syscalls.json"
+            ]
+          },
+          {
+            "requirement": "FK-AUTH-011",
+            "claim": "SERVER_CAPABILITY_NONINTERFERENCE_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "z3"
+            ],
+            "sources": [
+              "server_capabilities.json"
+            ]
+          },
+          {
+            "requirement": "FK-MC-013",
+            "claim": "MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_gate"
+            ],
+            "sources": [
+              "multicore_interference.json"
+            ]
+          },
+          {
+            "requirement": "FK-RCU-014",
+            "claim": "RCU_RECLAMATION_SAFETY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlapm+esbmc"
+            ],
+            "sources": [
+              "scheduler/rcu.json"
+            ]
+          },
+          {
+            "requirement": "FK-FS-015",
+            "claim": "FILESYSTEM_CRASH_ATOMICITY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc"
+            ],
+            "sources": [
+              "journal.json"
+            ]
+          },
+          {
+            "requirement": "FK-TCP-016",
+            "claim": "TCP_RESOURCE_CONTAINMENT_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc"
+            ],
+            "sources": [
+              "tcp_resource.json"
+            ]
+          },
+          {
+            "requirement": "FK-MIT-017",
+            "claim": "MICROARCH_MITIGATION_POLICY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "z3"
+            ],
+            "sources": [
+              "n150_mitigations.json"
+            ]
+          },
+          {
+            "requirement": "FK-MIT-WCET-018",
+            "claim": "MITIGATION_WCET_BUDGET_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_cost_equation"
+            ],
+            "sources": [
+              "n150_mitigations.json"
+            ]
+          },
+          {
+            "requirement": "FK-TOOL-019",
+            "claim": "TOOL_QUALIFICATION_EVIDENCE_READY",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "independent_stdlib_oracle"
+            ],
+            "sources": [
+              "tool_qualification.json"
+            ]
+          },
+          {
+            "requirement": "FK-SPINE-020",
+            "claim": "REFINEMENT_CHAIN_ARTIFACTS_BOUND",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "rustc+exhaustive_relational_harness"
+            ],
+            "sources": [
+              "refinement_spine.json"
+            ]
+          },
+          {
+            "requirement": "FK-SPINE-021",
+            "claim": "BOUNDED_COMPILED_REFINEMENT_VALIDATED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "rustc+exhaustive_relational_harness"
+            ],
+            "sources": [
+              "refinement_spine.json"
+            ]
+          },
+          {
+            "requirement": "FK-VM-022",
+            "claim": "VM_RESOURCE_ISOLATION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "z3"
+            ],
+            "sources": [
+              "dynamic_vm.json"
+            ]
+          },
+          {
+            "requirement": "FK-NUMA-023",
+            "claim": "NUMA_ACCOUNTING_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "z3"
+            ],
+            "sources": [
+              "dynamic_vm.json"
+            ]
+          },
+          {
+            "requirement": "FK-SMP-024",
+            "claim": "SMP_SCHEDULER_INVARIANTS_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlapm"
+            ],
+            "sources": [
+              "scheduler/smp_scheduler.json"
+            ]
+          },
+          {
+            "requirement": "FK-DEVICE-025",
+            "claim": "DEVICE_DMA_DOMAIN_ISOLATION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "z3+range_gate"
+            ],
+            "sources": [
+              "device_fabric.json"
+            ]
+          },
+          {
+            "requirement": "FK-PROC-026",
+            "claim": "PROCESS_CONCURRENCY_MODEL_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc+z3"
+            ],
+            "sources": [
+              "process_model.json"
+            ]
+          },
+          {
+            "requirement": "FK-BOOT-027",
+            "claim": "BOOT_TO_RUNTIME_INTEGRITY_CHAIN_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc+z3+sha256"
+            ],
+            "sources": [
+              "boot_integrity.json"
+            ]
+          },
+          {
+            "requirement": "FK-NET-028",
+            "claim": "NETWORK_RESOURCE_PARTITION_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc+z3"
+            ],
+            "sources": [
+              "network_scale.json"
+            ]
+          },
+          {
+            "requirement": "FK-FAULT-029",
+            "claim": "FAULT_CONTAINMENT_RECOVERY_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc+z3"
+            ],
+            "sources": [
+              "fault_recovery.json"
+            ]
+          },
+          {
+            "requirement": "FK-GUEST-030",
+            "claim": "GUEST_RESOURCE_NONINTERFERENCE_PROVED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "tlc+z3"
+            ],
+            "sources": [
+              "guest_isolation.json"
+            ]
+          },
+          {
+            "requirement": "FK-ABI-031",
+            "claim": "ABI_STABILITY_CHECKED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_abi_gate+host_c_runtime"
+            ],
+            "sources": [
+              "posix_compat_abi.json"
+            ]
+          },
+          {
+            "requirement": "FK-POSIX-032",
+            "claim": "POSIX_CONFORMANCE_TESTED",
+            "status": "MAPPED",
+            "evidence_count": 1,
+            "judges": [
+              "deterministic_abi_gate+host_c_runtime"
+            ],
+            "sources": [
+              "posix_compat_abi.json"
+            ]
+          }
+        ],
+        "mapped": 31,
+        "total": 31,
+        "artifact_sha256": "9b4e94a456321530eb18b5bd9f892a1aeaf6c3ea606aa1e643fd353bc4f7bcc8",
+        "evidence_fingerprint_sha256": "078f9dda1e27a35009d1357e561fa4aa2511ef0bb391ec517773d38d201163fd",
+        "physical_closures_pending": [
+          "R52_PHYSICAL_EXECUTION_PENDING",
+          "R52_PHYSICAL_SMMU_VALIDATION_PENDING",
+          "N150_PHYSICAL_EXECUTION_PENDING"
+        ],
+        "certification_ready": false,
+        "regulatory_certification_proved": false
+      }
+    }
+  ],
+  "boundaries": [
+    {
+      "claim": "TLS_HANDSHAKE_REFINEMENT_PENDING",
+      "scope": "mbedtls_and_liboqs_implementation",
+      "profile": null,
+      "source": "tls_handshake.json",
+      "status": "boundary",
+      "judge": "none",
+      "subsystem": "net",
+      "cryptographic_strength_proved": false,
+      "transcript_authenticity_proved": false,
+      "mbedtls_implementation_refinement_proved": false
+    },
+    {
+      "claim": "TCP_PROTOCOL_REFINEMENT_PENDING",
+      "scope": "rfc9293_rfc5961_and_native_stack",
+      "status": "judge_pending",
+      "profile": null,
+      "subsystem": "net",
+      "judge_pending": "tcp_implementation_refinement",
+      "rfc9293_conformance_proved": false,
+      "rfc5961_conformance_proved": false
+    },
+    {
+      "claim": "PHYSICAL_CRASH_INJECTION_PENDING",
+      "scope": "device_fua_torn_write_fault_injection",
+      "status": "judge_pending",
+      "profile": null,
+      "subsystem": "vfs",
+      "judge_pending": "crashmonkey_style_physical_injection",
+      "physical_fua_semantics_proved": false
+    },
+    {
+      "claim": "R52_PHYSICAL_EXECUTION_PENDING",
+      "scope": "physical_cortex_r52_board",
+      "status": "judge_pending",
+      "judge_pending": "physical_cortex_r52_board",
+      "profile": "r52",
+      "physical_boot_proved": false,
+      "measured_wcet_proved": false
+    },
+    {
+      "claim": "R52_PHYSICAL_SMMU_VALIDATION_PENDING",
+      "scope": "malicious_device_dma_fault_injection",
+      "status": "judge_pending",
+      "profile": "r52",
+      "judge_pending": "physical_r52_smmu_fault_injection",
+      "external_io_safety_proved": false
+    },
+    {
+      "claim": "N150_PHYSICAL_EXECUTION_PENDING",
+      "scope": "physical_intel_n150",
+      "status": "judge_pending",
+      "profile": "n150",
+      "judge_pending": "physical_intel_n150",
+      "physical_boot_proved": false,
+      "physical_vtd_proved": false,
+      "physical_tso_conformance_proved": false
+    },
+    {
+      "claim": "RUNTIME_MICROARCH_PROFILE_VALIDATION_PENDING",
+      "scope": "runtime_cpuid_and_microcode_revision",
+      "profile": "n150",
+      "status": "judge_pending",
+      "judge_pending": "authenticated_runtime_platform_probe",
+      "runtime_cpuid_validated": false,
+      "runtime_microcode_validated": false
+    },
+    {
+      "claim": "MEASURED_MITIGATION_WCET_PENDING",
+      "scope": "physical_mitigation_latency",
+      "profile": "n150",
+      "status": "judge_pending",
+      "judge_pending": "target_cycle_measurement",
+      "measured_cost_validated": false
+    },
+    {
+      "claim": "SPECULATIVE_NONINTERFERENCE_PENDING",
+      "scope": "physical_microarchitectural_information_flow",
+      "profile": "n150",
+      "status": "judge_pending",
+      "judge_pending": "microarchitectural_noninterference_judge",
+      "speculative_noninterference_proved": false
+    },
+    {
+      "claim": "TARGET_WCET_INTERFERENCE_BOUND_PENDING",
+      "scope": "authenticated_target_measurements",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "authenticated_target_interference_measurements",
+      "target_wcet_interference_bound_validated": false
+    },
+    {
+      "claim": "RCU_IMPLEMENTATION_REFINEMENT_PENDING",
+      "scope": "source_model_irq_nmi_callback_pressure",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "rcu_source_model_refinement_irq_nmi_callback_pressure",
+      "implementation_refinement_proved": false
+    },
+    {
+      "claim": "UNVERIFIED_EXTERNAL_ADAPTER",
+      "scope": "post_quantum_cryptographic_implementation",
+      "profile": null,
+      "source": "liboqs",
+      "status": "boundary",
+      "judge": "none",
+      "subsystem": "net",
+      "cryptographic_strength_proved": false,
+      "liboqs_implementation_proved": false,
+      "claims_proved": [
+        "HARDWARE_MEMORY_BOUND_PROVED"
+      ],
+      "note": "M58 proves session-pool capacity and ERR_MEM admission only"
+    },
+    {
+      "claim": "HARDWARE_INTERRUPT_DELIVERY_PENDING",
+      "scope": "pq_scheduler_silicon_boundary",
+      "profile": null,
+      "source": "pq_wcet.json",
+      "status": "boundary",
+      "judge": "none",
+      "subsystem": "net",
+      "hardware_interrupt_delivery_proved": false,
+      "preemptive_isolation_proved": false,
+      "declared_el0_preemption_model_proved": true,
+      "cooperative_yield_required": false
+    },
+    {
+      "claim": "COMPATIBILITY_AND_OPERATIONS_REFINEMENT_PENDING",
+      "scope": "full_posix_kernel_syscalls_target_runtime_observability_and_atomic_upgrade",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "target_runtime_and_native_refinement"
+    },
+    {
+      "claim": "HARDWARE_VIRTUALIZATION_REFINEMENT_PENDING",
+      "scope": "vm_exits_nested_paging_interrupt_remapping_native_hypervisor_and_side_channels",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "hardware_virtualization_and_native_refinement"
+    },
+    {
+      "claim": "PHYSICAL_FAULT_DELIVERY_AND_REFINEMENT_PENDING",
+      "scope": "ecc_mce_watchdog_firmware_native_handlers_and_repeated_faults",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "physical_fault_injection_and_native_refinement"
+    },
+    {
+      "claim": "NETWORK_SCALE_REFINEMENT_PENDING",
+      "scope": "ipv6_rfc_native_stack_rss_msix_and_physical_delivery",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "protocol_and_hardware_refinement"
+    },
+    {
+      "claim": "PHYSICAL_ROOT_OF_TRUST_PENDING",
+      "scope": "tpm_firmware_keys_hash_strength_and_built_image",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "physical_root_of_trust_validation"
+    },
+    {
+      "claim": "PROCESS_RUNTIME_REFINEMENT_PENDING",
+      "scope": "posix_native_futex_signals_and_unbounded_population",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "native_and_hardware_refinement"
+    },
+    {
+      "claim": "PHYSICAL_DEVICE_FABRIC_PENDING",
+      "scope": "iommu_pcie_nvme_msix_and_native_driver",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "physical_fault_injection_and_refinement"
+    },
+    {
+      "claim": "SMP_IMPLEMENTATION_AND_LIVENESS_PENDING",
+      "scope": "load_balancer_irq_ipi_hotplug_fairness_composition",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "native_refinement_and_temporal_judges"
+    },
+    {
+      "claim": "DYNAMIC_VM_HARDWARE_REFINEMENT_PENDING",
+      "scope": "tlb_page_walker_hotplug_and_native_allocator",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "hardware_and_implementation_refinement"
+    },
+    {
+      "claim": "END_TO_END_REFINEMENT_CHAIN_PENDING",
+      "scope": "rust_llvm_object_semantic_correspondence",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "semantic_ir_and_verified_compiler_judges",
+      "semantic_ir_refinement_proved": false,
+      "verified_compiler_proved": false,
+      "binary_semantics_proved": false
+    },
+    {
+      "claim": "DO330_EXTERNAL_QUALIFICATION_PENDING",
+      "scope": "context_specific_external_authority_review",
+      "status": "judge_pending",
+      "profile": null,
+      "judge_pending": "independent_qualification_authority",
+      "do330_qualified": false,
+      "general_transformation_correctness_proved": false
+    }
+  ],
+  "note": "microkernel: boundary lanes may be declared — the driver runs at EL0 behind the verified door"
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "VALIDATED_CANDIDATE",
+  "claim": "NO_PROOF",
+  "candidate_sha256": "191566f356e440aa074c44eae49b9088e0673706ce5e9b051152fe964b569b0e",
+  "validator": "pipeline/virtio_queue_model.py",
+  "validator_sha256": "77891edb7b30584a3818997f6470852def7274ed4633cfea1ac4199704bf9a3d",
+  "capacity": 2,
+  "state_count": 3,
+  "transition_count": 8,
+  "errors": [],
+  "human_review_accepted": false,
+  "bridge_claim_eligible": false
+}
