@@ -109,7 +109,8 @@ formal backends use the same boundary and publication path. Set
 explicitly report that strict isolation and durable publication are unsupported.
 
 Admission is specific to a command, mode, language, backend, provider policy, and set of requested
-effects; it is not a command-wide safety label. See the
+effects; it is not a command-wide safety label. A matching profile is a permission ceiling, and the
+invocation receives only the effects it explicitly requested. See the
 [strict MCP admission guide](docs/MCP_ADMISSION.md) for the current workflow matrix, admission
 requirements, evidence behavior, and permanent human trust boundary.
 

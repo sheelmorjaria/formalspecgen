@@ -4,10 +4,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .capability_registry import MCP_EFFECTS, MCPInvocationProfile, capability
+
+
+MCP_ADMISSION_POLICY_VERSION = "mcp-admission-v2"
 
 
 class MCPPolicyViolation(RuntimeError):
@@ -26,12 +31,14 @@ class MCPAdmission:
     profile: MCPInvocationProfile | None = None
     reason: str = ""
 
+    @property
+    def granted_effects(self) -> tuple[str, ...]:
+        if not self.admitted or self.profile is None:
+            return ()
+        return tuple(sorted(set(self.requested_effects) & set(self.profile.effects)))
+
     def permits(self, effect: str) -> bool:
-        return bool(
-            self.admitted
-            and self.profile is not None
-            and effect in self.profile.effects
-        )
+        return effect in self.granted_effects
 
     def rejection(self) -> dict[str, Any]:
         return {
@@ -45,18 +52,49 @@ class MCPAdmission:
             "strict_isolation_supported": False,
             "durable_publication_supported": False,
             "admission_profile": None,
+            "requested_effects": list(self.requested_effects),
+            "granted_effects": [],
+            "admission_policy_version": MCP_ADMISSION_POLICY_VERSION,
             "message": self.reason or "the requested invocation profile is not admitted",
         }
 
     def summary(self) -> dict[str, Any]:
+        definition = canonical_profile_definition(self.profile) if self.profile else None
+        digest = profile_definition_sha256(self.profile) if self.profile else None
         return {
             "profile": self.profile.name if self.profile else None,
             "mode": self.mode,
             "language": self.language,
             "backend": self.backend,
             "provider": self.provider,
-            "effects": list(self.requested_effects),
+            "requested_effects": list(self.requested_effects),
+            "granted_effects": list(self.granted_effects),
+            "profile_definition": definition,
+            "profile_sha256": digest,
+            "admission_policy_version": MCP_ADMISSION_POLICY_VERSION,
         }
+
+
+def canonical_profile_definition(
+        profile: MCPInvocationProfile) -> dict[str, Any]:
+    """Return the stable, complete permission ceiling bound into evidence."""
+    return {
+        "name": profile.name,
+        "modes": sorted(set(profile.modes)),
+        "languages": sorted(set(profile.languages)),
+        "backends": sorted(set(profile.backends)),
+        "effects": sorted(set(profile.effects)),
+        "providers": sorted(set(profile.providers)),
+        "output_scope": profile.output_scope,
+        "evidence": profile.evidence,
+    }
+
+
+def profile_definition_sha256(profile: MCPInvocationProfile) -> str:
+    encoded = json.dumps(
+        canonical_profile_definition(profile), sort_keys=True,
+        separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def authorize_mcp_invocation(

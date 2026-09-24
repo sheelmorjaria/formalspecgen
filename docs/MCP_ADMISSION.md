@@ -5,6 +5,11 @@ command, mode, language, backend, provider policy, workspace effects, and eviden
 has completed admission testing. An unlisted combination fails before side effects with
 `ISOLATION_UNSUPPORTED` and `claim=NO_PROOF`.
 
+A profile is a permission ceiling, not a bundle of permissions silently granted to every matching
+request. An invocation receives only the intersection of its explicitly requested effects and that
+ceiling. Omitting execution, publication, provider access, or writes means the corresponding effect
+boundary will reject the operation even when the broader profile could have allowed it.
+
 > Strict MCP exposes only explicitly admitted invocation profiles. Executing workflows require
 > approved isolation and evidence publication across all execution stages. Non-executing workflows
 > require bounded processing and explicitly constrained workspace and provider access. Unsupported
@@ -21,6 +26,10 @@ has completed admission testing. An unlisted combination fails before side effec
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
 is not registered merely because it has a Python handler.
+
+Published verification evidence records requested and granted effects, the complete canonical
+profile definition and its SHA-256 digest, and the admission-policy version. This binds a run to the
+policy contents that authorized it rather than relying on a mutable profile name.
 
 ## Available through CLI but not admitted to strict MCP
 
