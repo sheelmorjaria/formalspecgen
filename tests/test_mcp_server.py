@@ -360,35 +360,17 @@ def test_mcp_create_server_registers_all_permitted_tools():
     """Registry is the MCP source of truth; trust actions stay out."""
     from pipeline.capability_registry import mcp_capabilities
     registered = [item.mcp_tool for item in mcp_capabilities()]
-    assert len(registered) == 40
+    assert len(registered) == 39
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
                  "verify_distributed", "verify_heap", "verify_hal",
                  "macro_translate", "verify_lockfree",
                  "verify_weak_memory", "verify_wcet", "verify_liveness",
-                 "verify_dma", "extract_intrusive_list", "resolve_callbacks",
-                 "verify_kernel"):
+                 "verify_dma", "extract_intrusive_list", "resolve_callbacks"):
         assert name in registered
     for excluded in (
-            "sign_artifact", "manage_trust", "promote_domain", "promote_queue_model",
-            "promote_information_flow_scope", "promote_declassification_policy",
-            "promote_capability_authority"):
+            "sign_artifact", "manage_trust", "promote_domain"):
         assert excluded not in registered
-
-
-def test_mcp_verify_kernel_uses_registry_schema_and_workspace_guard(tmp_path, monkeypatch):
-    _workspace(tmp_path, monkeypatch)
-    root = Path.cwd() / "kernel"
-    root.mkdir()
-    profile = Path.cwd() / "arm.json"
-    profile.write_text("{}", encoding="utf-8")
-    with patch("pipeline.kernel_lattice.verify_kernel",
-               return_value={"status": "KERNEL_EVIDENCE_BUNDLE", "claims": []}) as kernel:
-        result = mcp_server.verify_kernel("kernel", ["arm.json"], "monolith.json")
-    assert result["status"] == "KERNEL_EVIDENCE_BUNDLE"
-    kernel.assert_called_once_with(root, [profile], manifest_name="monolith.json")
-    assert mcp_server.verify_kernel("kernel", ["arm.json"], "../kernel.json")["code"] == \
-        "invalid_request"
 
 
 def test_mcp_os_lanes_two_through_five_guarded(tmp_path, monkeypatch):

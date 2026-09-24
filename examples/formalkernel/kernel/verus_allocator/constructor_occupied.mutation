@@ -1,3 +1,0 @@
-search: occupied: [false; HEAP_BLOCKS],
-replace: occupied: [true; HEAP_BLOCKS],
-expected_failure: postcondition not satisfied

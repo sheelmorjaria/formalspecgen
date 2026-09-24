@@ -1,4 +1,0 @@
-generated/*
-!generated/generated_specs_formalkernel_refinedrust_array_regression.v
-proofs/dune
-interface.rrlib

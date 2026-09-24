@@ -11,7 +11,7 @@ from pipeline.cli import build_parser
 
 
 def test_cli_and_distribution_versions_share_package_source(capsys):
-    assert __version__ == "1.2.1"
+    assert __version__ == "13.0.0"
     project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     assert project["project"]["dynamic"] == ["version"]
     assert project["tool"]["setuptools"]["dynamic"]["version"] == {

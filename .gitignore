@@ -113,3 +113,6 @@ e2e-null-object/
 **/.digest-db
 **/.filesystem-clock
 rustc-ice-*.txt
+
+# Repository-local external verification toolchains.
+/.local-tools/

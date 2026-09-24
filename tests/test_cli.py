@@ -245,44 +245,6 @@ class CliTests(unittest.TestCase):
             except SystemExit as exit_code:
                 self.assertIn(exit_code.code, (None, 0, 1, 2))
 
-    def test_dispatch_routes_verify_kernel(self):
-        """verify-kernel dispatches in-process over a manifest + profile."""
-        import json as _json
-        kernel = self.root / "kernel"
-        kernel.mkdir()
-        (kernel / "isr.c").write_text(
-            "int handle(int irq) {\n"
-            "    for (int i = 0; i < 8; i++) { irq = irq + 1; }\n"
-            "    return irq; }\n", encoding="utf-8")
-        (kernel / "eth.c").write_text(
-            "void *eth_setup(void) { return dma_map(eth, 0x100); }\n",
-            encoding="utf-8")
-        (kernel / "kernel.json").write_text(_json.dumps({
-            "wcet": {"isr.c": {}}, "dma": ["eth.c"],
-            "memory_map": {"kernel_pools": {"pool": [0x4000, 0x8000]},
-                           "devices": {"eth": [0x10000, 0x11000]}},
-            "dma_contracts": {"eth": [0x10000, 0x10800]}}),
-            encoding="utf-8")
-        profile = self.root / "t.json"
-        profile.write_text(_json.dumps(
-            {"target": "t", "memory_model": "x86_tso",
-             "timing": {"max_cycles": 500}}), encoding="utf-8")
-        argv = ["verify-kernel", str(kernel), "--profile", str(profile),
-                "--json", str(self.root / "k.json")]
-        try:
-            self.assertIn(cli.main(argv), (0, 1, 2))
-        except SystemExit as exit_code:
-            self.assertIn(exit_code.code, (None, 0, 1, 2))
-        # a contract-widening driver fails the bundle and prints the
-        # named failure rows
-        (kernel / "eth.c").write_text(
-            "void *eth_setup(void) { return dma_map(eth, 0x4000); }\n",
-            encoding="utf-8")
-        try:
-            self.assertEqual(cli.main(argv), 1)
-        except SystemExit as exit_code:
-            self.assertEqual(exit_code.code, 1)
-
     def test_command_verify_lockfree(self):
         args = SimpleNamespace(source="ring.c", json_out=None)
         proved = {"status": "LOCK_FREE_LINEARIZABILITY_PROVED",

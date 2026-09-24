@@ -3,9 +3,6 @@
 """M49: the syscall boundary — dispatch table as a deterministic gate."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from pipeline.syscall_boundary import verify_syscall_boundary
 
 ARTIFACT = {
@@ -121,49 +118,3 @@ def test_gate_residuals_refuse():
         "code"] == "memory_map_incomplete"
     assert gate({**ARTIFACT, "syscalls": ["not-an-object"]})["code"] == \
         "syscall_field_invalid"
-
-
-def test_lattice_syscall_lane_residuals(tmp_path):
-    """The verify-kernel syscalls lane refuses missing/invalid artifacts
-    by name and mints the claim per profile — never guessing."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent))
-    from test_kernel_composition import _kernel, _profile
-    from pipeline.kernel_lattice import verify_kernel
-    root = _kernel(tmp_path)
-    # strip the lockfree lane: this test judges the SYSCALLS lane
-    # wiring, not the (already-judged) ESBMC witness — each verify_kernel
-    # call would otherwise pay a real ESBMC run
-    for mf_path in root.rglob("kernel.json"):
-        mf = json.loads(mf_path.read_text())
-        if mf.pop("lockfree", None) is not None:
-            mf_path.write_text(json.dumps(mf))
-    manifest = json.loads((root / "kernel.json").read_text())
-    manifest["syscalls"] = "ghost.json"
-    (root / "kernel.json").write_text(json.dumps(manifest))
-    assert verify_kernel(root, [_profile(tmp_path)])["code"] == \
-        "syscalls_artifact_missing"
-    (root / "bad.json").write_text("{nope", encoding="utf-8")
-    manifest["syscalls"] = "bad.json"
-    (root / "kernel.json").write_text(json.dumps(manifest))
-    assert verify_kernel(root, [_profile(tmp_path)])["code"] == \
-        "syscalls_artifact_invalid"
-    (root / "sys.json").write_text(json.dumps(
-        {"user_image": ARTIFACT["user_image"],
-         "kernel_resources": ARTIFACT["kernel_resources"],
-         "syscalls": ARTIFACT["syscalls"]}), encoding="utf-8")
-    manifest["syscalls"] = "sys.json"
-    (root / "kernel.json").write_text(json.dumps(manifest))
-    # the artifact carries no memory_map and the profile declares none
-    assert verify_kernel(root, [_profile(tmp_path)])["code"] == \
-        "profile_field_missing"
-    (root / "sys.json").write_text(json.dumps(ARTIFACT), encoding="utf-8")
-    bundle = verify_kernel(root, [_profile(tmp_path)])
-    assert any(e["claim"] == "SYSCALL_BOUNDARY_PROVED"
-               for e in bundle.get("claims", []))
-    # an overlapping user image fails the bundle by name
-    (root / "sys.json").write_text(json.dumps(
-        {**ARTIFACT, "user_image": {"start": 0x4000F000,
-                                    "end": 0x40010000}}), encoding="utf-8")
-    failed = verify_kernel(root, [_profile(tmp_path)])
-    assert failed["code"] == "USER_IMAGE_OVERLAPS_KERNEL"

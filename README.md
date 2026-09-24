@@ -40,7 +40,7 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 40 tools covering the full verification surface: `verify_code`,
+The server exposes 39 tools covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
@@ -50,8 +50,7 @@ The server exposes 40 tools covering the full verification surface: `verify_code
 `generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
 `verify_distributed`, `verify_heap`, `verify_hal`, `macro_translate`,
 `verify_lockfree`, `verify_weak_memory`, `verify_wcet`, `verify_liveness`,
-`verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, `doctor_environment`,
-and `verify_kernel`. The
+`verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, and `doctor_environment`. The
 OS-lane tools keep the same epistemic split as the CLI: `verify_lockfree`
 mints its claim only from real ESBMC interleaving results, the
 deterministic structural lanes (`verify_weak_memory`, `verify_wcet`,
@@ -81,7 +80,7 @@ authorize on a reviewer's behalf.
 
 CLI/MCP exposure is governed by `pipeline/capability_registry.py`. The migration is
 incremental: all MCP tools and human-only trust exclusions are declared there, and
-high-drift CLI schemas are moving into the same registry beginning with `verify-kernel`.
+external packages can add high-drift CLI schemas through the versioned command-plugin API.
 Registry parity tests reject duplicate names, missing MCP callables, argument drift, or
 accidental exposure of promotion, signing, and reviewer-key policy.
 Configure an MCP client with the server command and its absolute project path, for
@@ -460,7 +459,6 @@ FormalSpecGen covers five connected workflows:
 | Synthesis | `domain` → `validate-domain` → `promote-domain` → `draft` → `implement` | Native `DEDUCTIVE_PROOF` and supported `SOURCE_MODEL_REFINEMENT` |
 | Scaling | `system`, lock-protocol V2, Rayon wrapper, async-message V2 | `SYSTEM_COMPOSITION_PROOF`, restricted `CONCURRENT_LINEARIZABILITY`, `PARALLEL_PARTITION_VERIFIED`, or capped async static evidence |
 | Hexagonal integration | `compose --lang {java,rust,c,cpp}` with external Ports, adapter names, and explicit step arguments | `SYSTEM_COMPOSITION_PROOF` for core-to-Port contract use (`BOUNDED_SYSTEM_COMPOSITION_PROOF` on the cpp lane); `external_io_safety_proved: false` |
-| Kernel evidence | `verify-kernel` (per-profile lanes; `--manifest` selects the deployment profile) | `KERNEL_EVIDENCE_BUNDLE` — scope-tagged claims from real judges (ESBMC/Kani/deterministic gates); absent judges stay `judge_pending` |
 | Modernization | `inspect` → `apply-refactor` → `verify-refactor`; rust/c/cpp extract-method via `apply-refactor --method`, plus the Rust strategy profile (`--pattern strategy`) on the probed static-dispatch shape | `REFACTOR_CONTRACT_PRESERVED` after independent baseline/refactored ESC (`BOUNDED_REFACTOR_CONTRACT_PRESERVED` for C++) |
 | Comprehension | `analyze-codebase` / `document-code` | `UNREVIEWED_EXTRACTION_CANDIDATE` / `UNREVIEWED_EXTRACTION_DOCUMENTATION` — never proof |
 | Verified reimplementation | `analyze-codebase` → `validate-domain` → `promote-domain` → `draft --canonical-domain --lang` → `implement` | `SOURCE_MODEL_REFINEMENT` for a Rust port of a reviewed, TLC-validated extracted state machine |
@@ -1715,440 +1713,15 @@ Async Tokio metadata, lock protocols, exception semantics, and unsupported expre
 rejected rather than approximated. Install ESBMC from its official Ubuntu PPA or release binary;
 the verifier must be available as `esbmc` on `PATH`.
 
-### The FormalKernel evidence lattice (verify-kernel)
+### FormalKernel integration
 
-The implemented OS-scale lane (M41–M85, including M71.5 and M76 step 2) is
-documented in [`docs/FORMALKERNEL_PLAN.md`](docs/FORMALKERNEL_PLAN.md). The
-prospective foundational/hardware/scale roadmap is documented separately in
-[`docs/FORMALKERNEL_M86_M120_ROADMAP.md`](docs/FORMALKERNEL_M86_M120_ROADMAP.md),
-which tracks the next verification programme. M86.1 now non-vacuously qualifies the
-pinned Verus judge. The initial exact-module feasibility check remains
-`NO_PROOF` because it created zero obligations; a byte-identical ghost/spec
-overlay now qualifies one real constructor obligation and rejects a semantic
-mutation. Allocation and release are still locked, so no allocator, compiler,
-or end-to-end refinement claim is inferred. Three separate M86.1c probes record
-mutable iteration/enumeration, `get_mut`, and filter/count as named Verus
-standard-library semantic gaps without introducing trusted assumptions. M86.2a
-now ranks only production Rust and records that M77 has no native Rust module;
-the scalar `VirtioBlkAdapter::complete` path is selected for the next exact
-overlay. That byte-identical overlay now verifies four completion semantics and
-rejects a decrement mutation, unlocking only
-`VERUS_VIRTIO_BLK_OVERLAY_QUALIFIED`. The expanded exact overlay subsequently
-proves constructor, submit/refusal, occupancy, and completion accounting and
-rejects six semantic mutations, minting the narrow
-`VIRTIO_QUEUE_ACCOUNTING_IMPLEMENTATION_CORRECTNESS_PROVED` claim. Its
-implementation/model bridge has a hash-accepted three-state model, deterministic
-structural validation, and twelve Verus obligations tying the exact implementation
-to the reviewed transition relation. The human-only `promote-queue-model` command
-replays the positive judgment and six negative mutations before minting the narrow
-`VIRTIO_QUEUE_MODEL_BRIDGE_PROVED` claim. Device, interrupt, DMA-completion, and
-external-I/O behavior remain unproved. M86.4 extracts this lifecycle into a
-common bridge-evidence schema and scans for a structurally different second
-production module. No exact capability or rollback Rust transition currently
-exists, while the remaining modules are constant-only, semantically insufficient,
-or outside the current Verus fragment; the second-module scan is complete and
-parked with `NO_PROOF` instead of inventing code. It reopens only after genuine
-production evolution satisfies the executable eligibility criteria. The promoted
-virtio bridge is the golden regression fixture for the common schema. M87.1 then
-scans exact production Rust for `Atomic*` operations with explicit
-memory ordering. None currently exist, so weak-memory implementation refinement
-is parked with `NO_PROOF`; the existing M61 herd7 artifacts remain model-level
-and are not silently connected to Rust or compiler output. M88.1 binds a candidate
-two-run high/low partition to the reviewed syscall, IPC, and server-capability
-artifacts. The human-only promotion gate accepts the exact scope hash without
-minting proof; Z3 subsequently proves narrow one-step two-run equality and seven
-model/scope mutations fail. This mints only
-`SERVER_POLICY_TWO_RUN_NONINTERFERENCE_PROVED`; trace, timing, termination,
-declassification, and implementation claims remain locked. M88.3 then proves
-three-step matched low-observation traces and rejects history-dependent route and
-queue leaks; it mints only `SERVER_POLICY_TRACE_NONINTERFERENCE_PROVED` and refuses
-single-step trace vacuity. M88.4 adds a separately reviewed-intent release-policy
-candidate; its human-only promotion command cannot mint the theorem. After exact
-hash acceptance, Z3 proves authorization, precision, depth-three non-amplification,
-and rule isolation, while seven semantic/structural policy mutations fail. This
-mints only `DECLASSIFICATION_POLICY_PROVED`. M88 is frozen at those three scoped
-model claims. M89.1 defines a parameterized
-capability-authority algebra covering root minting, attenuation, delegation,
-revocation, checks, generations, and fail-closed frames. After human exact-hash
-promotion, TLAPS discharges 12 arbitrary-finite induction obligations and rejects
-four authority-creation mutations. M89.2 therefore mints only
-`CAPABILITY_AUTHORITY_ALGEBRA_PROVED` and
-`CAPABILITY_TOKEN_CREATION_CLOSED_PROVED`. M89.3 separately discharges ten
-parameterized transitive-revocation and stale-generation obligations and rejects
-nine mutations, minting `CAPABILITY_REVOCATION_SAFETY_PROVED`. Generations are
-unbounded naturals in the theorem. M89.4 then composes the exact M49/M50/M65
-artifacts, reviewed M88 scope and release rule, and both M89 parameterized proof
-envelopes. Seven Z3 composition families pass and seven cross-layer mutations
-produce counterexamples, minting the narrow model claim
-`SERVER_AUTHORITY_SECURITY_MODEL_PROVED`. Fixed-width wraparound, token-bit
-authenticity, hardware enforcement, and implementation refinement remain locked.
-M90.1 then canonicalizes the deployable evidence graph without overstating binary
-assurance. `m90_evidence_root.candidate.json` binds 19 exact production source
-files, the deployment and hardware profiles, the freshly generated 66-entry kernel
-bundle, 80 scoped claim entries, judge/compiler provenance, reviewed promotions,
-local verifier patches, assumptions, pending judgments, and forbidden claims.
-Its validator rejects stale artifacts, changed judges, missing reviews, forbidden
-claims, and fabricated binary bindings. The candidate remains `NO_PROOF` with
-`BINARY_BUILD_PENDING`. M90.2 then builds the exact production QEMU AArch64 ELF
-from a three-file compiled-source closure under a fully bound rustc/rust-lld,
-linker-script, target, and codegen configuration. Its in-tree parser binds ELF
-headers, entry point, segments, sections, size, complete hash, and structural
-digest. Applicability is recomputed, not inherited wholesale: only the compiled
-boot-composition and exact queue-witness claims enter this image's closure. Binary,
-profile, flags, linker, source, dependency, claim-set, target-identity, and DAG
-substitutions fail closed. This mints only `PROOF_CARRYING_BINARY_VALIDATED` for
-artifact identity and applicable evidence binding. Compiler refinement, target
-functional correctness, end-to-end refinement, and human release sealing remain
-locked; sealing stays outside MCP and agent-controlled interfaces. M90.3 adds a
-typed, causal invalidation engine over that exact DAG. Source, reviewed-model,
-judge, build-tool, profile, dependency, binary, canonical-root, and forbidden-claim
-changes receive distinct downgrade states. Invalidation is minimal: witness/Kani
-drift does not invalidate deterministic composition, and unused VFS, N150, Z3, or
-TLAPS drift does not affect this QEMU closure. Twelve mutation cases validate the
-dependency closure and downgrade semantics, minting only
-`EVIDENCE_DEPENDENCY_CLOSURE_VALIDATED` and
-`EVIDENCE_INVALIDATION_SEMANTICS_VALIDATED`. The image reports evidence coverage
-as 2/2 declared compiled mechanisms—not 2/66 repository claims or source-line
-proof coverage. M90.4 independently stages and rebuilds the three-source AArch64
-image twice. Raw ELF bytes, parsed structure, applicable closure, and canonical
-evidence root match exactly despite different checkout paths and timestamps.
-Locale/timezone/environment and compiler drift remain provenance-invalid through
-M90.3, while a deliberate linker build ID changes the raw ELF and is never
-normalized away. This mints only the empirical
-`REPRODUCIBLE_BINARY_BUILD_OBSERVED` and
-`REPRODUCIBLE_EVIDENCE_ROOT_OBSERVED`; `REPRODUCIBLE_BUILD_PROVED` is forbidden.
-M90.5 adds the human-only `seal-deployment-evidence` command. It accepts both exact
-hashes and a release identity explicitly, replays the binary, invalidation, and
-reproducibility gates, requires an entirely valid applicable closure, and seals
-positive claims together with pending, assumed, forbidden, and not-applicable
-residuals. It is absent from MCP and cannot overwrite an existing release. No
-release is sealed automatically: the lane remains `human-seal-pending` until a
-human invokes the trust action. The result is an unkeyed content seal with
-`claim: NO_PROOF`, not signer identity, compiler correctness, or attestation.
-The human-authorized release `formalkernel-m90-qemu-aarch64-2026.08.21` is now
-sealed against the exact M90.2 ELF and M90.4 canonical evidence root. Its content
-seal is `2b16df0fc7bb48863e33aabce79da5b2f3f4263e51128d4248dfafa3f8a21003`;
-M90.5 is recorded as `human-authorized-release` while retaining `claim: NO_PROOF`.
-M90 is frozen: later milestone registry additions are excluded from its immutable
-pre-build inventory. M91.1 starts a separate RV64GC/Sv39 QEMU `virt` profile. Its
-exact candidate is human-reviewed and promoted. Official Privileged Architecture, AIA, and IOMMU
-release identities are pinned, but normative content hashes remain pending until
-vendored. The RV64 Rust target, QEMU RISC-V emulator, and GNU RISC-V disassembler
-are installed and hash-bound. QEMU exposes `virt`, ACLINT, configurable AIA with
-APLIC/IMSIC, and an RV64 H-extension CPU model, but no RISC-V IOMMU architecture
-device, so the IOMMU lane is independently parked. M91.2 uses TLC 2.19 to verify
-eight reachable S-mode/U-mode control states across preparation, `sret`, trap
-entry, dispatch validation, hostile supervisor-resume rejection, and return. It
-mints only `RISCV_PRIVILEGE_TRANSITION_MODEL_PROVED`; QEMU semantics, compiled
-trap-vector refinement, silicon behavior, and physical execution remain unproved.
-M91.3's exact five-page Sv39 table plan is human-reviewed and promoted through
-the CLI-only `promote-riscv-sv39-plan` command. Its post-promotion deterministic
-three-level walk and mutation probes establish `RISCV_SPATIAL_ISOLATION_PROVED`
-for supervisor/user separation, W^X, the guard page, noncanonical addresses,
-protected frames, intermediate PPNs, and the expected `satp` root. Hardware
-page-walk, TLB-coherence, compiled-MMU, and physical-isolation claims remain locked.
-Exact-hash platform promotion remains CLI-only through `promote-riscv-platform`.
-M91.4's S-mode AIA policy is human-reviewed and exact-hash promoted. It covers
-two harts, APLIC source grants, per-hart IMSIC files, interrupt identities, a
-disabled source, and a route epoch. TLC verifies 37 reachable states; the bound
-qualification rejects wrong-hart, wrong-ID, wrong-file, trap-bypass, and
-acknowledgement-fabrication mutations. The resulting scoped claim is
-`RISCV_INTERRUPT_ROUTING_MODEL_PROVED`.
-M91.5a's two-guest HS/VS context policy is human-reviewed and exact-hash
-promoted. TLC checks 15 states and rejects unprepared VS entry, cross-guest
-resume, resume without validated HS dispatch, and wrong-VMID mutations. The
-post-promotion claim is `RISCV_GUEST_PRIVILEGE_TRANSITION_MODEL_PROVED`.
-M91.5b's Sv39x4 plan is human-reviewed and exact-hash promoted. It binds two
-disjoint guest SPA domains, HS-protected roots, guest-owned VS walk pages,
-distinct modeled VMIDs, 16-KiB root alignment, and an epoch/HFENCE.GVMA
-lifecycle. TLC verifies 28 states and rejects missing-fence, wrong-root, and
-Bare-active mutations; deterministic ownership mutations also fail. The scoped
-post-promotion claim is `RISCV_G_STAGE_ISOLATION_PROVED`.
+FormalKernel now lives in its own repository and consumes FormalSpecGen as a
+pinned external dependency through `formalspecgen.cli-command-plugin.v1`.
+Kernel sources, release evidence, kernel-specific commands, and promotion
+actions are intentionally not distributed by this repository.
 
-M91.5c adds a candidate VS-mode IMSIC guest-file policy. TLC checks 60 reachable
-states across mediated delivery, acknowledgement, HS trap entry, and the
-history-sensitive guest-switch path. The active VS context, G-stage VMID owner,
-and selected `VGEIN` file owner must agree; `hgeip`, `hgeie`, file pending state,
-and `VSEIP` remain distinct. Six semantic mutations are rejected. The exact
-candidate remains `NO_PROOF` until human promotion with
-`promote-riscv-guest-interrupt-policy`; only the post-promotion replay may mint
-`RISCV_GUEST_INTERRUPT_ROUTING_MODEL_PROVED`. The reviewed policy has now been
-promoted and its post-promotion TLC replay is hash-bound. QEMU guest-IMSIC configuration is
-observed separately, while actual VS routing, hardware delivery, direct device
-assignment, and RISC-V IOMMU MSI remapping remain pending.
-
-M91.5d composes the reviewed HS/VS, G-stage, and VS IMSIC evidence through one
-guest-identity relation. TLC checks the quiesced switch protocol and permits VS
-execution only when CPU, memory, VMID epoch, interrupt-file owner, and interrupt
-epoch identify the same guest. Nine cross-subsystem mutations are rejected.
-This mints the model-only `RISCV_GUEST_ISOLATION_MODEL_PROVED`; QEMU semantics,
-hardware walks and delivery, compiled hypervisor refinement, physical isolation,
-device passthrough, and IOMMU MSI remapping remain explicitly unproved.
-
-M91.6 builds the separate production `riscv64gc-unknown-none-elf` image and
-boots it under QEMU virt/OpenSBI. Its compiled-mechanism inventory contains only
-the reviewed boot composition; S/U transition, Sv39, AIA, HS/VS, G-stage, VS
-IMSIC, and guest-composition theorems are therefore retained as repository-level
-`MODEL_ONLY_NOT_COMPILED` evidence and excluded from the ELF closure. The exact
-ELF carries one applicable claim with 1/1 compiled-mechanism coverage, and two
-clean builds reproduce both raw bytes and the canonical evidence root. Release
-sealing remains a human-only exact-hash action outside MCP.
-The RV64 release is now sealed as
-`formalkernel-m91-qemu-riscv64-2026.08.22`; the seal binds the exact ELF,
-1/1 applicable evidence closure, empirical observations, assumptions, parked
-IOMMU/direct-assignment claims, and forbidden compiler/end-to-end claims while
-remaining correctly marked `claim: NO_PROOF`.
-One kernel tree under
-`examples/formalkernel/`, one command, one evidence bundle — every lane judged by the real tool
-or recorded as `judge_pending`, never minted from absence:
-
-```bash
-formalspecgen verify-kernel examples/formalkernel/kernel \
-  --profile examples/formalkernel/profiles/n150.json \
-  --profile examples/formalkernel/profiles/r52.json --json bundle.json
-```
-
-The root manifest (`kernel.json`) declares its **deployment profile**. With every configured
-judge available, the current microkernel bundle carries 66 claim entries — the per-architecture lanes (weak-memory scope, WCET per cost
-model, DMA per memory map), ESBMC lock-free/MPSC over the C witnesses, deterministic composition,
-and the boundary lanes (`SPATIAL_ISOLATION_PROVED`, `SYSCALL_BOUNDARY_PROVED`,
-`IPC_ENDPOINT_TABLE_PROVED`) plus the Kani refinement over the image's own `witness.rs`
-(`RUST_WITNESS_REFINEMENT_PROVED`). Selecting the **monolithic** manifest is one flag, not a
-code fork:
-
-```bash
-formalspecgen verify-kernel examples/formalkernel/kernel \
-  --profile examples/formalkernel/profiles/n150.json \
-  --profile examples/formalkernel/profiles/r52.json --manifest monolith.json
-# KERNEL_EVIDENCE_BUNDLE — 54 claim entries
-# note: monolithic: no boundary lane is claimable — the driver is the kernel; its
-# concurrency, capacity, and composition claims stand, containment does not exist
-```
-
-One tree, five executable manifests: every genuinely shared claim is the byte-identical
-`(claim, scope, subsystem, profile, source)` tuple. M60 registers one intentional divergence:
-the microkernel receives `PQ_PREEMPTION_BOUND_PROVED`, while the monolith receives only
-`PQ_COOPERATIVE_WCET_BOUND_PROVED`. The anti-drift guarantee is a five-bundle
-test, not a promise. A monolith manifest declaring any boundary
-lane refuses `MONOLITH_BOUNDARY_CONTRADICTION` before a single lane runs; a manifest without a
-deployment key refuses `deployment_missing`. The same tree boots live on
-`qemu-system-aarch64`: the composed boot order proved by the composition lane is the order the
-image prints, syscalls are answered across the EL1/EL0 boundary, a user-space network server's
-wild store is contained (`NET_SERVER_KILLED`) with the packet ledger closing exactly, and a
-second-generation server respawns onto the same frames with its own closed ledger. Honest
-scope throughout: the EL1↔EL0 hardware transition itself is `judge_pending`, never minted;
-absent judges (herd7/aiT/…) stay pending by name.
-
-M55–M76 extend the same lattice through verified storage, bounded PQ networking, and real
-weak-memory judging: the VFS is
-TLC/Prusti/Z3-bound to a fixed Rust inode pool; `virtio-blk` remains an explicitly unverified but
-DMA/syscall/IPC-confined adapter; the microkernel ELF loader proves bounded layout and W^X
-permission correspondence; Z3 derives an exact two-session PQ-TLS ceiling with deterministic
-`ERR_MEM`; TLC checks the hash-bound handshake control graph; and deployment-specific WCET gates
-separate EL0 scheduler preemption from the monolith's cooperative-yield bound. Cryptographic
-strength, liboqs/mbedTLS correctness, hardware page walking, `ERET`, and physical interrupt
-delivery remain explicitly unproved.
-The M61 herd7 lane binds reviewed AArch64 and x86 message-passing litmus bytes
-to their SHA-256 digests. It mints `WEAK_MEMORY_SAFETY_PROVED` only for a
-successful `Observation … Never`. The declared development environment uses
-herdtools7 7.58 and both profile litmus tests pass; environments without the
-judge remain honestly `judge_pending` rather than inheriting the structural
-barrier result.
-M62 adds an AArch64/R52-scoped six-state TLC model of prepared EL0 entry, syscall trap, dispatch
-validation, and return. Its evidence is bound to the MMU, syscall, and ELF
-artifacts. The claim remains model-scoped: physical `ERET` behavior and
-compiled exception-vector refinement are explicitly unproved.
-M63 adds a three-task round-robin temporal model. TLC checks the per-task
-leads-to property under explicit weak scheduler fairness; it does not infer
-unbounded-task liveness, physical timer fairness, or C/model refinement.
-M64 adds a Kani-verified, allocation-free 4 KiB EL0 heap ledger with 16 fixed
-blocks and deterministic exhaustion. Physical frame assignment and general
-libc allocator behavior remain outside the claim.
-M65 adds a Z3-judged finite capability matrix for the VFS, network, and shell
-servers. It proves that VFS lacks raw-packet authority and Net lacks
-file-descriptor authority, while hash-binding the reviewed table and SMT
-encoding. Capability-token unforgeability and physical enforcement remain
-separate M48/M49 assumptions; the monolith records the boundary as omitted.
-M66 introduced `unikernel.json` as the third deployment profile at that
-milestone. It rejects every EL0
-boundary artifact, selects only scheduler, network, and VFS subsystems, and
-builds a hash-bound no-std crate with `cargo build --features unikernel`. Its
-53-entry bundle includes `UNIKERNEL_BUILD_PROVED`; bootability, runtime
-behavior, and fault containment remain explicitly unproved.
-M67 binds the R52 profile's kernel pool to a reviewed 16 KiB ITCM/16 KiB
-DTCM linker layout and mints `R52_TCM_PLACEMENT_PROVED`. Physical Cortex-R52
-boot, SoC address conformance, and measured WCET remain explicitly pending on
-real board evidence.
-M68 proves the reviewed R52 SMMUv3 stream table corresponds exactly to the
-profile's NIC/block DMA contracts and remains disjoint from protected DTCM.
-The malicious-device test protocol is installed but unobserved; physical DMA
-blocking and `EXTERNAL_IO_SAFETY_PROVED` remain forbidden pending board fault
-injection.
-M69 similarly binds an x86_64 N150 linker window and Intel VT-d requester
-table to the reviewed profile, minting `N150_PLATFORM_CONFIGURATION_PROVED`.
-Physical boot, firmware loading, VT-d fault behavior, and silicon TSO
-conformance remain pending a real N150 run.
-M70 deterministically maps deployment-applicable system requirements to the
-actual minted evidence entries and hash-binds that evidence fingerprint. It
-mints `CERTIFICATION_TRACEABILITY_COMPLETE`, while retaining
-`certification_ready: false`: DO-178C/ISO 26262 certification and physical
-hard-real-time behavior remain forbidden until external review and board
-closures exist.
-M71.5 enumerates cache, memory-bandwidth, interconnect, DMA, interrupt, and
-SMT interference channels for both hardware targets. It mints only
-`MULTICORE_INTERFERENCE_CHANNELS_ENUMERATED`; WCET inflation validation and
-multicore timing proof remain pending authenticated target measurements.
-M71 adds a TLAPS-proved arbitrary-reader grace-period invariant and a real
-ESBMC two-reader C witness, minting `RCU_RECLAMATION_SAFETY_PROVED`. The C
-witness uses explicit atomic linearization sections and a three-context-switch
-bound. Source/model refinement, IRQ/NMI interaction, and callback-pressure
-bounds remain pending rather than inheriting the model theorem.
-M72 adds bounded write-ahead-log crash semantics. TLC checks reordering, torn
-writes, volatile-cache loss, and crash-during-recovery paths, minting
-`FILESYSTEM_CRASH_ATOMICITY_PROVED` under the declared persistence contract.
-Physical FUA behavior, device firmware, and injected-crash validation remain
-pending.
-M73 partitions a four-slot TCP ledger into two-slot attacker and legitimate
-quotas across half-open, established, and TIME_WAIT states. TLC checks modular
-sequence windows, duplicate/lost/reordered traffic, retransmission timeout,
-and blind-RST challenge behavior, minting `TCP_RESOURCE_CONTAINMENT_PROVED`.
-Full RFC 9293/5961 conformance and native-stack refinement remain pending.
-M74 replaces hardcoded x86 mitigation assumptions with a hash-bound policy for
-MDS, TAA, L1TF, SRSO, and BHI. Z3 proves every declared active hazard has its
-required selected mitigation, while a deterministic equation proves the
-declared 105-cycle cost fits the 160-cycle budget. The CPUID/microcode profile
-and cycle costs remain human declarations: runtime identity, measured timing,
-and speculative noninterference are explicitly pending.
-M75 adds a standalone standard-library oracle script that imports no FormalSpecGen
-modules. It independently checks two canonical V2 AST identity vectors and one
-SMT Boolean-mapping vector, hash-binding both the corpus and oracle bytes. This
-mints `TOOL_QUALIFICATION_EVIDENCE_READY` only for the reviewed corpus. It does
-not establish general transformation correctness, DO-330 qualification, or
-external authority acceptance.
-M76 step 1 binds the promoted VFS model and Prusti certificate to exact Rust
-bytes, deterministically erases only ghost contracts, and records rustc, LLVM
-IR, and ELF object hashes. It mints `REFINEMENT_CHAIN_ARTIFACTS_BOUND`, not the
-end-to-end theorem: Rust-to-IR semantics, verified compilation, and binary
-semantics remain explicitly pending.
-Step 2 derives an executable relational oracle from the reviewed V2 guards and
-effects, then checks the exact compiled Rust implementation across all 255 valid
-states and four operations—1,020 transitions—plus construction. It mints
-`BOUNDED_COMPILED_REFINEMENT_VALIDATED`; this finite exhaustive validation still
-does not prove general compiler correctness or LLVM semantic refinement.
-M76 step 3a qualifies the installed foundational lane with a real RefinedRust
-translation and Rocq proof build over a minimal Rust identity theorem. A
-controlled `value + 1` mutation is rejected with an incomplete proof while the
-original completes 319 proof-build steps. This is deliberately `NO_PROOF` for
-the kernel: the first actual allocator/capability refinement remains step 3b,
-and compiler/ISA correspondence remains steps 4 and 5.
-M76 step 3b-r1 fixes and qualifies the generic RefinedRust array-field semantic
-translation rule without changing the production allocator. A differential matrix
-for lengths 0, 1, 2, 4, and 16 proves that standalone and struct-embedded arrays
-retain identical per-element `place_rfn` information and complete Rocq builds. The
-unpatched translation is retained as a negative fixture and Rocq rejects it. The
-local tool patch, regression corpus, generated proof input, executables, and upstream
-acceptance status are hash-bound. This mints `REFINEDRUST_ARRAY_TRANSLATION_VALIDATED`
-only; allocator, Rust-wide, compiler, and end-to-end refinement remain locked.
-M76 step 3b-r2 preserves the exact production allocator behind a byte-identical
-ghost-annotation overlay, but remains `judge_pending`: RefinedRust 0.1.0 does not
-yet translate its named array-length constant, iterator/enumerate pattern, or
-slice `get_mut` index trait. No literal substitution, iterator rewrite, or proof
-surrogate is accepted, and the allocator mutation suite is therefore not treated
-as eligible evidence.
-M76 step 3c adds a syntax-only RefinedRust feasibility report (`NO_PROOF`) instead
-of inventing a capability implementation. The first-ranked existing scalar
-transition, `virtio_blk` completion, preserves byte identity under ghost erasure
-but remains blocked by the sibling `submit` method's unmodeled
-`core::result::branch` call. M76.3c-u1 reduces the earlier trait-registration ICE
-to an incomplete ghost overlay: a completely specified generic local trait impl
-translates and completes Rocq. The machine-readable boundary ledger feeds doctor
-and scanner output, and no new local verifier patch is introduced. All other
-production Rust candidates contain previously recorded unsupported constructs, so
-no primitive refinement claim is minted.
-M77 replaces a single global fixed-pool argument with symbolic ownership
-accounting for three admitted processes across two NUMA nodes. Z3 proves
-per-process quotas, per-node capacity, and the global admitted-memory ceiling
-are inductive across allocation, release, mapping, COW reservation, and exec
-reclamation. Hardware TLB/page-walker behavior, hotplug, arbitrary process
-counts, and native allocator refinement remain pending.
-M78 uses TLAPS to prove per-task unique run-queue ownership, affinity
-compliance, and migration conservation for arbitrary finite CPU and task sets.
-Native load-balancer refinement, IRQ/IPI delivery, CPU hotplug, liveness, M77
-composition, and measured interference bounds remain pending.
-M79 binds unique PCIe requester IDs, IOMMU domains, non-overlapping DMA
-windows, MSI-X vectors, and six queue budgets. Z3 proves queue occupancy cannot
-exceed reserved buffers. Physical IOMMU enforcement, firmware/device behavior,
-interrupt delivery, and native driver refinement remain pending.
-M80 checks a two-process/two-thread fork, exec, exit, and futex lifecycle with
-TLC (15 states) and uses Z3 to prove exec resets the old page/capability state.
-POSIX conformance, native syscall refinement, hardware futex atomicity, signal
-semantics, and unbounded process populations remain pending.
-M81 binds a reviewed image-source measurement to a PCR/version/signature boot
-policy. TLC checks 10 states and rollback exclusion; Z3 proves the admission
-predicate cannot accept a stale version or mismatched authorization. Physical
-TPM and firmware behavior, key custody, SHA-256 strength, and final built-image
-measurement remain pending.
-M82 models IPv6 TCP/UDP routing, default-drop firewalling, four partitioned
-queues, and deterministic flood backpressure. TLC checks 49 states; Z3 proves
-tenant occupancy cannot consume the system reserve. Full RFC conformance,
-native stack refinement, RSS/MSI-X behavior, and delivery remain pending.
-M83 models a single ECC/MCE, watchdog, or device failure across two processes
-and three pages. TLC proves recovery terminality, poison isolation, accounting,
-and supervisor survival; Z3 proves a poisoned page is removed from both the
-charged and allocatable totals. Physical fault delivery, device firmware,
-native handler refinement, and repeated-fault behavior remain pending.
-M84 models two guest isolation domains with create, pause, resume, and destroy.
-TLC checks exact lifecycle reservations across 9 states; Z3 proves static CPU,
-memory, network-descriptor, and IOMMU-domain separation. VM-exit semantics,
-nested-page enforcement, interrupt remapping, side channels, and native
-hypervisor refinement remain pending.
-M85 freezes a reviewed five-call ABI (`open`, `read`, `write`, `close`, and
-`exit`) and compiles the exact compatibility shim with warnings-as-errors before
-running nine behavioral vectors. It records `ABI_STABILITY_CHECKED` and
-`POSIX_CONFORMANCE_TESTED`, deliberately scoped to the host-compiled shim.
-Full POSIX conformance, kernel-dispatch refinement, target runtime behavior,
-production observability, complete crash dumps, and atomic field upgrades are
-not proved.
-
-Current fully judged example-bundle counts are:
-
-| Manifest | Assurance mapping | Hardware profiles | Claim entries |
-| --- | --- | --- | ---: |
-| `kernel.json` | Mechanical microkernel deployment | N150 + R52 | 66 |
-| `monolith.json` | Mechanical monolithic deployment | N150 + R52 | 54 |
-| `unikernel.json` | Mechanical unikernel deployment | N150 + R52 | 53 |
-| `safety.json` | `FK-Safety` | R52 | 31 |
-| `desktop.json` | `FK-Desktop` | N150 | 41 |
-
-Counts are not assurance scores. Profile-specific omissions are part of each
-evidence envelope: Safety excludes dynamic/SMP/user-space claims, while Desktop
-excludes hard-WCET and interference-assurance claims.
-
-The Phase 7 roadmap distinguishes deployment mechanics from five intended
-assurance/product profiles:
-
-| FormalKernel profile | Optimizes for | Resource philosophy |
-| --- | --- | --- |
-| `FK-Safety` | DO-178C-style assurance on restricted silicon | Fixed pools, bounded task population, deterministic backpressure |
-| `FK-Secure` | seL4-like isolation and a minimal TCB | Strong isolation with controlled dynamic user resources |
-| `FK-Scale` | 64–256-core NUMA servers and high throughput | Dynamic pages, quotas, reclamation, RCU, bounded local invariants |
-| `FK-Desktop` | Richer POSIX and device compatibility | Dynamic pages, broad driver support, relaxed timing |
-| `FK-Lab` | Experimental mechanisms and proofs | Explicit `judge_pending` claims and unverified boundaries |
-
-Five deployment manifests are executable: `microkernel`, `monolith`,
-`unikernel`, `safety`, and `desktop`. The registry maps `safety` to `FK-Safety`
-and `desktop` to `FK-Desktop` and enforces their forbidden claims. The original
-three names continue to describe mechanics rather than silently claiming an
-`FK-Secure`, `FK-Scale`, or `FK-Lab` assurance classification.
-
-`safety.json` requires fixed resources, one core, and hard-real-time analysis;
-dynamic VM, SMP, user-process, guest, and POSIX lanes cause
-`SAFETY_DYNAMIC_RESOURCE_CONTRADICTION`. `desktop.json` enables dynamic VM,
-SMP, process, guest, and compatibility lanes, but hard-WCET/interference lanes
-cause `DESKTOP_HARD_REALTIME_CONTRADICTION` or are explicitly omitted.
-The Desktop bundle does not reuse the AArch64-only M57/M62 artifacts;
-`DESKTOP_X86_PROCESS_ENTRY_REFINEMENT_PENDING` names its x86_64 ELF-loader,
-ring-3 transition, and native-exec gap.
+The `verify-kernel` command and its evidence lattice are registered by the
+FormalKernel plugin and are not distributed by this package.
 
 ### Contract-preserving Java refactoring
 
@@ -2601,9 +2174,6 @@ pipeline/verify_*.py    Normalized Java, Rust, and C formal-tool judges
 pipeline/cwe_registry.py  Config-driven CWE manifest loader (see security/cwe_manifest.json)
 pipeline/pattern_registry.py  Categorized design-pattern detector registry
 pipeline/domains/      Reviewed and scaffolded semantic-domain plugins
-examples/formalkernel/ The FormalKernel evidence lattice: kernel/ manifests + subsystem
-                       witnesses, profiles/, and boot/ (the live aarch64 QEMU image and
-                       its Kani proof crate #[path]-sharing the image's witness.rs)
 formalspec_core/       Shared deterministic postprocessor and proof-support core
 domains/               Declarative domain specifications (V2 candidates under candidates/)
 extracted/             Unreviewed `analyze-codebase` output (architecture map and domain sketches)

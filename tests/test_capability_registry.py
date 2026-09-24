@@ -1,14 +1,17 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
-import inspect
 import argparse
 
 import pytest
 
 import mcp_server
 from pipeline import cli
-from pipeline.capability_registry import (CAPABILITIES, add_cli_parser, capability,
-                                          mcp_capabilities)
+from pipeline.capability_registry import (
+    CAPABILITIES,
+    add_cli_parser,
+    capability,
+    mcp_capabilities,
+)
 
 
 def test_registry_names_and_bindings_are_unique():
@@ -19,36 +22,18 @@ def test_registry_names_and_bindings_are_unique():
     assert all(callable(getattr(mcp_server, name, None)) for name in tools)
 
 
-def test_verify_kernel_schema_drives_cli_and_matches_mcp():
-    spec = capability("verify_kernel")
-    parser = cli.build_parser()
-    args = parser.parse_args([
-        spec.cli_command, "kernel", "--profile", "arm.json",
-        "--manifest", "monolith.json"])
-    assert args.kernel_dir == "kernel"
-    assert args.profile == ["arm.json"]
-    assert args.manifest == "monolith.json"
-    parameters = inspect.signature(mcp_server.verify_kernel).parameters
-    assert {"kernel_dir", "profile", "manifest"} <= set(parameters)
-
-
 def test_human_trust_actions_are_never_mcp_capabilities():
     exposed = {item.name for item in mcp_capabilities()}
     trust_actions = {item.name for item in CAPABILITIES if item.trust_action}
-    assert trust_actions == {
-        "promote_domain", "promote_queue_model", "promote_information_flow_scope",
-        "promote_declassification_policy",
-        "promote_capability_authority",
-            "seal_deployment_evidence",
-            "promote_riscv_platform",
-            "promote_riscv_sv39_plan",
-            "promote_riscv_aia_policy",
-            "promote_riscv_guest_policy",
-            "promote_riscv_gstage_plan",
-            "promote_riscv_guest_interrupt_policy",
-            "seal_riscv_deployment_evidence",
-            "sign_artifact", "manage_trust"}
+    assert trust_actions == {"promote_domain", "sign_artifact", "manage_trust"}
     assert exposed.isdisjoint(trust_actions)
+
+
+def test_registry_retains_only_the_generic_vfs_milestone():
+    assert len(CAPABILITIES) == 43
+    assert {item.name for item in CAPABILITIES if item.milestone is not None} == {
+        "m55_vfs"
+    }
 
 
 def test_registry_rejects_unknown_and_non_generated_cli_capabilities():

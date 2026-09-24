@@ -92,15 +92,13 @@ OPAM_BIN = os.environ.get("OPAM_BIN", "opam")
 REFINEDRUST_SWITCH = os.environ.get("REFINEDRUST_SWITCH", "refinedrust")
 REFINEDRUST_BOUNDARY_LEDGER = os.environ.get(
     "REFINEDRUST_BOUNDARY_LEDGER",
-    str(ROOT / "examples" / "formalkernel" / "kernel" / "refinement" /
-        "refinedrust_boundary_ledger.json"))
+    str(ROOT / "tools" / "refinedrust_boundary_ledger.json"))
 VERUS_BIN = os.environ.get(
     "VERUS_BIN", str(ROOT / ".tools" / "verus-download" /
                      "verus-x86-linux" / "verus"))
 VERUS_BOUNDARY_LEDGER = os.environ.get(
     "VERUS_BOUNDARY_LEDGER",
-    str(ROOT / "examples" / "formalkernel" / "kernel" / "verus_allocator" /
-        "bridges" / "evidence.json"))
+    str(ROOT / "tools" / "verus_boundary_ledger.json"))
 
 # GLM / Zhipu BigModel (OpenAI-compatible v4 API)
 GLM_API_KEY = os.environ.get("GLM_API_KEY", "")

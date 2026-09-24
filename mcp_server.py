@@ -503,23 +503,6 @@ def doctor_environment() -> dict[str, Any]:
     return report
 
 
-def verify_kernel(kernel_dir: str, profile: list[str],
-                  manifest: str = "kernel.json") -> dict[str, Any]:
-    """Run the OS evidence lattice for an explicit deployment manifest.
-
-    Each profile is human-owned input. Absent judges remain named
-    ``judge_pending`` entries and are never promoted into minted claims.
-    """
-    from pipeline.kernel_lattice import verify_kernel as run_kernel
-    def run() -> dict[str, Any]:
-        root = _workspace_path(kernel_dir)
-        if Path(manifest).name != manifest:
-            raise ValueError("manifest must be a filename inside kernel_dir")
-        resolved_profiles = [_workspace_path(item) for item in profile]
-        return run_kernel(root, resolved_profiles, manifest_name=manifest)
-    return _guarded(run)
-
-
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
