@@ -10,10 +10,10 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
-import anyio
 import pytest
 
 pytest.importorskip("mcp")
+import anyio  # noqa: E402
 from mcp import ClientSession  # noqa: E402
 from mcp.client.stdio import (  # noqa: E402
     StdioServerParameters,
