@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import tempfile
 from pathlib import Path
@@ -89,31 +90,42 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
         workspace.mkdir()
         policy = ExecutionPolicy(timeout_s=float(config.RAC_TIMEOUT))
         strict = executor or StrictSandboxExecutor()
-        compiled = strict.execute(ExecutionRequest(
-            tool=f"{language}-compiler", command=tuple(sandbox_compile),
+        compile_line = shlex.join(sandbox_compile)
+        phase_script = (
+            f"{compile_line}\n"
+            "result=$?\n"
+            "if [ \"$result\" -ne 0 ]; then "
+            "echo FORMALSPECGEN_PHASE:compile; exit \"$result\"; fi\n"
+            "echo FORMALSPECGEN_PHASE:runtime\n"
+            "exec /work/runtime_sample"
+        )
+        executed = strict.execute(ExecutionRequest(
+            tool=f"{language}-runtime-pipeline",
+            command=("/bin/sh", "-c", phase_script),
             snapshot=snapshot, workspace=workspace, policy=policy,
             readonly_paths=(Path(compiler).resolve().parent,)))
-        if compiled.status != "COMPLETED":
-            compile_status = ("TEST_COMPILE_FAILED" if compiled.status == "TOOL_FAILED"
-                              else compiled.status)
-            return _result(compile_status, compiled.exit_code,
-                           compiled.output or compiled.message, model, test_code,
-                           snapshot=snapshot, compliance=compiled.policy_compliance,
-                           execution=compiled.as_dict())
-        executed = strict.execute(ExecutionRequest(
-            tool=f"{language}-runtime-sample", command=("/work/runtime_sample",),
-            snapshot=snapshot, workspace=workspace, policy=policy))
+        output = executed.output
         if executed.status not in {"COMPLETED", "TOOL_FAILED"}:
             return _result(executed.status, executed.exit_code,
-                           executed.output or executed.message, model, test_code,
+                           output or executed.message, model, test_code,
                            snapshot=snapshot, compliance=executed.policy_compliance,
                            execution=executed.as_dict())
-        output = executed.output
+        if "FORMALSPECGEN_PHASE:compile" in output:
+            return _result("TEST_COMPILE_FAILED", executed.exit_code, output,
+                           model, test_code, snapshot=snapshot,
+                           compliance=executed.policy_compliance,
+                           execution=executed.as_dict())
+        if _instrumentation_startup_failed(output):
+            return _result("TOOL_INITIALIZATION_FAILED", executed.exit_code, output,
+                           model, test_code, snapshot=snapshot,
+                           compliance=executed.policy_compliance,
+                           execution=executed.as_dict())
         executed_returncode = executed.exit_code
         execution_details = executed.as_dict()
     inputs = re.findall(r"FORMALSPEC_INPUT:\s*(.+)", output)
     failed = executed_returncode != 0 or bool(re.search(
-        r"AddressSanitizer|runtime error:|panicked at|test result: FAILED|assertion failed", output, re.I))
+        r"ERROR: AddressSanitizer|runtime error:|panicked at|test result: FAILED|"
+        r"assertion failed", output, re.I))
     return {"status": "RUNTIME_FAILURES_FOUND" if failed else "NO_RUNTIME_FAILURE_FOUND",
             "exit_code": executed_returncode, "inputs": inputs, "log": output[-6000:],
             "test_code": test_code, "model": model,
@@ -140,3 +152,11 @@ def _result(status: str, exit_code: int, log: str, model: str = "unavailable",
                                  "files": list(snapshot.manifest)} if snapshot else None),
             "execution_policy_compliance": compliance,
             "execution": execution or {}}
+
+
+def _instrumentation_startup_failed(output: str) -> bool:
+    return bool(re.search(
+        r"AddressSanitizer.*(?:failed to|unable to|cannot)|ReserveShadowMemoryRange failed|"
+        r"Shadow memory range interleaves|failed to mmap|ASan runtime does not come first|"
+        r"Could not reserve enough space|insufficient memory",
+        output, re.I | re.S))

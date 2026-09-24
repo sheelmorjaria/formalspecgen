@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping
@@ -33,9 +34,10 @@ class ExecutionPolicy:
     max_output_bytes: int = 1024 * 1024
     max_file_bytes: int = 64 * 1024 * 1024
     max_workspace_bytes: int = 128 * 1024 * 1024
+    max_temporary_bytes: int = 64 * 1024 * 1024
     network: str = "denied"
-    filesystem: str = "readonly-input-disposable-workspace"
-    profile: str = "linux-bwrap-v1"
+    filesystem: str = "readonly-input-bounded-tmpfs"
+    profile: str = "linux-bwrap-cgroup-v2"
 
 
 @dataclass(frozen=True)
@@ -113,26 +115,75 @@ class ExecutionObservation:
     enforced_policy: dict | None
     policy_compliance: str
     snapshot_manifest_sha256: str
+    snapshot_files: tuple[dict, ...] = ()
     timed_out: bool = False
     output_truncated: bool = False
     message: str = ""
     tool: str = ""
     command: tuple[str, ...] = ()
     readonly_paths: tuple[str, ...] = ()
+    resource_events: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return asdict(self)
 
 
+class CgroupV2Handle:
+    """One delegated cgroup, created per execution and removed after collection."""
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def attach_command(self, command: list[str]) -> list[str]:
+        script = (
+            'printf "%s\\n" "$$" > "$1/cgroup.procs" || '
+            '{ echo FORMALSPECGEN_CGROUP_ATTACH_FAILED >&2; exit 125; }; '
+            'shift; exec "$@"'
+        )
+        return ["/bin/sh", "-c", script, "formalspecgen-cgroup", str(self.path), *command]
+
+    def events(self) -> dict[str, int]:
+        result = {}
+        for filename, prefix in (("memory.events", ""), ("pids.events", "pids_")):
+            try:
+                lines = (self.path / filename).read_text(encoding="ascii").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                name, _, value = line.partition(" ")
+                if value.isdigit():
+                    result[prefix + name] = int(value)
+        return result
+
+    def kill(self) -> None:
+        try:
+            (self.path / "cgroup.kill").write_text("1", encoding="ascii")
+        except OSError:
+            pass
+
+    def close(self) -> bool:
+        self.kill()
+        for _attempt in range(20):
+            try:
+                self.path.rmdir()
+                return True
+            except OSError:
+                time.sleep(0.01)
+        return False
+
+
 class StrictSandboxExecutor:
-    """Execute only when a networkless bubblewrap profile can be enforced."""
+    """Execute only when Bubblewrap and cgroup-v2 controls can be enforced."""
 
     def __init__(self, *, sandbox_binary: str | None = None,
                  prlimit_binary: str | None = None,
+                 cgroup_root: str | Path | None = None,
                  probe_runner: Callable = subprocess.run,
                  popen_factory: Callable = subprocess.Popen):
         self.sandbox_binary = shutil.which("bwrap") if sandbox_binary is None else sandbox_binary
         self.prlimit_binary = shutil.which("prlimit") if prlimit_binary is None else prlimit_binary
+        configured_root = cgroup_root or os.environ.get("FORMALSPECGEN_CGROUP_ROOT")
+        self.cgroup_root = Path(configured_root) if configured_root else None
         self.probe_runner = probe_runner
         self.popen_factory = popen_factory
 
@@ -162,22 +213,33 @@ class StrictSandboxExecutor:
             return self._failure(
                 "SANDBOX_UNAVAILABLE", requested, request,
                 output[-2000:] or "sandbox profile probe failed")
-        command = self._sandbox_command(request, request.command)
-        return self._run_bounded(command, request)
+        try:
+            cgroup = self._create_cgroup(request.policy)
+        except OSError as exc:
+            return self._failure(
+                "RESOURCE_CONTROL_UNAVAILABLE", requested, request,
+                f"cgroup v2 limits could not be established: {exc}")
+        command = cgroup.attach_command(self._sandbox_command(request, request.command))
+        return self._run_bounded(command, request, cgroup)
 
     def _validate_request(self, request: ExecutionRequest) -> str:
         if request.policy.network != "denied":
             return "the strict profile requires network=denied"
-        if request.policy.profile != "linux-bwrap-v1":
+        if request.policy.profile != "linux-bwrap-cgroup-v2":
             return "unsupported execution profile"
+        if request.policy.filesystem != "readonly-input-bounded-tmpfs":
+            return "unsupported filesystem policy"
         if not request.command:
             return "execution command is empty"
         rejected = sorted(set(request.environment) - _ALLOWED_ENVIRONMENT)
         if rejected:
             return "environment keys are not allowlisted: " + ", ".join(rejected)
-        if request.policy.timeout_s <= 0 or request.policy.max_output_bytes <= 0 or \
-                request.policy.max_workspace_bytes <= 0:
-            return "time and output limits must be positive"
+        policy = request.policy
+        if policy.timeout_s <= 0 or policy.max_output_bytes <= 0 or \
+                policy.max_workspace_bytes <= 0 or policy.max_temporary_bytes <= 0 or \
+                policy.max_memory_bytes <= 0 or policy.max_processes <= 0 or \
+                policy.max_file_bytes <= 0:
+            return "time and resource limits must be positive"
         snapshot_root = request.snapshot.root.resolve()
         workspace = request.workspace.resolve()
         if request.workspace.is_symlink() or workspace == Path("/") or \
@@ -195,13 +257,13 @@ class StrictSandboxExecutor:
                          command: tuple[str, ...]) -> list[str]:
         policy = request.policy
         result = [
-            str(self.prlimit_binary), f"--as={policy.max_memory_bytes}",
-            f"--nproc={policy.max_processes}", f"--fsize={policy.max_file_bytes}",
+            str(self.prlimit_binary), f"--fsize={policy.max_file_bytes}",
             f"--cpu={max(1, math.ceil(policy.timeout_s))}", "--",
             str(self.sandbox_binary), "--die-with-parent", "--unshare-all",
             "--new-session", "--proc", "/proc", "--dev", "/dev",
-            "--tmpfs", "/tmp", "--ro-bind", str(request.snapshot.root), "/input",
-            "--bind", str(request.workspace), "/work", "--chdir", "/work",
+            "--size", str(policy.max_temporary_bytes), "--tmpfs", "/tmp",
+            "--size", str(policy.max_workspace_bytes), "--tmpfs", "/work",
+            "--ro-bind", str(request.snapshot.root), "/input", "--chdir", "/work",
             "--clearenv",
         ]
         for path in (*_SYSTEM_MOUNTS, *_SYSTEM_FILES):
@@ -213,6 +275,36 @@ class StrictSandboxExecutor:
             result.extend(["--setenv", name, value])
         result.extend(["--", *command])
         return result
+
+    def _create_cgroup(self, policy: ExecutionPolicy) -> CgroupV2Handle:
+        root = self.cgroup_root or self._current_cgroup_root()
+        if not (root / "cgroup.controllers").is_file():
+            raise OSError(f"{root} is not a cgroup v2 delegation")
+        path = root / f"formalspecgen-{os.getpid()}-{uuid.uuid4().hex}"
+        path.mkdir(mode=0o700)
+        try:
+            (path / "memory.max").write_text(str(policy.max_memory_bytes), encoding="ascii")
+            (path / "pids.max").write_text(str(policy.max_processes), encoding="ascii")
+            swap = path / "memory.swap.max"
+            if swap.exists():
+                swap.write_text("0", encoding="ascii")
+        except OSError:
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+            raise
+        return CgroupV2Handle(path)
+
+    @staticmethod
+    def _current_cgroup_root() -> Path:
+        try:
+            line = next(item for item in Path("/proc/self/cgroup").read_text(
+                encoding="utf-8").splitlines() if item.startswith("0::"))
+        except (OSError, StopIteration) as exc:
+            raise OSError("current cgroup v2 membership is unavailable") from exc
+        relative = line.split("::", 1)[1].lstrip("/")
+        return Path("/sys/fs/cgroup") / relative
 
     @staticmethod
     def _sandbox_environment(requested: Mapping[str, str]) -> dict[str, str]:
@@ -228,7 +320,8 @@ class StrictSandboxExecutor:
         return {"PATH": environment["PATH"], "LANG": environment["LANG"],
                 "LC_ALL": environment["LC_ALL"], "TZ": environment["TZ"]}
 
-    def _run_bounded(self, command: list[str], request: ExecutionRequest) -> ExecutionObservation:
+    def _run_bounded(self, command: list[str], request: ExecutionRequest,
+                     cgroup: CgroupV2Handle | None = None) -> ExecutionObservation:
         policy = request.policy
         try:
             process = self.popen_factory(
@@ -236,27 +329,21 @@ class StrictSandboxExecutor:
                 stderr=subprocess.STDOUT, start_new_session=True,
                 env=self._host_environment(request.environment))
         except OSError as exc:
+            if cgroup is not None:
+                cgroup.close()
             return self._failure("TOOL_ERROR", asdict(policy), request, str(exc))
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
         chunks = bytearray()
         started = time.monotonic()
-        timed_out = truncated = storage_exceeded = False
-        last_storage_check = 0.0
+        timed_out = truncated = False
         try:
             while selector.get_map():
-                now = time.monotonic()
-                remaining = policy.timeout_s - (now - started)
+                remaining = policy.timeout_s - (time.monotonic() - started)
                 if remaining <= 0:
                     timed_out = True
-                    self._terminate_unit(process)
+                    self._terminate_unit(process, cgroup)
                     break
-                if now - last_storage_check >= 0.1:
-                    last_storage_check = now
-                    if self._workspace_size(request.workspace) > policy.max_workspace_bytes:
-                        storage_exceeded = True
-                        self._terminate_unit(process)
-                        break
                 events = selector.select(min(remaining, 0.1))
                 if not events and process.poll() is not None:
                     tail = process.stdout.read() or b""
@@ -271,7 +358,7 @@ class StrictSandboxExecutor:
                     chunks.extend(data[:max(0, room)])
                     if len(data) > room:
                         truncated = True
-                        self._terminate_unit(process)
+                        self._terminate_unit(process, cgroup)
                         break
                 if truncated:
                     break
@@ -280,40 +367,49 @@ class StrictSandboxExecutor:
         try:
             exit_code = process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            self._terminate_unit(process)
+            self._terminate_unit(process, cgroup)
             exit_code = process.wait(timeout=2)
-        storage_exceeded = storage_exceeded or \
-            self._workspace_size(request.workspace) > policy.max_workspace_bytes
+        output = bytes(chunks).decode("utf-8", errors="replace")
+        resource_events = cgroup.events() if cgroup is not None else {}
+        cleanup_failed = cgroup is not None and not cgroup.close()
+        attach_failed = "FORMALSPECGEN_CGROUP_ATTACH_FAILED" in output
+        memory_failed = resource_events.get("oom_kill", 0) > 0 or \
+            resource_events.get("oom", 0) > 0 or resource_events.get("max", 0) > 0
+        process_failed = resource_events.get("pids_max", 0) > 0
+        storage_failed = "No space left on device" in output
+        cpu_failed = exit_code in {-signal.SIGXCPU, 128 + signal.SIGXCPU}
+        file_failed = exit_code in {-signal.SIGXFSZ, 128 + signal.SIGXFSZ}
         status = "TIMEOUT" if timed_out else \
-            "WORKSPACE_LIMIT_EXCEEDED" if storage_exceeded else \
+            "RESOURCE_CONTROL_UNAVAILABLE" if attach_failed else \
+            "RESOURCE_CLEANUP_FAILED" if cleanup_failed else \
+            "MEMORY_LIMIT_EXCEEDED" if memory_failed else \
+            "PROCESS_LIMIT_EXCEEDED" if process_failed else \
+            "WRITABLE_STORAGE_LIMIT_EXCEEDED" if storage_failed else \
+            "CPU_LIMIT_EXCEEDED" if cpu_failed else \
+            "FILE_SIZE_LIMIT_EXCEEDED" if file_failed else \
             "OUTPUT_LIMIT_EXCEEDED" if truncated else \
             "COMPLETED" if exit_code == 0 else "TOOL_FAILED"
+        compliance = "NOT_ENFORCED" if attach_failed or cleanup_failed else "ENFORCED"
+        resource_exit = memory_failed or process_failed or storage_failed or \
+            cpu_failed or file_failed
         return ExecutionObservation(
             status=status, exit_code=124 if timed_out else 126 if (
-                truncated or storage_exceeded) else exit_code,
-            output=bytes(chunks).decode("utf-8", errors="replace"),
-            requested_policy=asdict(policy), enforced_policy=asdict(policy),
-            policy_compliance="ENFORCED", snapshot_manifest_sha256=request.snapshot.manifest_sha256,
+                truncated or resource_exit) else exit_code,
+            output=output, requested_policy=asdict(policy),
+            enforced_policy=asdict(policy) if compliance == "ENFORCED" else None,
+            policy_compliance=compliance,
+            snapshot_manifest_sha256=request.snapshot.manifest_sha256,
+            snapshot_files=request.snapshot.manifest,
             timed_out=timed_out, output_truncated=truncated,
+            message=("cgroup cleanup did not complete" if cleanup_failed else ""),
             tool=request.tool, command=request.command,
-            readonly_paths=tuple(str(path) for path in request.readonly_paths))
+            readonly_paths=tuple(str(path) for path in request.readonly_paths),
+            resource_events=resource_events)
 
     @staticmethod
-    def _workspace_size(root: Path) -> int:
-        total = 0
-        try:
-            for directory, _subdirectories, files in os.walk(root, followlinks=False):
-                for name in files:
-                    try:
-                        total += (Path(directory) / name).lstat().st_size
-                    except OSError:
-                        continue
-        except OSError:
-            return 0
-        return total
-
-    @staticmethod
-    def _terminate_unit(process) -> None:
+    def _terminate_unit(process, cgroup: CgroupV2Handle | None = None) -> None:
+        if cgroup is not None:
+            cgroup.kill()
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
@@ -329,5 +425,6 @@ class StrictSandboxExecutor:
             status=status, exit_code=125, output="", requested_policy=requested,
             enforced_policy=None, policy_compliance="NOT_ENFORCED",
             snapshot_manifest_sha256=request.snapshot.manifest_sha256,
+            snapshot_files=request.snapshot.manifest,
             message=message, tool=request.tool, command=request.command,
             readonly_paths=tuple(str(path) for path in request.readonly_paths))

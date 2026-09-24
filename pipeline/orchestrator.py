@@ -22,7 +22,7 @@ from pathlib import Path
 from . import config, strategy, jml_io
 from .schemas import Attempt, SpecResult, VC
 from .parse_check import parse_check
-from .verify import verify, classify
+from .verify import classify, verify_detailed
 from .llm import glm_generate_spec, glm_repair_spec, _chat_fn, LLMError
 from .spec_lint import lint_spec, blocking_findings
 from .explain_vc import explain_vc
@@ -249,9 +249,10 @@ def _check_attempt(attempt_dir, stub, fallback_name, *, executor=None):
         javac_gate = {"exit_code": 127, "output": f"javac not found: {config.JAVAC}",
                       "execution_policy_compliance": "NOT_ENFORCED"}
     else:
+        javac_path = javac_path.resolve()
         observation = (executor or StrictSandboxExecutor()).execute(ExecutionRequest(
             tool="javac",
-            command=(str(javac_path), "-d", "/work/classes", f"/input/{cname}.java"),
+            command=(str(javac_path), "-d", "/work", f"/input/{cname}.java"),
             snapshot=snapshot, workspace=attempt_dir / "javac-work",
             policy=ExecutionPolicy(
                 timeout_s=float(config.CHECK_TIMEOUT),
@@ -279,12 +280,20 @@ def _check_attempt(attempt_dir, stub, fallback_name, *, executor=None):
             vcs = [VC(file=p.name, line=0, category="Javac",
                       detail=javac_gate["output"][:1000], raw=javac_gate["output"][:1000])]
         return javac_gate["exit_code"], text, vcs, p
-    code_exit, text = verify(p, mode="check")
-    (attempt_dir / "check-execution.json").write_text(json.dumps({
-        "execution_policy_compliance": (
-            "NOT_ENFORCED" if code_exit in {125, 127} else "ENFORCED"),
+    verification = verify_detailed(p, mode="check", executor=executor)
+    code_exit, text = verification.exit_code, verification.output
+    execution_record = {
+        "backend": "openjml", "mode": "check",
+        "exit_code": code_exit,
         "source_snapshot_sha256": snapshot.manifest_sha256,
-    }, indent=2), encoding="utf-8")
+        "execution_policy_compliance": (
+            verification.observation.policy_compliance
+            if verification.observation else "NOT_ENFORCED"),
+        "observation": (
+            verification.observation.as_dict() if verification.observation else None),
+    }
+    (attempt_dir / "check-execution.json").write_text(
+        json.dumps(execution_record, indent=2), encoding="utf-8")
     (attempt_dir / "check.log").write_text(text, encoding="utf-8")
     vcs = parse_check(text) if code_exit != 0 else []
     # Guarantee a non-empty fingerprint even if -check's format wasn't recognized,
@@ -482,6 +491,7 @@ def run(nl, provider="ollama", fallback_provider=None, out_dir=None, model=None,
     result.pipeline_state = PipelineState.REVIEW_AND_MEASURE.value
     result.transitions = [asdict(item) for item in ledger.transitions]
     execution_compliance = "NOT_ENFORCED"
+    final_execution_record = None
     if result.stub_path:
         attempt_root = Path(result.stub_path).parent.parent
         policy_records = []
@@ -497,6 +507,7 @@ def run(nl, provider="ollama", fallback_provider=None, out_dir=None, model=None,
         elif any(item.get("execution_policy_compliance") == "UNKNOWN"
                  for item in policy_records):
             execution_compliance = "UNKNOWN"
+        final_execution_record = policy_records[-1]
     try:
         manifest_path = ledger.commit({
             "final_status": result.final_status,
@@ -505,9 +516,13 @@ def run(nl, provider="ollama", fallback_provider=None, out_dir=None, model=None,
             "contract_surface_sha256": result.provenance["contract_sha256"],
             "reviewed_assumptions": list(result.assumptions),
             "tool_versions": result.provenance["tool_versions"],
-            "effective_arguments": result.provenance["command"],
+            "effective_arguments": (
+                final_execution_record.get("observation", {}).get("command")
+                if final_execution_record and final_execution_record.get("observation")
+                else result.provenance["command"]),
             "claim_policy_version": "verification-policy-v1",
             "execution_policy_compliance": execution_compliance,
+            "execution_observation": final_execution_record,
         })
         result.evidence_publication_status = "COMMITTED"
         result.evidence_manifest_path = str(manifest_path)

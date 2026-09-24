@@ -96,3 +96,42 @@ jobs:
           # the generated-crate checks must not resolve over the network.
           FORMALSPECGEN_CARGO_OFFLINE: "1"
         run: python -m pytest --no-cov tests/test_parallel_wrapper.py tests/test_v2_async_serializer.py
+
+  sandbox-acceptance:
+    name: Real Bubblewrap and cgroup v2 acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
+      - name: Install sandbox and development dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap build-essential default-jdk-headless
+          python -m pip install --upgrade pip -r requirements-dev.txt -e .
+      - name: Permit the provisioned Bubblewrap acceptance profile
+        run: |
+          if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Delegate memory and process controls
+        run: |
+          sandbox_cgroup="/sys/fs/cgroup/formalspecgen-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          sudo mkdir "$sandbox_cgroup"
+          echo '+memory +pids' | sudo tee "$sandbox_cgroup/cgroup.subtree_control" >/dev/null
+          sudo chown -R "$(id -u):$(id -g)" "$sandbox_cgroup"
+          echo "FORMALSPECGEN_CGROUP_ROOT=$sandbox_cgroup" >> "$GITHUB_ENV"
+      - name: Run mandatory real sandbox acceptance
+        env:
+          FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
+        run: python -m pytest -q --no-cov tests/test_sandbox_acceptance.py
+      - name: Remove delegated cgroup
+        if: always()
+        run: sudo rmdir "$FORMALSPECGEN_CGROUP_ROOT" || true

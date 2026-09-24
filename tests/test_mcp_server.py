@@ -1,9 +1,13 @@
+import hashlib
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 import mcp_server
+from pipeline.execution import ExecutionObservation
+from pipeline.verify import VerificationExecutionResult
 
 
 def test_mcp_workspace_paths_are_contained(tmp_path, monkeypatch):
@@ -18,12 +22,50 @@ def test_mcp_workspace_paths_are_contained(tmp_path, monkeypatch):
 def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     source = Path("Counter.java"); source.write_text("public class Counter {}")
-    with patch("mcp_server.verify", return_value=(0, "ok")):
+    with patch("mcp_server.verify_detailed", return_value=VerificationExecutionResult(
+            0, "ok", None)):
         result = mcp_server.verify_code("Counter.java", "check")
     assert result["status"] == "VERIFIED"
     assert result["claim"] == "STATIC_CHECK"
     assert result["request_satisfied"] is True
     assert result["exit_code"] == 0
+    assert result["evidence"]["publication_status"] == "COMMITTED"
+    assert Path(result["evidence"]["manifest_path"]).is_file()
+
+
+def test_mcp_native_verification_is_fail_closed_by_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    Path("counter.c").write_text("int counter(void) { return 0; }", encoding="utf-8")
+    result = mcp_server.verify_code("counter.c", "esc")
+    assert result["status"] == "ISOLATION_UNSUPPORTED"
+    assert result["claim"] == "NO_PROOF"
+    assert result["request_satisfied"] is False
+    assert result["strict_isolation_supported"] is False
+
+
+def test_mcp_receipt_binds_exact_execution_observation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source = Path("Counter.java")
+    source.write_text("public class Counter {}", encoding="utf-8")
+    source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    command = ("/opt/openjml", "-esc", "--specs-path", "/opt/specs",
+               "/input/Counter.java")
+    observation = ExecutionObservation(
+        status="COMPLETED", exit_code=0, output="ok",
+        requested_policy={"network": "denied"},
+        enforced_policy={"network": "denied"}, policy_compliance="ENFORCED",
+        snapshot_manifest_sha256="manifest-digest",
+        snapshot_files=({"path": "Counter.java", "size": source.stat().st_size,
+                         "sha256": source_digest},),
+        tool="openjml", command=command, readonly_paths=("/opt/specs",))
+    with patch("mcp_server.verify_detailed", return_value=VerificationExecutionResult(
+            0, "ok", observation)):
+        result = mcp_server.verify_code("Counter.java", "esc")
+    manifest = json.loads(Path(result["evidence"]["manifest_path"]).read_text())
+    assert manifest["terminal"]["effective_arguments"] == list(command)
+    assert manifest["terminal"]["source_sha256"] == source_digest
+    assert manifest["terminal"]["source_snapshot_manifest_sha256"] == "manifest-digest"
+    assert result["execution"]["command"] == command
 
 
 def test_mcp_server_reports_optional_dependency_boundary():

@@ -10,6 +10,7 @@ import mcp_server
 from pipeline import cli, implementation
 from pipeline.llm import _chat_fn
 from pipeline.refactor_gate import _public_contract_clauses
+from pipeline.verify import VerificationExecutionResult
 
 
 CASE_STUB = r'''public class AccessPolicy {
@@ -80,8 +81,8 @@ def test_refactor_surface_keeps_class_invariants_and_assumptions():
 def test_mcp_dropped_java_obligation_never_mints_proof(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path("Counter.java").write_text("public class Counter {}", encoding="utf-8")
-    with patch("mcp_server.verify", return_value=(
-            0, "Not implemented for static checking")):
+    with patch("mcp_server.verify_detailed", return_value=VerificationExecutionResult(
+            0, "Not implemented for static checking", None)):
         result = mcp_server.verify_code("Counter.java", "esc")
     assert result["status"] == "VACUOUS_VERIFIED"
     assert result["claim"] == "NO_PROOF"

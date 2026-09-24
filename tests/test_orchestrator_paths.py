@@ -295,7 +295,8 @@ def test_check_attempt_javac_failure_timeout_and_missing(tmp_path):
 
 
 def test_check_attempt_openjml_diagnostic_fallback(tmp_path):
-    with (patch.object(orchestrator, "verify", return_value=(6, "unparsed verifier failure")),
+    with (patch.object(orchestrator, "verify_detailed", return_value=SimpleNamespace(
+              exit_code=6, output="unparsed verifier failure", observation=None)),
           patch.object(orchestrator, "parse_check", return_value=[])):
         exit_code, text, vcs, path = orchestrator._check_attempt(
             tmp_path, SOURCE, "Draft", executor=FakeCompileExecutor())
@@ -313,7 +314,8 @@ def test_check_attempt_rejects_unenforced_compiler_and_preserves_empty_diagnosti
     assert result[0] == 125 and "policy not enforced" in result[1]
 
     root = tmp_path / "empty"; root.mkdir()
-    with patch.object(orchestrator, "verify", return_value=(6, "")), \
+    with patch.object(orchestrator, "verify_detailed", return_value=SimpleNamespace(
+            exit_code=6, output="", observation=None)), \
          patch.object(orchestrator, "parse_check", return_value=[]):
         result = orchestrator._check_attempt(
             root, SOURCE, "Draft", executor=FakeCompileExecutor())

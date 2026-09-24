@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import selectors
+import signal
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,7 +12,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from pipeline.execution import (
-    ExecutionPolicy, ExecutionRequest, SourceSnapshot, StrictSandboxExecutor,
+    CgroupV2Handle, ExecutionPolicy, ExecutionRequest, SourceSnapshot,
+    StrictSandboxExecutor,
 )
 
 
@@ -51,8 +54,14 @@ def test_sandbox_command_denies_network_and_exposes_only_snapshot_and_workspace(
     assert "--unshare-all" in command and "--clearenv" in command
     assert [str(request.snapshot.root), "/input"] == command[
         command.index(str(request.snapshot.root)):command.index(str(request.snapshot.root)) + 2]
-    assert [str(request.workspace), "/work"] == command[
-        command.index(str(request.workspace)):command.index(str(request.workspace)) + 2]
+    assert str(request.workspace) not in command
+    assert ["--size", str(request.policy.max_temporary_bytes), "--tmpfs", "/tmp"] == command[
+        command.index(str(request.policy.max_temporary_bytes)) - 1:
+        command.index(str(request.policy.max_temporary_bytes)) + 3]
+    assert ["--size", str(request.policy.max_workspace_bytes), "--tmpfs", "/work"] == command[
+        command.index(str(request.policy.max_workspace_bytes)) - 1:
+        command.index(str(request.policy.max_workspace_bytes)) + 3]
+    assert not any(item.startswith("--as=") for item in command)
     assert os.environ.get("SSH_AUTH_SOCK", "not-present") not in command
     assert [str(tmp_path.resolve()), str(tmp_path.resolve())] == command[
         command.index(str(tmp_path.resolve())):command.index(str(tmp_path.resolve())) + 2]
@@ -82,6 +91,7 @@ def test_snapshot_rejects_escaping_paths_and_missing_files(tmp_path):
 @pytest.mark.parametrize(("request_change", "message"), [
     ({"policy": ExecutionPolicy(network="allowed")}, "network=denied"),
     ({"policy": ExecutionPolicy(profile="unknown")}, "unsupported execution profile"),
+    ({"policy": ExecutionPolicy(filesystem="unknown")}, "unsupported filesystem policy"),
     ({"command": ()}, "command is empty"),
     ({"policy": ExecutionPolicy(timeout_s=0)}, "limits must be positive"),
     ({"workspace": Path("/")}, "sibling disposable directory"),
@@ -119,8 +129,21 @@ def test_probe_failures_and_success_dispatch(tmp_path):
             returncode=0, stdout="", stderr="")))
     completed = SimpleNamespace(status="COMPLETED")
     executor._run_bounded = Mock(return_value=completed)
+    cgroup = Mock()
+    cgroup.attach_command.side_effect = lambda command: command
+    executor._create_cgroup = Mock(return_value=cgroup)
     assert executor.execute(request) is completed
     executor._run_bounded.assert_called_once()
+
+    executor = StrictSandboxExecutor(
+        sandbox_binary="bwrap", prlimit_binary="prlimit",
+        probe_runner=Mock(return_value=SimpleNamespace(
+            returncode=0, stdout="", stderr="")))
+    executor._create_cgroup = Mock(side_effect=OSError("delegation denied"))
+    unavailable = executor.execute(request)
+    assert unavailable.status == "RESOURCE_CONTROL_UNAVAILABLE"
+    assert unavailable.policy_compliance == "NOT_ENFORCED"
+    assert "delegation denied" in unavailable.message
 
 
 def test_bounded_runner_reports_normal_failure_and_spawn_error(tmp_path):
@@ -153,12 +176,48 @@ def test_process_termination_falls_back_to_direct_kill():
         StrictSandboxExecutor._terminate_unit(process)
 
 
-def test_workspace_accounting_tolerates_disappearing_files(tmp_path):
-    (tmp_path / "file").write_text("data", encoding="utf-8")
-    with patch("pipeline.execution.Path.lstat", side_effect=OSError("gone")):
-        assert StrictSandboxExecutor._workspace_size(tmp_path) == 0
-    with patch("pipeline.execution.os.walk", side_effect=OSError("unavailable")):
-        assert StrictSandboxExecutor._workspace_size(tmp_path) == 0
+def test_cgroup_event_collection_and_attach_wrapper(tmp_path):
+    (tmp_path / "memory.events").write_text("oom 1\noom_kill 2\n", encoding="ascii")
+    (tmp_path / "pids.events").write_text("max 3\n", encoding="ascii")
+    handle = CgroupV2Handle(tmp_path)
+    assert handle.events() == {"oom": 1, "oom_kill": 2, "pids_max": 3}
+    command = handle.attach_command(["/bin/true"])
+    assert command[-1] == "/bin/true"
+    assert "cgroup.procs" in command[2]
+
+
+def test_cgroup_creation_writes_memory_process_and_swap_limits(tmp_path):
+    (tmp_path / "cgroup.controllers").write_text("memory pids", encoding="ascii")
+    target = tmp_path / f"formalspecgen-{os.getpid()}-fixed"
+    target.mkdir()
+    for name in ("memory.max", "pids.max", "memory.swap.max"):
+        (target / name).write_text("max", encoding="ascii")
+    original_mkdir = Path.mkdir
+
+    def mkdir(path, *args, **kwargs):
+        if path == target:
+            return None
+        return original_mkdir(path, *args, **kwargs)
+
+    policy = ExecutionPolicy(max_memory_bytes=1234, max_processes=7)
+    executor = StrictSandboxExecutor(
+        sandbox_binary="unused", prlimit_binary="unused", cgroup_root=tmp_path)
+    with patch("pipeline.execution.uuid.uuid4", return_value=SimpleNamespace(hex="fixed")), \
+         patch.object(Path, "mkdir", mkdir):
+        handle = executor._create_cgroup(policy)
+    assert handle.path == target
+    assert (target / "memory.max").read_text(encoding="ascii") == "1234"
+    assert (target / "pids.max").read_text(encoding="ascii") == "7"
+    assert (target / "memory.swap.max").read_text(encoding="ascii") == "0"
+
+
+def test_current_cgroup_resolution_and_missing_membership():
+    with patch.object(Path, "read_text", return_value="0::/runner/scope\n"):
+        assert StrictSandboxExecutor._current_cgroup_root() == \
+            Path("/sys/fs/cgroup/runner/scope")
+    with patch.object(Path, "read_text", return_value="1:name:/legacy\n"), \
+         pytest.raises(OSError, match="membership is unavailable"):
+        StrictSandboxExecutor._current_cgroup_root()
 
 
 def test_output_and_process_tree_are_bounded(tmp_path):
@@ -182,13 +241,90 @@ def test_output_and_process_tree_are_bounded(tmp_path):
     assert timeout.status == "TIMEOUT"
     assert timeout.timed_out and timeout.exit_code == 124
 
-    storage_request = _request(
-        tmp_path / "storage",
-        policy=ExecutionPolicy(timeout_s=5, max_workspace_bytes=1024))
-    storage_request.workspace.mkdir()
-    target = storage_request.workspace / "large.bin"
+    storage_request = _request(tmp_path / "storage")
     storage = executor._run_bounded(
-        [sys.executable, "-c",
-         f"import time; open({str(target)!r}, 'wb').write(b'x' * 4096); time.sleep(2)"],
+        [sys.executable, "-c", "import sys; print('No space left on device'); sys.exit(1)"],
         storage_request)
-    assert storage.status == "WORKSPACE_LIMIT_EXCEEDED"
+    assert storage.status == "WRITABLE_STORAGE_LIMIT_EXCEEDED"
+
+
+class _EventCgroup:
+    def __init__(self, events):
+        self._events = events
+        self.killed = False
+        self.closed = False
+
+    def events(self):
+        return dict(self._events)
+
+    def kill(self):
+        self.killed = True
+
+    def close(self):
+        self.closed = True
+        return True
+
+
+@pytest.mark.parametrize(("events", "status"), [
+    ({"oom_kill": 1}, "MEMORY_LIMIT_EXCEEDED"),
+    ({"max": 1}, "MEMORY_LIMIT_EXCEEDED"),
+    ({"pids_max": 1}, "PROCESS_LIMIT_EXCEEDED"),
+])
+def test_cgroup_events_determine_resource_failure(tmp_path, events, status):
+    request = _request(tmp_path / status)
+    cgroup = _EventCgroup(events)
+    observation = StrictSandboxExecutor(
+        sandbox_binary="unused", prlimit_binary="unused")._run_bounded(
+            [sys.executable, "-c", "raise SystemExit(1)"], request, cgroup)
+    assert observation.status == status
+    assert observation.exit_code == 126
+    assert observation.resource_events == events
+    assert observation.policy_compliance == "ENFORCED"
+    assert cgroup.closed
+
+
+@pytest.mark.parametrize(("signal_number", "status"), [
+    (signal.SIGXCPU, "CPU_LIMIT_EXCEEDED"),
+    (signal.SIGXFSZ, "FILE_SIZE_LIMIT_EXCEEDED"),
+])
+def test_resource_limit_signals_are_not_tool_failures(
+        tmp_path, signal_number, status):
+    request = _request(tmp_path / status)
+    cgroup = _EventCgroup({})
+    process = Mock(pid=123, stdout=Mock())
+    process.stdout.fileno.return_value = 0
+    process.poll.return_value = 128 + signal_number
+    process.wait.return_value = 128 + signal_number
+    executor = StrictSandboxExecutor(
+        sandbox_binary="unused", prlimit_binary="unused",
+        popen_factory=Mock(return_value=process))
+    with patch.object(selectors.DefaultSelector, "register"), \
+         patch.object(selectors.DefaultSelector, "get_map", return_value={}):
+        observation = executor._run_bounded(["tool"], request, cgroup)
+    assert observation.status == status
+    assert observation.exit_code == 126
+
+
+def test_cgroup_attach_failure_is_not_reported_as_tool_failure(tmp_path):
+    request = _request(tmp_path)
+    cgroup = _EventCgroup({})
+    observation = StrictSandboxExecutor(
+        sandbox_binary="unused", prlimit_binary="unused")._run_bounded(
+            [sys.executable, "-c",
+             "print('FORMALSPECGEN_CGROUP_ATTACH_FAILED'); raise SystemExit(125)"],
+            request, cgroup)
+    assert observation.status == "RESOURCE_CONTROL_UNAVAILABLE"
+    assert observation.policy_compliance == "NOT_ENFORCED"
+    assert observation.enforced_policy is None
+
+
+def test_cgroup_cleanup_failure_invalidates_policy_compliance(tmp_path):
+    request = _request(tmp_path)
+    cgroup = _EventCgroup({})
+    cgroup.close = Mock(return_value=False)
+    observation = StrictSandboxExecutor(
+        sandbox_binary="unused", prlimit_binary="unused")._run_bounded(
+            [sys.executable, "-c", "pass"], request, cgroup)
+    assert observation.status == "RESOURCE_CLEANUP_FAILED"
+    assert observation.policy_compliance == "NOT_ENFORCED"
+    assert "cleanup" in observation.message

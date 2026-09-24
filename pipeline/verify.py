@@ -8,11 +8,12 @@ Generalized from formalspecDD's `-esc`-only wrapper: this project primarily uses
 """
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import config
-from .execution import (ExecutionPolicy, ExecutionRequest, SourceSnapshot,
-                        StrictSandboxExecutor)
+from .execution import (ExecutionObservation, ExecutionPolicy, ExecutionRequest,
+                        SourceSnapshot, StrictSandboxExecutor)
 
 TIMEOUT_EXIT = 124
 TOOL_ERROR_EXIT = 125
@@ -22,6 +23,25 @@ _TOOL_CONFIGURATION_MARKERS = (
     "Could not find the internal system specifications",
     "Could not locate the internal specifications files",
 )
+
+
+@dataclass(frozen=True)
+class VerificationExecutionResult:
+    """Backend interpretation retaining the authoritative executor observation."""
+
+    exit_code: int
+    output: str
+    observation: ExecutionObservation | None
+
+    def legacy_tuple(self) -> tuple[int, str]:
+        return self.exit_code, self.output
+
+    def as_dict(self) -> dict:
+        return {
+            "exit_code": self.exit_code,
+            "output": self.output,
+            "execution": self.observation.as_dict() if self.observation else None,
+        }
 
 
 def _command(mode, java_files):
@@ -47,22 +67,25 @@ def has_dropped_vc(text: str) -> bool:
 def _resolved_openjml() -> Path | None:
     configured = Path(config.OPENJML)
     if configured.is_absolute():
-        return configured if configured.is_file() else None
+        return configured.resolve() if configured.is_file() else None
     resolved = shutil.which(config.OPENJML)
-    return Path(resolved) if resolved else None
+    return Path(resolved).resolve() if resolved else None
 
 
-def _sandbox_verify(java_files, mode, timeout, executor=None):
+def _sandbox_verify_detailed(java_files, mode, timeout, executor=None):
     sources = [Path(path) for path in java_files]
     missing = [str(path) for path in sources if not path.is_file()]
     if missing:
-        return TOOL_ERROR_EXIT, "<source file unavailable: " + ", ".join(missing) + ">"
+        return VerificationExecutionResult(
+            TOOL_ERROR_EXIT, "<source file unavailable: " + ", ".join(missing) + ">", None)
     names = [path.name for path in sources]
     if len(names) != len(set(names)):
-        return TOOL_ERROR_EXIT, "<duplicate Java source basenames cannot share a snapshot>"
+        return VerificationExecutionResult(
+            TOOL_ERROR_EXIT, "<duplicate Java source basenames cannot share a snapshot>", None)
     openjml = _resolved_openjml()
     if openjml is None:
-        return 127, f"<openjml binary not found at {config.OPENJML}>"
+        return VerificationExecutionResult(
+            127, f"<openjml binary not found at {config.OPENJML}>", None)
     specs_value = getattr(config, "OPENJML_SPECS", "")
     specs = Path(specs_value).resolve() if specs_value and Path(specs_value).exists() else None
     with tempfile.TemporaryDirectory(prefix="formalspecgen-openjml-") as temporary:
@@ -84,30 +107,50 @@ def _sandbox_verify(java_files, mode, timeout, executor=None):
                 timeout_s=float(timeout), max_memory_bytes=2 * 1024 * 1024 * 1024),
             readonly_paths=tuple(dict.fromkeys(readonly_paths))))
     if observation.status == "TIMEOUT":
-        return TIMEOUT_EXIT, f"<openjml -{mode} timed out after {timeout}s>"
+        return VerificationExecutionResult(
+            TIMEOUT_EXIT, f"<openjml -{mode} timed out after {timeout}s>", observation)
     if observation.policy_compliance != "ENFORCED":
         detail = observation.message or observation.status
-        return TOOL_ERROR_EXIT, f"<openjml sandbox policy not enforced: {detail}>"
-    if observation.status == "OUTPUT_LIMIT_EXCEEDED":
-        return TOOL_ERROR_EXIT, observation.output + "\n<openjml output limit exceeded>"
-    return _tool_result(observation.exit_code, observation.output)
+        return VerificationExecutionResult(
+            TOOL_ERROR_EXIT, f"<openjml sandbox policy not enforced: {detail}>", observation)
+    if observation.status in {
+            "OUTPUT_LIMIT_EXCEEDED", "MEMORY_LIMIT_EXCEEDED",
+            "PROCESS_LIMIT_EXCEEDED", "WRITABLE_STORAGE_LIMIT_EXCEEDED",
+            "CPU_LIMIT_EXCEEDED", "FILE_SIZE_LIMIT_EXCEEDED"}:
+        return VerificationExecutionResult(
+            TOOL_ERROR_EXIT,
+            observation.output + f"\n<openjml resource failure: {observation.status}>",
+            observation)
+    exit_code, output = _tool_result(observation.exit_code, observation.output)
+    return VerificationExecutionResult(exit_code, output, observation)
 
 
-def verify(java_file, mode="check", timeout=None, *, executor=None):
-    """Run `openjml -<mode> <java_file>`. Returns (exit_code, combined_text)."""
+def verify_detailed(java_file, mode="check", timeout=None, *, executor=None):
+    """Run OpenJML and retain the exact execution observation."""
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}, got {mode!r}")
     if timeout is None:
         timeout = config.ESC_TIMEOUT if mode == "esc" else config.CHECK_TIMEOUT
-    return _sandbox_verify([java_file], mode, timeout, executor)
+    return _sandbox_verify_detailed([java_file], mode, timeout, executor)
 
 
-def verify_files(java_files, mode="check", timeout=None, *, executor=None):
-    """Run OpenJML once over a mutually dependent set of Java sources."""
+def verify(java_file, mode="check", timeout=None, *, executor=None):
+    """Compatibility wrapper returning ``(exit_code, output)``."""
+    return verify_detailed(java_file, mode, timeout, executor=executor).legacy_tuple()
+
+
+def verify_files_detailed(java_files, mode="check", timeout=None, *, executor=None):
+    """Run OpenJML over a source set and retain the execution observation."""
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}, got {mode!r}")
     timeout = timeout or (config.ESC_TIMEOUT if mode == "esc" else config.CHECK_TIMEOUT)
-    return _sandbox_verify(java_files, mode, timeout, executor)
+    return _sandbox_verify_detailed(java_files, mode, timeout, executor)
+
+
+def verify_files(java_files, mode="check", timeout=None, *, executor=None):
+    """Compatibility wrapper returning ``(exit_code, output)``."""
+    return verify_files_detailed(
+        java_files, mode, timeout, executor=executor).legacy_tuple()
 
 
 def classify(exit_code: int) -> str:

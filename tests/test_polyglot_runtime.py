@@ -34,8 +34,8 @@ class SequenceExecutor:
 
 
 def test_rust_runtime_sample_compiles_tests_with_overflow_checks():
-    executor = SequenceExecutor(
-        observation(), observation(output="FORMALSPEC_INPUT: a=1,b=2\ntest result: ok"))
+    executor = SequenceExecutor(observation(
+        output="FORMALSPEC_PHASE:runtime\nFORMALSPEC_INPUT: a=1,b=2\ntest result: ok"))
     with patch.object(runtime.shutil, "which", return_value="/bin/rustc"):
         result = runtime.collect_polyglot_runtime_evidence(
             RUST, "rust", test_code="#[test] fn sample() { assert_eq!(add(1,2),3); }",
@@ -43,13 +43,14 @@ def test_rust_runtime_sample_compiles_tests_with_overflow_checks():
     assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
     assert result["claim"] == "RUNTIME_SAMPLE" and not result["proof"]
     assert result["inputs"] == ["a=1,b=2"]
-    assert "--test" in executor.calls[0].command
-    assert "overflow-checks=yes" in executor.calls[0].command
+    assert executor.calls[0].tool == "rust-runtime-pipeline"
+    assert "--test" in executor.calls[0].command[2]
+    assert "overflow-checks=yes" in executor.calls[0].command[2]
 
 
 def test_c_runtime_failure_is_counterexample_evidence_under_sanitizers():
-    executor = SequenceExecutor(
-        observation(), observation("TOOL_FAILED", 1, "runtime error: signed overflow"))
+    executor = SequenceExecutor(observation(
+        "TOOL_FAILED", 1, "FORMALSPECGEN_PHASE:runtime\nruntime error: signed overflow"))
     with patch.object(runtime.shutil, "which", return_value="/bin/gcc"):
         result = runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="int main(void) { return add(1,2) != 3; }",
@@ -57,7 +58,7 @@ def test_c_runtime_failure_is_counterexample_evidence_under_sanitizers():
     assert result["status"] == "RUNTIME_FAILURES_FOUND"
     assert result["claim"] == "COUNTEREXAMPLE_EVIDENCE"
     assert result["regeneration_recommended"]
-    assert "-fsanitize=address,undefined" in executor.calls[0].command
+    assert "-fsanitize=address,undefined" in executor.calls[0].command[2]
 
 
 def test_runtime_gate_reports_testgen_compile_tool_and_timeout_failures():
@@ -74,7 +75,9 @@ def test_runtime_gate_reports_testgen_compile_tool_and_timeout_failures():
     with patch.object(runtime.shutil, "which", return_value="/usr/bin/cc"):
         assert runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="x", executor=SequenceExecutor(
-                observation("TOOL_FAILED", 1, "bad")))["status"] == "TEST_COMPILE_FAILED"
+                observation("TOOL_FAILED", 1,
+                            "bad\nFORMALSPECGEN_PHASE:compile")))["status"] == \
+            "TEST_COMPILE_FAILED"
     with patch.object(runtime.shutil, "which", return_value="/usr/bin/cc"):
         assert runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="x", executor=SequenceExecutor(
@@ -95,8 +98,8 @@ public:
 
 
 def test_cpp_runtime_sample_compiles_under_sanitizers():
-    executor = SequenceExecutor(
-        observation(), observation(output="FORMALSPEC_INPUT: a=1,b=2\nall asserts passed"))
+    executor = SequenceExecutor(observation(
+        output="FORMALSPECGEN_PHASE:runtime\nFORMALSPEC_INPUT: a=1,b=2\nall asserts passed"))
     with patch.object(runtime.shutil, "which", return_value="/bin/g++"):
         result = runtime.collect_polyglot_runtime_evidence(
             CPP, "cpp",
@@ -105,15 +108,16 @@ def test_cpp_runtime_sample_compiles_under_sanitizers():
     assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
     assert result["claim"] == "RUNTIME_SAMPLE" and not result["proof"]
     assert result["instrumentation"] == "ASan+UBSan (g++)"
-    assert executor.calls[0].command[0].endswith("g++")
-    assert "-std=c++17" in executor.calls[0].command
-    assert "-fsanitize=address,undefined" in executor.calls[0].command
+    assert executor.calls[0].command[:2] == ("/bin/sh", "-c")
+    assert "g++" in executor.calls[0].command[2]
+    assert "-std=c++17" in executor.calls[0].command[2]
+    assert "-fsanitize=address,undefined" in executor.calls[0].command[2]
 
 
 def test_cpp_runtime_failure_is_counterexample_evidence():
-    executor = SequenceExecutor(
-        observation(), observation(
-            "TOOL_FAILED", 1, "runtime error: signed integer overflow"))
+    executor = SequenceExecutor(observation(
+        "TOOL_FAILED", 1,
+        "FORMALSPECGEN_PHASE:runtime\nruntime error: signed integer overflow"))
     with patch.object(runtime.shutil, "which", return_value="/bin/g++"):
         result = runtime.collect_polyglot_runtime_evidence(
             CPP, "cpp", test_code="int main() { return 0; }", executor=executor)
@@ -159,23 +163,45 @@ def test_default_runtime_path_records_enforced_compile_and_execution():
             snapshot_manifest_sha256="digest")
 
     calls = []
-    values = iter([
-        observation(),
-        observation(output="FORMALSPEC_INPUT: x=1\nall assertions passed"),
-    ])
+    values = iter([observation(
+        output="FORMALSPECGEN_PHASE:runtime\nFORMALSPEC_INPUT: x=1\nall assertions passed")])
     executor = SimpleNamespace(execute=lambda request: (calls.append(request), next(values))[1])
     with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
         result = runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="int main(void) { return 0; }", executor=executor)
     assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
     assert result["execution_policy_compliance"] == "ENFORCED"
-    assert len(calls) == 2 and calls[0].tool == "c-compiler"
-    assert calls[1].command == ("/work/runtime_sample",)
+    assert len(calls) == 1 and calls[0].tool == "c-runtime-pipeline"
+    assert calls[0].command[:2] == ("/bin/sh", "-c")
+    assert "exec /work/runtime_sample" in calls[0].command[2]
 
-    values = iter([observation(), observation("OUTPUT_LIMIT_EXCEEDED", 126, "partial")])
+    values = iter([observation("OUTPUT_LIMIT_EXCEEDED", 126, "partial")])
     executor = SimpleNamespace(execute=lambda _request: next(values))
     with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
         limited = runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="int main(void) { return 0; }", executor=executor)
     assert limited["status"] == "OUTPUT_LIMIT_EXCEEDED"
     assert limited["claim"] == "NO_PROOF"
+
+
+def test_sanitizer_initialization_failure_is_not_counterexample_evidence():
+    executor = SequenceExecutor(observation(
+        "TOOL_FAILED", 1,
+        "FORMALSPECGEN_PHASE:runtime\nAddressSanitizer failed to allocate shadow memory"))
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
+        result = runtime.collect_polyglot_runtime_evidence(
+            C, "c", test_code="int main(void) { return 0; }", executor=executor)
+    assert result["status"] == "TOOL_INITIALIZATION_FAILED"
+    assert result["claim"] == "NO_PROOF"
+    assert result["regeneration_recommended"] is False
+
+
+def test_actual_sanitizer_diagnostic_is_counterexample_evidence():
+    executor = SequenceExecutor(observation(
+        "TOOL_FAILED", 1,
+        "FORMALSPECGEN_PHASE:runtime\nERROR: AddressSanitizer: heap-buffer-overflow"))
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
+        result = runtime.collect_polyglot_runtime_evidence(
+            C, "c", test_code="int main(void) { return 0; }", executor=executor)
+    assert result["status"] == "RUNTIME_FAILURES_FOUND"
+    assert result["claim"] == "COUNTEREXAMPLE_EVIDENCE"

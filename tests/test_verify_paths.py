@@ -22,7 +22,9 @@ class FakeExecutor:
             requested_policy={}, enforced_policy={} if compliance == "ENFORCED" else None,
             policy_compliance=compliance,
             snapshot_manifest_sha256=request.snapshot.manifest_sha256,
-            timed_out=self.status == "TIMEOUT", message="sandbox unavailable")
+            timed_out=self.status == "TIMEOUT", message="sandbox unavailable",
+            tool=request.tool, command=request.command,
+            readonly_paths=tuple(str(path) for path in request.readonly_paths))
 
 
 def _tool_and_source(tmp_path, name="A.java"):
@@ -136,7 +138,23 @@ def test_verify_resolves_path_tool_and_rejects_excess_output(tmp_path):
          patch.object(verify.shutil, "which", return_value=str(resolved)):
         code, message = verify.verify(source, executor=executor)
     assert code == verify.TOOL_ERROR_EXIT
-    assert message == "partial\n<openjml output limit exceeded>"
+    assert message == "partial\n<openjml resource failure: OUTPUT_LIMIT_EXCEEDED>"
+
+
+def test_detailed_result_preserves_exact_execution_and_specs_path(tmp_path):
+    tool, source = _tool_and_source(tmp_path)
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    executor = FakeExecutor(output="ok")
+    with patch.object(verify.config, "OPENJML", str(tool)), \
+         patch.object(verify.config, "OPENJML_SPECS", str(specs)):
+        result = verify.verify_detailed(source, mode="esc", executor=executor)
+    assert result.exit_code == 0 and result.observation is not None
+    assert result.observation.command == executor.request.command
+    assert "--specs-path" in result.observation.command
+    assert str(specs.resolve()) in result.observation.command
+    assert result.as_dict()["execution"]["snapshot_manifest_sha256"] == \
+        executor.request.snapshot.manifest_sha256
 
 
 @pytest.mark.parametrize("exit_code,status", [

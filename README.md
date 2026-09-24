@@ -28,12 +28,20 @@ always reports `claim: NO_PROOF` and cannot mint a proof claim.
 
 Java compilation, OpenJML checks, and generated Rust/C/C++ runtime samples run through a
 fail-closed Linux execution boundary. The strict profile requires `bubblewrap` (`bwrap`) and
-`prlimit`; it clears the inherited environment, denies network namespaces, mounts the reviewed
-source snapshot read-only, exposes only a disposable writable workspace, limits time, processes,
-memory, file size, total workspace bytes, and captured output, and terminates the process group on
-timeout. If that
+`prlimit`, plus a writable delegated cgroup v2 subtree selected with
+`FORMALSPECGEN_CGROUP_ROOT`. It clears the inherited environment, denies network namespaces,
+mounts the reviewed source snapshot read-only, gives `/work` and `/tmp` independently sized tmpfs
+mounts, limits execution-unit physical memory and descendant tasks with cgroup v2, limits CPU time,
+file size and captured output, and terminates the cgroup and process group on timeout. The profile
+does not impose an address-space (`RLIMIT_AS`) ceiling: ASan and JVM tools reserve large virtual
+address ranges that do not represent equivalent physical-memory use. If that
 profile cannot be established, FormalSpecGen reports a policy/tool failure and does not fall back
 to unrestricted execution. Dependency prefetch must happen separately from this restricted stage.
+
+The mandatory `sandbox-acceptance` CI job provisions Bubblewrap and a delegated cgroup, then runs
+real ASan/UBSan C and C++ fixtures, `javac`, and a temporary-storage exhaustion check. Tool or
+instrumentation initialization and resource failures remain `NO_PROOF`; only an observed program
+failure can become counterexample evidence.
 
 Each drafting run now publishes transition evidence with exclusive, no-replace creation and writes
 `evidence/manifest.json` last. The terminal manifest binds the reviewed source digest, contract
@@ -86,6 +94,14 @@ workspace, and responses are structured verdict objects; the server never conver
 tool failure into a success claim. LLM-backed tools (`remediate_code`,
 `correct_behavior`, `optimize_algorithm`, `discover_algorithms`, and the optional
 `document_code` narrative) fail closed when the provider is unreachable.
+
+The MCP `verify_code` route is restricted to the strictly isolated Java lane by default. Successful
+Java responses include the exact executor observation and an immutable evidence receipt containing
+the run identity, terminal-manifest path, and manifest digest. Rust and C verification remain
+available to CLI workflows, but MCP rejects those lanes with `ISOLATION_UNSUPPORTED` until their
+formal backends use the same boundary and publication path. Set
+`FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` only to opt into the legacy native MCP routes; their responses
+explicitly report that strict isolation and durable publication are unsupported.
 
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and

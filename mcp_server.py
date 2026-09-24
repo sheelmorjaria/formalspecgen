@@ -14,8 +14,11 @@ GPG key — an agent must never sign or authorize on a reviewer's behalf).
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -26,7 +29,8 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
 
 from pipeline import config
 from pipeline.java_inspection import inspect_java_file
-from pipeline.verify import verify
+from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
+from pipeline.verify import verify_detailed
 from pipeline.verification_policy import decide_result, decide_verification
 
 
@@ -81,16 +85,82 @@ def _load_system_plan(plan_path: str, mode: str) -> dict[str, Any]:
     return value
 
 
+def _publish_verification_evidence(path: Path, mode: str, detailed, decision: dict) -> dict:
+    run_root = Path.cwd() / ".formalspecgen" / "mcp-evidence" / uuid.uuid4().hex
+    ledger = RunLedger(run_root)
+    try:
+        claim = EvidenceClaim(decision.get("claim", "NO_PROOF"))
+    except ValueError:
+        claim = EvidenceClaim.NO_PROOF
+    observation = detailed.observation.as_dict() if detailed.observation else None
+    snapshot_files = observation.get("snapshot_files", []) if observation else []
+    executed_source = next(
+        (item for item in snapshot_files if item.get("path") == path.name), None)
+    source_sha256 = (executed_source.get("sha256") if executed_source
+                     else sha256_text(path.read_text(encoding="utf-8")))
+    ledger.record(
+        PipelineState.PROOF, decision.get("status", "UNKNOWN"), claim=claim,
+        details={"mode": mode, "request_satisfied": decision.get("request_satisfied", False)},
+        evidence={
+            "source_path": str(path),
+            "source_sha256": source_sha256,
+            "source_snapshot_manifest_sha256": (
+                observation.get("snapshot_manifest_sha256") if observation else None),
+            "raw_output_sha256": sha256_text(detailed.output),
+            "backend_exit_code": detailed.exit_code,
+            "execution_observation": observation,
+        })
+    manifest = ledger.commit({
+        "final_status": decision.get("status", "UNKNOWN"),
+        "claim": decision.get("claim", "NO_PROOF"),
+        "request_satisfied": decision.get("request_satisfied", False),
+        "source_sha256": source_sha256,
+        "source_snapshot_manifest_sha256": (
+            observation.get("snapshot_manifest_sha256") if observation else None),
+        "effective_arguments": observation.get("command") if observation else None,
+        "execution_policy_compliance": (
+            observation.get("policy_compliance") if observation else "NOT_ENFORCED"),
+        "execution_observation": observation,
+        "claim_policy_version": "verification-policy-v1",
+    })
+    return {
+        "run_id": ledger.run_id,
+        "manifest_path": str(manifest),
+        "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "publication_status": "COMMITTED",
+    }
+
+
 def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     """Verify Java, Rust, or C source and return a structured verdict."""
     path = _workspace_path(file_path)
     suffix = path.suffix.lower()
     if suffix in {".java", ".jml"}:
-        exit_code, output = verify(path, mode=mode)
+        detailed = verify_detailed(path, mode=mode)
+        exit_code, output = detailed.exit_code, detailed.output
         decision = decide_verification(
             tool="openjml", mode=mode, exit_code=exit_code, output=output)
+        try:
+            receipt = _publish_verification_evidence(path, mode, detailed, decision)
+        except (OSError, RuntimeError, ValueError) as exc:
+            return {"status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
+                    "request_satisfied": False, "exit_code": exit_code,
+                    "mode": mode, "file": str(path), "output": output,
+                    "execution": detailed.as_dict().get("execution"),
+                    "message": str(exc), "strict_isolation_supported": True,
+                    "durable_publication_supported": False}
         return {**decision, "exit_code": exit_code, "mode": mode,
-                "file": str(path), "output": output}
+                "file": str(path), "output": output,
+                "execution": detailed.as_dict().get("execution"),
+                "evidence": receipt, "strict_isolation_supported": True,
+                "durable_publication_supported": True}
+    if suffix in {".rs", ".c"} and \
+            os.environ.get("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "1") != "0":
+        return {"status": "ISOLATION_UNSUPPORTED", "claim": "NO_PROOF",
+                "request_satisfied": False, "file": str(path),
+                "strict_isolation_supported": False,
+                "durable_publication_supported": False,
+                "message": "MCP verification is restricted to the strictly isolated Java lane"}
     if suffix == ".rs":
         from pipeline.verify_rust import verify_rust
         result = verify_rust(path.read_text(encoding="utf-8"), mode=mode, backend="prusti")
@@ -100,7 +170,9 @@ def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     else:
         return {"status": "UNSUPPORTED_LANGUAGE", "claim": "NO_PROOF", "file": str(path)}
     tool = "prusti" if suffix == ".rs" else "frama-c"
-    return {"file": str(path), **decide_result(result, tool=tool, mode=mode)}
+    return {"file": str(path), **decide_result(result, tool=tool, mode=mode),
+            "strict_isolation_supported": False,
+            "durable_publication_supported": False}
 
 
 def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, Any]:
