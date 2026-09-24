@@ -35,6 +35,9 @@ def executor():
     root = Path(cgroup_root)
     assert (root / "cgroup.controllers").is_file()
     assert os.access(root, os.W_OK), f"cgroup delegation is not writable: {root}"
+    membership = Path("/proc/self/cgroup").read_text(encoding="utf-8")
+    assert root.name in membership, \
+        "acceptance process must start inside the delegated parent cgroup"
     return StrictSandboxExecutor(
         sandbox_binary=bwrap, prlimit_binary=prlimit, cgroup_root=root)
 

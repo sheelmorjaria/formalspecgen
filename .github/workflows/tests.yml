@@ -131,7 +131,12 @@ jobs:
       - name: Run mandatory real sandbox acceptance
         env:
           FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
-        run: python -m pytest -q --no-cov tests/test_sandbox_acceptance.py
+        run: |
+          # Enter the delegated parent first. Moving between sibling cgroups
+          # requires write access at their common ancestor; descendants can
+          # then move into the per-execution child cgroups without privilege.
+          echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/cgroup.procs" >/dev/null
+          exec python -m pytest -q --no-cov tests/test_sandbox_acceptance.py
       - name: Remove delegated cgroup
         if: always()
         run: sudo rmdir "$FORMALSPECGEN_CGROUP_ROOT" || true
