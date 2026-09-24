@@ -6,13 +6,13 @@ from __future__ import annotations
 
 import json
 import argparse
-import re
 import subprocess
 import time
 from pathlib import Path
 
 from . import config, jml_io, strategy
 from .ide import apply_passes
+from .java_contracts import contract_surface, surface_differences
 from .lifecycle import sha256_text
 from .llm import LLMError, _chat_fn, strip_fence
 from .parse_check import parse_check
@@ -48,124 +48,16 @@ Diagnostic rules:
 - Return a materially changed candidate. Repeating the previous candidate cannot repair a VC.
 """
 
-_METHOD = re.compile(
-    r"(?m)^\s*(?:public|protected|private)\s+(?:/\*@.*?@\*/\s+)?"
-    r"(?:static\s+)?(?:final\s+)?"
-    r"[\w<>\[\], ?]+\s+\w+\s*\([^;{}]*\)\s*(?:throws\s+[^{]+)?\{")
-_FIELD = re.compile(
-    r"(?m)^\s*(?:public|protected|private)\s+(?:static\s+)?(?:final\s+)?"
-    r"(?:/\*@.*?@\*/\s+)?"
-    r"[\w<>\[\], ?]+\s+\w+\s*(?:=[^;]*)?;")
-_PROOF_ONLY = re.compile(r"^(?:loop_invariant|decreases|assert)\b", re.I)
-_CLASS_CLAUSE = re.compile(
-    r"^(?:(?:public|protected|private)\s+)?(?:invariant|constraint|represents|accessible)\b",
-    re.I,
-)
-
-
-def _matching_brace(code: str, opening: int) -> int:
-    """Find a Java brace while ignoring comments and quoted literals."""
-    depth = 0
-    index = opening
-    state = "code"
-    while index < len(code):
-        char = code[index]
-        following = code[index + 1] if index + 1 < len(code) else ""
-        if state == "code":
-            if char == '"':
-                state = "string"
-            elif char == "'":
-                state = "char"
-            elif char == "/" and following == "/":
-                state = "line_comment"
-                index += 1
-            elif char == "/" and following == "*":
-                state = "block_comment"
-                index += 1
-            elif char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return index
-        elif state in {"string", "char"}:
-            if char == "\\":
-                index += 1
-            elif (state == "string" and char == '"') or (state == "char" and char == "'"):
-                state = "code"
-        elif state == "line_comment" and char in "\r\n":
-            state = "code"
-        elif state == "block_comment" and char == "*" and following == "/":
-            state = "code"
-            index += 1
-        index += 1
-    return len(code)
-
-
-def _normalized_declaration(value: str) -> str:
-    value = value.strip()
-    if value.endswith("{"):
-        value = value[:-1]
-    return " ".join(jml_io._TOKEN.findall(value.strip()))
-
-
 def _surface(code: str) -> dict:
-    cname = jml_io.class_name(code)
-    method_matches = list(_METHOD.finditer(code))
-    constructor_matches = [] if not cname else list(re.finditer(
-        rf"(?m)^\s*(?:public|protected|private)\s+{re.escape(cname)}\s*\([^;{{}}]*\)\s*{{",
-        code,
-    ))
-    members = []
-    for kind, matches in (("method", method_matches), ("constructor", constructor_matches)):
-        for match in matches:
-            opening = code.rfind("{", match.start(), match.end())
-            signature = _normalized_declaration(match.group(0))
-            members.append({"kind": kind, "start": match.start(), "open": opening,
-                            "close": _matching_brace(code, opening), "signature": signature})
-    members.sort(key=lambda item: item["start"])
-    fields = [(match.start(), _normalized_declaration(match.group(0)))
-              for match in _FIELD.finditer(code)]
-
-    owned = {item["signature"]: [] for item in members}
-    class_clauses = []
-    for position, clause in jml_io.extract_clause_records(code):
-        if _PROOF_ONLY.match(clause):
-            continue
-        containing = next((item for item in members
-                           if item["open"] < position < item["close"]), None)
-        if containing is not None:
-            # Assumptions inside a body change what the prover is allowed to
-            # take as fact and are therefore part of the trusted surface.
-            if re.match(r"^assume\b", clause, re.I):
-                owned[containing["signature"]].append(clause)
-            continue
-        if _CLASS_CLAUSE.match(clause):
-            class_clauses.append(clause)
-            continue
-        following = next((item for item in members if item["start"] > position), None)
-        intervening_field = next((offset for offset, _ in fields if offset > position), None)
-        if following is not None and (intervening_field is None or
-                                      following["start"] < intervening_field):
-            owned[following["signature"]].append(clause)
-        else:
-            class_clauses.append(clause)
-
-    return {
-        "class": cname,
-        "methods": sorted(item["signature"] for item in members if item["kind"] == "method"),
-        "constructors": sorted(item["signature"] for item in members
-                               if item["kind"] == "constructor"),
-        "fields": sorted(value for _, value in fields),
-        "clauses": {"class": class_clauses,
-                    "members": {key: owned[key] for key in sorted(owned)}},
-    }
+    return contract_surface(code)
 
 
 def trusted_surface_matches(stub: str, candidate: str) -> tuple[bool, dict]:
     expected, actual = _surface(stub), _surface(candidate)
-    differences = {key: {"expected": expected[key], "actual": actual[key]}
-                   for key in expected if expected[key] != actual[key]}
+    differences = surface_differences(expected, actual)
+    if expected["parse_errors"] or actual["parse_errors"]:
+        differences["parse_errors"] = {
+            "expected": expected["parse_errors"], "actual": actual["parse_errors"]}
     return not differences, differences
 
 

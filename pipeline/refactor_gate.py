@@ -8,7 +8,8 @@ import json
 import re
 from pathlib import Path
 
-from .jml_io import class_name, extract_clauses
+from .java_contracts import contract_surface, has_reviewed_contract, surface_differences
+from .jml_io import class_name
 from .verify import classify, has_dropped_vc, verify, verify_files
 
 
@@ -21,13 +22,40 @@ _METHOD = re.compile(
 def _public_contract_clauses(source: str) -> list[str]:
     """Return observable JML clauses, excluding implementation proof hints.
 
-    Loop/object-safety invariants and termination measures describe a particular
-    implementation's proof shape. A refactor may strengthen them, so they are not
-    treated as changed public API clauses.
+    Class invariants and reviewed assumptions are retained. Loop invariants,
+    assertions, and termination measures describe the implementation's proof
+    shape and may change during a refactor.
     """
-    return sorted({clause for clause in extract_clauses(source)
-                   if not re.match(r"^(?:loop_invariant|decreases|assert)\b",
-                                   clause, re.I)})
+    surface = contract_surface(source, public_only=True)
+    clauses = list(surface["clauses"]["class"])
+    clauses.extend(clause for values in surface["clauses"]["members"].values()
+                   for clause in values)
+    clauses.extend(clause for values in surface["private_assumptions"].values()
+                   for clause in values)
+    return sorted(set(clauses))
+
+
+def _surface_failure(baseline: dict, refactored: dict, *, prefix: str = "") -> dict | None:
+    if baseline["parse_errors"] or refactored["parse_errors"]:
+        return _fail(
+            f"{prefix}unsupported_contract_syntax",
+            "The Java/JML contract surface contains unsupported active syntax",
+            {"baseline": baseline["parse_errors"],
+             "refactored": refactored["parse_errors"]},
+        )
+    if not has_reviewed_contract(baseline):
+        return _fail(f"{prefix}missing_trusted_contract",
+                     "Baseline contains no supported JML contract statements")
+    differences = surface_differences(baseline, refactored)
+    differences.pop("parse_errors", None)
+    api_keys = {"class", "methods", "constructors"}
+    if any(key in differences for key in api_keys):
+        return _fail(f"{prefix}method_surface_changed",
+                     "Public/protected Java declarations differ", differences)
+    if differences:
+        return _fail(f"{prefix}contract_surface_changed",
+                     "Method-bound public JML contracts differ", differences)
+    return None
 
 
 def _sha256(source: str) -> str:
@@ -167,14 +195,16 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
     if baseline_file.stem != baseline_class or refactored_file.stem != refactored_class:
         return _fail("source_layout_invalid",
                      "Each public Java class must use its matching source filename")
-    # A private extracted helper may repeat the public method's obligations so ESC can
-    # reason modularly. Repetition does not alter the normalized contract surface.
-    baseline_contract = _public_contract_clauses(baseline)
-    refactored_contract = _public_contract_clauses(refactored)
-    if not baseline_contract:
-        return _fail("missing_trusted_contract", "Baseline contains no JML contract clauses")
-    if baseline_contract != refactored_contract:
-        return _fail("contract_surface_changed", "Normalized JML clauses differ")
+    # Private extracted helpers and their copied obligations are permitted, but
+    # public contracts remain bound to the declarations they govern.
+    baseline_surface = contract_surface(baseline, public_only=True)
+    refactored_surface = contract_surface(refactored, public_only=True)
+    surface_failure = _surface_failure(baseline_surface, refactored_surface)
+    if surface_failure is not None:
+        # Preserve the established API-specific failure code for callers.
+        if surface_failure["code"] == "method_surface_changed":
+            return surface_failure
+        return surface_failure
     baseline_api = public_method_surface(baseline)
     refactored_api = public_method_surface(refactored)
     if not baseline_api or baseline_api != refactored_api:
@@ -193,7 +223,8 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
         "scope": "same_normalized_jml_and_public_method_surface_with_independent_esc",
         "baseline_sha256": _sha256(baseline),
         "refactored_sha256": _sha256(refactored),
-        "contract_sha256": _sha256("\n".join(baseline_contract)),
+        "contract_sha256": _sha256(json.dumps(
+            baseline_surface, sort_keys=True, separators=(",", ":"))),
         "method_surface_sha256": _sha256("\n".join(baseline_api)),
         "baseline_deductive_proof": True, "refactored_deductive_proof": True,
         "contract_surface_preserved": True, "behavior_equivalence_proved": False,
@@ -224,10 +255,15 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
         return _fail("unsafe_refactored_file_set", "A nonempty, non-symlink Java file set is required")
     if baseline_file.stem != class_name(baseline) or class_name(refactored_primary) != class_name(baseline):
         return _fail("primary_class_identity_changed", "Primary public class identity must be preserved")
-    baseline_contract = _public_contract_clauses(baseline)
-    primary_contract = _public_contract_clauses(refactored_primary)
-    if not baseline_contract or baseline_contract != primary_contract:
-        return _fail("primary_contract_surface_changed", "Primary normalized JML clauses differ")
+    baseline_surface = contract_surface(baseline, public_only=True)
+    primary_surface = contract_surface(refactored_primary, public_only=True)
+    surface_failure = _surface_failure(baseline_surface, primary_surface, prefix="primary_")
+    if surface_failure is not None:
+        # Historical multifile callers use primary_contract_surface_changed for
+        # both a missing baseline contract and an altered contract.
+        if surface_failure["code"] == "primary_missing_trusted_contract":
+            surface_failure["code"] = "primary_contract_surface_changed"
+        return surface_failure
     baseline_api, primary_api = public_method_surface(baseline), public_method_surface(refactored_primary)
     if not baseline_api or baseline_api != primary_api:
         return _fail("primary_method_surface_changed", "Primary public/protected declarations differ")
@@ -245,7 +281,8 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
     return {"status": "VERIFIED", "claim": "MULTIFILE_REFACTOR_CONTRACT_PRESERVED",
             "scope": "primary_jml_api_preservation_plus_joint_refactored_fileset_esc",
             "baseline_sha256": _sha256(baseline), "primary_sha256": _sha256(refactored_primary),
-            "contract_sha256": _sha256("\n".join(baseline_contract)),
+            "contract_sha256": _sha256(json.dumps(
+                baseline_surface, sort_keys=True, separators=(",", ":"))),
             "method_surface_sha256": _sha256("\n".join(baseline_api)),
             "refactored_manifest": manifest,
             "refactored_manifest_sha256": _sha256(json.dumps(manifest, sort_keys=True)),
