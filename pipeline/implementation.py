@@ -182,6 +182,24 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
             pass_report = apply_passes(generated, accepted_passes)
             pass_report["accepted"] = True
             transformed = pass_report["code"]
+        final_trusted, final_differences = trusted_surface_matches(stub, transformed)
+        if not final_trusted:
+            attempts.append({
+                "attempt": number,
+                "status": "TRUST_BOUNDARY_VIOLATION",
+                "exit_code": -4,
+                "model": used_model,
+                "tokens": usage,
+                "surface_diff": final_differences,
+                "boundary_stage": "postprocess",
+                "accepted_passes": accepted_passes or [],
+                "postprocess": pass_report,
+                "vcs": [],
+            })
+            stop_reason = (
+                "postprocessed candidate modified the reviewed contract, assumptions, "
+                "or Java compilation context")
+            break
         source = attempt_dir / f"{cname}.java"
         source.write_text(transformed, encoding="utf-8")
         javac_exit, javac_text = _javac(source)

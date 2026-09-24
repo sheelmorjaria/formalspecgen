@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import json
 import re
 from typing import Any
 
@@ -25,8 +26,13 @@ _FIELD = re.compile(
 _CLASS_CLAUSES = {"invariant", "constraint", "represents", "accessible"}
 _PROOF_ONLY = {"loop_invariant", "loop_assignable", "loop_modifies",
                "maintaining", "decreases", "decreasing", "assert"}
-_NULLNESS_MODIFIERS = {
+_SEMANTIC_MODIFIERS = {
     "nullable", "non_null", "nullable_by_default", "non_null_by_default",
+    "pure", "helper", "spec_public", "spec_protected", "model", "ghost",
+}
+_CONTRACT_JAVA_ANNOTATIONS = {
+    "pure", "nullable", "nonnull", "nullablebydefault", "nonnullbydefault",
+    "helper", "specpublic", "specprotected", "model", "ghost",
 }
 
 
@@ -58,6 +64,8 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
             visibility = _visibility(signature)
             members.append({
                 "kind": kind,
+                "name": (match.group("name") if kind == "method" else cname),
+                "line": _line_number(code, match.start("declaration")),
                 "start": match.start("declaration"),
                 "end": match.end("declaration"),
                 "open": opening,
@@ -74,11 +82,12 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         fields.append((match.start(), match.end(), normalized,
                        _field_is_public_contract(declaration), match.group("name")))
 
-    declaration_issues = _declaration_completeness_issues(
+    declaration_issues, compilation_unit, class_declaration = _declaration_analysis(
         code, cname, method_matches, constructor_matches, fields)
 
     surface: dict[str, Any] = {
         "class": cname,
+        "context": _compilation_context(compilation_unit, class_declaration, cname),
         "methods": sorted(item["signature"] for item in members
                           if item["included"] and item["kind"] == "method"),
         "constructors": sorted(item["signature"] for item in members
@@ -86,6 +95,7 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         "fields": [],
         "clauses": {"class": [], "members": {}},
         "semantic_modifiers": {"class": [], "members": {}, "fields": {}},
+        "java_annotations": {"class": [], "members": {}, "fields": {}},
         "private_assumptions": {},
         "parse_errors": declaration_issues,
     }
@@ -96,6 +106,11 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
     surface["semantic_modifiers"]["members"] = {
         item["signature"]: [] for item in included
     }
+    surface["java_annotations"]["members"] = {
+        item["signature"]: [] for item in included
+    }
+    _add_java_annotations(
+        surface, class_declaration, members, fields, code, public_only)
     try:
         records = jml_io.parse_jml_statements(code, strict=True)
     except jml_io.JMLParseError as exc:
@@ -112,7 +127,7 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         containing = next((item for item in members
                            if item["open"] >= 0 and
                            item["open"] < record.offset < item["close"]), None)
-        if record.keyword in _NULLNESS_MODIFIERS:
+        if record.keyword in _SEMANTIC_MODIFIERS:
             _place_semantic_modifier(
                 surface, record, members, fields, declaration_owner,
                 declaration_field, containing, masked, cname, public_only)
@@ -151,12 +166,13 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         key: surface["private_assumptions"][key]
         for key in sorted(surface["private_assumptions"])
     }
-    for scope in ("members", "fields"):
-        surface["semantic_modifiers"][scope] = {
-            key: values
-            for key, values in sorted(surface["semantic_modifiers"][scope].items())
-            if values
-        }
+    for collection in ("semantic_modifiers", "java_annotations"):
+        for scope in ("members", "fields"):
+            surface[collection][scope] = {
+                key: values
+                for key, values in sorted(surface[collection][scope].items())
+                if values
+            }
     referenced = {
         token
         for text in [*surface["clauses"]["class"],
@@ -168,7 +184,8 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
     }
     surface["fields"] = sorted(
         value for _, _, value, observable, name in fields
-        if not public_only or observable or name in referenced)
+        if not public_only or observable or name in referenced or
+        value in surface["semantic_modifiers"]["fields"])
     return surface
 
 
@@ -185,7 +202,8 @@ def has_reviewed_contract(surface: dict[str, Any]) -> bool:
                 surface.get("private_assumptions") or
                 modifiers.get("class") or
                 any(modifiers.get("members", {}).values()) or
-                any(modifiers.get("fields", {}).values()))
+                any(modifiers.get("fields", {}).values()) or
+                _has_contract_java_annotation(surface.get("java_annotations", {})))
 
 
 def _normalized_declaration(value: str) -> str:
@@ -206,12 +224,13 @@ def _field_is_public_contract(declaration: str) -> bool:
         re.search(r"/\*@\s*spec_(?:public|protected)\s*@\*/", declaration, re.I))
 
 
-def _declaration_completeness_issues(
+def _declaration_analysis(
         code: str,
         class_name: str | None,
         method_matches: list[re.Match[str]],
         constructor_matches: list[re.Match[str]],
-        fields: list[tuple[int, int, str, bool, str]]) -> list[str]:
+        fields: list[tuple[int, int, str, bool, str]],
+        ) -> tuple[list[str], Any | None, Any | None]:
     """Cross-check every represented member against a structural Java parse.
 
     Regexes remain useful for preserving source offsets and JML ownership, but
@@ -220,13 +239,13 @@ def _declaration_completeness_issues(
     supported Java subset.
     """
     if not class_name or jml_io._JAVA_UNICODE_ESCAPE.search(code):
-        return []
+        return [], None, None
     try:
         tree = javalang.parse.parse(code)
     except (javalang.parser.JavaSyntaxError, javalang.tokenizer.LexerError,
             TypeError) as exc:
         detail = str(exc).strip() or type(exc).__name__
-        return [f"unsupported Java syntax at contract boundary: {detail}"]
+        return [f"unsupported Java syntax at contract boundary: {detail}"], None, None
 
     declaration = next(
         (item for item in tree.types
@@ -235,13 +254,21 @@ def _declaration_completeness_issues(
         None,
     )
     if declaration is None:
-        return [f"public class {class_name} was not represented by the Java parser"]
+        return ([f"public class {class_name} was not represented by the Java parser"],
+                tree, None)
 
+    additional_types = [item.name for item in tree.types if item is not declaration]
     nested_types = [item.name for item in declaration.body
                     if isinstance(item, javalang.tree.TypeDeclaration)]
-    issues = (["nested Java type declarations are unsupported at the contract "
-               f"boundary: {', '.join(sorted(nested_types))}"]
-              if nested_types else [])
+    issues = []
+    if additional_types:
+        issues.append(
+            "additional top-level Java types are unsupported at the contract "
+            f"boundary: {', '.join(sorted(additional_types))}")
+    if nested_types:
+        issues.append(
+            "nested Java type declarations are unsupported at the contract "
+            f"boundary: {', '.join(sorted(nested_types))}")
 
     ast_members = {
         "methods": Counter((item.name, item.position.line)
@@ -272,7 +299,7 @@ def _declaration_completeness_issues(
                 details.append(f"misowned={_format_declarations(extra)}")
             issues.append(
                 f"incomplete Java {kind} at contract boundary: {'; '.join(details)}")
-    return issues
+    return issues, tree, declaration
 
 
 def _line_number(source: str, offset: int) -> int:
@@ -284,6 +311,137 @@ def _format_declarations(declarations: Counter[tuple[str, int]]) -> str:
     for (name, line), count in sorted(declarations.items()):
         values.extend([f"{name}@{line}"] * count)
     return ",".join(values)
+
+
+def _compilation_context(compilation_unit: Any | None,
+                         declaration: Any | None,
+                         class_name: str | None) -> dict[str, Any]:
+    """Return the name-resolution and class-header context of the contract."""
+    package_name = ""
+    package_annotations: list[str] = []
+    imports: list[str] = []
+    if compilation_unit is not None:
+        package = compilation_unit.package
+        if package is not None:
+            package_name = package.name
+            package_annotations = sorted(
+                _annotation_signature(item) for item in (package.annotations or []))
+        imports = sorted(
+            ("static " if item.static else "") + item.path +
+            (".*" if item.wildcard else "")
+            for item in compilation_unit.imports)
+
+    identity = ".".join(part for part in (package_name, class_name or "") if part)
+    type_context = {
+        "identity": identity,
+        "modifiers": [],
+        "type_parameters": [],
+        "extends": None,
+        "implements": [],
+        "annotations": [],
+    }
+    if declaration is not None:
+        type_context.update({
+            "modifiers": sorted(declaration.modifiers or []),
+            "type_parameters": _ast_projection(declaration.type_parameters or []),
+            "extends": _ast_projection(declaration.extends),
+            "implements": _ast_projection(declaration.implements or []),
+            "annotations": sorted(
+                _annotation_signature(item) for item in declaration.annotations),
+        })
+    return {
+        "package": package_name,
+        "package_annotations": package_annotations,
+        "imports": imports,
+        "type": type_context,
+    }
+
+
+def _ast_projection(value: Any) -> Any:
+    """Convert the relevant javalang AST value into stable JSON data."""
+    if isinstance(value, javalang.ast.Node):
+        return {
+            "node": type(value).__name__,
+            **{attribute: _ast_projection(getattr(value, attribute))
+               for attribute in value.attrs if attribute != "documentation"},
+        }
+    if isinstance(value, (list, tuple)):
+        return [_ast_projection(item) for item in value]
+    return value
+
+
+def _annotation_signature(annotation: Any) -> str:
+    return json.dumps(
+        {"name": annotation.name, "element": _ast_projection(annotation.element)},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _add_java_annotations(
+        surface: dict[str, Any],
+        declaration: Any | None,
+        members: list[dict[str, Any]],
+        fields: list[tuple[int, int, str, bool, str]],
+        source: str,
+        public_only: bool) -> None:
+    """Bind Java annotation syntax to the declaration it modifies."""
+    if declaration is None:
+        return
+    target = surface["java_annotations"]
+    target["class"] = sorted(
+        _annotation_signature(item) for item in declaration.annotations)
+
+    ast_members = [
+        *(('method', item) for item in declaration.methods),
+        *(('constructor', item) for item in declaration.constructors),
+    ]
+    for kind, ast_member in ast_members:
+        owner = next(
+            (item for item in members
+             if item["kind"] == kind and item["name"] == ast_member.name and
+             item["line"] == ast_member.position.line),
+            None,
+        )
+        public_spec = any(_annotation_is_public_spec(item)
+                          for item in ast_member.annotations)
+        if owner is not None and (owner["included"] or public_spec) and \
+                ast_member.annotations:
+            target["members"].setdefault(owner["signature"], []).extend(sorted(
+                _annotation_signature(item) for item in ast_member.annotations))
+
+    for ast_field in declaration.fields:
+        signatures = sorted(_annotation_signature(item)
+                            for item in ast_field.annotations)
+        if not signatures:
+            continue
+        for declarator in ast_field.declarators:
+            owner = next(
+                (item for item in fields
+                 if item[4] == declarator.name and
+                 _line_number(source, item[0]) == ast_field.position.line),
+                None,
+            )
+            public_spec = any(_annotation_is_public_spec(item)
+                              for item in ast_field.annotations)
+            if owner is not None and (not public_only or owner[3] or public_spec):
+                target["fields"].setdefault(owner[2], []).extend(signatures)
+
+
+def _has_contract_java_annotation(annotations: dict[str, Any]) -> bool:
+    values = [
+        *annotations.get("class", []),
+        *(item for group in annotations.get("members", {}).values() for item in group),
+        *(item for group in annotations.get("fields", {}).values() for item in group),
+    ]
+    for value in values:
+        name = json.loads(value).get("name", "").rsplit(".", 1)[-1]
+        if name.replace("_", "").lower() in _CONTRACT_JAVA_ANNOTATIONS:
+            return True
+    return False
+
+
+def _annotation_is_public_spec(annotation: Any) -> bool:
+    name = annotation.name.rsplit(".", 1)[-1].replace("_", "").lower()
+    return name in {"specpublic", "specprotected"}
 
 
 def _place_semantic_modifier(
@@ -301,12 +459,13 @@ def _place_semantic_modifier(
     modifiers = surface["semantic_modifiers"]
     owner = declaration_owner or containing
     if owner is not None:
-        if owner["included"]:
+        if owner["included"] or record.keyword in {"spec_public", "spec_protected"}:
             modifiers["members"].setdefault(owner["signature"], []).append(record.text)
         return
     if declaration_field is not None:
         _, _, signature, observable, _ = declaration_field
-        if not public_only or observable:
+        if (not public_only or observable or
+                record.keyword in {"spec_public", "spec_protected"}):
             modifiers["fields"].setdefault(signature, []).append(record.text)
         return
 
@@ -326,12 +485,14 @@ def _place_semantic_modifier(
         (field for field in fields if field[0] > record.offset), None)
     if following_member is not None and (
             following_field is None or following_member["start"] < following_field[0]):
-        if following_member["included"]:
+        if (following_member["included"] or
+                record.keyword in {"spec_public", "spec_protected"}):
             modifiers["members"].setdefault(
                 following_member["signature"], []).append(record.text)
     elif following_field is not None:
         _, _, signature, observable, _ = following_field
-        if not public_only or observable:
+        if (not public_only or observable or
+                record.keyword in {"spec_public", "spec_protected"}):
             modifiers["fields"].setdefault(signature, []).append(record.text)
     else:
         modifiers["class"].append(record.text)

@@ -37,14 +37,10 @@ _BEHAVIOR_HEADER = re.compile(
     r"(?:behavior|normal_behavior|exceptional_behavior))$",
     re.I,
 )
-_IGNORED_ANNOTATION = re.compile(
-    r"^(?:(?:public|protected|private)\s+)?"
-    r"(?:spec_public|spec_protected|pure|helper|model|ghost)$",
-    re.I,
-)
 _SEMANTIC_MODIFIER = re.compile(
     r"^(?:(?:public|protected|private)\s+)?"
-    r"(?P<modifier>nullable|non_null|nullable_by_default|non_null_by_default)$",
+    r"(?P<modifier>nullable|non_null|nullable_by_default|non_null_by_default|"
+    r"pure|helper|spec_public|spec_protected|model|ghost)$",
     re.I,
 )
 _JAVA_UNICODE_ESCAPE = re.compile(r"\\u+[0-9A-Fa-f]{4}")
@@ -228,7 +224,7 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
             f"(offset {unicode_escape.start()})")
 
     records: list[JMLStatement] = []
-    for offset, body in _active_jml_annotations(source):
+    for offset, body in _active_jml_annotations(source, reject_conditional=strict):
         for relative, raw_statement in _split_statements(body):
             normalized = normalize_clause(raw_statement)
             if not normalized:
@@ -242,8 +238,6 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
             elif semantic := _SEMANTIC_MODIFIER.fullmatch(normalized):
                 records.append(JMLStatement(offset + relative, normalized,
                                             semantic.group("modifier").lower()))
-            elif _IGNORED_ANNOTATION.fullmatch(normalized):
-                continue
             elif strict:
                 raise JMLParseError(
                     f"unsupported active JML statement at offset {offset + relative}: "
@@ -251,7 +245,8 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
     return sorted(records, key=lambda record: record.offset)
 
 
-def _active_jml_annotations(source: str) -> list[tuple[int, str]]:
+def _active_jml_annotations(
+        source: str, *, reject_conditional: bool = False) -> list[tuple[int, str]]:
     annotations: list[tuple[int, str]] = []
     index = 0
     while index < len(source):
@@ -260,6 +255,15 @@ def _active_jml_annotations(source: str) -> list[tuple[int, str]]:
             index = len(source) if closing < 0 else closing + 3
         elif source[index] in {'"', "'"}:
             index = _quoted_end(source, index, source[index])
+        elif source.startswith(("//+", "//-"), index):
+            end = source.find("\n", index + 3)
+            end = len(source) if end < 0 else end
+            marker_end = source.find("@", index + 3, end)
+            if marker_end >= 0 and reject_conditional:
+                raise JMLParseError(
+                    "conditional JML annotations are unsupported at the contract "
+                    f"boundary (offset {index})")
+            index = end
         elif source.startswith("//@", index):
             end = source.find("\n", index + 3)
             end = len(source) if end < 0 else end
@@ -276,6 +280,17 @@ def _active_jml_annotations(source: str) -> list[tuple[int, str]]:
             if body.rstrip().endswith("@"):
                 body = body.rstrip()[:-1]
             annotations.append((index, _strip_block_decoration(body)))
+            index = closing + 2
+        elif source.startswith(("/*+", "/*-"), index):
+            closing = source.find("*/", index + 3)
+            if closing < 0:
+                raise JMLParseError(
+                    f"unterminated conditional block comment at offset {index}")
+            marker_end = source.find("@", index + 3, closing)
+            if marker_end >= 0 and reject_conditional:
+                raise JMLParseError(
+                    "conditional JML annotations are unsupported at the contract "
+                    f"boundary (offset {index})")
             index = closing + 2
         elif source.startswith("/*", index):
             closing = source.find("*/", index + 2)
