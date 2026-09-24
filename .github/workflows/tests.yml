@@ -11,7 +11,10 @@ on:
       - "mcpdocs/**"
       - "docs/mcp_parity_manifest.json"
       - "docs/MCP_PARITY_STATUS.md"
+      - "site/**"
+      - "scripts/generate_pages_companions.py"
       - "ci/rust-deps/**"
+      - ".github/workflows/pages.yml"
       - ".github/workflows/tests.yml"
   push:
     branches: [main]
@@ -56,6 +59,8 @@ jobs:
           --ignore=tests/test_m91_riscv_deployment.py
       - name: Check live CLI-to-MCP parity inventory
         run: python scripts/generate_mcp_parity_manifest.py --check
+      - name: Check pinned GitHub Pages publication
+        run: python scripts/generate_pages_companions.py --check
       - name: Verify refactor-mode CLI contract
         run: python -m pytest --no-cov tests/test_cli_system.py tests/test_system_orchestrator.py
       - name: Upload coverage XML

@@ -7,6 +7,12 @@ The design thesis — the LLM proposes, deterministic compilers transform, forma
 humans control trusted assumptions — is written up with the full six-port production evidence in
 [`docs/THE_ENCODING_ARTIFACT.md`](docs/THE_ENCODING_ARTIFACT.md).
 
+## Documentation
+
+[Read the hosted FormalSpecGen user guide](https://sheelmorjaria.github.io/formalspecgen/).
+The hosted offline edition is pinned to revision `91c6790`; use the repository's generated
+[MCP parity status](docs/MCP_PARITY_STATUS.md) for the current migration state.
+
 ### Judge readiness (`doctor`)
 
 Before running an assurance lane, inspect the exact judges available in the current environment:
