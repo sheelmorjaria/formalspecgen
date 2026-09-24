@@ -19,6 +19,7 @@ import json
 import os
 import tempfile
 import uuid
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
@@ -32,6 +33,26 @@ from pipeline.java_inspection import inspect_java_file
 from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
 from pipeline.verify import verify_detailed
 from pipeline.verification_policy import decide_result, decide_verification
+
+
+def _strict_mcp_isolation_enabled() -> bool:
+    """Return whether MCP is restricted to its explicitly isolated catalogue."""
+    return os.environ.get("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "1") != "0"
+
+
+def _isolation_unsupported(tool: str) -> dict[str, Any]:
+    return {
+        "status": "ISOLATION_UNSUPPORTED",
+        "claim": "NO_PROOF",
+        "request_satisfied": False,
+        "tool": tool,
+        "strict_isolation_supported": False,
+        "durable_publication_supported": False,
+        "message": (
+            "MCP strict mode permits only capabilities with an explicitly "
+            "enforced isolation profile"
+        ),
+    }
 
 
 def _workspace_path(value: str, *, must_exist: bool = True) -> Path:
@@ -154,8 +175,7 @@ def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
                 "execution": detailed.as_dict().get("execution"),
                 "evidence": receipt, "strict_isolation_supported": True,
                 "durable_publication_supported": True}
-    if suffix in {".rs", ".c"} and \
-            os.environ.get("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "1") != "0":
+    if suffix in {".rs", ".c"} and _strict_mcp_isolation_enabled():
         return {"status": "ISOLATION_UNSUPPORTED", "claim": "NO_PROOF",
                 "request_satisfied": False, "file": str(path),
                 "strict_isolation_supported": False,
@@ -607,12 +627,45 @@ def doctor_environment() -> dict[str, Any]:
     return report
 
 
+def _strict_dispatch_guard(tool: Callable[..., dict[str, Any]]):
+    """Reject undeclared MCP routes before their workflow imports or dispatches."""
+    @wraps(tool)
+    def guarded(*args, **kwargs):
+        if _strict_mcp_isolation_enabled():
+            return _isolation_unsupported(tool.__name__)
+        return tool(*args, **kwargs)
+    return guarded
+
+
+def _install_strict_dispatch_guards() -> None:
+    """Apply the registry policy to direct calls as well as server registration.
+
+    FastMCP's default catalogue contains only supported routes, but keeping the
+    call boundary guarded prevents an adapter or future registration path from
+    reaching an undeclared backend indirectly.
+    """
+    from pipeline.capability_registry import mcp_capabilities
+
+    for capability in mcp_capabilities():
+        if capability.mcp_isolation != "unsupported":
+            continue
+        name = capability.mcp_tool or ""
+        tool = globals().get(name)
+        if not callable(tool):
+            raise RuntimeError(f"registered MCP binding is missing: {name}")
+        globals()[name] = _strict_dispatch_guard(tool)
+
+
+_install_strict_dispatch_guards()
+
+
 def create_server():
     if FastMCP is None:
         raise RuntimeError("MCP SDK is not installed; install with: pip install 'formalspecgen[mcp]'")
     server = FastMCP("FormalSpecGen")
     from pipeline.capability_registry import mcp_capabilities
-    for capability in mcp_capabilities():
+    for capability in mcp_capabilities(
+            strict_isolation=_strict_mcp_isolation_enabled()):
         tool = globals().get(capability.mcp_tool or "")
         if not callable(tool):
             raise RuntimeError(f"registered MCP binding is missing: {capability.mcp_tool}")

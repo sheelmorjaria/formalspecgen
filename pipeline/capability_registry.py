@@ -56,6 +56,7 @@ class CapabilitySpec:
     epistemic_boundary: str = "No claim is minted without its named judge."
     trust_action: bool = False
     milestone: MilestoneMetadata | None = None
+    mcp_isolation: str = "unsupported"
 
 
 def _capability(value: dict[str, Any]) -> CapabilitySpec:
@@ -75,6 +76,9 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
         else argument
         for argument in value.get("arguments", ())
     )
+    mcp_isolation = value.get("mcp_isolation", "unsupported")
+    if mcp_isolation not in {"non-executing", "strict-java", "unsupported"}:
+        raise ValueError(f"unknown MCP isolation profile: {mcp_isolation}")
     return CapabilitySpec(
         name=value["name"],
         description=value["description"],
@@ -85,6 +89,7 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
             "epistemic_boundary", "No claim is minted without its named judge."
         ),
         trust_action=value.get("trust_action", False),
+        mcp_isolation=mcp_isolation,
         milestone=milestone,
     )
 
@@ -137,6 +142,7 @@ _GENERIC_DATA = [{'name': 'verify_code',
   'arguments': (),
   'epistemic_boundary': 'No claim is minted without its named judge.',
   'trust_action': False,
+  'mcp_isolation': 'strict-java',
   'milestone': None},
  {'name': 'validate_architecture',
   'description': 'validate architecture',
@@ -161,6 +167,7 @@ _GENERIC_DATA = [{'name': 'verify_code',
   'arguments': (),
   'epistemic_boundary': 'No claim is minted without its named judge.',
   'trust_action': False,
+  'mcp_isolation': 'non-executing',
   'milestone': None},
  {'name': 'analyze_codebase',
   'description': 'analyze codebase',
@@ -514,9 +521,16 @@ def capability(name: str) -> CapabilitySpec:
     return matches[0]
 
 
-def mcp_capabilities() -> tuple[CapabilitySpec, ...]:
-    return tuple(
+def mcp_capabilities(*, strict_isolation: bool = False) -> tuple[CapabilitySpec, ...]:
+    capabilities = tuple(
         item for item in CAPABILITIES if item.mcp_tool and not item.trust_action
+    )
+    if not strict_isolation:
+        return capabilities
+    return tuple(
+        item
+        for item in capabilities
+        if item.mcp_isolation in {"non-executing", "strict-java"}
     )
 
 

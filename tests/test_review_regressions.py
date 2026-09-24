@@ -104,6 +104,7 @@ def test_cli_semantic_failure_with_zero_tool_exit_is_failure(tmp_path):
 
 def test_mcp_system_deserializes_and_validates_plan_inputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "0")
     for name in ("Service.java", "domain.json", "evidence.json"):
         Path(name).write_text("{}", encoding="utf-8")
     plan = {

@@ -98,9 +98,14 @@ jobs:
         run: python -m pytest --no-cov tests/test_parallel_wrapper.py tests/test_v2_async_serializer.py
 
   sandbox-acceptance:
-    name: Real Bubblewrap and cgroup v2 acceptance
+    name: Real sandbox and OpenJML MCP acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      OPENJML_VERSION: "21.0.27"
+      OPENJML_SHA256: "325b93e0133736053cadb536d4dc6c9c6523e104691724135e4e03457188b06d"
+      OPENJML_BIN: ${{ github.workspace }}/tools/openjml-dist/openjml
+      OPENJML_HOME: ${{ github.workspace }}/tools/openjml-dist
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -116,6 +121,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes bubblewrap build-essential default-jdk-headless
           python -m pip install --upgrade pip -r requirements-dev.txt -e .
+      - name: Cache pinned OpenJML bundle
+        id: openjml-cache
+        uses: actions/cache@v4
+        with:
+          path: tools/openjml-dist
+          key: openjml-linux-x64-${{ env.OPENJML_VERSION }}-${{ env.OPENJML_SHA256 }}
+      - name: Download and verify pinned OpenJML bundle
+        if: steps.openjml-cache.outputs.cache-hit != 'true'
+        env:
+          OPENJML_URL: https://github.com/OpenJML/OpenJML/releases/download/21.0.27/openjml-ubuntu-24.04-21.0.27.zip
+        run: |
+          archive="$RUNNER_TEMP/openjml.zip"
+          curl --fail --location --retry 3 --output "$archive" "$OPENJML_URL"
+          echo "$OPENJML_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p tools/openjml-dist
+          unzip -q "$archive" -d tools/openjml-dist
+          chmod +x tools/openjml-dist/openjml tools/openjml-dist/openjml-java
+      - name: Check pinned OpenJML installation
+        run: test -x "$OPENJML_BIN" && "$OPENJML_BIN" --version
       - name: Permit the provisioned Bubblewrap acceptance profile
         run: |
           if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
@@ -132,12 +156,15 @@ jobs:
       - name: Run mandatory real sandbox acceptance
         env:
           FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
+          FORMALSPECGEN_REQUIRE_OPENJML_MCP_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
           # requires write access at their common ancestor; descendants can
           # then move into the per-execution child cgroups without privilege.
           echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/runner/cgroup.procs" >/dev/null
-          exec python -m pytest -q --no-cov tests/test_sandbox_acceptance.py
+          exec python -m pytest -q --no-cov \
+            tests/test_sandbox_acceptance.py \
+            tests/test_mcp_openjml_acceptance.py
       - name: Remove delegated cgroup
         if: always()
         run: |

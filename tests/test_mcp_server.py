@@ -10,6 +10,12 @@ from pipeline.execution import ExecutionObservation
 from pipeline.verify import VerificationExecutionResult
 
 
+@pytest.fixture(autouse=True)
+def _legacy_catalog_for_existing_parity_tests(monkeypatch):
+    """The broad catalogue remains testable only through the explicit opt-out."""
+    monkeypatch.setenv("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "0")
+
+
 def test_mcp_workspace_paths_are_contained(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     source = Path("Counter.java")
@@ -35,6 +41,7 @@ def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
 
 def test_mcp_native_verification_is_fail_closed_by_default(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "1")
     Path("counter.c").write_text("int counter(void) { return 0; }", encoding="utf-8")
     result = mcp_server.verify_code("counter.c", "esc")
     assert result["status"] == "ISOLATION_UNSUPPORTED"

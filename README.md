@@ -66,7 +66,9 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The server exposes 39 tools covering the full verification surface: `verify_code`,
+The strict server catalogue exposes only `verify_code` (the isolated Java lane) and
+the non-executing `inspect_code` tool. The registry retains a 39-tool legacy catalogue
+covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
 `remediate_code`, `correct_behavior`, `apply_refactor`, `verify_refactor`,
@@ -95,12 +97,15 @@ tool failure into a success claim. LLM-backed tools (`remediate_code`,
 `correct_behavior`, `optimize_algorithm`, `discover_algorithms`, and the optional
 `document_code` narrative) fail closed when the provider is unreachable.
 
-The MCP `verify_code` route is restricted to the strictly isolated Java lane by default. Successful
+Strict isolation is a server-wide dispatch policy and is enabled by default. Undeclared tools are
+not registered, and direct attempts to enter their handlers fail with
+`ISOLATION_UNSUPPORTED` before downstream workflow or backend dispatch. The MCP `verify_code` route
+is restricted to the strictly isolated Java lane. Successful
 Java responses include the exact executor observation and an immutable evidence receipt containing
 the run identity, terminal-manifest path, and manifest digest. Rust and C verification remain
 available to CLI workflows, but MCP rejects those lanes with `ISOLATION_UNSUPPORTED` until their
 formal backends use the same boundary and publication path. Set
-`FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` only to opt into the legacy native MCP routes; their responses
+`FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` only to opt into the complete legacy MCP catalogue; its native responses
 explicitly report that strict isolation and durable publication are unsupported.
 
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
@@ -118,7 +123,8 @@ external packages can add high-drift CLI schemas through the versioned command-p
 Registry parity tests reject duplicate names, missing MCP callables, argument drift, or
 accidental exposure of promotion, signing, and reviewer-key policy.
 Configure an MCP client with the server command and its absolute project path, for
-example:
+example. For a supervised deployment, install the pinned package outside the agent-editable
+checkout and run the service inside a delegated cgroup-v2 leaf:
 
 ```json
 {"mcpServers":{"formalspecgen":{"command":"python","args":["/path/to/formalspecgen/mcp_server.py"]}}}

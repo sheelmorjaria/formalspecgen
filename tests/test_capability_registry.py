@@ -8,6 +8,7 @@ import mcp_server
 from pipeline import cli
 from pipeline.capability_registry import (
     CAPABILITIES,
+    _capability,
     add_cli_parser,
     capability,
     mcp_capabilities,
@@ -27,6 +28,15 @@ def test_human_trust_actions_are_never_mcp_capabilities():
     trust_actions = {item.name for item in CAPABILITIES if item.trust_action}
     assert trust_actions == {"promote_domain", "sign_artifact", "manage_trust"}
     assert exposed.isdisjoint(trust_actions)
+
+
+def test_registry_rejects_unknown_mcp_isolation_profile():
+    with pytest.raises(ValueError, match="unknown MCP isolation profile"):
+        _capability({
+            "name": "unsafe",
+            "description": "unsafe",
+            "mcp_isolation": "best-effort",
+        })
 
 
 def test_registry_retains_only_the_generic_vfs_milestone():
