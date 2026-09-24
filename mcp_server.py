@@ -29,7 +29,6 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
     FastMCP = None
 
 from pipeline import config
-from pipeline.java_inspection import inspect_java_file
 from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
 from pipeline.mcp_artifacts import (
     MCPArtifactError,
@@ -40,10 +39,18 @@ from pipeline.mcp_policy import (
     MCPAdmission,
     MCPPolicyViolation,
     authorize_mcp_invocation,
-    require_mcp_effect,
 )
 from pipeline.verify import verify_detailed
-from pipeline.verification_policy import decide_result, decide_verification
+from pipeline.verification_policy import decide_result
+from pipeline.workflow_services import run_java_inspection, run_java_verification
+from pipeline.workflow_contracts import (
+    DocumentationWorkflowRequest,
+    InspectionWorkflowRequest,
+    VerificationWorkflowRequest,
+    WorkflowContext,
+    WorkflowInterface,
+    bind_workflow_result,
+)
 
 
 MCP_DOCUMENT_MAX_INPUT_BYTES = 1 * 1024 * 1024
@@ -152,8 +159,9 @@ def _load_system_plan(plan_path: str, mode: str) -> dict[str, Any]:
 
 def _publish_verification_evidence(
         path: Path, mode: str, detailed, decision: dict,
-        admission: MCPAdmission) -> dict:
-    require_mcp_effect(admission, "evidence_publication")
+        admission: MCPAdmission, context: WorkflowContext,
+        request: VerificationWorkflowRequest) -> dict:
+    context.require("evidence_publication")
     run_root = Path.cwd() / ".formalspecgen" / "mcp-evidence" / uuid.uuid4().hex
     ledger = RunLedger(run_root)
     try:
@@ -169,7 +177,8 @@ def _publish_verification_evidence(
     ledger.record(
         PipelineState.PROOF, decision.get("status", "UNKNOWN"), claim=claim,
         details={"mode": mode, "request_satisfied": decision.get("request_satisfied", False),
-                 "mcp_admission": admission.summary()},
+                 "mcp_admission": admission.summary(),
+                 "workflow_request": request.as_dict()},
         evidence={
             "source_path": str(path),
             "source_sha256": source_sha256,
@@ -191,6 +200,7 @@ def _publish_verification_evidence(
             observation.get("policy_compliance") if observation else "NOT_ENFORCED"),
         "execution_observation": observation,
         "mcp_admission": admission.summary(),
+        "workflow_request": request.as_dict(),
         "claim_policy_version": "verification-policy-v1",
     })
     return {
@@ -203,56 +213,72 @@ def _publish_verification_evidence(
 
 def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     """Verify Java, Rust, or C source and return a structured verdict."""
-    suffix = Path(file_path).suffix.lower()
-    language, backend = {
-        ".java": ("java", "openjml"),
-        ".jml": ("jml", "openjml"),
-        ".rs": ("rust", "prusti"),
-        ".c": ("c", "frama-c"),
-    }.get(suffix, (suffix.lstrip(".") or "unknown", "unknown"))
+    request = VerificationWorkflowRequest(file_path, mode=mode)
+    effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
-        "verify_code", mode=mode, language=language, backend=backend,
-        effects=("workspace_read", "external_execution", "evidence_publication"))
+        "verify_code", mode=request.mode, language=request.language,
+        backend=request.effective_backend, effects=effects)
     if _strict_mcp_isolation_enabled() and not admission.admitted:
-        return admission.rejection()
-    if admission.admitted:
-        require_mcp_effect(admission, "workspace_read")
-    path = _workspace_path(file_path)
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    context = (WorkflowContext.for_mcp(admission, effects)
+               if admission.admitted else None)
+    path = (context.resolve_input(request.source) if context
+            else _workspace_path(request.source))
+    suffix = path.suffix.lower()
     if suffix in {".java", ".jml"}:
-        require_mcp_effect(admission, "external_execution")
-        detailed = verify_detailed(path, mode=mode)
+        assert context is not None
+        service = run_java_verification(
+            request, context,
+            lambda source, selected_mode: verify_detailed(
+                source, mode=selected_mode))
+        detailed = service.backend_result
+        decision = {
+            key: value for key, value in service.payload.items()
+            if key not in {"exit_code", "mode", "language", "source", "output"}
+        }
         exit_code, output = detailed.exit_code, detailed.output
-        decision = decide_verification(
-            tool="openjml", mode=mode, exit_code=exit_code, output=output)
         try:
             receipt = _publish_verification_evidence(
-                path, mode, detailed, decision, admission)
+                path, request.mode, detailed, decision, admission, context,
+                request)
         except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
-            return {"status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
+            result = {"status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
                     "request_satisfied": False, "exit_code": exit_code,
-                    "mode": mode, "file": str(path), "output": output,
+                    "mode": request.mode, "file": str(path), "output": output,
                     "execution": detailed.as_dict().get("execution"),
                     "message": str(exc), "strict_isolation_supported": True,
                     "durable_publication_supported": False,
                     "mcp_admission": admission.summary()}
-        return {**decision, "exit_code": exit_code, "mode": mode,
+            return bind_workflow_result(
+                result, request, WorkflowInterface.MCP, context=context)
+        result = {**decision, "exit_code": exit_code, "mode": request.mode,
                 "file": str(path), "output": output,
                 "execution": detailed.as_dict().get("execution"),
                 "evidence": receipt, "strict_isolation_supported": True,
                 "durable_publication_supported": True,
                 "mcp_admission": admission.summary()}
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
     if suffix == ".rs":
         from pipeline.verify_rust import verify_rust
-        result = verify_rust(path.read_text(encoding="utf-8"), mode=mode, backend="prusti")
+        result = verify_rust(
+            path.read_text(encoding="utf-8"), mode=request.mode,
+            backend=request.effective_backend)
     elif suffix == ".c":
         from pipeline.verify_c import verify_c as verify_c_source
-        result = verify_c_source(path.read_text(encoding="utf-8"), mode=mode)
+        result = verify_c_source(path.read_text(encoding="utf-8"), mode=request.mode)
     else:
-        return {"status": "UNSUPPORTED_LANGUAGE", "claim": "NO_PROOF", "file": str(path)}
+        result = {
+            "status": "UNSUPPORTED_LANGUAGE", "claim": "NO_PROOF",
+            "file": str(path)}
+        return bind_workflow_result(result, request, WorkflowInterface.MCP)
     tool = "prusti" if suffix == ".rs" else "frama-c"
-    return {"file": str(path), **decide_result(result, tool=tool, mode=mode),
+    result = {"file": str(path), **decide_result(
+                result, tool=tool, mode=request.mode),
             "strict_isolation_supported": False,
             "durable_publication_supported": False}
+    return bind_workflow_result(result, request, WorkflowInterface.MCP)
 
 
 def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, Any]:
@@ -300,14 +326,19 @@ def implement_code(spec_path: str, provider: str = "ollama",
 
 def inspect_code(file_path: str) -> dict[str, Any]:
     """Run deterministic Java modernization inspection."""
+    request = InspectionWorkflowRequest(file_path)
+    effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
-        "inspect_code", mode="inspect", language="java",
-        backend="builtin-java-inspector", effects=("workspace_read",))
-    if _strict_mcp_isolation_enabled() and not admission.admitted:
-        return admission.rejection()
-    require_mcp_effect(admission, "workspace_read")
-    result = inspect_java_file(_workspace_path(file_path))
-    return {**result, "mcp_admission": admission.summary()}
+        "inspect_code", mode=request.mode, language=request.language,
+        backend=request.effective_backend, effects=effects)
+    if not admission.admitted:
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    context = WorkflowContext.for_mcp(admission, effects)
+    result = run_java_inspection(request, context)
+    result = {**result, "mcp_admission": admission.summary()}
+    return bind_workflow_result(
+        result, request, WorkflowInterface.MCP, context=context)
 
 
 def analyze_codebase(target_dir: str, out_dir: str = "extracted",
@@ -326,31 +357,44 @@ def document_code(source: str, out: str) -> dict[str, Any]:
         prepare_deterministic_documentation,
     )
 
-    language = "java" if Path(source).suffix.lower() == ".java" else "unsupported"
+    request = DocumentationWorkflowRequest(
+        source, out, no_llm=True, provider=None)
+    effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
-        "document_code", mode="deterministic", language=language,
-        backend="builtin-documentation", provider=None,
-        effects=("workspace_read", "workspace_write_new"))
+        "document_code", mode=request.mode, language=request.language,
+        backend=request.effective_backend, provider=request.provider,
+        effects=effects)
     if not admission.admitted:
-        return admission.rejection()
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    context = None
     try:
-        output_path = Path(out)
+        context = WorkflowContext.for_mcp(
+            admission, effects, output_root=_designated_mcp_output_root(),
+            resource_budget={
+                "max_input_bytes": MCP_DOCUMENT_MAX_INPUT_BYTES,
+                "max_result_bytes": MCP_DOCUMENT_MAX_RESULT_BYTES,
+            })
+        output_path = Path(request.out)
         if (output_path.is_absolute() or ".." in output_path.parts
                 or output_path.suffix.lower() != ".md"):
             raise MCPArtifactError(
                 "OUTPUT_SCOPE_VIOLATION",
                 "documentation output must be a relative Markdown path")
-        output_root = _designated_mcp_output_root()
-        source_path = _workspace_path(source)
+        output_root = context.output_root
+        assert output_root is not None
+        source_path = context.resolve_input(request.source)
         text = read_bounded_text(
             source_path, admission, max_bytes=MCP_DOCUMENT_MAX_INPUT_BYTES)
         prepared = prepare_deterministic_documentation(source_path, text)
         if not isinstance(prepared, DocumentationBundle):
-            return {**prepared, "mcp_admission": admission.summary()}
+            result = {**prepared, "mcp_admission": admission.summary()}
+            return bind_workflow_result(
+                result, request, WorkflowInterface.MCP, context=context)
         artifacts = publish_new_artifacts(
             output_root,
             {
-                out: prepared.document_text,
+                request.out: prepared.document_text,
                 f"domains/candidates/{prepared.candidate_filename}":
                     prepared.candidate_text,
             },
@@ -358,39 +402,48 @@ def document_code(source: str, out: str) -> dict[str, Any]:
             max_total_bytes=MCP_DOCUMENT_MAX_RESULT_BYTES)
         result = dict(prepared.result)
         result.update({
-            "document": artifacts[out]["path"],
+            "document": artifacts[request.out]["path"],
             "candidate": artifacts[
                 f"domains/candidates/{prepared.candidate_filename}"]["path"],
             "artifacts": artifacts,
             "mcp_admission": admission.summary(),
         })
-        return result
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
     except MCPArtifactError as exc:
-        return {
+        result = {
             "status": "FAIL", "claim": "NO_PROOF", "code": exc.code,
             "message": str(exc), "mcp_admission": admission.summary(),
         }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
     except MCPPolicyViolation as exc:
-        return {
+        result = {
             "status": "FAIL", "claim": "NO_PROOF",
             "code": "MCP_EFFECT_NOT_AUTHORIZED", "message": str(exc),
             "mcp_admission": admission.summary(),
         }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
     except (ValueError, FileNotFoundError) as exc:
         message = str(exc)
         code = ("path_outside_workspace" if "workspace" in message
                 else "input_unavailable" if isinstance(exc, FileNotFoundError)
                 else "invalid_request")
-        return {
+        result = {
             "status": "FAIL", "claim": "NO_PROOF", "code": code,
             "message": message, "mcp_admission": admission.summary(),
         }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
     except OSError as exc:
-        return {
+        result = {
             "status": "FAIL", "claim": "NO_PROOF",
             "code": "ARTIFACT_PUBLICATION_FAILED", "message": str(exc),
             "mcp_admission": admission.summary(),
         }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
 
 
 def assess_security(source: str, run_sast: bool = True) -> dict[str, Any]:

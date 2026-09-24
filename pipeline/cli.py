@@ -555,27 +555,37 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .verification_policy import decide_result, decide_verification
+    from .verification_policy import decide_result
+    from .workflow_contracts import (
+        VerificationWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
+    )
+    from .workflow_services import run_java_verification
 
-    source = Path(args.source)
+    request = VerificationWorkflowRequest(
+        args.source, mode=args.mode, backend=args.backend,
+        result_export=args.json)
+    source = Path(request.source)
+    context = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=source.parent)
     suffix = source.suffix.lower()
     if suffix in {".java", ".jml"}:
-        exit_code, output = verify(source, mode=args.mode)
-        result = {
-            **decide_verification(tool="openjml", mode=args.mode,
-                                  exit_code=exit_code, output=output),
-            "exit_code": exit_code,
-            "mode": args.mode,
-            "language": "java",
-            "source": str(source.resolve()),
-            "output": output,
-        }
+        service = run_java_verification(
+            request, context,
+            lambda path, selected_mode: verify(path, mode=selected_mode))
+        result = service.payload
     elif suffix == ".rs":
-        result = verify_rust(_read(args.source), mode=args.mode, backend=args.backend)
-        result = decide_result(result, tool=args.backend if args.mode == "esc" else "rustc",
-                               mode=args.mode)
+        context.require("external_execution")
+        result = verify_rust(
+            _read(request.source), mode=request.mode, backend=request.backend)
+        result = decide_result(
+            result, tool=request.backend if request.mode == "esc" else "rustc",
+            mode=request.mode)
     elif suffix == ".c":
-        if args.mode != "esc":
+        if request.mode != "esc":
             result = {
                 "status": "UNSUPPORTED_MODE",
                 "exit_code": 2,
@@ -584,10 +594,11 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
                 "message": "C/ACSL currently supports --mode esc through Frama-C WP",
             }
         else:
-            result = verify_c(_read(args.source), mode=args.mode)
-            result = decide_result(result, tool="frama-c", mode=args.mode)
+            context.require("external_execution")
+            result = verify_c(_read(request.source), mode=request.mode)
+            result = decide_result(result, tool="frama-c", mode=request.mode)
     elif suffix in {".cc", ".cpp", ".cxx"}:
-        if args.mode != "esc":
+        if request.mode != "esc":
             result = {
                 "status": "UNSUPPORTED_MODE",
                 "exit_code": 2,
@@ -598,8 +609,9 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
         else:
             from .verify_cpp import verify_cpp
 
+            context.require("external_execution")
             result = verify_cpp(source)
-            result = decide_result(result, tool="esbmc", mode=args.mode)
+            result = decide_result(result, tool="esbmc", mode=request.mode)
     else:
         result = {
             "status": "UNSUPPORTED_LANGUAGE",
@@ -607,6 +619,8 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
             "claim": "NO_PROOF",
             "message": f"unsupported source extension: {suffix or '<none>'}",
         }
+    result = bind_workflow_result(
+        result, request, WorkflowInterface.CLI, context=context)
     status, exit_code = result.get("status", "UNKNOWN"), int(result.get("exit_code", 1))
     output = str(result.get("output") or result.get("message") or "")
     ui.console.print(
@@ -615,6 +629,7 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
     if output.strip():
         ui.console.print(Syntax(output, "text", word_wrap=True))
     if args.json:
+        context.require("workspace_write_new")
         _write_json(result, args.json, ui.console)
     return 0 if result.get("request_satisfied", False) else 1
 
@@ -794,9 +809,24 @@ def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int
 
 
 def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .java_inspection import inspect_java_file
+    from .workflow_contracts import (
+        InspectionWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
+    )
+    from .workflow_services import run_java_inspection
 
-    result = inspect_java_file(args.source)
+    request = InspectionWorkflowRequest(args.source, result_export=args.json)
+    source = Path(request.source)
+    context = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=source.parent)
+    result = run_java_inspection(request, context)
+    result = bind_workflow_result(
+        result, request, WorkflowInterface.CLI, context=context)
+    if args.json:
+        context.require("workspace_write_new")
     _write_json(result, args.json, ui.console)
     return 0 if result["status"] == "INSPECTED" else 1
 
@@ -994,15 +1024,34 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .code_documentation import document_code
-
-    result = document_code(
-        args.source,
-        args.out,
-        project_root=args.project_root,
-        provider=args.provider,
-        model=args.model,
-        no_llm=args.no_llm,
+    from .workflow_contracts import (
+        DocumentationWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
     )
+
+    request = DocumentationWorkflowRequest(
+        args.source, args.out, project_root=args.project_root,
+        provider=args.provider, model=args.model, no_llm=args.no_llm,
+        result_export=args.json)
+    context = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=Path(request.source).parent,
+        output_root=Path(request.out).expanduser().resolve().parent)
+    context.require("workspace_write_new")
+    if request.provider is not None:
+        context.require("provider_access")
+    result = document_code(
+        request.source,
+        request.out,
+        project_root=request.project_root,
+        provider=request.provider or "ollama",
+        model=request.model,
+        no_llm=request.no_llm,
+    )
+    result = bind_workflow_result(
+        result, request, WorkflowInterface.CLI, context=context)
     if args.json:
         _write_json(result, args.json, ui.console)
     ui.console.print(f"Status: {result['status']}")

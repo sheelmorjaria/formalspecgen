@@ -17,16 +17,16 @@ from pipeline.parity_inventory import (
 )
 
 
-def _handler_names() -> set[str]:
+def _handlers() -> dict[str, object]:
     return {
-        name for name, value in vars(mcp_server).items()
+        name: value for name, value in vars(mcp_server).items()
         if callable(value) and not name.startswith("_")
     }
 
 
 def _outputs(plan_path: Path) -> tuple[str, str]:
     manifest = reconcile_parity_plan(
-        load_parity_plan(plan_path), handler_names=_handler_names())
+        load_parity_plan(plan_path), handlers=_handlers())
     encoded = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     return encoded, render_parity_status(manifest)
 

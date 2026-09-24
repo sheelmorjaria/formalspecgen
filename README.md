@@ -121,7 +121,17 @@ The broader CLI-to-MCP migration is tracked from the live argparse schema in the
 [parity status](docs/MCP_PARITY_STATUS.md) and
 [machine-readable manifest](docs/mcp_parity_manifest.json). CI rejects unmapped commands,
 arguments, defaults, choices, hidden options, and stale generated reports; adapter presence is
-reported separately from strict admission and complete workflow parity.
+reported separately from strict admission and complete workflow parity. Completion is derived from
+mapped MCP input fields, verified argument delivery, complete variant coverage, effect/result
+equivalence, and revision-bound real-transport acceptance cases; a command is not complete merely
+because one invocation profile is admitted.
+
+CLI and MCP adapters for the admitted verification, inspection, and deterministic-documentation
+paths now construct the typed requests in `pipeline/workflow_contracts.py`. Those requests resolve
+defaults and effective backends once, derive the required effects, and enter application services
+with a permission-carrying context whose child stages can only attenuate authority. Compatible
+responses retain their existing top-level fields and add a typed `workflow_result` view separating
+workflow status, verification, admission, execution, publication, and approval.
 
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and

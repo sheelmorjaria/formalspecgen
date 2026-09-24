@@ -31,16 +31,16 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "mcpdocs" / "mcp_parity_plan.json"
 
 
-def _handlers() -> set[str]:
+def _handlers() -> dict[str, object]:
     return {
-        name for name, value in vars(mcp_server).items()
+        name: value for name, value in vars(mcp_server).items()
         if callable(value) and not name.startswith("_")
     }
 
 
 def test_live_builtin_inventory_matches_every_planned_declaration():
     manifest = reconcile_parity_plan(
-        load_parity_plan(PLAN), handler_names=_handlers())
+        load_parity_plan(PLAN), handlers=_handlers())
     assert manifest["schema"] == PARITY_MANIFEST_SCHEMA
     assert manifest["inventory"]["schema"] == CLI_INVENTORY_SCHEMA
     assert manifest["inventory_complete"] is True
@@ -50,7 +50,8 @@ def test_live_builtin_inventory_matches_every_planned_declaration():
         "mapped_commands": 38,
         "discovered_argument_declarations": 205,
         "mapped_argument_declarations": 205,
-        "strict_admitted_commands": 3,
+        "commands_with_admitted_profile": 3,
+        "complete_workflow_commands": 0,
     }
     assert manifest["full_workflow_parity_complete"] is False
 
@@ -76,7 +77,7 @@ def test_inventory_records_root_repl_hidden_and_inherited_semantics():
 
 def test_committed_manifest_and_status_are_generated_from_live_inventory():
     manifest = reconcile_parity_plan(
-        load_parity_plan(PLAN), handler_names=_handlers())
+        load_parity_plan(PLAN), handlers=_handlers())
     expected_json = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     assert (ROOT / "docs/mcp_parity_manifest.json").read_text(
         encoding="utf-8") == expected_json
@@ -99,7 +100,7 @@ def test_drift_is_reported_for_missing_argument_and_changed_default():
         if mapping["cli_flags"] == ["--mode"])
     mode["baseline_declaration"]["default"] = "parse"
     changed["baseline_argument_declaration_count"] -= 1
-    result = reconcile_parity_plan(changed, handler_names=_handlers())
+    result = reconcile_parity_plan(changed, handlers=_handlers())
     assert result["inventory_complete"] is False
     assert any("live argument is unmapped: ['--backend']" in issue
                for issue in result["issues"])
@@ -128,7 +129,7 @@ def _plugin() -> CommandPlugin:
 def test_approved_plugin_requires_and_accepts_an_explicit_plan_mapping():
     plugin = _plugin()
     base = load_parity_plan(PLAN)
-    missing = reconcile_parity_plan(base, plugins=(plugin,), handler_names=_handlers())
+    missing = reconcile_parity_plan(base, plugins=(plugin,), handlers=_handlers())
     assert any("live CLI command is unmapped: approved-example" in issue
                for issue in missing["issues"])
 
@@ -152,7 +153,7 @@ def test_approved_plugin_requires_and_accepts_an_explicit_plan_mapping():
     extended["baseline_command_count"] += 1
     extended["baseline_argument_declaration_count"] += 1
     mapped = reconcile_parity_plan(
-        extended, plugins=(plugin,), handler_names=_handlers())
+        extended, plugins=(plugin,), handlers=_handlers())
     assert mapped["inventory_complete"] is True
     plugin_record = next(
         item for item in mapped["command_mappings"]

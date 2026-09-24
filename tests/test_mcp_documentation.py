@@ -63,6 +63,9 @@ def test_deterministic_java_documentation_publishes_new_unreviewed_artifacts(
         "java-deterministic-documentation"
     assert result["mcp_admission"]["granted_effects"] == [
         "workspace_read", "workspace_write_new"]
+    assert result["workflow_result"]["request"]["provider"] is None
+    assert result["workflow_result"]["execution"] is None
+    assert result["workflow_result"]["publication"] is None
     document = Path(result["document"])
     candidate = Path(result["candidate"])
     assert document == tmp_path / ".formalspecgen/mcp-output/docs/Inventory.md"

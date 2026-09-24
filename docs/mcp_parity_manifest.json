@@ -1,10 +1,26 @@
 {
-  "schema": "formalspecgen-mcp-parity-manifest-v1",
+  "schema": "formalspecgen-mcp-parity-manifest-v2",
   "application_version": "13.0.0",
   "admission_policy_version": "mcp-admission-v2",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
   "plan_sha256": "e9f9ffb4f95a8e4dda2e3ef9f1c2b0d1ed242fbdd0d9f8c14254018804535ffb",
+  "completion_policy": {
+    "principle": "admission_is_not_workflow_completion",
+    "required_acceptance_kinds": [
+      "argument_delivery",
+      "effect_enforcement",
+      "mcp_transport",
+      "request_equivalence",
+      "result_equivalence"
+    ],
+    "additional_resumable_kind": "session_replay",
+    "additional_approval_kind": "approval_security",
+    "requires_revision_bound_pass_results": true,
+    "requires_complete_variant_coverage": true,
+    "requires_verified_argument_mappings": true,
+    "requires_observed_mcp_input_fields": true
+  },
   "inventory": {
     "schema": "formalspecgen-live-cli-inventory-v1",
     "application_version": "13.0.0",
@@ -4151,7 +4167,8 @@
     "mapped_commands": 38,
     "discovered_argument_declarations": 205,
     "mapped_argument_declarations": 205,
-    "strict_admitted_commands": 3
+    "commands_with_admitted_profile": 3,
+    "complete_workflow_commands": 0
   },
   "command_mappings": [
     {
@@ -4255,6 +4272,70 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "target_dir",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "extracted",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "target_dir",
+          "out_dir",
+          "project_root"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "out_dir",
+          "project_root",
+          "result_export",
+          "target_dir"
+        ],
+        "observed_mcp_fields": [
+          "out_dir",
+          "project_root",
+          "target_dir"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "target_dir",
+          "out_dir",
+          "project_root",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -4410,6 +4491,92 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "inspection",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "pattern",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "method",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "inspection",
+          "pattern",
+          "method",
+          "out"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "inspection",
+          "method",
+          "out",
+          "pattern",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "inspection",
+          "method",
+          "out",
+          "pattern",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "inspection",
+          "pattern",
+          "method",
+          "out",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -4538,6 +4705,74 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "stub_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "abstraction",
+            "required": false,
+            "default": "atomic_operations",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "clarifications",
+            "required": false,
+            "default": "",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "stub_path",
+          "abstraction",
+          "clarifications"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "abstraction",
+          "clarifications",
+          "emit_tla",
+          "result_export",
+          "stub"
+        ],
+        "observed_mcp_fields": [
+          "abstraction",
+          "clarifications",
+          "stub_path"
+        ],
+        "missing_mcp_fields": [
+          "emit_tla",
+          "result_export",
+          "stub"
+        ],
+        "unverified_argument_mappings": [
+          "stub",
+          "clarifications",
+          "abstraction",
+          "emit_tla",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -4619,6 +4854,60 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "run_sast",
+            "required": false,
+            "default": true,
+            "annotation": "bool",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "run_sast"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "no_sast",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "run_sast",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "no_sast",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "result_export",
+          "no_sast"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -4793,6 +5082,89 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "artifact_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_dir",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "run_esc",
+            "required": false,
+            "default": true,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "actors",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "artifact_path",
+          "v2_dir",
+          "run_esc",
+          "actors"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "actors",
+          "artifact",
+          "lang",
+          "no_esc",
+          "out_dir",
+          "result_export",
+          "v2_dir"
+        ],
+        "observed_mcp_fields": [
+          "actors",
+          "artifact_path",
+          "run_esc",
+          "v2_dir"
+        ],
+        "missing_mcp_fields": [
+          "artifact",
+          "lang",
+          "no_esc",
+          "out_dir",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "v2_dir",
+          "out_dir",
+          "result_export",
+          "no_esc",
+          "actors",
+          "lang"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5086,6 +5458,158 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "target",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "cwe",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "corrections",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "max_attempts",
+            "required": false,
+            "default": 3,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "strategy",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "hardware",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "struct_size_bytes",
+            "required": false,
+            "default": null,
+            "annotation": "int | None",
+            "keyword_only": false
+          },
+          {
+            "name": "pool_field",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "auto_strategy",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "target",
+          "cwe",
+          "out_dir",
+          "provider",
+          "model",
+          "max_attempts",
+          "strategy",
+          "hardware",
+          "struct_size_bytes",
+          "pool_field",
+          "auto_strategy"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "auto_strategy",
+          "cwe",
+          "hardware",
+          "max_attempts",
+          "model",
+          "out_dir",
+          "pool_field",
+          "provider",
+          "result_export",
+          "strategy",
+          "struct_size_bytes",
+          "target"
+        ],
+        "observed_mcp_fields": [
+          "auto_strategy",
+          "cwe",
+          "hardware",
+          "max_attempts",
+          "model",
+          "out_dir",
+          "pool_field",
+          "provider",
+          "strategy",
+          "struct_size_bytes",
+          "target"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "target",
+          "cwe",
+          "strategy",
+          "hardware",
+          "struct_size_bytes",
+          "pool_field",
+          "auto_strategy",
+          "out_dir",
+          "max_attempts",
+          "result_export",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5286,6 +5810,52 @@
         "status": "adapter_missing",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "lang",
+          "max_attempts",
+          "out_file",
+          "provider",
+          "requirement",
+          "result_export",
+          "staged",
+          "timeout"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "lang",
+          "max_attempts",
+          "out_file",
+          "provider",
+          "requirement",
+          "result_export",
+          "staged",
+          "timeout"
+        ],
+        "unverified_argument_mappings": [
+          "requirement",
+          "provider",
+          "out_file",
+          "result_export",
+          "timeout",
+          "max_attempts",
+          "staged",
+          "lang"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5459,6 +6029,103 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "discovered",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "strategies",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "max_workers",
+            "required": false,
+            "default": 3,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "out_dir",
+          "strategies",
+          "provider",
+          "model",
+          "max_workers"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "max_workers",
+          "model",
+          "out_dir",
+          "provider",
+          "result_export",
+          "source",
+          "strategies"
+        ],
+        "observed_mcp_fields": [
+          "max_workers",
+          "model",
+          "out_dir",
+          "provider",
+          "source",
+          "strategies"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "out_dir",
+          "strategies",
+          "max_workers",
+          "result_export",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5562,6 +6229,43 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [],
+        "field_names": []
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "judges",
+          "require",
+          "result_export",
+          "strict"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "judges",
+          "require",
+          "result_export",
+          "strict"
+        ],
+        "unverified_argument_mappings": [
+          "result_export",
+          "require",
+          "strict",
+          "judges"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5755,6 +6459,70 @@
           }
         ],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "out"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "model",
+          "no_llm",
+          "out",
+          "project_root",
+          "provider",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "out",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "model",
+          "no_llm",
+          "project_root",
+          "provider",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "out",
+          "project_root",
+          "no_llm",
+          "result_export",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -5953,6 +6721,52 @@
         "status": "adapter_missing",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "force",
+          "idea",
+          "model",
+          "project_root",
+          "provider",
+          "replace_reviewed_domain",
+          "restart_clarifications",
+          "schema_version"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "force",
+          "idea",
+          "model",
+          "project_root",
+          "provider",
+          "replace_reviewed_domain",
+          "restart_clarifications",
+          "schema_version"
+        ],
+        "unverified_argument_mappings": [
+          "idea",
+          "project_root",
+          "force",
+          "replace_reviewed_domain",
+          "restart_clarifications",
+          "schema_version",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -6247,6 +7061,64 @@
         "compatibility_aliases": [
           "draft_canonical_contract"
         ]
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "canonical_domain",
+          "fallback_provider",
+          "feedback_budget",
+          "lang",
+          "max_attempts",
+          "model",
+          "no_clarify",
+          "out",
+          "out_file",
+          "provider",
+          "requirement",
+          "resample_budget"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "canonical_domain",
+          "fallback_provider",
+          "feedback_budget",
+          "lang",
+          "max_attempts",
+          "model",
+          "no_clarify",
+          "out",
+          "out_file",
+          "provider",
+          "requirement",
+          "resample_budget"
+        ],
+        "unverified_argument_mappings": [
+          "requirement",
+          "no_clarify",
+          "lang",
+          "out_file",
+          "canonical_domain",
+          "fallback_provider",
+          "out",
+          "max_attempts",
+          "resample_budget",
+          "feedback_budget",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -6372,6 +7244,82 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "domain",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "requirements",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": false,
+            "default": "traceability-matrix.md",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "domain",
+          "source",
+          "requirements",
+          "out"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "domain",
+          "out",
+          "reqs",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "domain",
+          "out",
+          "requirements",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "reqs",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "domain",
+          "source",
+          "reqs",
+          "out",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -6845,6 +7793,135 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "spec_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "assurance_level",
+            "required": false,
+            "default": "critical",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_reviewed_domain",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_validation_evidence",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "spec_path",
+          "provider",
+          "assurance_level",
+          "v2_reviewed_domain",
+          "v2_validation_evidence"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "abstraction",
+          "accept_pass",
+          "assurance_level",
+          "clarifications",
+          "dependencies",
+          "dma_profile",
+          "feedback_budget",
+          "max_attempts",
+          "method_proof_only",
+          "model",
+          "out",
+          "parallel_kernel",
+          "parallel_out",
+          "parallel_wrapper",
+          "provider",
+          "resample_budget",
+          "result_export",
+          "stub",
+          "v2_reviewed_domain",
+          "v2_validation_evidence"
+        ],
+        "observed_mcp_fields": [
+          "assurance_level",
+          "provider",
+          "spec_path",
+          "v2_reviewed_domain",
+          "v2_validation_evidence"
+        ],
+        "missing_mcp_fields": [
+          "abstraction",
+          "accept_pass",
+          "clarifications",
+          "dependencies",
+          "dma_profile",
+          "feedback_budget",
+          "max_attempts",
+          "method_proof_only",
+          "model",
+          "out",
+          "parallel_kernel",
+          "parallel_out",
+          "parallel_wrapper",
+          "resample_budget",
+          "result_export",
+          "stub"
+        ],
+        "unverified_argument_mappings": [
+          "stub",
+          "out",
+          "result_export",
+          "max_attempts",
+          "resample_budget",
+          "feedback_budget",
+          "accept_pass",
+          "assurance_level",
+          "method_proof_only",
+          "clarifications",
+          "abstraction",
+          "v2_reviewed_domain",
+          "v2_validation_evidence",
+          "parallel_wrapper",
+          "parallel_kernel",
+          "parallel_out",
+          "dependencies",
+          "dma_profile",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -6923,6 +8000,48 @@
           }
         ],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "file_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "file_path"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "file_path"
+        ],
+        "missing_mcp_fields": [
+          "result_export",
+          "source"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7072,6 +8191,46 @@
         "compatibility_aliases": [
           "macro_translate"
         ]
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "dictionary",
+          "no_verify",
+          "provider",
+          "result_export",
+          "source",
+          "synthesize"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "dictionary",
+          "no_verify",
+          "provider",
+          "result_export",
+          "source",
+          "synthesize"
+        ],
+        "unverified_argument_mappings": [
+          "dictionary",
+          "source",
+          "synthesize",
+          "no_verify",
+          "provider",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7175,6 +8334,40 @@
         "status": "approval_coordinator_missing",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "add_key",
+          "list",
+          "registry",
+          "remove_key"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "add_key",
+          "list",
+          "registry",
+          "remove_key"
+        ],
+        "unverified_argument_mappings": [
+          "add_key",
+          "remove_key",
+          "list",
+          "registry"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7331,6 +8524,92 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "strategy",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "out",
+          "strategy",
+          "provider",
+          "model"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "model",
+          "out",
+          "provider",
+          "result_export",
+          "source",
+          "strategy"
+        ],
+        "observed_mcp_fields": [
+          "model",
+          "out",
+          "provider",
+          "source",
+          "strategy"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "strategy",
+          "out",
+          "result_export",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7481,6 +8760,46 @@
         "status": "approval_coordinator_missing",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "accept_candidate_sha256",
+          "name",
+          "project_root",
+          "replace_reviewed_domain",
+          "schema_version",
+          "signing_key"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "accept_candidate_sha256",
+          "name",
+          "project_root",
+          "replace_reviewed_domain",
+          "schema_version",
+          "signing_key"
+        ],
+        "unverified_argument_mappings": [
+          "name",
+          "project_root",
+          "replace_reviewed_domain",
+          "schema_version",
+          "accept_candidate_sha256",
+          "signing_key"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7584,6 +8903,70 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "baseline",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refactored",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mapping",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "baseline",
+          "refactored",
+          "mapping"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "baseline",
+          "mapping",
+          "refactored",
+          "result_export"
+        ],
+        "observed_mcp_fields": [
+          "baseline",
+          "mapping",
+          "refactored"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "baseline",
+          "refactored",
+          "mapping",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7735,6 +9118,92 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "target",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "report",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "remediated",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "target",
+          "report",
+          "out_dir",
+          "provider",
+          "model"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "model",
+          "out_dir",
+          "provider",
+          "report",
+          "result_export",
+          "target"
+        ],
+        "observed_mcp_fields": [
+          "model",
+          "out_dir",
+          "provider",
+          "report",
+          "target"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "target",
+          "report",
+          "out_dir",
+          "result_export",
+          "provider",
+          "model"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7838,6 +9307,80 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "artifact_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "changed_module",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_dir",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "run_esc",
+            "required": false,
+            "default": true,
+            "annotation": "bool",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "artifact_path",
+          "changed_module",
+          "v2_dir",
+          "run_esc"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "artifact",
+          "changed_module",
+          "result_export",
+          "v2_dir"
+        ],
+        "observed_mcp_fields": [
+          "artifact_path",
+          "changed_module",
+          "run_esc",
+          "v2_dir"
+        ],
+        "missing_mcp_fields": [
+          "artifact",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "changed_module",
+          "v2_dir",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -7941,6 +9484,71 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "report_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "target",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "security-pocs",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "report_path",
+          "target",
+          "out_dir"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "out_dir",
+          "report",
+          "result_export",
+          "target"
+        ],
+        "observed_mcp_fields": [
+          "out_dir",
+          "report_path",
+          "target"
+        ],
+        "missing_mcp_fields": [
+          "report",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "report",
+          "target",
+          "out_dir",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8000,6 +9608,48 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8059,6 +9709,34 @@
         "status": "approval_coordinator_missing",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": null,
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "artifact",
+          "key"
+        ],
+        "observed_mcp_fields": [],
+        "missing_mcp_fields": [
+          "artifact",
+          "key"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "key"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mcp_input_schema_not_observed",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8276,6 +9954,94 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "plan_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "default": "implement",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "runs/system",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "max_workers",
+            "required": false,
+            "default": 4,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "plan_path",
+          "mode",
+          "out_dir",
+          "max_workers"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "artifact",
+          "max_attempts",
+          "max_workers",
+          "mode",
+          "model",
+          "out_dir",
+          "provider",
+          "result_export",
+          "toolchain_id"
+        ],
+        "observed_mcp_fields": [
+          "max_workers",
+          "mode",
+          "out_dir",
+          "plan_path"
+        ],
+        "missing_mcp_fields": [
+          "artifact",
+          "max_attempts",
+          "model",
+          "provider",
+          "result_export",
+          "toolchain_id"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "out_dir",
+          "max_workers",
+          "mode",
+          "provider",
+          "model",
+          "max_attempts",
+          "toolchain_id",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8428,6 +10194,87 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "artifact_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "evidence_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "language",
+            "required": false,
+            "default": "java",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "artifact_path",
+          "evidence_path",
+          "out_dir",
+          "language"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "artifact",
+          "evidence",
+          "lang",
+          "out_dir",
+          "result_export",
+          "v2_dir"
+        ],
+        "observed_mcp_fields": [
+          "artifact_path",
+          "evidence_path",
+          "language",
+          "out_dir"
+        ],
+        "missing_mcp_fields": [
+          "artifact",
+          "evidence",
+          "lang",
+          "result_export",
+          "v2_dir"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "evidence",
+          "out_dir",
+          "lang",
+          "v2_dir",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8509,6 +10356,60 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "artifact_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "timeout",
+            "required": false,
+            "default": 120,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "artifact_path",
+          "timeout"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "artifact",
+          "result_export",
+          "timeout"
+        ],
+        "observed_mcp_fields": [
+          "artifact_path",
+          "timeout"
+        ],
+        "missing_mcp_fields": [
+          "artifact",
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "artifact",
+          "result_export",
+          "timeout"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8590,6 +10491,68 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "name",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "timeout",
+            "required": false,
+            "default": null,
+            "annotation": "int | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "name",
+          "project_root",
+          "timeout"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "emit_tla",
+          "name",
+          "project_root"
+        ],
+        "observed_mcp_fields": [
+          "name",
+          "project_root",
+          "timeout"
+        ],
+        "missing_mcp_fields": [
+          "emit_tla"
+        ],
+        "unverified_argument_mappings": [
+          "name",
+          "project_root",
+          "emit_tla"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8724,6 +10687,62 @@
           }
         ],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "file_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "default": "esc",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "file_path",
+          "mode"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "backend",
+          "mode",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "file_path",
+          "mode"
+        ],
+        "missing_mcp_fields": [
+          "backend",
+          "result_export",
+          "source"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "mode",
+          "result_export",
+          "backend"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8827,6 +10846,70 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "baseline",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refactored",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mapping",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "baseline",
+          "refactored",
+          "mapping"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "baseline",
+          "mapping",
+          "refactored",
+          "result_export"
+        ],
+        "observed_mcp_fields": [
+          "baseline",
+          "mapping",
+          "refactored"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "baseline",
+          "refactored",
+          "mapping",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8930,6 +11013,70 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "domain",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "message_fields",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "faults",
+            "required": false,
+            "default": "message_loss,duplication,reordering",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "domain",
+          "message_fields",
+          "faults"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "domain",
+          "faults",
+          "message_fields",
+          "result_export"
+        ],
+        "observed_mcp_fields": [
+          "domain",
+          "faults",
+          "message_fields"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "domain",
+          "faults",
+          "message_fields",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -8989,6 +11136,48 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -9070,6 +11259,59 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "provider"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "provider",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "provider",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "provider",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -9151,6 +11393,59 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "domain",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "domain"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "domain",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "domain",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "domain",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -9210,6 +11505,48 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -9313,6 +11650,62 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "baseline",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refactored",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "baseline",
+          "refactored"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "baseline",
+          "refactored",
+          "result_export",
+          "signing_key"
+        ],
+        "observed_mcp_fields": [
+          "baseline",
+          "refactored"
+        ],
+        "missing_mcp_fields": [
+          "result_export",
+          "signing_key"
+        ],
+        "unverified_argument_mappings": [
+          "baseline",
+          "refactored",
+          "result_export",
+          "signing_key"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     },
     {
@@ -9416,11 +11809,75 @@
         "status": "adapter_present_not_admitted",
         "profiles": [],
         "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "invariant",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "invariant",
+          "provider"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "invariant",
+          "provider",
+          "result_export",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "invariant",
+          "provider",
+          "source"
+        ],
+        "missing_mcp_fields": [
+          "result_export"
+        ],
+        "unverified_argument_mappings": [
+          "source",
+          "invariant",
+          "provider",
+          "result_export"
+        ],
+        "required_variants": [],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "blockers": [
+          "invocation_profile_not_admitted",
+          "mapped_inputs_missing_from_mcp_schema",
+          "argument_mappings_not_verified",
+          "completion_contract_missing"
+        ]
       }
     }
   ],
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "4e20bd0ad90eeedfa4f7fe9ddee68ab388138c353e34f911685341c6d5f5b611"
+  "sha256": "e2869a71e316f084bba39bb17770b4edccce5034c9ca5ac80a570b1e630390b8"
 }

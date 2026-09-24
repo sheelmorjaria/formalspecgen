@@ -39,6 +39,9 @@ def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
     assert result["mcp_admission"]["backend"] == "openjml"
     assert result["evidence"]["publication_status"] == "COMMITTED"
     assert Path(result["evidence"]["manifest_path"]).is_file()
+    assert result["workflow_result"]["request"]["effective_backend"] == "openjml"
+    assert result["workflow_result"]["verification"] == {
+        "claim": "STATIC_CHECK", "request_satisfied": True}
 
 
 def test_mcp_native_verification_is_fail_closed_by_default(tmp_path, monkeypatch):
@@ -74,6 +77,8 @@ def test_mcp_receipt_binds_exact_execution_observation(tmp_path, monkeypatch):
     assert manifest["terminal"]["effective_arguments"] == list(command)
     assert manifest["terminal"]["source_sha256"] == source_digest
     assert manifest["terminal"]["source_snapshot_manifest_sha256"] == "manifest-digest"
+    assert manifest["terminal"]["workflow_request"] == \
+        result["workflow_result"]["request"]
     assert result["execution"]["command"] == command
 
 
@@ -111,6 +116,8 @@ def test_mcp_analyze_and_document_guarded(tmp_path, monkeypatch):
     assert documented["claim"] == "UNREVIEWED_EXTRACTION_DOCUMENTATION"
     assert documented["mcp_admission"]["profile"] == \
         "java-deterministic-documentation"
+    assert documented["workflow_result"]["request"]["mode"] == "deterministic"
+    assert documented["workflow_result"]["verification"]["claim"] == "NO_PROOF"
     escape = mcp_server.document_code(str(source), "../escape.md")
     assert escape["status"] == "FAIL" and escape["code"] == "OUTPUT_SCOPE_VIOLATION"
     missing = mcp_server.document_code("Nope.java", "docs/Nope.md")

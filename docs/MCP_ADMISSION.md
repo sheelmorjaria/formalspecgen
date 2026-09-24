@@ -7,7 +7,17 @@ has completed admission testing. An unlisted combination fails before side effec
 
 The full migration inventory is generated from the live CLI parser and the reviewed target plan.
 See [MCP_PARITY_STATUS.md](MCP_PARITY_STATUS.md) for the current per-command completion report.
-Being inventoried or having a legacy handler does not make a workflow admitted.
+Being inventoried or having a legacy handler does not make a workflow admitted. Likewise, having
+one admitted profile does not make the full CLI command complete. The generated report therefore
+shows both **commands with at least one admitted invocation profile** and **complete command
+workflows**.
+
+Completion is calculated rather than asserted by a standalone Boolean. Every mapped argument must
+be marked verified and appear in the observed MCP handler schema; all declared command variants
+must be covered; and revision-bound passing cases must demonstrate request equivalence, argument
+delivery, effect enforcement, result equivalence, and real MCP transport. Resumable and approval
+workflows additionally require replay/session and approval-security cases. Missing evidence keeps
+the command incomplete even when its restricted profile remains useful.
 
 A profile is a permission ceiling, not a bundle of permissions silently granted to every matching
 request. An invocation receives only the intersection of its explicitly requested effects and that
@@ -31,6 +41,13 @@ boundary will reject the operation even when the broader profile could have allo
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
 is not registered merely because it has a Python handler.
+
+The admitted adapters share typed application requests and a permission-carrying workflow context.
+The request owns default resolution, effective language/backend selection, and effect planning.
+The context owns workspace/output scopes and granted effects; child stages may narrow that context
+but cannot add authority. Results expose separate workflow, verification, admission, execution,
+publication, and approval dimensions under `workflow_result` while retaining compatible top-level
+fields.
 
 Published verification evidence records requested and granted effects, the complete canonical
 profile definition and its SHA-256 digest, and the admission-policy version. This binds a run to the

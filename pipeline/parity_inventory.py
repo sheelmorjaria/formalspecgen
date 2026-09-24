@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
@@ -32,12 +34,19 @@ from .mcp_policy import (
 
 
 CLI_INVENTORY_SCHEMA = "formalspecgen-live-cli-inventory-v1"
-PARITY_MANIFEST_SCHEMA = "formalspecgen-mcp-parity-manifest-v1"
+PARITY_MANIFEST_SCHEMA = "formalspecgen-mcp-parity-manifest-v2"
 REPL_META_COMMANDS = ("/help", "/session", "/reset", "/quit", "/exit")
 COMPATIBILITY_ALIASES = {
     "draft_contract": ("draft_canonical_contract",),
     "macro_dictionary": ("macro_translate",),
 }
+BASE_ACCEPTANCE_KINDS = frozenset({
+    "request_equivalence",
+    "argument_delivery",
+    "effect_enforcement",
+    "result_equivalence",
+    "mcp_transport",
+})
 
 
 class ParityInventoryError(ValueError):
@@ -288,9 +297,110 @@ def _adapter_status(target: str, handler_names: set[str]) -> dict[str, Any]:
     }
 
 
+def handler_input_schema(handler: Any) -> dict[str, Any]:
+    """Describe the Python signature that FastMCP turns into tool inputs."""
+    signature = inspect.signature(handler)
+    fields = []
+    for parameter in signature.parameters.values():
+        if parameter.kind in {
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD}:
+            continue
+        annotation = parameter.annotation
+        fields.append({
+            "name": parameter.name,
+            "required": parameter.default is inspect.Parameter.empty,
+            "default": (None if parameter.default is inspect.Parameter.empty
+                        else _json_value(parameter.default)),
+            "annotation": (None if annotation is inspect.Parameter.empty
+                           else getattr(annotation, "__name__", str(annotation))),
+            "keyword_only": parameter.kind is inspect.Parameter.KEYWORD_ONLY,
+        })
+    return {"fields": fields, "field_names": [item["name"] for item in fields]}
+
+
+def _workflow_completion(
+        planned: dict[str, Any], adapter: dict[str, Any],
+        handler_schema: dict[str, Any] | None) -> dict[str, Any]:
+    """Evaluate parity from concrete coverage evidence, never admission alone."""
+    blockers: list[str] = []
+    mapped_fields = sorted({
+        mapping.get("proposed_mcp_field")
+        for mapping in planned.get("argument_mappings", [])
+        if mapping.get("proposed_mcp_field")
+    })
+    observed_fields = set((handler_schema or {}).get("field_names", ()))
+    missing_fields = sorted(set(mapped_fields) - observed_fields)
+    unverified_mappings = [
+        mapping.get("proposed_mcp_field") or str(mapping.get("cli_flags"))
+        for mapping in planned.get("argument_mappings", [])
+        if mapping.get("implementation_status") != "verified"
+    ]
+    if adapter["status"] != "admitted":
+        blockers.append("invocation_profile_not_admitted")
+    if handler_schema is None:
+        blockers.append("mcp_input_schema_not_observed")
+    elif missing_fields:
+        blockers.append("mapped_inputs_missing_from_mcp_schema")
+    if unverified_mappings:
+        blockers.append("argument_mappings_not_verified")
+
+    declaration = planned.get("completion_contract")
+    required_variants: list[str] = []
+    covered_variants: list[str] = []
+    evidence_revision = None
+    acceptance_cases: list[dict[str, Any]] = []
+    if not isinstance(declaration, dict):
+        blockers.append("completion_contract_missing")
+    else:
+        required_variants = sorted(set(declaration.get("required_variants", ())))
+        covered_variants = sorted(set(declaration.get("covered_variants", ())))
+        evidence_revision = declaration.get("evidence_revision")
+        raw_cases = declaration.get("acceptance_cases", ())
+        acceptance_cases = [dict(case) for case in raw_cases if isinstance(case, dict)]
+        if not required_variants or set(required_variants) != set(covered_variants):
+            blockers.append("workflow_variants_incomplete")
+        if not isinstance(evidence_revision, str) or not re.fullmatch(
+                r"[0-9a-f]{7,40}", evidence_revision):
+            blockers.append("revision_bound_acceptance_missing")
+        required_kinds = set(BASE_ACCEPTANCE_KINDS)
+        workflow_kind = str(planned.get("workflow_kind") or "")
+        if "resumable" in workflow_kind:
+            required_kinds.add("session_replay")
+        if "approval" in workflow_kind or workflow_kind == "read_or_human_approval":
+            required_kinds.add("approval_security")
+        repository_root = Path(__file__).resolve().parents[1]
+        passed_kinds = {
+            str(case.get("kind")) for case in acceptance_cases
+            if case.get("result") == "passed"
+            and case.get("revision") == evidence_revision
+            and isinstance(case.get("test"), str)
+            and "::" in case["test"]
+            and (repository_root / case["test"].split("::", 1)[0]).is_file()
+        }
+        if not required_kinds.issubset(passed_kinds):
+            blockers.append("required_acceptance_cases_missing_or_unpassed")
+
+    complete = not blockers
+    return {
+        "status": "complete" if complete else "incomplete",
+        "complete": complete,
+        "mapped_mcp_fields": mapped_fields,
+        "observed_mcp_fields": sorted(observed_fields),
+        "missing_mcp_fields": missing_fields,
+        "unverified_argument_mappings": unverified_mappings,
+        "required_variants": required_variants,
+        "covered_variants": covered_variants,
+        "evidence_revision": evidence_revision,
+        "acceptance_cases": acceptance_cases,
+        "blockers": blockers,
+    }
+
+
 def reconcile_parity_plan(
         plan: dict[str, Any], *, plugins: tuple[CommandPlugin, ...] = (),
-        handler_names: Iterable[str] = ()) -> dict[str, Any]:
+        handler_names: Iterable[str] = (),
+        handlers: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bind a target plan to the current parser and report every drift."""
     inventory = inventory_cli(plugins)
     live_commands = {item["command"]: item for item in inventory["commands"]}
@@ -310,7 +420,9 @@ def reconcile_parity_plan(
     command_mappings = []
     mapped_arguments = 0
     admitted_commands = 0
-    handlers = set(handler_names)
+    handler_values = handlers or {}
+    known_handlers = set(handler_names) | set(handler_values)
+    complete_commands = 0
     for command_name in sorted(set(live_commands) & set(planned_commands)):
         live = live_commands[command_name]
         planned = planned_commands[command_name]
@@ -349,9 +461,14 @@ def reconcile_parity_plan(
             issues.append(
                 f"{command_name}: capability registry CLI mapping drift "
                 f"(registry={target_capability.cli_command!r}, target={target!r})")
-        adapter = _adapter_status(target, handlers)
+        adapter = _adapter_status(target, known_handlers)
         if adapter["status"] == "admitted":
             admitted_commands += 1
+        schema = (handler_input_schema(handler_values[target])
+                  if target in handler_values else None)
+        completion = _workflow_completion(planned, adapter, schema)
+        if completion["complete"]:
+            complete_commands += 1
         command_mappings.append({
             "cli_command": command_name,
             "target_mcp_tool": target,
@@ -361,6 +478,8 @@ def reconcile_parity_plan(
             "plugin_id": live["plugin_id"],
             "arguments": mapped,
             "adapter": adapter,
+            "mcp_input_schema": schema,
+            "workflow_completion": completion,
         })
 
     plan_declared_count = sum(
@@ -377,6 +496,16 @@ def reconcile_parity_plan(
         "plan_schema": plan.get("schema"),
         "plan_baseline_revision": plan.get("baseline_revision"),
         "plan_sha256": _canonical_sha256(plan),
+        "completion_policy": {
+            "principle": "admission_is_not_workflow_completion",
+            "required_acceptance_kinds": sorted(BASE_ACCEPTANCE_KINDS),
+            "additional_resumable_kind": "session_replay",
+            "additional_approval_kind": "approval_security",
+            "requires_revision_bound_pass_results": True,
+            "requires_complete_variant_coverage": True,
+            "requires_verified_argument_mappings": True,
+            "requires_observed_mcp_input_fields": True,
+        },
         "inventory": inventory,
         "metrics": {
             "discovered_commands": inventory["command_count"],
@@ -384,13 +513,14 @@ def reconcile_parity_plan(
             "discovered_argument_declarations": inventory[
                 "argument_declaration_count"],
             "mapped_argument_declarations": mapped_arguments,
-            "strict_admitted_commands": admitted_commands,
+            "commands_with_admitted_profile": admitted_commands,
+            "complete_workflow_commands": complete_commands,
         },
         "command_mappings": command_mappings,
         "issues": issues,
         "inventory_complete": not issues,
         "full_workflow_parity_complete": (
-            not issues and admitted_commands == inventory["command_count"]),
+            not issues and complete_commands == inventory["command_count"]),
     }
     manifest["sha256"] = _canonical_sha256(manifest)
     return manifest
@@ -412,8 +542,11 @@ def render_parity_status(manifest: dict[str, Any]) -> str:
         f"- Argument declarations mapped: "
         f"{metrics['mapped_argument_declarations']} / "
         f"{metrics['discovered_argument_declarations']}",
-        f"- Strictly admitted command workflows: "
-        f"{metrics['strict_admitted_commands']} / "
+        f"- Commands with at least one admitted invocation profile: "
+        f"{metrics['commands_with_admitted_profile']} / "
+        f"{metrics['discovered_commands']}",
+        f"- Complete command workflows: "
+        f"{metrics['complete_workflow_commands']} / "
         f"{metrics['discovered_commands']}",
         f"- Inventory drift: {'none' if manifest['inventory_complete'] else 'detected'}",
         f"- Full workflow parity: "
@@ -421,13 +554,14 @@ def render_parity_status(manifest: dict[str, Any]) -> str:
         "",
         "## Per-command status",
         "",
-        "| CLI command | Target MCP tool | Workflow | Adapter/admission status | Arguments |",
-        "| --- | --- | --- | --- | ---: |",
+        "| CLI command | Target MCP tool | Workflow | Admission | Completion | Arguments |",
+        "| --- | --- | --- | --- | --- | ---: |",
     ]
     for command in manifest["command_mappings"]:
         lines.append(
             f"| `{command['cli_command']}` | `{command['target_mcp_tool']}` | "
             f"`{command['workflow_kind']}` | `{command['adapter']['status']}` | "
+            f"`{command['workflow_completion']['status']}` | "
             f"{len(command['arguments'])} |")
     lines.extend(["", "## Drift", ""])
     if manifest["issues"]:
