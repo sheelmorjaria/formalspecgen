@@ -126,6 +126,7 @@ jobs:
           sandbox_cgroup="/sys/fs/cgroup/formalspecgen-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           sudo mkdir "$sandbox_cgroup"
           echo '+memory +pids' | sudo tee "$sandbox_cgroup/cgroup.subtree_control" >/dev/null
+          sudo mkdir "$sandbox_cgroup/runner"
           sudo chown -R "$(id -u):$(id -g)" "$sandbox_cgroup"
           echo "FORMALSPECGEN_CGROUP_ROOT=$sandbox_cgroup" >> "$GITHUB_ENV"
       - name: Run mandatory real sandbox acceptance
@@ -135,8 +136,10 @@ jobs:
           # Enter the delegated parent first. Moving between sibling cgroups
           # requires write access at their common ancestor; descendants can
           # then move into the per-execution child cgroups without privilege.
-          echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/cgroup.procs" >/dev/null
+          echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/runner/cgroup.procs" >/dev/null
           exec python -m pytest -q --no-cov tests/test_sandbox_acceptance.py
       - name: Remove delegated cgroup
         if: always()
-        run: sudo rmdir "$FORMALSPECGEN_CGROUP_ROOT" || true
+        run: |
+          sudo rmdir "$FORMALSPECGEN_CGROUP_ROOT/runner" || true
+          sudo rmdir "$FORMALSPECGEN_CGROUP_ROOT" || true
