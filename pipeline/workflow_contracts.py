@@ -318,8 +318,11 @@ class WorkflowResultEnvelope:
                        if context and interface is WorkflowInterface.MCP else None),
             execution=(payload.get("execution")
                        if isinstance(payload.get("execution"), Mapping) else None),
-            publication=(payload.get("evidence")
-                         if isinstance(payload.get("evidence"), Mapping) else None),
+            publication=(
+                payload.get("publication")
+                if isinstance(payload.get("publication"), Mapping)
+                else payload.get("evidence")
+                if isinstance(payload.get("evidence"), Mapping) else None),
             approval=(payload.get("approval")
                       if isinstance(payload.get("approval"), Mapping) else None),
         )

@@ -73,7 +73,9 @@ python mcp_server.py
 ```
 
 The strict server catalogue exposes `verify_code` (the isolated Java lane), the
-non-executing `inspect_code` tool, and deterministic Java `document_code`. Documentation reads
+non-executing Java/JML `inspect_code` tool, and deterministic Java `document_code`. Inspection
+reads one bounded source and can optionally create a new JSON result beneath the designated output
+root; the read-only invocation receives no write authority. Documentation reads
 one bounded source and creates new unreviewed Markdown and V2-candidate artifacts beneath
 `.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`); it never
 calls a provider or external process and never replaces an existing artifact. The registry retains
@@ -130,7 +132,9 @@ arguments, defaults, choices, hidden options, and stale generated reports; adapt
 reported separately from strict admission and complete workflow parity. Completion is derived from
 mapped MCP input fields, verified argument delivery, complete variant coverage, effect/result
 equivalence, and revision-bound real-transport acceptance cases; a command is not complete merely
-because one invocation profile is admitted.
+because one invocation profile is admitted. The committed report is the evidence-free baseline.
+The dedicated MCP parity CI job starts the real stdio server, executes the declared cases, and
+publishes the evidence-backed manifest for that tested revision as an Actions artifact.
 
 CLI and MCP adapters for the admitted verification, inspection, and deterministic-documentation
 paths now construct the typed requests in `pipeline/workflow_contracts.py`. Those requests resolve

@@ -20,9 +20,6 @@ PROXY_GUARDED_DELEGATION_RATIO = 0.5
 COMMAND_BRANCH_THRESHOLD = 3
 
 def inspect_java_file(path: str | Path) -> dict:
-    # Local import: pattern_registry imports the detector classes defined below,
-    # so importing it at module scope would create an import cycle.
-    from .pattern_registry import PATTERN_REGISTRY
     source_path = Path(path)
     if source_path.suffix.lower() not in {".java", ".jml"}:
         return _fail("unsupported_language", "Java/JML source is required")
@@ -30,6 +27,17 @@ def inspect_java_file(path: str | Path) -> dict:
         source = source_path.read_text(encoding="utf-8")
     except OSError as exc:
         return _fail("source_unavailable", str(exc))
+    return inspect_java_source(source, source_path)
+
+
+def inspect_java_source(source: str, path: str | Path) -> dict:
+    """Inspect already-authorized source bytes without reopening the input."""
+    # Local import: pattern_registry imports the detector classes defined below,
+    # so importing it at module scope would create an import cycle.
+    from .pattern_registry import PATTERN_REGISTRY
+    source_path = Path(path)
+    if source_path.suffix.lower() not in {".java", ".jml"}:
+        return _fail("unsupported_language", "Java/JML source is required")
     try:
         tree = javalang.parse.parse(source)
     except (javalang.parser.JavaSyntaxError, javalang.tokenizer.LexerError,

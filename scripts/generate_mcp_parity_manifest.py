@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 
 import mcp_server
@@ -24,9 +25,27 @@ def _handlers() -> dict[str, object]:
     }
 
 
-def _outputs(plan_path: Path) -> tuple[str, str]:
+def _outputs(
+        plan_path: Path,
+        acceptance_evidence_path: Path | None = None) -> tuple[str, str]:
+    evidence = (json.loads(acceptance_evidence_path.read_text(encoding="utf-8"))
+                if acceptance_evidence_path else None)
+    if evidence is not None:
+        root = Path(__file__).resolve().parents[1]
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+            text=True, stdout=subprocess.PIPE).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=root, check=True, text=True,
+            stdout=subprocess.PIPE).stdout.strip()
+        if evidence.get("revision") != head:
+            raise ValueError("acceptance evidence does not match the checked-out revision")
+        if dirty:
+            raise ValueError("acceptance evidence requires a clean checked-out revision")
     manifest = reconcile_parity_plan(
-        load_parity_plan(plan_path), handlers=_handlers())
+        load_parity_plan(plan_path), handlers=_handlers(),
+        acceptance_evidence=evidence)
     encoded = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     return encoded, render_parity_status(manifest)
 
@@ -47,9 +66,21 @@ def main(argv: list[str] | None = None) -> int:
         "--manifest", type=Path, default=Path("docs/mcp_parity_manifest.json"))
     parser.add_argument(
         "--status", type=Path, default=Path("docs/MCP_PARITY_STATUS.md"))
+    parser.add_argument("--acceptance-evidence", type=Path)
+    parser.add_argument(
+        "--require-complete", action="append", default=[], metavar="COMMAND")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
-    manifest, status = _outputs(args.plan)
+    manifest, status = _outputs(args.plan, args.acceptance_evidence)
+    parsed = json.loads(manifest)
+    completion = {
+        item["cli_command"]: item["workflow_completion"]["complete"]
+        for item in parsed["command_mappings"]
+    }
+    missing = [name for name in args.require_complete if not completion.get(name)]
+    if missing:
+        parser.error(
+            "required workflow completion evidence is missing: " + ", ".join(missing))
     if args.check:
         stale = [
             str(path) for path, expected in (
@@ -59,7 +90,6 @@ def main(argv: list[str] | None = None) -> int:
         if stale:
             parser.error(
                 "generated MCP parity files are stale: " + ", ".join(stale))
-        parsed = json.loads(manifest)
         if not parsed["inventory_complete"]:
             parser.error("MCP parity inventory contains unexplained drift")
         return 0

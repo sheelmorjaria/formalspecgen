@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v2",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "e9f9ffb4f95a8e4dda2e3ef9f1c2b0d1ed242fbdd0d9f8c14254018804535ffb",
+  "plan_sha256": "0735f4bcd5b10342e853a1b43737156c58d46878edaa2dc7fd7b02a6bf7e0045",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -16,11 +16,14 @@
     ],
     "additional_resumable_kind": "session_replay",
     "additional_approval_kind": "approval_security",
+    "acceptance_evidence_schema": "formalspecgen-mcp-acceptance-evidence-v1",
+    "requires_runner_produced_acceptance_evidence": true,
     "requires_revision_bound_pass_results": true,
     "requires_complete_variant_coverage": true,
     "requires_verified_argument_mappings": true,
     "requires_observed_mcp_input_fields": true
   },
+  "acceptance_evidence": null,
   "inventory": {
     "schema": "formalspecgen-live-cli-inventory-v1",
     "application_version": "13.0.0",
@@ -4330,6 +4333,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -4571,6 +4575,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -4767,6 +4772,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -4902,6 +4908,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -5159,6 +5166,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -5604,6 +5612,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -5850,6 +5859,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -6120,6 +6130,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -6260,6 +6271,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -6518,6 +6530,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "mapped_inputs_missing_from_mcp_schema",
           "argument_mappings_not_verified",
@@ -6761,6 +6774,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -7113,6 +7127,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -7314,6 +7329,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -7916,6 +7932,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -7986,7 +8003,8 @@
               "inspect"
             ],
             "languages": [
-              "java"
+              "java",
+              "jml"
             ],
             "backends": [
               "builtin-java-inspector"
@@ -7997,6 +8015,26 @@
             "providers": [],
             "output_scope": "none",
             "evidence": "structured-findings"
+          },
+          {
+            "name": "java-inspection-export",
+            "modes": [
+              "inspect"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "builtin-java-inspector"
+            ],
+            "effects": [
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unreviewed-structured-inspection-export"
           }
         ],
         "compatibility_aliases": []
@@ -8004,15 +8042,23 @@
       "mcp_input_schema": {
         "fields": [
           {
-            "name": "file_path",
+            "name": "source",
             "required": true,
             "default": null,
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
-          "file_path"
+          "source",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -8023,24 +8069,25 @@
           "source"
         ],
         "observed_mcp_fields": [
-          "file_path"
-        ],
-        "missing_mcp_fields": [
           "result_export",
           "source"
         ],
-        "unverified_argument_mappings": [
-          "source",
-          "result_export"
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "java-export",
+          "java-readonly",
+          "jml-export",
+          "jml-readonly"
         ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -8225,6 +8272,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -8362,6 +8410,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -8604,6 +8653,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -8794,6 +8844,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -8961,6 +9012,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -9198,6 +9250,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -9375,6 +9428,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -9543,6 +9597,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -9644,6 +9699,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -9731,6 +9787,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mcp_input_schema_not_observed",
@@ -10036,6 +10093,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -10269,6 +10327,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -10404,6 +10463,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -10547,6 +10607,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -10738,6 +10799,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "mapped_inputs_missing_from_mcp_schema",
           "argument_mappings_not_verified",
@@ -10904,6 +10966,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11071,6 +11134,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11172,6 +11236,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11306,6 +11371,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11440,6 +11506,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11541,6 +11608,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11700,6 +11768,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11867,6 +11936,7 @@
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
+        "transport_observation": null,
         "blockers": [
           "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
@@ -11879,5 +11949,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "e2869a71e316f084bba39bb17770b4edccce5034c9ca5ac80a570b1e630390b8"
+  "sha256": "da6bdb54556067d3120108c1539159c6f370fd47c4d87c1a732bf5baf4042c91"
 }

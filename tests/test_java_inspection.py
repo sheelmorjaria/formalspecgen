@@ -115,7 +115,7 @@ def test_inspect_cli_writes_findings_and_returns_failure_status(tmp_path):
     ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_args, **_kwargs: None))
     assert cli.dispatch(args, ui, None, {}) == 0
     assert "STATIC_INSPECTION" in output.read_text(encoding="utf-8")
-    with patch("pipeline.java_inspection.inspect_java_file",
+    with patch("pipeline.java_inspection.inspect_java_source",
                return_value={"status": "FAIL", "claim": "NO_PROOF"}):
         assert cli.command_inspect(args, ui) == 1
 

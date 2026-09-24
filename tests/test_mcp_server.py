@@ -21,8 +21,9 @@ def test_mcp_workspace_paths_are_contained(tmp_path, monkeypatch):
     source = Path("Counter.java")
     source.write_text("public class Counter {}", encoding="utf-8")
     assert mcp_server.inspect_code("Counter.java")["status"] == "INSPECTED"
-    with pytest.raises(ValueError, match="inside"):
-        mcp_server.inspect_code("../Counter.java")
+    escaped = mcp_server.inspect_code("../Counter.java")
+    assert escaped["status"] == "FAIL"
+    assert escaped["code"] == "path_outside_workspace"
 
 
 def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):

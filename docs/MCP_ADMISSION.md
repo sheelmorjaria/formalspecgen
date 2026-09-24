@@ -15,9 +15,17 @@ workflows**.
 Completion is calculated rather than asserted by a standalone Boolean. Every mapped argument must
 be marked verified and appear in the observed MCP handler schema; all declared command variants
 must be covered; and revision-bound passing cases must demonstrate request equivalence, argument
-delivery, effect enforcement, result equivalence, and real MCP transport. Resumable and approval
-workflows additionally require replay/session and approval-security cases. Missing evidence keeps
-the command incomplete even when its restricted profile remains useful.
+delivery, effect enforcement, result equivalence, and real MCP transport. Results written into the
+reviewed plan are not evidence. A dedicated CI runner executes the declared test nodes, rejects
+failures and skips, records the clean Git revision, observed transport schema/result digests, and
+publishes the derived manifest as a workflow artifact. Resumable and approval workflows
+additionally require replay/session and approval-security cases. Missing or stale runner evidence
+keeps the command incomplete even when its restricted profile remains useful.
+
+The committed parity report deliberately has no same-commit execution record and therefore remains
+the evidence-free baseline. The `MCP transport and parity acceptance` CI job publishes the
+revision-bound report in which workflows supported by that run may become complete. This avoids
+claiming that a committed report tested the commit that contains itself.
 
 A profile is a permission ceiling, not a bundle of permissions silently granted to every matching
 request. An invocation receives only the intersection of its explicitly requested effects and that
@@ -35,7 +43,7 @@ boundary will reject the operation even when the broader profile could have allo
 | Workflow | CLI | Strict MCP | Modes / language / backend | Workspace effects | Provider access | Evidence | Human approval |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `verify_code` | Yes | Admitted | `parse`, `check`, `esc` / Java or JML / OpenJML | Read immutable input; execute in bounded disposable workspace; publish new immutable evidence | None | Exact execution observation and terminal manifest | Required for any later promotion or signing |
-| `inspect_code` | Yes | Admitted | `inspect` / Java / built-in inspector | Read approved workspace input; no writes | None | Structured findings, not a proof receipt | Required before applying proposed changes |
+| `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | None | Unreviewed Markdown and V2 candidate; no proof receipt | Required before review, use, or promotion |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
@@ -86,6 +94,11 @@ root defaults to `.formalspecgen/mcp-output` and may be configured by the truste
 `FORMALSPECGEN_MCP_OUTPUT_ROOT`. Absolute paths, traversal, symlinked output components, and existing
 destinations fail closed. The artifacts remain explicitly unreviewed and do not carry a proof
 receipt.
+
+The inspection handler accepts `source` and optional `result_export`. Inputs are limited to one
+MiB. Without an export it receives read authority only; with a relative `.json` export it must match
+the separate controlled-write profile. The result is published without replacement beneath the
+same server-designated output root and remains an unreviewed inspection result, not proof evidence.
 
 ## Admission paths
 

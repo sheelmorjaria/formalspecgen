@@ -1774,7 +1774,7 @@
       "workflow_kind": "direct",
       "requirements": "Bounded read-only inspection; optional JSON export is a separately authorized write.",
       "baseline_strict_mcp": "Admitted subset",
-      "implementation_status": "target_not_verified",
+      "implementation_status": "verified",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -1791,7 +1791,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -1808,9 +1808,44 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
+      "completion_contract": {
+        "required_variants": [
+          "java-readonly",
+          "java-export",
+          "jml-readonly",
+          "jml-export"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_inspect_workflow_acceptance.py::test_cli_and_mcp_requests_normalize_equivalently",
+            "variants": ["java-readonly", "java-export", "jml-readonly", "jml-export"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_inspect_workflow_acceptance.py::test_cli_parser_and_mcp_discovery_expose_complete_inputs",
+            "variants": ["java-readonly", "java-export", "jml-readonly", "jml-export"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_inspect_workflow_acceptance.py::test_inspection_read_and_export_effects_are_enforced",
+            "variants": ["java-readonly", "java-export", "jml-readonly", "jml-export"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_inspect_workflow_acceptance.py::test_cli_and_mcp_results_are_semantically_equivalent",
+            "variants": ["java-readonly", "java-export", "jml-readonly", "jml-export"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_inspect_workflow_acceptance.py::test_real_mcp_transport_discovers_and_calls_every_inspection_variant",
+            "variants": ["java-readonly", "java-export", "jml-readonly", "jml-export"]
+          }
+        ]
+      },
       "baseline_source": "pipeline/java_inspection.py"
     },
     {

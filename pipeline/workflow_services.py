@@ -64,4 +64,27 @@ def run_java_inspection(
             "request_satisfied": False,
             "message": f"inspection does not support {request.language}",
         }
-    return java_inspection.inspect_java_file(context.resolve_input(request.source))
+    source = context.resolve_input(request.source)
+    limit = context.resource_budget.get("max_input_bytes")
+    try:
+        with source.open("rb") as handle:
+            encoded = handle.read(limit + 1 if limit is not None else -1)
+    except OSError as exc:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "source_unavailable", "message": str(exc),
+        }
+    if limit is not None and len(encoded) > limit:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "INPUT_LIMIT_EXCEEDED",
+            "message": f"source exceeds the inspection limit of {limit} bytes",
+        }
+    try:
+        text = encoded.decode("utf-8")
+    except UnicodeError:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "source_unavailable", "message": "source is not valid UTF-8",
+        }
+    return java_inspection.inspect_java_source(text, source)

@@ -55,6 +55,8 @@ from pipeline.workflow_contracts import (
 
 MCP_DOCUMENT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_DOCUMENT_MAX_RESULT_BYTES = 2 * 1024 * 1024
+MCP_INSPECT_MAX_INPUT_BYTES = 1 * 1024 * 1024
+MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 
 
 def _strict_mcp_isolation_enabled() -> bool:
@@ -324,9 +326,10 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
-def inspect_code(file_path: str) -> dict[str, Any]:
-    """Run deterministic Java modernization inspection."""
-    request = InspectionWorkflowRequest(file_path)
+def inspect_code(
+        source: str, result_export: str | None = None) -> dict[str, Any]:
+    """Run deterministic Java/JML inspection with an optional controlled export."""
+    request = InspectionWorkflowRequest(source, result_export=result_export)
     effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
         "inspect_code", mode=request.mode, language=request.language,
@@ -334,11 +337,67 @@ def inspect_code(file_path: str) -> dict[str, Any]:
     if not admission.admitted:
         return bind_workflow_result(
             admission.rejection(), request, WorkflowInterface.MCP)
-    context = WorkflowContext.for_mcp(admission, effects)
-    result = run_java_inspection(request, context)
-    result = {**result, "mcp_admission": admission.summary()}
-    return bind_workflow_result(
-        result, request, WorkflowInterface.MCP, context=context)
+    context = None
+    try:
+        context = WorkflowContext.for_mcp(
+            admission, effects,
+            output_root=(_designated_mcp_output_root()
+                         if request.result_export is not None else None),
+            resource_budget={
+                "max_input_bytes": MCP_INSPECT_MAX_INPUT_BYTES,
+                "max_result_bytes": MCP_INSPECT_MAX_RESULT_BYTES,
+            })
+        result = run_java_inspection(request, context)
+        result = {**result, "mcp_admission": admission.summary()}
+        bound = bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+        if request.result_export is None or result.get("status") != "INSPECTED":
+            return bound
+        export = Path(request.result_export)
+        if export.is_absolute() or ".." in export.parts or export.suffix.lower() != ".json":
+            raise MCPArtifactError(
+                "OUTPUT_SCOPE_VIOLATION",
+                "inspection export must be a relative JSON path")
+        context.require("workspace_write_new")
+        assert context.output_root is not None
+        artifacts = publish_new_artifacts(
+            context.output_root,
+            {request.result_export: json.dumps(
+                bound, indent=2, ensure_ascii=False, default=str) + "\n"},
+            admission, max_total_bytes=MCP_INSPECT_MAX_RESULT_BYTES)
+        result["publication"] = {
+            "status": "COMMITTED", "kind": "unreviewed-inspection-export",
+            "artifacts": artifacts,
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except MCPArtifactError as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF", "code": exc.code,
+            "message": str(exc), "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except (MCPPolicyViolation, ValueError, FileNotFoundError) as exc:
+        message = str(exc)
+        code = ("path_outside_workspace" if "workspace" in message
+                else "input_unavailable" if isinstance(exc, FileNotFoundError)
+                else "MCP_EFFECT_NOT_AUTHORIZED"
+                if isinstance(exc, MCPPolicyViolation) else "invalid_request")
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF", "code": code,
+            "message": message, "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except OSError as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "ARTIFACT_PUBLICATION_FAILED", "message": str(exc),
+            "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
 
 
 def analyze_codebase(target_dir: str, out_dir: str = "extracted",

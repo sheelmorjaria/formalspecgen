@@ -35,6 +35,7 @@ from .mcp_policy import (
 
 CLI_INVENTORY_SCHEMA = "formalspecgen-live-cli-inventory-v1"
 PARITY_MANIFEST_SCHEMA = "formalspecgen-mcp-parity-manifest-v2"
+ACCEPTANCE_EVIDENCE_SCHEMA = "formalspecgen-mcp-acceptance-evidence-v1"
 REPL_META_COMMANDS = ("/help", "/session", "/reset", "/quit", "/exit")
 COMPATIBILITY_ALIASES = {
     "draft_contract": ("draft_canonical_contract",),
@@ -321,7 +322,9 @@ def handler_input_schema(handler: Any) -> dict[str, Any]:
 
 def _workflow_completion(
         planned: dict[str, Any], adapter: dict[str, Any],
-        handler_schema: dict[str, Any] | None) -> dict[str, Any]:
+        handler_schema: dict[str, Any] | None, *,
+        acceptance_evidence: dict[str, Any] | None = None,
+        plan_sha256: str | None = None) -> dict[str, Any]:
     """Evaluate parity from concrete coverage evidence, never admission alone."""
     blockers: list[str] = []
     mapped_fields = sorted({
@@ -350,36 +353,109 @@ def _workflow_completion(
     covered_variants: list[str] = []
     evidence_revision = None
     acceptance_cases: list[dict[str, Any]] = []
+    transport_observation: dict[str, Any] | None = None
     if not isinstance(declaration, dict):
         blockers.append("completion_contract_missing")
     else:
         required_variants = sorted(set(declaration.get("required_variants", ())))
-        covered_variants = sorted(set(declaration.get("covered_variants", ())))
-        evidence_revision = declaration.get("evidence_revision")
-        raw_cases = declaration.get("acceptance_cases", ())
-        acceptance_cases = [dict(case) for case in raw_cases if isinstance(case, dict)]
-        if not required_variants or set(required_variants) != set(covered_variants):
-            blockers.append("workflow_variants_incomplete")
-        if not isinstance(evidence_revision, str) or not re.fullmatch(
-                r"[0-9a-f]{7,40}", evidence_revision):
-            blockers.append("revision_bound_acceptance_missing")
+        expected_cases = [dict(case) for case in declaration.get(
+            "acceptance_cases", ()) if isinstance(case, dict)]
         required_kinds = set(BASE_ACCEPTANCE_KINDS)
         workflow_kind = str(planned.get("workflow_kind") or "")
         if "resumable" in workflow_kind:
             required_kinds.add("session_replay")
         if "approval" in workflow_kind or workflow_kind == "read_or_human_approval":
             required_kinds.add("approval_security")
-        repository_root = Path(__file__).resolve().parents[1]
-        passed_kinds = {
-            str(case.get("kind")) for case in acceptance_cases
-            if case.get("result") == "passed"
-            and case.get("revision") == evidence_revision
+        declared = {
+            (str(case.get("kind")), str(case.get("test"))): case
+            for case in expected_cases
+            if isinstance(case.get("kind"), str)
             and isinstance(case.get("test"), str)
             and "::" in case["test"]
-            and (repository_root / case["test"].split("::", 1)[0]).is_file()
         }
+        declared_kinds = {kind for kind, _test in declared}
+        if not required_kinds.issubset(declared_kinds):
+            blockers.append("required_acceptance_cases_not_declared")
+
+        command_evidence = None
+        if not isinstance(acceptance_evidence, dict):
+            blockers.append("runner_acceptance_evidence_missing")
+        elif acceptance_evidence.get("schema") != ACCEPTANCE_EVIDENCE_SCHEMA:
+            blockers.append("runner_acceptance_evidence_invalid")
+        elif plan_sha256 and acceptance_evidence.get("plan_sha256") != plan_sha256:
+            blockers.append("runner_acceptance_plan_mismatch")
+        elif acceptance_evidence.get("workspace_dirty") is not False:
+            blockers.append("runner_acceptance_workspace_not_clean")
+        else:
+            run = acceptance_evidence.get("run")
+            if not isinstance(run, dict) or run.get("provider") != "github-actions" \
+                    or not run.get("id") or not run.get("attempt"):
+                blockers.append("trusted_runner_provenance_missing")
+            tree = acceptance_evidence.get("tree")
+            if not isinstance(tree, str) or not re.fullmatch(r"[0-9a-f]{40}", tree):
+                blockers.append("runner_source_tree_identity_missing")
+            evidence_revision = acceptance_evidence.get("revision")
+            if not isinstance(evidence_revision, str) or not re.fullmatch(
+                    r"[0-9a-f]{40}", evidence_revision):
+                blockers.append("revision_bound_acceptance_missing")
+            command_evidence = next((
+                item for item in acceptance_evidence.get("commands", ())
+                if isinstance(item, dict)
+                and item.get("cli_command") == planned.get("cli_command")), None)
+            if command_evidence is None:
+                blockers.append("runner_command_evidence_missing")
+
+        if command_evidence is not None:
+            acceptance_cases = [
+                dict(case) for case in command_evidence.get("cases", ())
+                if isinstance(case, dict)]
+            passed = {
+                (str(case.get("kind")), str(case.get("test"))): case
+                for case in acceptance_cases
+                if case.get("result") == "passed"
+                and case.get("revision") == evidence_revision
+                and isinstance(case.get("output_sha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", case["output_sha256"])
+                and isinstance(case.get("junit"), dict)
+                and isinstance(case["junit"].get("tests"), int)
+                and case["junit"]["tests"] > 0
+                and all(isinstance(case["junit"].get(name), int)
+                        and case["junit"][name] == 0
+                        for name in ("failures", "errors", "skipped"))
+            }
+            variant_mismatches = [
+                key for key, case in passed.items() if key in declared
+                and set(case.get("variants", ())) !=
+                set(declared[key].get("variants", ()))
+            ]
+            if variant_mismatches:
+                blockers.append("acceptance_case_variant_mismatch")
+            passed_kinds = {
+                kind for (kind, test) in declared
+                if (kind, test) in passed
+                and (kind, test) not in variant_mismatches
+            }
+            covered_variants = sorted({
+                str(variant)
+                for key, case in passed.items()
+                if key in declared and key not in variant_mismatches
+                for variant in case.get("variants", ())
+            })
+            transport = command_evidence.get("transport_observation")
+            if not isinstance(transport, dict) or not all(
+                    isinstance(transport.get(field), str)
+                    and re.fullmatch(r"[0-9a-f]{64}", transport[field])
+                    for field in ("schema_sha256", "result_sha256")):
+                blockers.append("transport_observation_missing")
+            else:
+                transport_observation = dict(transport)
+        else:
+            passed_kinds = set()
         if not required_kinds.issubset(passed_kinds):
             blockers.append("required_acceptance_cases_missing_or_unpassed")
+        if not required_variants or not set(required_variants).issubset(
+                covered_variants):
+            blockers.append("workflow_variants_incomplete")
 
     complete = not blockers
     return {
@@ -393,6 +469,7 @@ def _workflow_completion(
         "covered_variants": covered_variants,
         "evidence_revision": evidence_revision,
         "acceptance_cases": acceptance_cases,
+        "transport_observation": transport_observation,
         "blockers": blockers,
     }
 
@@ -400,7 +477,8 @@ def _workflow_completion(
 def reconcile_parity_plan(
         plan: dict[str, Any], *, plugins: tuple[CommandPlugin, ...] = (),
         handler_names: Iterable[str] = (),
-        handlers: dict[str, Any] | None = None) -> dict[str, Any]:
+        handlers: dict[str, Any] | None = None,
+        acceptance_evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bind a target plan to the current parser and report every drift."""
     inventory = inventory_cli(plugins)
     live_commands = {item["command"]: item for item in inventory["commands"]}
@@ -423,6 +501,7 @@ def reconcile_parity_plan(
     handler_values = handlers or {}
     known_handlers = set(handler_names) | set(handler_values)
     complete_commands = 0
+    plan_sha256 = _canonical_sha256(plan)
     for command_name in sorted(set(live_commands) & set(planned_commands)):
         live = live_commands[command_name]
         planned = planned_commands[command_name]
@@ -466,7 +545,10 @@ def reconcile_parity_plan(
             admitted_commands += 1
         schema = (handler_input_schema(handler_values[target])
                   if target in handler_values else None)
-        completion = _workflow_completion(planned, adapter, schema)
+        completion = _workflow_completion(
+            planned, adapter, schema,
+            acceptance_evidence=acceptance_evidence,
+            plan_sha256=plan_sha256)
         if completion["complete"]:
             complete_commands += 1
         command_mappings.append({
@@ -495,17 +577,27 @@ def reconcile_parity_plan(
         "admission_policy_version": MCP_ADMISSION_POLICY_VERSION,
         "plan_schema": plan.get("schema"),
         "plan_baseline_revision": plan.get("baseline_revision"),
-        "plan_sha256": _canonical_sha256(plan),
+        "plan_sha256": plan_sha256,
         "completion_policy": {
             "principle": "admission_is_not_workflow_completion",
             "required_acceptance_kinds": sorted(BASE_ACCEPTANCE_KINDS),
             "additional_resumable_kind": "session_replay",
             "additional_approval_kind": "approval_security",
+            "acceptance_evidence_schema": ACCEPTANCE_EVIDENCE_SCHEMA,
+            "requires_runner_produced_acceptance_evidence": True,
             "requires_revision_bound_pass_results": True,
             "requires_complete_variant_coverage": True,
             "requires_verified_argument_mappings": True,
             "requires_observed_mcp_input_fields": True,
         },
+        "acceptance_evidence": ({
+            "revision": acceptance_evidence.get("revision"),
+            "tree": acceptance_evidence.get("tree"),
+            "plan_sha256": acceptance_evidence.get("plan_sha256"),
+            "workspace_dirty": acceptance_evidence.get("workspace_dirty"),
+            "run": acceptance_evidence.get("run"),
+            "sha256": _canonical_sha256(acceptance_evidence),
+        } if isinstance(acceptance_evidence, dict) else None),
         "inventory": inventory,
         "metrics": {
             "discovered_commands": inventory["command_count"],
