@@ -10,7 +10,6 @@ on:
       - "pytest.ini"
       - "ci/rust-deps/**"
       - ".github/workflows/tests.yml"
-      - ".github/workflows/formalkernel-evidence.yml"
   push:
     branches: [main]
   workflow_dispatch:
