@@ -14,15 +14,20 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .codebase_analysis import (
     _infer_java_transitions,
     _polyglot_declarations,
+    _snake_name,
+    _tree_sitter_declarations,
     _register_candidate,
+    build_registered_candidate_payload,
     build_v2_candidate_payload,
-    extract_components_ts,
     infer_field_bounds,
 )
 from .domain_v2 import DomainSpecV2
@@ -36,6 +41,27 @@ _INFIX_SYMBOLS = {"lt": "<", "lte": "<=", "gt": ">", "gte": ">=", "eq": "==", "n
                   "add": "+", "sub": "-", "mul": "*", "div": "/"}
 _FOOTER = ("*This documentation was auto-generated from a formal V2 extraction model. "
            "Review Status: UNREVIEWED.*")
+
+
+@dataclass(frozen=True)
+class DocumentationExtraction:
+    class_name: str
+    fields: list[tuple[str, str]]
+    transitions: list[dict]
+    bounds: dict[str, tuple[int, int] | None]
+    initials: dict[str, int | bool]
+    payload: dict
+    digest: str
+    language: str
+    extractor: str
+
+
+@dataclass(frozen=True)
+class DocumentationBundle:
+    document_text: str
+    candidate_text: str
+    candidate_filename: str
+    result: dict[str, Any]
 
 
 def _term(node: Any) -> str:
@@ -218,18 +244,10 @@ def _fail(code: str, message: str, target: str) -> dict:
             "message": message, "target": target}
 
 
-def document_code(source: str | Path, out_file: str | Path, *,
-                  project_root: str | Path = ".", provider: str = "ollama",
-                  model: str | None = None, no_llm: bool = False) -> dict[str, Any]:
-    """Document one source file as natural-language requirements (Code -> Math -> NL)."""
-    source_path, destination = Path(source), Path(out_file)
-    if not source_path.is_file():
-        return _fail("input_unavailable", str(source_path), str(source_path))
-    try:
-        text = source_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        return _fail("input_unavailable", str(exc), str(source_path))
-    declarations = extract_components_ts(source_path)
+def extract_documentation_model(
+        source_path: Path, text: str) -> DocumentationExtraction | dict[str, Any]:
+    """Extract the deterministic model from already-read source bytes."""
+    declarations, _ = _tree_sitter_declarations(source_path, text)
     extractor = "tree-sitter"
     if declarations is None:
         declarations = _polyglot_declarations(source_path, text)
@@ -253,24 +271,79 @@ def document_code(source: str | Path, out_file: str | Path, *,
     transitions = _infer_java_transitions(text, fields) if language == "java" else []
     payload = build_v2_candidate_payload(declaration["name"], fields, transitions,
                                          bounds=bounds, initials=initials)
+    return DocumentationExtraction(
+        class_name=declaration["name"], fields=fields, transitions=transitions,
+        bounds=bounds, initials=initials, payload=payload, digest=digest,
+        language=language, extractor=extractor)
+
+
+def build_documentation_bundle(
+        extraction: DocumentationExtraction, source_path: Path, *,
+        narrative: dict | None = None,
+        narrative_source: str = "disabled") -> DocumentationBundle:
+    """Render both unreviewed artifacts in memory without performing effects."""
+    document = render_nl_document(
+        extraction.payload, source_path=source_path,
+        source_sha256=extraction.digest, language=extraction.language,
+        extractor=extraction.extractor, narrative=narrative)
+    candidate_payload = build_registered_candidate_payload(
+        extraction.class_name, extraction.fields, extraction.transitions,
+        bounds=extraction.bounds, initials=extraction.initials)
+    candidate_text = yaml.safe_dump(candidate_payload, sort_keys=False)
+    schema_valid, schema_reason = _schema_check(extraction.payload)
+    result = {
+        "status": "DOCUMENTED",
+        "claim": "UNREVIEWED_EXTRACTION_DOCUMENTATION",
+        "source": str(source_path),
+        "source_sha256": extraction.digest,
+        "narrative_source": narrative_source,
+        "schema_valid": schema_valid,
+        "schema_reason": schema_reason,
+        "operation_inference": (
+            "guarded_scalar_assignments" if extraction.language == "java" else "java_only"),
+        "validation": {"status": "NOT_RUN", "reason": "human review required"},
+        "documented_behavior_proved": False,
+    }
+    return DocumentationBundle(
+        document_text=document,
+        candidate_text=candidate_text,
+        candidate_filename=f"{_snake_name(extraction.class_name)}.v2.yaml",
+        result=result)
+
+
+def prepare_deterministic_documentation(
+        source_path: Path, text: str) -> DocumentationBundle | dict[str, Any]:
+    """Prepare deterministic documentation without writes, providers, or processes."""
+    extraction = extract_documentation_model(source_path, text)
+    if isinstance(extraction, dict):
+        return extraction
+    return build_documentation_bundle(extraction, source_path)
+
+
+def document_code(source: str | Path, out_file: str | Path, *,
+                  project_root: str | Path = ".", provider: str = "ollama",
+                  model: str | None = None, no_llm: bool = False) -> dict[str, Any]:
+    """Document one source file as natural-language requirements (Code -> Math -> NL)."""
+    source_path, destination = Path(source), Path(out_file)
+    if not source_path.is_file():
+        return _fail("input_unavailable", str(source_path), str(source_path))
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        return _fail("input_unavailable", str(exc), str(source_path))
+    extraction = extract_documentation_model(source_path, text)
+    if isinstance(extraction, dict):
+        return extraction
     narrative, narrative_source = None, "disabled"
     if not no_llm:
-        narrative = generate_narrative(payload, provider, model)
+        narrative = generate_narrative(extraction.payload, provider, model)
         narrative_source = "provider" if narrative else "deterministic_fallback"
-    document = render_nl_document(payload, source_path=source_path, source_sha256=digest,
-                                  language=language, extractor=extractor,
-                                  narrative=narrative)
+    bundle = build_documentation_bundle(
+        extraction, source_path, narrative=narrative,
+        narrative_source=narrative_source)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(document, encoding="utf-8")
-    candidate = _register_candidate(Path(project_root), declaration["name"], fields,
-                                    transitions, bounds=bounds, initials=initials)
-    schema_valid, schema_reason = _schema_check(payload)
-    return {"status": "DOCUMENTED", "claim": "UNREVIEWED_EXTRACTION_DOCUMENTATION",
-            "document": str(destination), "candidate": str(candidate),
-            "source": str(source_path), "source_sha256": digest,
-            "narrative_source": narrative_source,
-            "schema_valid": schema_valid, "schema_reason": schema_reason,
-            "operation_inference": ("guarded_scalar_assignments" if language == "java"
-                                    else "java_only"),
-            "validation": {"status": "NOT_RUN", "reason": "human review required"},
-            "documented_behavior_proved": False}
+    destination.write_text(bundle.document_text, encoding="utf-8")
+    candidate = _register_candidate(
+        Path(project_root), extraction.class_name, extraction.fields,
+        extraction.transitions, bounds=extraction.bounds, initials=extraction.initials)
+    return {**bundle.result, "document": str(destination), "candidate": str(candidate)}

@@ -106,12 +106,13 @@ def test_mcp_analyze_and_document_guarded(tmp_path, monkeypatch):
     escape = mcp_server.analyze_codebase("..", out_dir="extracted")
     assert escape["code"] == "path_outside_workspace"
 
-    with patch("pipeline.code_documentation.document_code",
-               return_value={"status": "DOCUMENTED"}) as document:
-        assert mcp_server.document_code(str(source), "docs/S.md")["status"] == "DOCUMENTED"
-        document.assert_called_once()
+    documented = mcp_server.document_code(str(source), "docs/S.md")
+    assert documented["status"] == "DOCUMENTED"
+    assert documented["claim"] == "UNREVIEWED_EXTRACTION_DOCUMENTATION"
+    assert documented["mcp_admission"]["profile"] == \
+        "java-deterministic-documentation"
     escape = mcp_server.document_code(str(source), "../escape.md")
-    assert escape["status"] == "FAIL" and escape["code"] == "path_outside_workspace"
+    assert escape["status"] == "FAIL" and escape["code"] == "OUTPUT_SCOPE_VIOLATION"
     missing = mcp_server.document_code("Nope.java", "docs/Nope.md")
     assert missing["code"] == "input_unavailable"
 

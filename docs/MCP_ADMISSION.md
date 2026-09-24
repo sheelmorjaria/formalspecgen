@@ -22,6 +22,7 @@ boundary will reject the operation even when the broader profile could have allo
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `verify_code` | Yes | Admitted | `parse`, `check`, `esc` / Java or JML / OpenJML | Read immutable input; execute in bounded disposable workspace; publish new immutable evidence | None | Exact execution observation and terminal manifest | Required for any later promotion or signing |
 | `inspect_code` | Yes | Admitted | `inspect` / Java / built-in inspector | Read approved workspace input; no writes | None | Structured findings, not a proof receipt | Required before applying proposed changes |
+| `document_code` | Yes | Admitted | `deterministic` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | None | Unreviewed Markdown and V2 candidate; no proof receipt | Required before review, use, or promotion |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -38,13 +39,13 @@ unchanged, but no command/mode/backend profile below is authorized for unattende
 
 ```text
 validate_architecture  implement_code        analyze_codebase
-document_code          assess_security       security_inspect
-security_exploit       remediate_code         correct_behavior
-apply_refactor         verify_refactor        verify_bisimulation
-optimize_algorithm     discover_algorithms    validate_domain
-compose                reverify_composition   unified_system
-draft_canonical_contract architecture         system
-prove_equivalence      generate_traceability_matrix
+assess_security        security_inspect      security_exploit
+remediate_code         correct_behavior      apply_refactor
+verify_refactor        verify_bisimulation    optimize_algorithm
+discover_algorithms    validate_domain        compose
+reverify_composition   unified_system         draft_canonical_contract
+architecture           system                 prove_equivalence
+generate_traceability_matrix
 verify_unbounded       verify_linearizability verify_distributed
 verify_heap            verify_hal             macro_translate
 verify_lockfree        verify_weak_memory     verify_wcet
@@ -55,8 +56,15 @@ resolve_callbacks      doctor_environment
 This classification does not mean that every handler is unsafe. It means its complete reachable
 workflow has not yet demonstrated the required constraints. For example, `doctor_environment`
 launches executable version/help probes and therefore cannot be admitted as non-executing.
-`document_code --no-llm` and provider-assisted documentation are distinct prospective profiles
-because file writes and provider data export are independent permissions.
+Provider-assisted documentation remains unsupported: file writes and provider data export are
+independent permissions, and the admitted deterministic profile authorizes no provider access.
+
+The deterministic documentation handler accepts only `source` and a relative Markdown `out` path.
+It reads at most one MiB and publishes at most two MiB across both generated artifacts. Its output
+root defaults to `.formalspecgen/mcp-output` and may be configured by the trusted server through
+`FORMALSPECGEN_MCP_OUTPUT_ROOT`. Absolute paths, traversal, symlinked output components, and existing
+destinations fail closed. The artifacts remain explicitly unreviewed and do not carry a proof
+receipt.
 
 ## Admission paths
 

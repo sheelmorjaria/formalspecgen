@@ -66,8 +66,12 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The strict server catalogue exposes only `verify_code` (the isolated Java lane) and
-the non-executing `inspect_code` tool. The registry retains a 39-tool legacy catalogue
+The strict server catalogue exposes `verify_code` (the isolated Java lane), the
+non-executing `inspect_code` tool, and deterministic Java `document_code`. Documentation reads
+one bounded source and creates new unreviewed Markdown and V2-candidate artifacts beneath
+`.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`); it never
+calls a provider or external process and never replaces an existing artifact. The registry retains
+a 39-tool legacy catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,

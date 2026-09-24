@@ -69,6 +69,7 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
     assert strict == {
         "verify_code": "strict-java",
         "inspect_code": "non-executing",
+        "document_code": "non-executing",
     }
     assert all(item.mcp_isolation in {
         "strict-java", "non-executing", "unsupported"
@@ -90,4 +91,4 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
 
     monkeypatch.setattr(mcp_server, "FastMCP", FakeFastMCP)
     server = mcp_server.create_server()
-    assert server.registered == ["verify_code", "inspect_code"]
+    assert server.registered == ["verify_code", "inspect_code", "document_code"]

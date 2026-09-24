@@ -31,6 +31,11 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
 from pipeline import config
 from pipeline.java_inspection import inspect_java_file
 from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
+from pipeline.mcp_artifacts import (
+    MCPArtifactError,
+    publish_new_artifacts,
+    read_bounded_text,
+)
 from pipeline.mcp_policy import (
     MCPAdmission,
     MCPPolicyViolation,
@@ -39,6 +44,10 @@ from pipeline.mcp_policy import (
 )
 from pipeline.verify import verify_detailed
 from pipeline.verification_policy import decide_result, decide_verification
+
+
+MCP_DOCUMENT_MAX_INPUT_BYTES = 1 * 1024 * 1024
+MCP_DOCUMENT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 
 
 def _strict_mcp_isolation_enabled() -> bool:
@@ -70,6 +79,35 @@ def _workspace_path(value: str, *, must_exist: bool = True) -> Path:
     if must_exist and not path.exists():
         raise FileNotFoundError(str(path))
     return path
+
+
+def _designated_mcp_output_root() -> Path:
+    """Resolve the server-controlled output root without following its symlinks."""
+    value = os.environ.get(
+        "FORMALSPECGEN_MCP_OUTPUT_ROOT", ".formalspecgen/mcp-output")
+    workspace = Path.cwd().resolve()
+    supplied = Path(value).expanduser()
+    lexical = (supplied.absolute() if supplied.is_absolute()
+               else (Path.cwd() / supplied).absolute())
+    resolved = lexical.resolve()
+    if resolved != workspace and workspace not in resolved.parents:
+        raise MCPArtifactError(
+            "OUTPUT_SCOPE_VIOLATION",
+            "MCP output root must remain inside the current workspace")
+    current = workspace
+    try:
+        parts = lexical.relative_to(workspace).parts
+    except ValueError as exc:
+        raise MCPArtifactError(
+            "OUTPUT_SCOPE_VIOLATION",
+            "MCP output root must remain inside the current workspace") from exc
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            raise MCPArtifactError(
+                "OUTPUT_SYMLINK_REJECTED",
+                "MCP output root must not contain symlinks")
+    return lexical
 
 
 def _guarded(call: Callable[[], dict[str, Any]]) -> dict[str, Any]:
@@ -281,15 +319,78 @@ def analyze_codebase(target_dir: str, out_dir: str = "extracted",
         _workspace_path(project_root, must_exist=False)))
 
 
-def document_code(source: str, out: str, project_root: str = ".",
-                  no_llm: bool = False, provider: str = "ollama",
-                  model: str | None = None) -> dict[str, Any]:
-    """Document one source file as natural-language requirements (Code -> Math -> NL)."""
-    from pipeline.code_documentation import document_code as run_documentation
-    return _guarded(lambda: run_documentation(
-        _workspace_path(source), _workspace_path(out, must_exist=False),
-        project_root=str(_workspace_path(project_root, must_exist=False)),
-        provider=provider, model=model, no_llm=no_llm))
+def document_code(source: str, out: str) -> dict[str, Any]:
+    """Create bounded, deterministic, unreviewed Java documentation artifacts."""
+    from pipeline.code_documentation import (
+        DocumentationBundle,
+        prepare_deterministic_documentation,
+    )
+
+    language = "java" if Path(source).suffix.lower() == ".java" else "unsupported"
+    admission = authorize_mcp_invocation(
+        "document_code", mode="deterministic", language=language,
+        backend="builtin-documentation", provider=None,
+        effects=("workspace_read", "workspace_write_new"))
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        output_path = Path(out)
+        if (output_path.is_absolute() or ".." in output_path.parts
+                or output_path.suffix.lower() != ".md"):
+            raise MCPArtifactError(
+                "OUTPUT_SCOPE_VIOLATION",
+                "documentation output must be a relative Markdown path")
+        output_root = _designated_mcp_output_root()
+        source_path = _workspace_path(source)
+        text = read_bounded_text(
+            source_path, admission, max_bytes=MCP_DOCUMENT_MAX_INPUT_BYTES)
+        prepared = prepare_deterministic_documentation(source_path, text)
+        if not isinstance(prepared, DocumentationBundle):
+            return {**prepared, "mcp_admission": admission.summary()}
+        artifacts = publish_new_artifacts(
+            output_root,
+            {
+                out: prepared.document_text,
+                f"domains/candidates/{prepared.candidate_filename}":
+                    prepared.candidate_text,
+            },
+            admission,
+            max_total_bytes=MCP_DOCUMENT_MAX_RESULT_BYTES)
+        result = dict(prepared.result)
+        result.update({
+            "document": artifacts[out]["path"],
+            "candidate": artifacts[
+                f"domains/candidates/{prepared.candidate_filename}"]["path"],
+            "artifacts": artifacts,
+            "mcp_admission": admission.summary(),
+        })
+        return result
+    except MCPArtifactError as exc:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF", "code": exc.code,
+            "message": str(exc), "mcp_admission": admission.summary(),
+        }
+    except MCPPolicyViolation as exc:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "MCP_EFFECT_NOT_AUTHORIZED", "message": str(exc),
+            "mcp_admission": admission.summary(),
+        }
+    except (ValueError, FileNotFoundError) as exc:
+        message = str(exc)
+        code = ("path_outside_workspace" if "workspace" in message
+                else "input_unavailable" if isinstance(exc, FileNotFoundError)
+                else "invalid_request")
+        return {
+            "status": "FAIL", "claim": "NO_PROOF", "code": code,
+            "message": message, "mcp_admission": admission.summary(),
+        }
+    except OSError as exc:
+        return {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "code": "ARTIFACT_PUBLICATION_FAILED", "message": str(exc),
+            "mcp_admission": admission.summary(),
+        }
 
 
 def assess_security(source: str, run_sast: bool = True) -> dict[str, Any]:

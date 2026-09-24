@@ -142,8 +142,13 @@ def test_registry_rejects_incoherent_profile_permissions(
 
 def test_every_strict_capability_has_visible_invocation_profiles():
     strict = mcp_capabilities(strict_isolation=True)
-    assert {item.name for item in strict} == {"verify_code", "inspect_code"}
+    assert {item.name for item in strict} == {
+        "verify_code", "inspect_code", "document_code"}
     assert all(item.mcp_profiles for item in strict)
+    documentation = capability("document_code")
+    assert documentation.cli_command == "document-code"
+    assert documentation.mcp_profiles[0].output_scope == "designated-new-artifacts"
+    assert documentation.mcp_profiles[0].evidence == "unreviewed-documentation"
     assert capability("doctor").mcp_profiles == ()
     trust_actions = [item for item in mcp_capabilities() if item.trust_action]
     assert trust_actions == []

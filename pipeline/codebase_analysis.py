@@ -722,12 +722,11 @@ def _transition_constant_bounds(transitions: list[dict]) -> dict[str, tuple[int,
     return {name: (0, hi) for name, hi in maxima.items()}
 
 
-def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
-                        transitions: list[dict],
-                        bounds: dict[str, tuple[int, int] | None] | None = None,
-                        initials: dict[str, int | bool] | None = None) -> Path:
-    candidate_dir = project_root / "domains" / "candidates"
-    candidate_dir.mkdir(parents=True, exist_ok=True)
+def build_registered_candidate_payload(
+        class_name: str, fields: list[tuple[str, str]], transitions: list[dict],
+        bounds: dict[str, tuple[int, int] | None] | None = None,
+        initials: dict[str, int | bool] | None = None) -> dict:
+    """Build the exact unreviewed payload written by candidate registration."""
     # Explicit comparison/enum evidence wins where it covers the machine; a
     # field it left unbounded GAINS a bound from the transitions' own
     # constants, and — soundness — a comparison bound the real writes EXCEED
@@ -737,8 +736,18 @@ def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[
     for name, (lo, hi) in _transition_constant_bounds(transitions).items():
         existing = merged.get(name)
         merged[name] = (existing[0], max(existing[1], hi)) if existing else (lo, hi)
-    payload = build_v2_candidate_payload(class_name, fields, transitions,
-                                         bounds=merged, initials=initials)
+    return build_v2_candidate_payload(
+        class_name, fields, transitions, bounds=merged, initials=initials)
+
+
+def _register_candidate(project_root: Path, class_name: str, fields: list[tuple[str, str]],
+                        transitions: list[dict],
+                        bounds: dict[str, tuple[int, int] | None] | None = None,
+                        initials: dict[str, int | bool] | None = None) -> Path:
+    candidate_dir = project_root / "domains" / "candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_registered_candidate_payload(
+        class_name, fields, transitions, bounds=bounds, initials=initials)
     path = candidate_dir / f"{_snake_name(class_name)}.v2.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
