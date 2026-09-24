@@ -31,6 +31,12 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
 from pipeline import config
 from pipeline.java_inspection import inspect_java_file
 from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
+from pipeline.mcp_policy import (
+    MCPAdmission,
+    MCPPolicyViolation,
+    authorize_mcp_invocation,
+    require_mcp_effect,
+)
 from pipeline.verify import verify_detailed
 from pipeline.verification_policy import decide_result, decide_verification
 
@@ -106,7 +112,10 @@ def _load_system_plan(plan_path: str, mode: str) -> dict[str, Any]:
     return value
 
 
-def _publish_verification_evidence(path: Path, mode: str, detailed, decision: dict) -> dict:
+def _publish_verification_evidence(
+        path: Path, mode: str, detailed, decision: dict,
+        admission: MCPAdmission) -> dict:
+    require_mcp_effect(admission, "evidence_publication")
     run_root = Path.cwd() / ".formalspecgen" / "mcp-evidence" / uuid.uuid4().hex
     ledger = RunLedger(run_root)
     try:
@@ -121,7 +130,8 @@ def _publish_verification_evidence(path: Path, mode: str, detailed, decision: di
                      else sha256_text(path.read_text(encoding="utf-8")))
     ledger.record(
         PipelineState.PROOF, decision.get("status", "UNKNOWN"), claim=claim,
-        details={"mode": mode, "request_satisfied": decision.get("request_satisfied", False)},
+        details={"mode": mode, "request_satisfied": decision.get("request_satisfied", False),
+                 "mcp_admission": admission.summary()},
         evidence={
             "source_path": str(path),
             "source_sha256": source_sha256,
@@ -142,6 +152,7 @@ def _publish_verification_evidence(path: Path, mode: str, detailed, decision: di
         "execution_policy_compliance": (
             observation.get("policy_compliance") if observation else "NOT_ENFORCED"),
         "execution_observation": observation,
+        "mcp_admission": admission.summary(),
         "claim_policy_version": "verification-policy-v1",
     })
     return {
@@ -154,33 +165,44 @@ def _publish_verification_evidence(path: Path, mode: str, detailed, decision: di
 
 def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     """Verify Java, Rust, or C source and return a structured verdict."""
+    suffix = Path(file_path).suffix.lower()
+    language, backend = {
+        ".java": ("java", "openjml"),
+        ".jml": ("jml", "openjml"),
+        ".rs": ("rust", "prusti"),
+        ".c": ("c", "frama-c"),
+    }.get(suffix, (suffix.lstrip(".") or "unknown", "unknown"))
+    admission = authorize_mcp_invocation(
+        "verify_code", mode=mode, language=language, backend=backend,
+        effects=("workspace_read", "external_execution", "evidence_publication"))
+    if _strict_mcp_isolation_enabled() and not admission.admitted:
+        return admission.rejection()
+    if admission.admitted:
+        require_mcp_effect(admission, "workspace_read")
     path = _workspace_path(file_path)
-    suffix = path.suffix.lower()
     if suffix in {".java", ".jml"}:
+        require_mcp_effect(admission, "external_execution")
         detailed = verify_detailed(path, mode=mode)
         exit_code, output = detailed.exit_code, detailed.output
         decision = decide_verification(
             tool="openjml", mode=mode, exit_code=exit_code, output=output)
         try:
-            receipt = _publish_verification_evidence(path, mode, detailed, decision)
-        except (OSError, RuntimeError, ValueError) as exc:
+            receipt = _publish_verification_evidence(
+                path, mode, detailed, decision, admission)
+        except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
             return {"status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
                     "request_satisfied": False, "exit_code": exit_code,
                     "mode": mode, "file": str(path), "output": output,
                     "execution": detailed.as_dict().get("execution"),
                     "message": str(exc), "strict_isolation_supported": True,
-                    "durable_publication_supported": False}
+                    "durable_publication_supported": False,
+                    "mcp_admission": admission.summary()}
         return {**decision, "exit_code": exit_code, "mode": mode,
                 "file": str(path), "output": output,
                 "execution": detailed.as_dict().get("execution"),
                 "evidence": receipt, "strict_isolation_supported": True,
-                "durable_publication_supported": True}
-    if suffix in {".rs", ".c"} and _strict_mcp_isolation_enabled():
-        return {"status": "ISOLATION_UNSUPPORTED", "claim": "NO_PROOF",
-                "request_satisfied": False, "file": str(path),
-                "strict_isolation_supported": False,
-                "durable_publication_supported": False,
-                "message": "MCP verification is restricted to the strictly isolated Java lane"}
+                "durable_publication_supported": True,
+                "mcp_admission": admission.summary()}
     if suffix == ".rs":
         from pipeline.verify_rust import verify_rust
         result = verify_rust(path.read_text(encoding="utf-8"), mode=mode, backend="prusti")
@@ -240,7 +262,14 @@ def implement_code(spec_path: str, provider: str = "ollama",
 
 def inspect_code(file_path: str) -> dict[str, Any]:
     """Run deterministic Java modernization inspection."""
-    return inspect_java_file(_workspace_path(file_path))
+    admission = authorize_mcp_invocation(
+        "inspect_code", mode="inspect", language="java",
+        backend="builtin-java-inspector", effects=("workspace_read",))
+    if _strict_mcp_isolation_enabled() and not admission.admitted:
+        return admission.rejection()
+    require_mcp_effect(admission, "workspace_read")
+    result = inspect_java_file(_workspace_path(file_path))
+    return {**result, "mcp_admission": admission.summary()}
 
 
 def analyze_codebase(target_dir: str, out_dir: str = "extracted",

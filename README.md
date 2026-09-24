@@ -108,6 +108,11 @@ formal backends use the same boundary and publication path. Set
 `FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` only to opt into the complete legacy MCP catalogue; its native responses
 explicitly report that strict isolation and durable publication are unsupported.
 
+Admission is specific to a command, mode, language, backend, provider policy, and set of requested
+effects; it is not a command-wide safety label. See the
+[strict MCP admission guide](docs/MCP_ADMISSION.md) for the current workflow matrix, admission
+requirements, evidence behavior, and permanent human trust boundary.
+
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and
 `promote-capability-authority` — hash-bound acceptance of a reviewed artifact is

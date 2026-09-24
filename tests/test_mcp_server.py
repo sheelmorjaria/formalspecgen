@@ -35,6 +35,8 @@ def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
     assert result["claim"] == "STATIC_CHECK"
     assert result["request_satisfied"] is True
     assert result["exit_code"] == 0
+    assert result["mcp_admission"]["profile"] == "java-openjml-verification"
+    assert result["mcp_admission"]["backend"] == "openjml"
     assert result["evidence"]["publication_status"] == "COMMITTED"
     assert Path(result["evidence"]["manifest_path"]).is_file()
 

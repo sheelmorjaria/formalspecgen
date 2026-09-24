@@ -14,6 +14,18 @@ from dataclasses import dataclass
 from typing import Any
 
 
+MCP_EFFECTS = frozenset({
+    "workspace_read",
+    "workspace_write_new",
+    "external_execution",
+    "provider_access",
+    "evidence_publication",
+})
+MCP_OUTPUT_SCOPES = frozenset({
+    "none", "designated-new-artifacts", "immutable-evidence-only",
+})
+
+
 @dataclass(frozen=True)
 class ArgumentSpec:
     flags: tuple[str, ...]
@@ -47,6 +59,20 @@ class MilestoneMetadata:
 
 
 @dataclass(frozen=True)
+class MCPInvocationProfile:
+    """One precisely admitted MCP command/mode/backend combination."""
+
+    name: str
+    modes: tuple[str, ...]
+    languages: tuple[str, ...]
+    backends: tuple[str, ...]
+    effects: tuple[str, ...]
+    providers: tuple[str, ...] = ()
+    output_scope: str = "none"
+    evidence: str = "none"
+
+
+@dataclass(frozen=True)
 class CapabilitySpec:
     name: str
     description: str
@@ -57,6 +83,7 @@ class CapabilitySpec:
     trust_action: bool = False
     milestone: MilestoneMetadata | None = None
     mcp_isolation: str = "unsupported"
+    mcp_profiles: tuple[MCPInvocationProfile, ...] = ()
 
 
 def _capability(value: dict[str, Any]) -> CapabilitySpec:
@@ -79,6 +106,39 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
     mcp_isolation = value.get("mcp_isolation", "unsupported")
     if mcp_isolation not in {"non-executing", "strict-java", "unsupported"}:
         raise ValueError(f"unknown MCP isolation profile: {mcp_isolation}")
+    mcp_profiles = tuple(
+        MCPInvocationProfile(
+            name=profile["name"],
+            modes=tuple(profile.get("modes", ())),
+            languages=tuple(profile.get("languages", ())),
+            backends=tuple(profile.get("backends", ())),
+            effects=tuple(profile.get("effects", ())),
+            providers=tuple(profile.get("providers", ())),
+            output_scope=profile.get("output_scope", "none"),
+            evidence=profile.get("evidence", "none"),
+        )
+        for profile in value.get("mcp_profiles", ())
+    )
+    if value.get("trust_action", False) and mcp_profiles:
+        raise ValueError("human trust actions cannot have MCP invocation profiles")
+    if mcp_isolation != "unsupported" and not mcp_profiles:
+        raise ValueError("admitted MCP capabilities require an invocation profile")
+    for profile in mcp_profiles:
+        unknown_effects = sorted(set(profile.effects) - MCP_EFFECTS)
+        if unknown_effects:
+            raise ValueError("unknown MCP profile effects: " + ", ".join(unknown_effects))
+        if profile.output_scope not in MCP_OUTPUT_SCOPES:
+            raise ValueError(f"unknown MCP output scope: {profile.output_scope}")
+        if profile.providers and "provider_access" not in profile.effects:
+            raise ValueError("MCP providers require the provider_access effect")
+        if "provider_access" in profile.effects and not profile.providers:
+            raise ValueError("MCP provider_access requires an explicit provider allowlist")
+        if mcp_isolation == "non-executing" and \
+                "external_execution" in profile.effects:
+            raise ValueError("non-executing MCP profiles cannot authorize execution")
+        if "workspace_write_new" in profile.effects and \
+                profile.output_scope != "designated-new-artifacts":
+            raise ValueError("MCP workspace writes require a designated output scope")
     return CapabilitySpec(
         name=value["name"],
         description=value["description"],
@@ -90,6 +150,7 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
         ),
         trust_action=value.get("trust_action", False),
         mcp_isolation=mcp_isolation,
+        mcp_profiles=mcp_profiles,
         milestone=milestone,
     )
 
@@ -143,6 +204,15 @@ _GENERIC_DATA = [{'name': 'verify_code',
   'epistemic_boundary': 'No claim is minted without its named judge.',
   'trust_action': False,
   'mcp_isolation': 'strict-java',
+  'mcp_profiles': ({'name': 'java-openjml-verification',
+                    'modes': ('parse', 'check', 'esc'),
+                    'languages': ('java', 'jml'),
+                    'backends': ('openjml',),
+                    'effects': ('workspace_read', 'external_execution',
+                                'evidence_publication'),
+                    'providers': (),
+                    'output_scope': 'immutable-evidence-only',
+                    'evidence': 'execution-observation-and-terminal-manifest'},),
   'milestone': None},
  {'name': 'validate_architecture',
   'description': 'validate architecture',
@@ -168,6 +238,14 @@ _GENERIC_DATA = [{'name': 'verify_code',
   'epistemic_boundary': 'No claim is minted without its named judge.',
   'trust_action': False,
   'mcp_isolation': 'non-executing',
+  'mcp_profiles': ({'name': 'java-readonly-inspection',
+                    'modes': ('inspect',),
+                    'languages': ('java',),
+                    'backends': ('builtin-java-inspector',),
+                    'effects': ('workspace_read',),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'structured-findings'},),
   'milestone': None},
  {'name': 'analyze_codebase',
   'description': 'analyze codebase',
@@ -531,6 +609,7 @@ def mcp_capabilities(*, strict_isolation: bool = False) -> tuple[CapabilitySpec,
         item
         for item in capabilities
         if item.mcp_isolation in {"non-executing", "strict-java"}
+        and item.mcp_profiles
     )
 
 

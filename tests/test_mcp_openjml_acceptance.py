@@ -36,6 +36,7 @@ def _assert_committed_receipt(result: dict) -> Path:
         result["execution"]["snapshot_manifest_sha256"]
     assert terminal["execution_policy_compliance"] == \
         result["execution"]["policy_compliance"]
+    assert terminal["mcp_admission"] == result["mcp_admission"]
     return manifest
 
 
