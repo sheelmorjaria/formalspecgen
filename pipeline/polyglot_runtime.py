@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
 from . import config
+from .execution import ExecutionPolicy, ExecutionRequest, SourceSnapshot, StrictSandboxExecutor
 from .llm import LLMError, _chat_fn
 from .rust_support import _PRUSTI_ATTRIBUTE
 
@@ -48,7 +48,7 @@ def _generate_tests(code: str, language: str, provider: str) -> tuple[str, str]:
 
 def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = "glm", *,
                                       test_code: str | None = None,
-                                      runner=subprocess.run) -> dict:
+                                      executor=None) -> dict:
     """Compile and execute generated tests under native safety instrumentation."""
     if language not in {"rust", "c", "cpp"}:
         raise ValueError("runtime evidence language must be rust, c, or cpp")
@@ -66,10 +66,11 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
                 return _result("TOOL_MISSING", 127, f"Rust compiler not found: {config.RUSTC_BIN}", model)
             production = re.sub(r"(?m)^\s*use\s+prusti_contracts::\*;\s*$", "", code)
             production = _PRUSTI_ATTRIBUTE.sub("", production)
-            source = root / "runtime_sample.rs"; executable = root / "runtime_sample"
-            source.write_text(production + "\n" + test_code, encoding="utf-8")
-            compile_command = [compiler, "--edition", "2021", "--test", "-C", "overflow-checks=yes",
-                               str(source), "-o", str(executable)]
+            filename = "runtime_sample.rs"
+            assembled = production + "\n" + test_code
+            sandbox_compile = [compiler, "--edition", "2021", "--test", "-C",
+                               "overflow-checks=yes", f"/input/{filename}",
+                               "-o", "/work/runtime_sample"]
         else:
             compiler = shutil.which("g++" if language == "cpp" else config.CC_BIN)
             if not compiler:
@@ -77,44 +78,65 @@ def collect_polyglot_runtime_evidence(code: str, language: str, provider: str = 
                                f"{'C++' if language == 'cpp' else 'C'} compiler not found", model)
             suffix = ".cpp" if language == "cpp" else ".c"
             standard = "-std=c++17" if language == "cpp" else "-std=c11"
-            source = root / f"runtime_sample{suffix}"; executable = root / "runtime_sample"
-            source.write_text(code + "\n" + test_code, encoding="utf-8")
-            compile_command = [compiler, standard, "-Wall", "-Wextra", "-Werror",
-                               "-fsanitize=address,undefined", "-fno-sanitize-recover=all",
-                               str(source), "-o", str(executable)]
-        try:
-            compiled = runner(compile_command, capture_output=True, text=True,
-                              timeout=config.RAC_TIMEOUT)
-            if compiled.returncode:
-                return _result("TEST_COMPILE_FAILED", compiled.returncode,
-                               _output(compiled), model, test_code)
-            executed = runner([str(executable)], capture_output=True, text=True,
-                              timeout=config.RAC_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            return _result("TIMEOUT", 124, "runtime sample timed out", model, test_code)
-        except OSError as exc:
-            return _result("TOOL_ERROR", 127, str(exc), model, test_code)
-    output = _output(executed)
+            filename = f"runtime_sample{suffix}"
+            assembled = code + "\n" + test_code
+            flags = [standard, "-Wall", "-Wextra", "-Werror",
+                     "-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
+            sandbox_compile = [compiler, *flags, f"/input/{filename}",
+                               "-o", "/work/runtime_sample"]
+        snapshot = SourceSnapshot.create(root / "snapshot", {filename: assembled})
+        workspace = root / "workspace"
+        workspace.mkdir()
+        policy = ExecutionPolicy(timeout_s=float(config.RAC_TIMEOUT))
+        strict = executor or StrictSandboxExecutor()
+        compiled = strict.execute(ExecutionRequest(
+            tool=f"{language}-compiler", command=tuple(sandbox_compile),
+            snapshot=snapshot, workspace=workspace, policy=policy,
+            readonly_paths=(Path(compiler).resolve().parent,)))
+        if compiled.status != "COMPLETED":
+            compile_status = ("TEST_COMPILE_FAILED" if compiled.status == "TOOL_FAILED"
+                              else compiled.status)
+            return _result(compile_status, compiled.exit_code,
+                           compiled.output or compiled.message, model, test_code,
+                           snapshot=snapshot, compliance=compiled.policy_compliance,
+                           execution=compiled.as_dict())
+        executed = strict.execute(ExecutionRequest(
+            tool=f"{language}-runtime-sample", command=("/work/runtime_sample",),
+            snapshot=snapshot, workspace=workspace, policy=policy))
+        if executed.status not in {"COMPLETED", "TOOL_FAILED"}:
+            return _result(executed.status, executed.exit_code,
+                           executed.output or executed.message, model, test_code,
+                           snapshot=snapshot, compliance=executed.policy_compliance,
+                           execution=executed.as_dict())
+        output = executed.output
+        executed_returncode = executed.exit_code
+        execution_details = executed.as_dict()
     inputs = re.findall(r"FORMALSPEC_INPUT:\s*(.+)", output)
-    failed = executed.returncode != 0 or bool(re.search(
+    failed = executed_returncode != 0 or bool(re.search(
         r"AddressSanitizer|runtime error:|panicked at|test result: FAILED|assertion failed", output, re.I))
     return {"status": "RUNTIME_FAILURES_FOUND" if failed else "NO_RUNTIME_FAILURE_FOUND",
-            "exit_code": executed.returncode, "inputs": inputs, "log": output[-6000:],
+            "exit_code": executed_returncode, "inputs": inputs, "log": output[-6000:],
             "test_code": test_code, "model": model,
             "claim": "COUNTEREXAMPLE_EVIDENCE" if failed else "RUNTIME_SAMPLE",
             "proof": False, "regeneration_recommended": failed,
+            "source_snapshot": {"manifest_sha256": snapshot.manifest_sha256,
+                                "files": list(snapshot.manifest)},
+            "execution_policy_compliance": execution_details.get(
+                "policy_compliance", "NOT_ENFORCED"),
+            "execution": execution_details,
             "instrumentation": ("rustc --test with overflow checks" if language == "rust" else
                                 "ASan+UBSan (g++)" if language == "cpp" else
                                 "ASan+UBSan"),
             "disclaimer": "Runtime samples can expose failures; passing samples are not proof."}
 
 
-def _output(process) -> str:
-    return ((process.stdout or "") + (process.stderr or "")).strip()
-
-
 def _result(status: str, exit_code: int, log: str, model: str = "unavailable",
-            test_code: str = "") -> dict:
+            test_code: str = "", *, snapshot: SourceSnapshot | None = None,
+            compliance: str = "NOT_ENFORCED", execution: dict | None = None) -> dict:
     return {"status": status, "exit_code": exit_code, "inputs": [], "log": log[-6000:],
             "test_code": test_code, "model": model, "claim": "NO_PROOF", "proof": False,
-            "regeneration_recommended": status == "RUNTIME_FAILURES_FOUND"}
+            "regeneration_recommended": status == "RUNTIME_FAILURES_FOUND",
+            "source_snapshot": ({"manifest_sha256": snapshot.manifest_sha256,
+                                 "files": list(snapshot.manifest)} if snapshot else None),
+            "execution_policy_compliance": compliance,
+            "execution": execution or {}}

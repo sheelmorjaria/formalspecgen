@@ -1,11 +1,11 @@
 import re
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from pipeline import orchestrator, spec_lint
+from pipeline.execution import ExecutionObservation
 from pipeline.domains.inventory import InventoryTlaModel
 from pipeline.domains.inventory_render import render_inventory
 from pipeline.domains.train_crossing import TrainRoadCrossingTlaModel
@@ -72,11 +72,17 @@ def test_orchestrator_repair_same_provider_does_not_silently_fallback():
 
 
 def test_check_attempt_preserves_parsed_javac_diagnostic(tmp_path):
-    compiled = SimpleNamespace(returncode=1, stdout="", stderr="A.java:2: error: bad symbol")
     parsed = [VC("A.java", 2, "error", detail="bad symbol")]
-    with (patch.object(orchestrator.subprocess, "run", return_value=compiled),
-          patch.object(orchestrator, "parse_check", return_value=parsed)):
-        result = orchestrator._check_attempt(tmp_path, "public class A {}", "Draft")
+    class FailingCompiler:
+        def execute(self, request):
+            return ExecutionObservation(
+                status="TOOL_FAILED", exit_code=1,
+                output="A.java:2: error: bad symbol", requested_policy={},
+                enforced_policy={}, policy_compliance="ENFORCED",
+                snapshot_manifest_sha256=request.snapshot.manifest_sha256)
+    with patch.object(orchestrator, "parse_check", return_value=parsed):
+        result = orchestrator._check_attempt(
+            tmp_path, "public class A {}", "Draft", executor=FailingCompiler())
     assert result[2] == parsed
 
 

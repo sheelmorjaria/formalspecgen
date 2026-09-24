@@ -1,6 +1,5 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
-import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -8,42 +7,57 @@ import pytest
 
 from pipeline import polyglot_runtime as runtime
 from pipeline.llm import LLMError
+from pipeline.execution import ExecutionObservation
 
 
 RUST = "pub fn add(a: i32, b: i32) -> i32 { a + b }"
 C = "int add(int a, int b) { return a + b; }"
 
 
-def process(code=0, out="", err=""):
-    return SimpleNamespace(returncode=code, stdout=out, stderr=err)
+def observation(status="COMPLETED", exit_code=0, output="", compliance="ENFORCED"):
+    return ExecutionObservation(
+        status=status, exit_code=exit_code, output=output,
+        requested_policy={"network": "denied"},
+        enforced_policy={"network": "denied"} if compliance == "ENFORCED" else None,
+        policy_compliance=compliance, snapshot_manifest_sha256="digest",
+        timed_out=status == "TIMEOUT", message=output)
+
+
+class SequenceExecutor:
+    def __init__(self, *values):
+        self.values = iter(values)
+        self.calls = []
+
+    def execute(self, request):
+        self.calls.append(request)
+        return next(self.values)
 
 
 def test_rust_runtime_sample_compiles_tests_with_overflow_checks():
-    seen = []
-    def run(command, **_kwargs):
-        seen.append(command)
-        return process(0, "FORMALSPEC_INPUT: a=1,b=2\ntest result: ok")
+    executor = SequenceExecutor(
+        observation(), observation(output="FORMALSPEC_INPUT: a=1,b=2\ntest result: ok"))
     with patch.object(runtime.shutil, "which", return_value="/bin/rustc"):
         result = runtime.collect_polyglot_runtime_evidence(
-            RUST, "rust", test_code="#[test] fn sample() { assert_eq!(add(1,2),3); }", runner=run)
+            RUST, "rust", test_code="#[test] fn sample() { assert_eq!(add(1,2),3); }",
+            executor=executor)
     assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
     assert result["claim"] == "RUNTIME_SAMPLE" and not result["proof"]
     assert result["inputs"] == ["a=1,b=2"]
-    assert "--test" in seen[0] and "overflow-checks=yes" in seen[0]
+    assert "--test" in executor.calls[0].command
+    assert "overflow-checks=yes" in executor.calls[0].command
 
 
 def test_c_runtime_failure_is_counterexample_evidence_under_sanitizers():
-    calls = []
-    def run(command, **_kwargs):
-        calls.append(command)
-        return process() if len(calls) == 1 else process(1, err="runtime error: signed overflow")
+    executor = SequenceExecutor(
+        observation(), observation("TOOL_FAILED", 1, "runtime error: signed overflow"))
     with patch.object(runtime.shutil, "which", return_value="/bin/gcc"):
         result = runtime.collect_polyglot_runtime_evidence(
-            C, "c", test_code="int main(void) { return add(1,2) != 3; }", runner=run)
+            C, "c", test_code="int main(void) { return add(1,2) != 3; }",
+            executor=executor)
     assert result["status"] == "RUNTIME_FAILURES_FOUND"
     assert result["claim"] == "COUNTEREXAMPLE_EVIDENCE"
     assert result["regeneration_recommended"]
-    assert "-fsanitize=address,undefined" in calls[0]
+    assert "-fsanitize=address,undefined" in executor.calls[0].command
 
 
 def test_runtime_gate_reports_testgen_compile_tool_and_timeout_failures():
@@ -57,18 +71,18 @@ def test_runtime_gate_reports_testgen_compile_tool_and_timeout_failures():
             RUST, "rust", test_code="x")["status"] == "TOOL_MISSING"
         assert runtime.collect_polyglot_runtime_evidence(
             C, "c", test_code="x")["status"] == "TOOL_MISSING"
-    with patch.object(runtime.shutil, "which", return_value="cc"):
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/cc"):
         assert runtime.collect_polyglot_runtime_evidence(
-            C, "c", test_code="x", runner=lambda *_a, **_k: process(1, err="bad"))[
-                "status"] == "TEST_COMPILE_FAILED"
-    with patch.object(runtime.shutil, "which", return_value="cc"):
+            C, "c", test_code="x", executor=SequenceExecutor(
+                observation("TOOL_FAILED", 1, "bad")))["status"] == "TEST_COMPILE_FAILED"
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/cc"):
         assert runtime.collect_polyglot_runtime_evidence(
-            C, "c", test_code="x", runner=lambda *_a, **_k: (_ for _ in ()).throw(
-                subprocess.TimeoutExpired("cc", 1)))["status"] == "TIMEOUT"
-    with patch.object(runtime.shutil, "which", return_value="cc"):
+            C, "c", test_code="x", executor=SequenceExecutor(
+                observation("TIMEOUT", 124, "timed out")))["status"] == "TIMEOUT"
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/cc"):
         assert runtime.collect_polyglot_runtime_evidence(
-            C, "c", test_code="x", runner=lambda *_a, **_k: (_ for _ in ()).throw(
-                OSError("cannot execute")))["status"] == "TOOL_ERROR"
+            C, "c", test_code="x", executor=SequenceExecutor(
+                observation("TOOL_ERROR", 127, "cannot execute")))["status"] == "TOOL_ERROR"
     with pytest.raises(ValueError, match="rust, c, or cpp"):
         runtime.collect_polyglot_runtime_evidence("", "java", test_code="")
 
@@ -81,30 +95,28 @@ public:
 
 
 def test_cpp_runtime_sample_compiles_under_sanitizers():
-    seen = []
-    def run(command, **_kwargs):
-        seen.append(command)
-        return process(0, "FORMALSPEC_INPUT: a=1,b=2\nall asserts passed")
+    executor = SequenceExecutor(
+        observation(), observation(output="FORMALSPEC_INPUT: a=1,b=2\nall asserts passed"))
     with patch.object(runtime.shutil, "which", return_value="/bin/g++"):
         result = runtime.collect_polyglot_runtime_evidence(
             CPP, "cpp",
             test_code="#include <cassert>\nint main() { Adder a; assert(a.add(1,2) == 3); }",
-            runner=run)
+            executor=executor)
     assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
     assert result["claim"] == "RUNTIME_SAMPLE" and not result["proof"]
     assert result["instrumentation"] == "ASan+UBSan (g++)"
-    assert seen[0][0].endswith("g++") and "-std=c++17" in seen[0]
-    assert "-fsanitize=address,undefined" in seen[0]
+    assert executor.calls[0].command[0].endswith("g++")
+    assert "-std=c++17" in executor.calls[0].command
+    assert "-fsanitize=address,undefined" in executor.calls[0].command
 
 
 def test_cpp_runtime_failure_is_counterexample_evidence():
-    calls = []
-    def run(command, **_kwargs):
-        calls.append(command)
-        return process() if len(calls) == 1 else process(1, err="runtime error: signed integer overflow")
+    executor = SequenceExecutor(
+        observation(), observation(
+            "TOOL_FAILED", 1, "runtime error: signed integer overflow"))
     with patch.object(runtime.shutil, "which", return_value="/bin/g++"):
         result = runtime.collect_polyglot_runtime_evidence(
-            CPP, "cpp", test_code="int main() { return 0; }", runner=run)
+            CPP, "cpp", test_code="int main() { return 0; }", executor=executor)
     assert result["status"] == "RUNTIME_FAILURES_FOUND"
     assert result["claim"] == "COUNTEREXAMPLE_EVIDENCE"
     assert result["regeneration_recommended"]
@@ -122,3 +134,48 @@ def test_runtime_test_generation_accepts_exact_language_fence():
             "```rust\n#[test] fn sample() {}\n```", "model", {})):
         code, model = runtime._generate_tests(RUST, "rust", "ollama")
     assert code == "#[test] fn sample() {}\n" and model == "model"
+
+
+def test_default_runtime_path_fails_closed_when_sandbox_is_unavailable():
+    unavailable = ExecutionObservation(
+        status="SANDBOX_UNAVAILABLE", exit_code=125, output="",
+        requested_policy={}, enforced_policy=None, policy_compliance="NOT_ENFORCED",
+        snapshot_manifest_sha256="digest", message="namespace denied")
+    executor = SimpleNamespace(execute=lambda _request: unavailable)
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
+        result = runtime.collect_polyglot_runtime_evidence(
+            C, "c", test_code="int main(void) { return 0; }", executor=executor)
+    assert result["status"] == "SANDBOX_UNAVAILABLE"
+    assert result["claim"] == "NO_PROOF"
+    assert result["execution_policy_compliance"] == "NOT_ENFORCED"
+
+
+def test_default_runtime_path_records_enforced_compile_and_execution():
+    def observation(status="COMPLETED", exit_code=0, output=""):
+        return ExecutionObservation(
+            status=status, exit_code=exit_code, output=output,
+            requested_policy={"network": "denied"},
+            enforced_policy={"network": "denied"}, policy_compliance="ENFORCED",
+            snapshot_manifest_sha256="digest")
+
+    calls = []
+    values = iter([
+        observation(),
+        observation(output="FORMALSPEC_INPUT: x=1\nall assertions passed"),
+    ])
+    executor = SimpleNamespace(execute=lambda request: (calls.append(request), next(values))[1])
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
+        result = runtime.collect_polyglot_runtime_evidence(
+            C, "c", test_code="int main(void) { return 0; }", executor=executor)
+    assert result["status"] == "NO_RUNTIME_FAILURE_FOUND"
+    assert result["execution_policy_compliance"] == "ENFORCED"
+    assert len(calls) == 2 and calls[0].tool == "c-compiler"
+    assert calls[1].command == ("/work/runtime_sample",)
+
+    values = iter([observation(), observation("OUTPUT_LIMIT_EXCEEDED", 126, "partial")])
+    executor = SimpleNamespace(execute=lambda _request: next(values))
+    with patch.object(runtime.shutil, "which", return_value="/usr/bin/gcc"):
+        limited = runtime.collect_polyglot_runtime_evidence(
+            C, "c", test_code="int main(void) { return 0; }", executor=executor)
+    assert limited["status"] == "OUTPUT_LIMIT_EXCEEDED"
+    assert limited["claim"] == "NO_PROOF"

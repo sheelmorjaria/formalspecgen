@@ -1,5 +1,5 @@
 import json
-import subprocess
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,11 +7,28 @@ from unittest.mock import patch
 import pytest
 
 from pipeline import orchestrator
+from pipeline.execution import ExecutionObservation
 from pipeline.llm import LLMError
 from pipeline.schemas import SpecDraft, VC
 
 
 SOURCE = "public class Counter {}"
+
+
+class FakeCompileExecutor:
+    def __init__(self, status="COMPLETED", exit_code=0, output="",
+                 compliance="ENFORCED"):
+        self.status = status
+        self.exit_code = exit_code
+        self.output = output
+        self.compliance = compliance
+
+    def execute(self, request):
+        return ExecutionObservation(
+            status=self.status, exit_code=self.exit_code, output=self.output,
+            requested_policy={}, enforced_policy={}, policy_compliance=self.compliance,
+            snapshot_manifest_sha256=request.snapshot.manifest_sha256,
+            timed_out=self.status == "TIMEOUT")
 
 
 def test_implementation_router_dispatches_by_extension_and_fails_closed(tmp_path):
@@ -261,30 +278,46 @@ def test_check_attempt_rejects_invalid_source(tmp_path):
 
 def test_check_attempt_javac_failure_timeout_and_missing(tmp_path):
     cases = [
-        (SimpleNamespace(returncode=1, stdout="", stderr="syntax bad"), 1, "syntax bad"),
-        (subprocess.TimeoutExpired("javac", 1), 124, "timed out"),
-        (FileNotFoundError(2, "missing", "javac"), 127, "not found"),
+        (FakeCompileExecutor(exit_code=1, output="syntax bad"), None, 1, "syntax bad"),
+        (FakeCompileExecutor(status="TIMEOUT", exit_code=124), None, 124, "timed out"),
+        (None, str(tmp_path / "missing-javac"), 127, "not found"),
     ]
-    for index, (outcome, expected, message) in enumerate(cases):
+    for index, (executor, javac, expected, message) in enumerate(cases):
         root = tmp_path / str(index)
         root.mkdir()
-        effect = outcome if isinstance(outcome, BaseException) else None
-        with patch.object(orchestrator.subprocess, "run",
-                          side_effect=effect, return_value=None if effect else outcome):
-            result = orchestrator._check_attempt(root, SOURCE, "Draft")
+        context = patch.object(orchestrator.config, "JAVAC", javac) if javac else nullcontext()
+        with context:
+            result = orchestrator._check_attempt(
+                root, SOURCE, "Draft", executor=executor)
         assert result[0] == expected and message in result[1]
         gate = json.loads((root / "javac-gate.json").read_text(encoding="utf-8"))
         assert gate["exit_code"] == expected
 
 
 def test_check_attempt_openjml_diagnostic_fallback(tmp_path):
-    compiled = SimpleNamespace(returncode=0, stdout="", stderr="")
-    with (patch.object(orchestrator.subprocess, "run", return_value=compiled),
-          patch.object(orchestrator, "verify", return_value=(6, "unparsed verifier failure")),
+    with (patch.object(orchestrator, "verify", return_value=(6, "unparsed verifier failure")),
           patch.object(orchestrator, "parse_check", return_value=[])):
-        exit_code, text, vcs, path = orchestrator._check_attempt(tmp_path, SOURCE, "Draft")
+        exit_code, text, vcs, path = orchestrator._check_attempt(
+            tmp_path, SOURCE, "Draft", executor=FakeCompileExecutor())
     assert exit_code == 6 and text == "unparsed verifier failure"
     assert vcs[0].category == "check" and path.name == "Counter.java"
+
+
+def test_check_attempt_rejects_unenforced_compiler_and_preserves_empty_diagnostic(tmp_path):
+    policy_root = tmp_path / "policy"; policy_root.mkdir()
+    result = orchestrator._check_attempt(
+        policy_root, SOURCE, "Draft",
+        executor=FakeCompileExecutor(
+            status="SANDBOX_UNAVAILABLE", exit_code=125,
+            compliance="NOT_ENFORCED"))
+    assert result[0] == 125 and "policy not enforced" in result[1]
+
+    root = tmp_path / "empty"; root.mkdir()
+    with patch.object(orchestrator, "verify", return_value=(6, "")), \
+         patch.object(orchestrator, "parse_check", return_value=[]):
+        result = orchestrator._check_attempt(
+            root, SOURCE, "Draft", executor=FakeCompileExecutor())
+    assert result[0] == 6 and result[2] == []
 
 
 def _mock_check(root, stub, fallback_name, exit_code=0, vcs=None):
@@ -307,6 +340,18 @@ def test_run_verified_records_events_provenance_and_metadata(tmp_path):
     assert result.provenance["tool_version"] == "OpenJML test"
     assert any(event["type"] == "verified" for event in events)
     assert (tmp_path / "verdict.json").exists()
+
+
+def test_run_fails_claim_when_terminal_evidence_cannot_publish(tmp_path):
+    draft = SpecDraft(SOURCE)
+    with (patch.object(orchestrator, "_gen", return_value=(draft, "model-x", {})),
+          patch.object(orchestrator, "_check_attempt", side_effect=_mock_check),
+          patch.object(orchestrator, "command_version", return_value="OpenJML test"),
+          patch.object(orchestrator.RunLedger, "commit", side_effect=OSError("disk full"))):
+        result = orchestrator.run("counter", out_dir=tmp_path)
+    assert result.final_status == "EVIDENCE_PUBLICATION_FAILED"
+    assert result.claim == "NO_PROOF"
+    assert result.evidence_publication_status == "FAILED"
 
 
 def test_run_api_and_tool_failures_are_terminal(tmp_path):

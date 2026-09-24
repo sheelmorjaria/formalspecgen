@@ -68,6 +68,8 @@ class SpecResult:
     transitions: List[dict] = field(default_factory=list)
     provenance: dict = field(default_factory=dict)
     claim: str = "STATIC_CHECK"
+    evidence_publication_status: str = "INCOMPLETE"
+    evidence_manifest_path: str = ""
 
 
 @dataclass

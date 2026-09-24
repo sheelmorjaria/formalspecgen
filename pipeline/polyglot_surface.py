@@ -47,6 +47,11 @@ _RUST_PROOF_TRUST_NAMES = {"trusted", "extern_spec", "verify_only_spec"}
 _RUST_CONDITIONAL_ATTRIBUTE_NAMES = {"cfg", "cfg_attr"}
 _RUST_CONTAINER_NODES = {"mod_item", "impl_item", "trait_item"}
 _RUST_CALLABLE_NODES = {"function_item", "function_signature_item"}
+_RUST_BINDING_CONTEXT_NODES = {"use_declaration", "extern_crate_declaration"}
+_RUST_SEMANTIC_DECLARATION_NODES = {
+    "const_item", "static_item", "type_item", "struct_item", "enum_item", "union_item",
+}
+_RUST_BINDING_DECLARATION_NODES = {"const_item", "static_item", "type_item"}
 _ACSL_BLOCK = re.compile(r"/\*@(?:.|\n)*?\*/", re.MULTILINE)
 _CPP_ASSERT = re.compile(r"(?m)\bassert\s*\([^;]+\)\s*;")
 _ACSL_PROOF_TRUST = re.compile(r"\b(?:admit|admits|axiom|axiomatic)\b", re.I)
@@ -171,6 +176,8 @@ def _rust_contract_surface(source: str) -> dict:
 
     state = {
         "functions": [], "api": [], "proof_trust": [], "parse_errors": [],
+        "binding_context": [], "semantic_declarations": [],
+        "binding_declarations": [],
         "processed_callables": set(),
     }
     _collect_rust_items(source, root, (), state)
@@ -185,13 +192,18 @@ def _rust_contract_surface(source: str) -> dict:
         "api": sorted(state["api"]),
         "global_contracts": [],
         "proof_trust": sorted(state["proof_trust"]),
+        "binding_context": sorted(state["binding_context"]),
+        "semantic_declarations": sorted(state["semantic_declarations"]),
+        "binding_declarations": sorted(state["binding_declarations"]),
         "parse_errors": state["parse_errors"],
     }
 
 
 def _empty_rust_surface(error: str) -> dict:
     return {"functions": [], "api": [], "global_contracts": [],
-            "proof_trust": [], "parse_errors": [error]}
+            "proof_trust": [], "binding_context": [],
+            "semantic_declarations": [], "binding_declarations": [],
+            "parse_errors": [error]}
 
 
 def _collect_rust_items(source: str, container, owners: tuple[str, ...],
@@ -212,6 +224,15 @@ def _collect_rust_items(source: str, container, owners: tuple[str, ...],
             _classify_rust_attributes(
                 source, pending_attributes,
                 f"unbound@{child.start_byte}", state, contracts=None)
+            item_text = _node_text(source, child).strip()
+            owner = "crate::" + "::".join(owners) if owners else "crate"
+            if child.type in _RUST_BINDING_CONTEXT_NODES:
+                state["binding_context"].append(item_text)
+            elif child.type in _RUST_SEMANTIC_DECLARATION_NODES:
+                declaration = f"{owner}: {item_text}"
+                state["semantic_declarations"].append(declaration)
+                if child.type in _RUST_BINDING_DECLARATION_NODES:
+                    state["binding_declarations"].append(declaration)
             contains_item_macro = child.type in {"macro_invocation", "macro_definition"} or (
                 child.type == "expression_statement" and
                 any(node.type == "macro_invocation" for node in _walk(child)))
@@ -228,8 +249,7 @@ def _add_rust_container(source: str, node, attributes: list,
                         owners: tuple[str, ...], state: dict) -> None:
     body = node.child_by_field_name("body")
     header_end = body.start_byte if body is not None else node.end_byte
-    header = _normalize(
-        source.encode("utf-8")[node.start_byte:header_end].decode("utf-8"))
+    header = source.encode("utf-8")[node.start_byte:header_end].decode("utf-8").strip()
     kind = {"mod_item": "module", "impl_item": "impl", "trait_item": "trait"}[node.type]
     owner = f"{kind}:{header}"
     identity = "crate::" + "::".join((*owners, owner))
@@ -281,7 +301,10 @@ def _classify_rust_attributes(source: str, attributes: list, identity: str,
         path_node = attribute.named_children[0]
         path = _node_text(source, path_node)
         name = path.rsplit("::", 1)[-1].lower()
-        normalized = _normalize(_node_text(source, attribute_item))
+        # Attribute contents include language literals. Preserve the parsed
+        # token bytes exactly; whitespace inside a string or byte string is a
+        # value, not formatting that may be collapsed safely.
+        normalized = _node_text(source, attribute_item).strip()
         if name in _RUST_CONDITIONAL_ATTRIBUTE_NAMES:
             state["parse_errors"].append(
                 f"conditional Rust attribute {path} is unsupported at offset "

@@ -1,11 +1,36 @@
-import subprocess
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from pipeline import verify
+from pipeline.execution import ExecutionObservation
+
+
+class FakeExecutor:
+    def __init__(self, status="COMPLETED", exit_code=0, output=""):
+        self.status = status
+        self.exit_code = exit_code
+        self.output = output
+        self.request = None
+
+    def execute(self, request):
+        self.request = request
+        compliance = "NOT_ENFORCED" if self.status == "SANDBOX_UNAVAILABLE" else "ENFORCED"
+        return ExecutionObservation(
+            status=self.status, exit_code=self.exit_code, output=self.output,
+            requested_policy={}, enforced_policy={} if compliance == "ENFORCED" else None,
+            policy_compliance=compliance,
+            snapshot_manifest_sha256=request.snapshot.manifest_sha256,
+            timed_out=self.status == "TIMEOUT", message="sandbox unavailable")
+
+
+def _tool_and_source(tmp_path, name="A.java"):
+    tool = tmp_path / "openjml"
+    tool.write_text("tool", encoding="utf-8")
+    source = tmp_path / name
+    source.write_text(f"class {Path(name).stem} {{}}", encoding="utf-8")
+    return tool, source
 
 
 def test_command_omits_missing_specs_and_supports_multiple_files(tmp_path):
@@ -14,6 +39,11 @@ def test_command_omits_missing_specs_and_supports_multiple_files(tmp_path):
           patch.object(verify.config, "OPENJML_SPECS", str(missing))):
         assert verify._command("esc", ["A.java", Path("B.java")]) == [
             "ojml", "-esc", "A.java", "B.java"]
+    specs = tmp_path / "specs"; specs.mkdir()
+    with (patch.object(verify.config, "OPENJML", "ojml"),
+          patch.object(verify.config, "OPENJML_SPECS", str(specs))):
+        assert verify._command("check", ["A.java"]) == [
+            "ojml", "-check", "--specs-path", str(specs), "A.java"]
 
 
 def test_dropped_vc_and_tool_result_detection():
@@ -33,40 +63,80 @@ def test_verify_wrappers_reject_unknown_modes(function, args):
         function(*args, mode="prove")
 
 
-def test_verify_selects_default_timeouts_and_combines_output():
-    completed = SimpleNamespace(returncode=6, stdout="stdout", stderr="stderr")
-    with patch.object(verify.subprocess, "run", return_value=completed) as run:
-        assert verify.verify("A.java", mode="esc") == (6, "stdoutstderr")
-    assert run.call_args.kwargs["timeout"] == verify.config.ESC_TIMEOUT
-    assert run.call_args.kwargs["encoding"] == "utf-8"
+def test_verify_selects_default_timeouts_and_combines_output(tmp_path):
+    tool, source = _tool_and_source(tmp_path)
+    executor = FakeExecutor(exit_code=6, output="stdoutstderr")
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        assert verify.verify(source, mode="esc", executor=executor) == (6, "stdoutstderr")
+    assert executor.request.policy.timeout_s == verify.config.ESC_TIMEOUT
+    assert executor.request.command[-1] == "/input/A.java"
 
-    with patch.object(verify.subprocess, "run", return_value=completed) as run:
-        verify.verify("A.java", mode="parse", timeout=9)
-    assert run.call_args.kwargs["timeout"] == 9
+    executor = FakeExecutor(exit_code=6)
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        verify.verify(source, mode="parse", timeout=9, executor=executor)
+    assert executor.request.policy.timeout_s == 9
 
 
-def test_verify_normalizes_timeout_and_missing_binary():
-    with patch.object(verify.subprocess, "run",
-                      side_effect=subprocess.TimeoutExpired("openjml", 3)):
-        assert verify.verify("A.java", timeout=3) == (
-            verify.TIMEOUT_EXIT, "<openjml -check timed out after 3s>")
-    with patch.object(verify.subprocess, "run", side_effect=FileNotFoundError):
-        code, message = verify.verify("A.java")
+def test_verify_normalizes_timeout_and_missing_binary(tmp_path):
+    tool, source = _tool_and_source(tmp_path)
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        assert verify.verify(source, timeout=3, executor=FakeExecutor(
+            status="TIMEOUT", exit_code=124)) == (
+                verify.TIMEOUT_EXIT, "<openjml -check timed out after 3s>")
+    with patch.object(verify.config, "OPENJML", str(tmp_path / "missing")):
+        code, message = verify.verify(source)
     assert code == 127 and "binary not found" in message
 
 
-def test_verify_files_success_timeout_missing_and_default_timeout():
-    completed = SimpleNamespace(returncode=0, stdout="ok", stderr="")
-    with patch.object(verify.subprocess, "run", return_value=completed) as run:
-        assert verify.verify_files(["A.java", "B.java"], mode="check") == (0, "ok")
-    assert run.call_args.kwargs["timeout"] == verify.config.CHECK_TIMEOUT
+def test_verify_files_success_timeout_missing_and_default_timeout(tmp_path):
+    tool, first = _tool_and_source(tmp_path)
+    second = tmp_path / "B.java"; second.write_text("class B {}", encoding="utf-8")
+    executor = FakeExecutor(output="ok")
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        assert verify.verify_files([first, second], mode="check", executor=executor) == (0, "ok")
+    assert executor.request.policy.timeout_s == verify.config.CHECK_TIMEOUT
 
-    with patch.object(verify.subprocess, "run",
-                      side_effect=subprocess.TimeoutExpired("openjml", 4)):
-        assert verify.verify_files(["A.java"], mode="esc", timeout=4) == (
-            verify.TIMEOUT_EXIT, "<openjml -esc timed out after 4s>")
-    with patch.object(verify.subprocess, "run", side_effect=FileNotFoundError):
-        assert verify.verify_files(["A.java"])[0] == 127
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        assert verify.verify_files([first], mode="esc", timeout=4, executor=FakeExecutor(
+            status="TIMEOUT", exit_code=124)) == (
+                verify.TIMEOUT_EXIT, "<openjml -esc timed out after 4s>")
+    with patch.object(verify.config, "OPENJML", str(tmp_path / "missing")):
+        assert verify.verify_files([first])[0] == 127
+
+
+def test_verify_fails_closed_when_sandbox_is_unavailable(tmp_path):
+    tool, source = _tool_and_source(tmp_path)
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        code, message = verify.verify(
+            source, executor=FakeExecutor(status="SANDBOX_UNAVAILABLE", exit_code=125))
+    assert code == verify.TOOL_ERROR_EXIT
+    assert "policy not enforced" in message
+
+
+def test_verify_rejects_missing_and_duplicate_snapshot_inputs(tmp_path):
+    tool, source = _tool_and_source(tmp_path)
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        code, message = verify.verify(tmp_path / "missing.java", executor=FakeExecutor())
+        assert code == verify.TOOL_ERROR_EXIT and "source file unavailable" in message
+
+        other = tmp_path / "other"; other.mkdir()
+        duplicate = other / source.name
+        duplicate.write_text("class A {}", encoding="utf-8")
+        code, message = verify.verify_files([source, duplicate], executor=FakeExecutor())
+        assert code == verify.TOOL_ERROR_EXIT and "duplicate" in message
+
+
+def test_verify_resolves_path_tool_and_rejects_excess_output(tmp_path):
+    _tool, source = _tool_and_source(tmp_path)
+    resolved = tmp_path / "resolved-openjml"
+    resolved.write_text("tool", encoding="utf-8")
+    executor = FakeExecutor(
+        status="OUTPUT_LIMIT_EXCEEDED", exit_code=126, output="partial")
+    with patch.object(verify.config, "OPENJML", "openjml"), \
+         patch.object(verify.shutil, "which", return_value=str(resolved)):
+        code, message = verify.verify(source, executor=executor)
+    assert code == verify.TOOL_ERROR_EXIT
+    assert message == "partial\n<openjml output limit exceeded>"
 
 
 @pytest.mark.parametrize("exit_code,status", [

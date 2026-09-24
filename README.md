@@ -24,6 +24,24 @@ gate for a named tool; `--strict` additionally rejects installed-but-broken or i
 configurations. Readiness is environmental metadata, never verification evidence: `doctor`
 always reports `claim: NO_PROOF` and cannot mint a proof claim.
 
+### Strict execution and durable evidence
+
+Java compilation, OpenJML checks, and generated Rust/C/C++ runtime samples run through a
+fail-closed Linux execution boundary. The strict profile requires `bubblewrap` (`bwrap`) and
+`prlimit`; it clears the inherited environment, denies network namespaces, mounts the reviewed
+source snapshot read-only, exposes only a disposable writable workspace, limits time, processes,
+memory, file size, total workspace bytes, and captured output, and terminates the process group on
+timeout. If that
+profile cannot be established, FormalSpecGen reports a policy/tool failure and does not fall back
+to unrestricted execution. Dependency prefetch must happen separately from this restricted stage.
+
+Each drafting run now publishes transition evidence with exclusive, no-replace creation and writes
+`evidence/manifest.json` last. The terminal manifest binds the reviewed source digest, contract
+surface, assumptions, tool arguments and versions, execution-policy result, and every preceding
+artifact digest. A missing terminal manifest means the run is incomplete; `RunLedger.validate()`
+detects missing or altered artifacts. This is an application-level write-once guarantee, not a
+claim of resistance to a privileged host operator or compromised storage administrator.
+
 The same report lists every semantic domain adapter with an enforced maturity:
 `scaffold` adapters may only be recognized and have a `NO_PROOF` ceiling;
 `bounded-evidence` adapters may run their reviewed deterministic TLA/TLC translation but

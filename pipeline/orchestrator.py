@@ -14,7 +14,7 @@ Usage:
 import argparse
 import json
 import re
-import subprocess
+import shutil
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -28,6 +28,8 @@ from .spec_lint import lint_spec, blocking_findings
 from .explain_vc import explain_vc
 from .lifecycle import (EvidenceClaim, GateRecord, PipelineState, RunLedger,
                         command_version, failure_fingerprint, sha256_text)
+from .execution import (ExecutionPolicy, ExecutionRequest, SourceSnapshot,
+                        StrictSandboxExecutor)
 from .workspace_contracts import contract_context
 
 
@@ -220,7 +222,7 @@ def _repair(prev_stub, prev_text, nl, model, provider, fallback):
         raise
 
 
-def _check_attempt(attempt_dir, stub, fallback_name):
+def _check_attempt(attempt_dir, stub, fallback_name, *, executor=None):
     """Write stub to <ClassName>.java, run -check, return (exit, text, vcs, path).
 
     Refuses to validate a draft with no parseable `public class`: `openjml -check` on an
@@ -234,20 +236,39 @@ def _check_attempt(attempt_dir, stub, fallback_name):
         (attempt_dir / "check.log").write_text("<" + msg + ">", encoding="utf-8")
         return 1, "<" + msg + ">", [VC(file=fallback_name + ".java", line=0,
                                       category="error", detail=msg, raw=msg)], p
-    p = attempt_dir / f"{cname}.java"
-    p.write_text(stub, encoding="utf-8")
-    classes = attempt_dir / "javac-classes"
-    classes.mkdir(exist_ok=True)
-    try:
-        compiled = subprocess.run([config.JAVAC, "-d", str(classes), str(p)],
-                                  capture_output=True, text=True, encoding="utf-8",
-                                  errors="replace", timeout=config.CHECK_TIMEOUT)
-        javac_text = (compiled.stdout or "") + (compiled.stderr or "")
-        javac_gate = {"exit_code": compiled.returncode, "output": javac_text[-4000:]}
-    except subprocess.TimeoutExpired:
-        javac_gate = {"exit_code": 124, "output": "javac timed out"}
-    except FileNotFoundError as exc:
-        javac_gate = {"exit_code": 127, "output": f"javac not found: {exc}"}
+    convenience_path = attempt_dir / f"{cname}.java"
+    convenience_path.write_text(stub, encoding="utf-8")
+    snapshot = SourceSnapshot.create(
+        attempt_dir / "source-snapshot", {f"{cname}.java": stub})
+    p = snapshot.root / f"{cname}.java"
+    javac_path = Path(config.JAVAC) if Path(config.JAVAC).is_absolute() else None
+    if javac_path is None:
+        resolved = shutil.which(config.JAVAC)
+        javac_path = Path(resolved) if resolved else None
+    if javac_path is None or not javac_path.is_file():
+        javac_gate = {"exit_code": 127, "output": f"javac not found: {config.JAVAC}",
+                      "execution_policy_compliance": "NOT_ENFORCED"}
+    else:
+        observation = (executor or StrictSandboxExecutor()).execute(ExecutionRequest(
+            tool="javac",
+            command=(str(javac_path), "-d", "/work/classes", f"/input/{cname}.java"),
+            snapshot=snapshot, workspace=attempt_dir / "javac-work",
+            policy=ExecutionPolicy(
+                timeout_s=float(config.CHECK_TIMEOUT),
+                max_memory_bytes=1024 * 1024 * 1024),
+            readonly_paths=(javac_path.resolve().parent,)))
+        if observation.status == "TIMEOUT":
+            exit_code, javac_text = 124, "javac timed out"
+        elif observation.policy_compliance != "ENFORCED":
+            exit_code = 125
+            javac_text = "javac sandbox policy not enforced: " + (
+                observation.message or observation.status)
+        else:
+            exit_code, javac_text = observation.exit_code, observation.output
+        javac_gate = {"exit_code": exit_code, "output": javac_text[-4000:],
+                      "execution_policy_compliance": observation.policy_compliance,
+                      "source_snapshot_sha256": snapshot.manifest_sha256,
+                      "execution": observation.as_dict()}
     (attempt_dir / "javac-gate.json").write_text(
         json.dumps(javac_gate, indent=2, ensure_ascii=False), encoding="utf-8")
     if javac_gate["exit_code"] != 0:
@@ -259,6 +280,11 @@ def _check_attempt(attempt_dir, stub, fallback_name):
                       detail=javac_gate["output"][:1000], raw=javac_gate["output"][:1000])]
         return javac_gate["exit_code"], text, vcs, p
     code_exit, text = verify(p, mode="check")
+    (attempt_dir / "check-execution.json").write_text(json.dumps({
+        "execution_policy_compliance": (
+            "NOT_ENFORCED" if code_exit in {125, 127} else "ENFORCED"),
+        "source_snapshot_sha256": snapshot.manifest_sha256,
+    }, indent=2), encoding="utf-8")
     (attempt_dir / "check.log").write_text(text, encoding="utf-8")
     vcs = parse_check(text) if code_exit != 0 else []
     # Guarantee a non-empty fingerprint even if -check's format wasn't recognized,
@@ -455,6 +481,42 @@ def run(nl, provider="ollama", fallback_provider=None, out_dir=None, model=None,
         evidence={"provenance": result.provenance, "token_usage": result.tokens})
     result.pipeline_state = PipelineState.REVIEW_AND_MEASURE.value
     result.transitions = [asdict(item) for item in ledger.transitions]
+    execution_compliance = "NOT_ENFORCED"
+    if result.stub_path:
+        attempt_root = Path(result.stub_path).parent.parent
+        policy_records = []
+        for name in ("javac-gate.json", "check-execution.json"):
+            try:
+                policy_records.append(json.loads(
+                    (attempt_root / name).read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError):
+                policy_records.append({"execution_policy_compliance": "UNKNOWN"})
+        if all(item.get("execution_policy_compliance") == "ENFORCED"
+               for item in policy_records):
+            execution_compliance = "ENFORCED"
+        elif any(item.get("execution_policy_compliance") == "UNKNOWN"
+                 for item in policy_records):
+            execution_compliance = "UNKNOWN"
+    try:
+        manifest_path = ledger.commit({
+            "final_status": result.final_status,
+            "claim": result.claim,
+            "source_snapshot": {"sha256": result.provenance["source_sha256"]},
+            "contract_surface_sha256": result.provenance["contract_sha256"],
+            "reviewed_assumptions": list(result.assumptions),
+            "tool_versions": result.provenance["tool_versions"],
+            "effective_arguments": result.provenance["command"],
+            "claim_policy_version": "verification-policy-v1",
+            "execution_policy_compliance": execution_compliance,
+        })
+        result.evidence_publication_status = "COMMITTED"
+        result.evidence_manifest_path = str(manifest_path)
+    except (OSError, RuntimeError, ValueError) as exc:
+        result.evidence_publication_status = "FAILED"
+        result.evidence_manifest_path = ""
+        result.final_status = "EVIDENCE_PUBLICATION_FAILED"
+        result.claim = EvidenceClaim.NO_PROOF.value
+        result.stop_reason = f"{result.stop_reason}; evidence publication failed: {exc}"
     _finalize(out_dir, result)
     _summary(result, out_dir)
     emit("verified" if result.final_status == "VERIFIED" else "complete",

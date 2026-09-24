@@ -178,6 +178,25 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
             {"baseline": baseline_surface["proof_trust"],
              "refactored": refactored_surface["proof_trust"]},
         )
+    if baseline_surface.get("binding_context", []) != \
+            refactored_surface.get("binding_context", []):
+        return _fail(
+            "binding_context_changed",
+            "Refactoring changed imports or external crate bindings",
+            {"baseline": baseline_surface.get("binding_context", []),
+             "refactored": refactored_surface.get("binding_context", [])},
+        )
+    baseline_declarations = Counter(baseline_surface.get("semantic_declarations", []))
+    refactored_declarations = Counter(refactored_surface.get("semantic_declarations", []))
+    if not baseline_declarations <= refactored_declarations or Counter(
+            baseline_surface.get("binding_declarations", [])) != Counter(
+                refactored_surface.get("binding_declarations", [])):
+        return _fail(
+            "semantic_context_changed",
+            "A native declaration that may determine contract meaning changed",
+            {"baseline": baseline_surface.get("semantic_declarations", []),
+             "refactored": refactored_surface.get("semantic_declarations", [])},
+        )
     if baseline == refactored:
         return _fail("source_unchanged", "No refactoring change was detected")
     baseline_proof = _polyglot_verification(baseline_file, language)
