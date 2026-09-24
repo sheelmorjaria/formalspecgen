@@ -416,6 +416,8 @@ def _workflow_completion(
                 and case.get("revision") == evidence_revision
                 and isinstance(case.get("output_sha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}", case["output_sha256"])
+                and isinstance(case.get("junit_sha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", case["junit_sha256"])
                 and isinstance(case.get("junit"), dict)
                 and isinstance(case["junit"].get("tests"), int)
                 and case["junit"]["tests"] > 0

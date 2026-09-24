@@ -136,12 +136,20 @@ because one invocation profile is admitted. The committed report is the evidence
 The dedicated MCP parity CI job starts the real stdio server, executes the declared cases, and
 publishes the evidence-backed manifest for that tested revision as an Actions artifact.
 
-CLI and MCP adapters for the admitted verification, inspection, and deterministic-documentation
+CLI and MCP adapters for the admitted verification, inspection, and documentation
 paths now construct the typed requests in `pipeline/workflow_contracts.py`. Those requests resolve
 defaults and effective backends once, derive the required effects, and enter application services
 with a permission-carrying context whose child stages can only attenuate authority. Compatible
 responses retain their existing top-level fields and add a typed `workflow_result` view separating
 workflow status, verification, admission, execution, publication, and approval.
+
+`document_code` exposes the CLI workflow fields `source`, `out`, `project_root`, `no_llm`,
+`provider`, `model`, and `result_export`. Deterministic requests never receive provider authority.
+Provider-assisted requests are admitted only for the configured GLM, OpenAI, or Ollama endpoint,
+and an explicit model must equal the server default or appear in the trusted
+`FORMALSPECGEN_MCP_DOCUMENT_MODELS` `provider:model` allowlist. Provider failure is reported as a
+failure without deterministic fallback. Markdown, V2 candidates, and optional JSON results are
+published as new, unreviewed artifacts beneath the designated MCP output root.
 
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and

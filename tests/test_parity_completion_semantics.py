@@ -42,6 +42,7 @@ def _evidence(plan: dict, revision: str = "a" * 40) -> dict:
     cases = [{
         **case, "result": "passed", "revision": revision,
         "output_sha256": "0" * 64,
+        "junit_sha256": "3" * 64,
         "junit": {"tests": 1, "failures": 0, "errors": 0, "skipped": 0},
     } for case in plan["completion_contract"]["acceptance_cases"]]
     return {

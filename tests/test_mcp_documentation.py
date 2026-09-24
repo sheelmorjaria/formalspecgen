@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 import mcp_server
+from pipeline.code_documentation import DocumentationNarrative
 from pipeline.mcp_artifacts import (
     MCPArtifactError,
     publish_new_artifacts,
@@ -36,9 +37,10 @@ JAVA = """public class Inventory {
 """
 
 
-def test_mcp_documentation_signature_is_narrow():
+def test_mcp_documentation_signature_covers_cli_workflow_inputs():
     assert tuple(inspect.signature(mcp_server.document_code).parameters) == (
-        "source", "out")
+        "source", "out", "project_root", "no_llm", "provider", "model",
+        "result_export")
 
 
 def _source(tmp_path: Path, monkeypatch) -> Path:
@@ -53,7 +55,8 @@ def test_deterministic_java_documentation_publishes_new_unreviewed_artifacts(
     source = _source(tmp_path, monkeypatch)
     with patch("subprocess.run") as process, \
             patch("pipeline.code_documentation._chat_fn") as provider:
-        result = mcp_server.document_code(str(source), "docs/Inventory.md")
+        result = mcp_server.document_code(
+            str(source), "docs/Inventory.md", no_llm=True)
 
     assert result["status"] == "DOCUMENTED"
     assert result["claim"] == "UNREVIEWED_EXTRACTION_DOCUMENTATION"
@@ -65,7 +68,7 @@ def test_deterministic_java_documentation_publishes_new_unreviewed_artifacts(
         "workspace_read", "workspace_write_new"]
     assert result["workflow_result"]["request"]["provider"] is None
     assert result["workflow_result"]["execution"] is None
-    assert result["workflow_result"]["publication"] is None
+    assert result["workflow_result"]["publication"]["status"] == "COMMITTED"
     document = Path(result["document"])
     candidate = Path(result["candidate"])
     assert document == tmp_path / ".formalspecgen/mcp-output/docs/Inventory.md"
@@ -129,7 +132,8 @@ def test_existing_output_is_never_replaced(tmp_path, monkeypatch):
     destination = tmp_path / ".formalspecgen/mcp-output/docs/Inventory.md"
     destination.parent.mkdir(parents=True)
     destination.write_text("reviewed existing content", encoding="utf-8")
-    result = mcp_server.document_code(str(source), "docs/Inventory.md")
+    result = mcp_server.document_code(
+        str(source), "docs/Inventory.md", no_llm=True)
     assert result["code"] == "OUTPUT_ALREADY_EXISTS"
     assert destination.read_text(encoding="utf-8") == "reviewed existing content"
 
@@ -140,7 +144,8 @@ def test_existing_candidate_prevents_partial_document_publication(tmp_path, monk
     candidate = root / "domains/candidates/inventory.v2.yaml"
     candidate.parent.mkdir(parents=True)
     candidate.write_text("reviewed candidate", encoding="utf-8")
-    result = mcp_server.document_code(str(source), "docs/Inventory.md")
+    result = mcp_server.document_code(
+        str(source), "docs/Inventory.md", no_llm=True)
     assert result["code"] == "OUTPUT_ALREADY_EXISTS"
     assert candidate.read_text(encoding="utf-8") == "reviewed candidate"
     assert not (root / "docs/Inventory.md").exists()
@@ -153,7 +158,8 @@ def test_symlinked_output_component_is_rejected(tmp_path, monkeypatch):
     root.mkdir(parents=True)
     outside.mkdir()
     (root / "docs").symlink_to(outside, target_is_directory=True)
-    result = mcp_server.document_code(str(source), "docs/Inventory.md")
+    result = mcp_server.document_code(
+        str(source), "docs/Inventory.md", no_llm=True)
     assert result["code"] == "OUTPUT_SYMLINK_REJECTED"
     assert not (outside / "Inventory.md").exists()
 
@@ -161,14 +167,16 @@ def test_symlinked_output_component_is_rejected(tmp_path, monkeypatch):
 def test_server_designated_output_root_and_symlinked_root_policy(tmp_path, monkeypatch):
     source = _source(tmp_path, monkeypatch)
     monkeypatch.setenv("FORMALSPECGEN_MCP_OUTPUT_ROOT", "generated/mcp")
-    result = mcp_server.document_code(str(source), "docs/Inventory.md")
+    result = mcp_server.document_code(
+        str(source), "docs/Inventory.md", no_llm=True)
     assert Path(result["document"]) == tmp_path / "generated/mcp/docs/Inventory.md"
 
     outside = tmp_path / "outside-root"
     outside.mkdir()
     (tmp_path / "linked-root").symlink_to(outside, target_is_directory=True)
     monkeypatch.setenv("FORMALSPECGEN_MCP_OUTPUT_ROOT", "linked-root")
-    rejected = mcp_server.document_code(str(source), "docs/Other.md")
+    rejected = mcp_server.document_code(
+        str(source), "docs/Other.md", no_llm=True)
     assert rejected["code"] == "OUTPUT_SYMLINK_REJECTED"
 
 
@@ -176,7 +184,8 @@ def test_input_and_result_limits_fail_closed(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     oversized = Path("Oversized.java")
     oversized.write_bytes(b" " * (mcp_server.MCP_DOCUMENT_MAX_INPUT_BYTES + 1))
-    result = mcp_server.document_code(str(oversized), "docs/Oversized.md")
+    result = mcp_server.document_code(
+        str(oversized), "docs/Oversized.md", no_llm=True)
     assert result["code"] == "INPUT_LIMIT_EXCEEDED"
 
     admission = authorize_mcp_invocation(
@@ -235,7 +244,62 @@ def test_publication_race_rolls_back_artifacts_from_same_request(tmp_path):
 
 def test_missing_input_is_a_structured_failure(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    result = mcp_server.document_code("Missing.java", "docs/Missing.md")
+    result = mcp_server.document_code(
+        "Missing.java", "docs/Missing.md", no_llm=True)
     assert result["status"] == "FAIL"
     assert result["claim"] == "NO_PROOF"
     assert result["code"] == "input_unavailable"
+
+
+def test_provider_documentation_is_explicit_bounded_and_has_no_fallback(
+        tmp_path, monkeypatch):
+    source = _source(tmp_path, monkeypatch)
+    narrative = DocumentationNarrative(
+        {"overview": "Approved provider overview.", "invariant_prose": {}},
+        mcp_server.config.OLLAMA_MODEL,
+        {"prompt_tokens": 10, "completion_tokens": 4})
+    with patch(
+            "pipeline.code_documentation.generate_narrative_strict",
+            return_value=narrative) as provider:
+        result = mcp_server.document_code(
+            str(source), "docs/provider.md", project_root="component-a",
+            provider="ollama", model=mcp_server.config.OLLAMA_MODEL,
+            result_export="results/provider.json")
+
+    assert result["status"] == "DOCUMENTED"
+    assert result["narrative_source"] == "provider"
+    assert result["provider"] == {
+        "status": "COMPLETED", "provider": "ollama",
+        "requested_model": mcp_server.config.OLLAMA_MODEL,
+        "selected_model": mcp_server.config.OLLAMA_MODEL,
+        "used_model": mcp_server.config.OLLAMA_MODEL,
+        "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+        "fallback": False, "request_count": 1,
+        "disclosed_source_sha256": result["source_sha256"],
+    }
+    assert result["mcp_admission"]["granted_effects"] == [
+        "provider_access", "workspace_read", "workspace_write_new"]
+    assert Path(result["candidate"]).relative_to(tmp_path).as_posix() == \
+        ".formalspecgen/mcp-output/component-a/domains/candidates/inventory.v2.yaml"
+    assert result["publication"]["status"] == "COMMITTED"
+    assert "results/provider.json" in result["publication"]["artifacts"]
+    provider.assert_called_once()
+
+
+def test_provider_failure_and_unapproved_model_fail_closed(tmp_path, monkeypatch):
+    source = _source(tmp_path, monkeypatch)
+    rejected = mcp_server.document_code(
+        str(source), "docs/rejected.md", provider="ollama",
+        model="request-selected-unapproved-model")
+    assert rejected["status"] == "FAIL"
+    assert rejected["code"] == "MCP_EFFECT_NOT_AUTHORIZED"
+
+    with patch(
+            "pipeline.code_documentation.generate_narrative_strict",
+            side_effect=RuntimeError("provider unavailable")):
+        failed = mcp_server.document_code(
+            str(source), "docs/failed.md", provider="ollama")
+    assert failed["status"] == "FAIL"
+    assert failed["code"] == "PROVIDER_FAILED"
+    assert failed["provider"]["fallback"] is False
+    assert not (tmp_path / ".formalspecgen/mcp-output/docs/failed.md").exists()

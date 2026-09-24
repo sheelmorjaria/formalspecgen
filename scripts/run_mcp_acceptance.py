@@ -7,22 +7,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.metadata
 import json
 import os
 import subprocess
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree
 
-import anyio
-from mcp import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
-
-import mcp_server
 from pipeline.parity_inventory import ACCEPTANCE_EVIDENCE_SCHEMA, load_parity_plan
+from mcp_acceptance_adapters import collect_transport_observation
 
 
 def _sha256(value: object) -> str:
@@ -39,80 +33,51 @@ def _git(root: Path, *arguments: str) -> str:
         stderr=subprocess.PIPE).stdout.strip()
 
 
-def _case_result(root: Path, case: dict, revision: str) -> dict:
-    with tempfile.TemporaryDirectory(prefix="formalspecgen-acceptance-") as directory:
-        junit = Path(directory) / "junit.xml"
-        process = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", "--no-cov",
-             str(case["test"]), f"--junitxml={junit}"],
-            cwd=root, text=True, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, check=False)
-        counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
-        if junit.is_file():
-            document = ElementTree.parse(junit).getroot()
-            suites = ([document] if document.tag == "testsuite"
-                      else list(document.findall(".//testsuite")))
-            for name in counts:
-                counts[name] = sum(int(suite.get(name, "0")) for suite in suites)
-        passed = (
-            process.returncode == 0 and counts["tests"] > 0
-            and counts["failures"] == counts["errors"] == counts["skipped"] == 0)
-        return {
-            "kind": case["kind"],
-            "test": case["test"],
-            "variants": sorted(set(case.get("variants", ()))),
-            "result": "passed" if passed else "failed",
-            "revision": revision,
-            "exit_code": process.returncode,
-            "junit": counts,
-            "output_sha256": hashlib.sha256(
-                process.stdout.encode("utf-8")).hexdigest(),
-        }
+def _redacted_output(value: str) -> str:
+    result = value
+    for name, secret in os.environ.items():
+        if secret and any(token in name.upper() for token in (
+                "API_KEY", "TOKEN", "PASSWORD", "SECRET")):
+            result = result.replace(secret, "[REDACTED]")
+    return result
 
 
-async def _inspect_transport_observation() -> dict:
-    with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-transport-") as directory:
-        workspace = Path(directory)
-        (workspace / "Probe.java").write_text(
-            "public class Probe { public int value() { return 1; } }\n",
-            encoding="utf-8")
-        previous = Path.cwd()
-        os.chdir(workspace)
-        try:
-            parameters = StdioServerParameters(
-                command=sys.executable,
-                args=[str(Path(mcp_server.__file__).resolve())],
-                cwd=str(workspace), env=dict(os.environ))
-            with anyio.fail_after(30):
-                async with stdio_client(parameters) as (read, write):
-                    async with ClientSession(read, write) as session:
-                        initialized = await session.initialize()
-                        tools = await session.list_tools()
-                        tool = next(item for item in tools.tools
-                                    if item.name == "inspect_code")
-                        response = await session.call_tool(
-                            "inspect_code", {"source": "Probe.java"})
-                        if response.isError or not isinstance(
-                                response.structuredContent, dict):
-                            raise RuntimeError("inspect_code MCP transport call failed")
-                        result = response.structuredContent
-        finally:
-            os.chdir(previous)
-    schema = tool.inputSchema
-    semantic_result = {
-        key: result.get(key) for key in (
-            "status", "claim", "scope", "parser_mode", "source_sha256",
-            "class", "metrics", "findings")
-    }
+def _case_result(
+        root: Path, case: dict, revision: str,
+        artifacts: Path, index: int) -> dict:
+    stem = f"{index:02d}-{case['kind']}"
+    junit = artifacts / f"{stem}.junit.xml"
+    output = artifacts / f"{stem}.pytest.txt"
+    process = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "--no-cov",
+         str(case["test"]), f"--junitxml={junit}"],
+        cwd=root, text=True, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, check=False)
+    sanitized = _redacted_output(process.stdout)
+    output.write_text(sanitized, encoding="utf-8")
+    counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    if junit.is_file():
+        document = ElementTree.parse(junit).getroot()
+        suites = ([document] if document.tag == "testsuite"
+                  else list(document.findall(".//testsuite")))
+        for name in counts:
+            counts[name] = sum(int(suite.get(name, "0")) for suite in suites)
+    passed = (
+        process.returncode == 0 and counts["tests"] > 0
+        and counts["failures"] == counts["errors"] == counts["skipped"] == 0)
     return {
-        "transport": "mcp-stdio-subprocess",
-        "mcp_sdk_version": importlib.metadata.version("mcp"),
-        "server": initialized.serverInfo.model_dump(mode="json"),
-        "discovered_tools": sorted(item.name for item in tools.tools),
-        "input_schema": schema,
-        "schema_sha256": _sha256(schema),
-        "result_sha256": _sha256(semantic_result),
-        "result_status": result.get("status"),
+        "kind": case["kind"],
+        "test": case["test"],
+        "variants": sorted(set(case.get("variants", ()))),
+        "result": "passed" if passed else "failed",
+        "revision": revision,
+        "exit_code": process.returncode,
+        "junit": counts,
+        "junit_artifact": f"{artifacts.name}/{junit.name}",
+        "junit_sha256": (hashlib.sha256(junit.read_bytes()).hexdigest()
+                           if junit.is_file() else None),
+        "output_artifact": f"{artifacts.name}/{output.name}",
+        "output_sha256": hashlib.sha256(sanitized.encode("utf-8")).hexdigest(),
     }
 
 
@@ -122,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--plan", type=Path, default=Path("mcpdocs/mcp_parity_plan.json"))
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--artifacts-dir", type=Path)
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     plan = load_parity_plan(args.plan)
@@ -132,6 +98,9 @@ def main(argv: list[str] | None = None) -> int:
     dirty = bool(_git(root, "status", "--porcelain", "--untracked-files=all"))
     plan_sha256 = _sha256(plan)
     planned = {item["cli_command"]: item for item in plan["commands"]}
+    artifacts = (args.artifacts_dir or
+                 args.evidence.parent / "mcp-acceptance-artifacts").resolve()
+    artifacts.mkdir(parents=True, exist_ok=False)
     commands = []
     failed = False
     for name in args.command:
@@ -139,13 +108,15 @@ def main(argv: list[str] | None = None) -> int:
         contract = declaration.get("completion_contract") if declaration else None
         if not isinstance(contract, dict):
             parser.error(f"{name} has no completion contract")
+        command_artifacts = artifacts / name
+        command_artifacts.mkdir()
         cases = [
-            _case_result(root, case, revision)
-            for case in contract.get("acceptance_cases", ())
+            _case_result(root, case, revision, command_artifacts, index)
+            for index, case in enumerate(contract.get("acceptance_cases", ()), 1)
         ]
         failed = failed or any(case["result"] != "passed" for case in cases)
-        observation = (anyio.run(_inspect_transport_observation)
-                       if name == "inspect" and not failed else None)
+        observation = (collect_transport_observation(name)
+                       if not failed else None)
         commands.append({
             "cli_command": name,
             "required_variants": sorted(set(contract.get("required_variants", ()))),
@@ -159,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         "workspace_dirty": dirty,
         "plan_sha256": plan_sha256,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "case_artifact_directory": artifacts.name,
         "run": {
             "provider": "github-actions" if os.environ.get("GITHUB_ACTIONS") else "local",
             "id": os.environ.get("GITHUB_RUN_ID"),

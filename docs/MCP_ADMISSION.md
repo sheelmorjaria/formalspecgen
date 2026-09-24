@@ -18,7 +18,9 @@ must be covered; and revision-bound passing cases must demonstrate request equiv
 delivery, effect enforcement, result equivalence, and real MCP transport. Results written into the
 reviewed plan are not evidence. A dedicated CI runner executes the declared test nodes, rejects
 failures and skips, records the clean Git revision, observed transport schema/result digests, and
-publishes the derived manifest as a workflow artifact. Resumable and approval workflows
+publishes the derived manifest, raw JUnit XML, and redacted pytest output as workflow artifacts.
+Transport collection is implemented by reviewed per-workflow adapters rather than a command-name
+special case in the runner. Resumable and approval workflows
 additionally require replay/session and approval-security cases. Missing or stale runner evidence
 keeps the command incomplete even when its restricted profile remains useful.
 
@@ -44,7 +46,7 @@ boundary will reject the operation even when the broader profile could have allo
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `verify_code` | Yes | Admitted | `parse`, `check`, `esc` / Java or JML / OpenJML | Read immutable input; execute in bounded disposable workspace; publish new immutable evidence | None | Exact execution observation and terminal manifest | Required for any later promotion or signing |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
-| `document_code` | Yes | Admitted | `deterministic` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | None | Unreviewed Markdown and V2 candidate; no proof receipt | Required before review, use, or promotion |
+| `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -85,14 +87,20 @@ resolve_callbacks      doctor_environment
 This classification does not mean that every handler is unsafe. It means its complete reachable
 workflow has not yet demonstrated the required constraints. For example, `doctor_environment`
 launches executable version/help probes and therefore cannot be admitted as non-executing.
-Provider-assisted documentation remains unsupported: file writes and provider data export are
-independent permissions, and the admitted deterministic profile authorizes no provider access.
+The documentation handler accepts `source`, a relative Markdown `out`, a relative `project_root`
+namespace for candidate placement, `no_llm`, `provider`, `model`, and an optional relative JSON
+`result_export`. It reads at most one MiB and publishes at most two MiB across the generated
+artifacts. Its output root defaults to `.formalspecgen/mcp-output` and may be configured by the
+trusted server through `FORMALSPECGEN_MCP_OUTPUT_ROOT`. Absolute paths, traversal, symlinked output
+components, and existing destinations fail closed.
 
-The deterministic documentation handler accepts only `source` and a relative Markdown `out` path.
-It reads at most one MiB and publishes at most two MiB across both generated artifacts. Its output
-root defaults to `.formalspecgen/mcp-output` and may be configured by the trusted server through
-`FORMALSPECGEN_MCP_OUTPUT_ROOT`. Absolute paths, traversal, symlinked output components, and existing
-destinations fail closed. The artifacts remain explicitly unreviewed and do not carry a proof
+Deterministic requests receive no provider authority. Provider-assisted requests separately
+request `provider_access`; endpoints and credentials remain server-controlled through the normal
+provider configuration. An explicit model is accepted only when it is the configured default or
+appears in the trusted `FORMALSPECGEN_MCP_DOCUMENT_MODELS` comma-separated `provider:model`
+allowlist. One narrative request is made, its selected and reported model are recorded without
+credentials, and provider or schema failure stops the workflow without deterministic fallback.
+Provider prose and all published artifacts remain explicitly unreviewed and do not carry a proof
 receipt.
 
 The inspection handler accepts `source` and optional `result_export`. Inputs are limited to one

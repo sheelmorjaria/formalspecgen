@@ -4014,7 +4014,7 @@
       "workflow_kind": "direct_or_task",
       "requirements": "Deterministic and provider-assisted modes; account for document and candidate-registration writes.",
       "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "implementation_status": "verified",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -4031,7 +4031,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4048,7 +4048,7 @@
             "default": null,
             "required": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4065,7 +4065,7 @@
             "default": ".",
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4083,7 +4083,7 @@
             "required": false,
             "action": "store_true"
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4100,7 +4100,7 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4122,7 +4122,7 @@
               "ollama"
             ]
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4139,10 +4139,50 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/code_documentation.py"
+      "baseline_source": "pipeline/code_documentation.py",
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "java-deterministic",
+          "java-deterministic-export",
+          "java-project-root",
+          "java-provider-export",
+          "java-provider-glm",
+          "java-provider-model",
+          "java-provider-ollama",
+          "java-provider-openai"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_documentation_workflow_acceptance.py::test_documentation_cli_and_mcp_requests_normalize_equivalently",
+            "variants": ["java-deterministic", "java-deterministic-export", "java-project-root", "java-provider-export", "java-provider-glm", "java-provider-model", "java-provider-ollama", "java-provider-openai"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_documentation_workflow_acceptance.py::test_documentation_cli_parser_and_transport_schema_cover_all_inputs",
+            "variants": ["java-deterministic", "java-deterministic-export", "java-project-root", "java-provider-export", "java-provider-glm", "java-provider-model", "java-provider-ollama", "java-provider-openai"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_documentation_workflow_acceptance.py::test_documentation_effects_provider_policy_and_outputs_are_enforced",
+            "variants": ["java-deterministic", "java-deterministic-export", "java-project-root", "java-provider-export", "java-provider-glm", "java-provider-model", "java-provider-ollama", "java-provider-openai"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_documentation_workflow_acceptance.py::test_documentation_cli_and_mcp_results_are_semantically_equivalent",
+            "variants": ["java-deterministic", "java-deterministic-export", "java-project-root", "java-provider-export", "java-provider-glm", "java-provider-model", "java-provider-ollama", "java-provider-openai"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_documentation_workflow_acceptance.py::test_real_mcp_transport_discovers_and_calls_documentation_variants",
+            "variants": ["java-deterministic", "java-deterministic-export", "java-project-root", "java-provider-export", "java-provider-glm", "java-provider-model", "java-provider-ollama", "java-provider-openai"]
+          }
+        ]
+      }
     }
   ]
 }

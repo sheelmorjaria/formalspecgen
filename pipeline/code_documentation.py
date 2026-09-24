@@ -64,6 +64,15 @@ class DocumentationBundle:
     result: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class DocumentationNarrative:
+    """Validated provider contribution and its non-secret observation."""
+
+    content: dict[str, Any]
+    model: str
+    usage: dict[str, Any]
+
+
 def _term(node: Any) -> str:
     """Render a value/term subexpression in readable infix form."""
     kind = node.get("kind")
@@ -182,8 +191,9 @@ def render_nl_document(payload: dict, *, source_path: Path, source_sha256: str,
     return "\n".join(lines)
 
 
-def generate_narrative(payload: dict, provider: str, model: str | None) -> dict | None:
-    """Ask the provider for overview/invariant prose; None on any failure."""
+def generate_narrative_strict(
+        payload: dict, provider: str, model: str | None) -> DocumentationNarrative:
+    """Ask one provider for prose and reject unavailable or malformed output."""
     messages = [
         {"role": "system",
          "content": "You are a precise technical writer for formal specifications. "
@@ -196,16 +206,23 @@ def generate_narrative(payload: dict, provider: str, model: str | None) -> dict 
                     "explains one safety invariant semantically.\n\n"
                     + json.dumps(payload, indent=2)},
     ]
-    try:
-        raw, _, _ = _chat_fn(provider)(messages, model, 0.2)
-        data = _first_json_object(strip_fence(raw))
-    except Exception:
-        return None
+    raw, used_model, usage = _chat_fn(provider)(messages, model, 0.2)
+    data = _first_json_object(strip_fence(raw))
     if not isinstance(data, dict) or not isinstance(data.get("overview"), str):
-        return None
+        raise ValueError("provider returned invalid documentation narrative")
     if not isinstance(data.get("invariant_prose"), dict):
         data["invariant_prose"] = {}
-    return data
+    return DocumentationNarrative(
+        content=data, model=str(used_model),
+        usage=dict(usage) if isinstance(usage, dict) else {})
+
+
+def generate_narrative(payload: dict, provider: str, model: str | None) -> dict | None:
+    """Compatibility helper: return narrative content or None on any failure."""
+    try:
+        return generate_narrative_strict(payload, provider, model).content
+    except Exception:
+        return None
 
 
 def _infer_initials(text: str, class_name: str, fields: list[tuple[str, str]]) -> dict[str, int | bool]:

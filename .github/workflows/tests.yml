@@ -131,10 +131,11 @@ jobs:
           -r requirements-dev.txt
           -r requirements-mcp.txt
           -e .
-      - name: Produce trusted inspection acceptance evidence
+      - name: Produce trusted MCP workflow acceptance evidence
         run: >-
           python scripts/run_mcp_acceptance.py
           --command inspect
+          --command document-code
           --evidence build/mcp-acceptance-evidence.json
       - name: Derive the evidence-backed parity report
         run: >-
@@ -143,6 +144,7 @@ jobs:
           --manifest build/mcp-parity-manifest.json
           --status build/MCP_PARITY_STATUS.md
           --require-complete inspect
+          --require-complete document-code
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -151,6 +153,7 @@ jobs:
             build/mcp-acceptance-evidence.json
             build/mcp-parity-manifest.json
             build/MCP_PARITY_STATUS.md
+            build/mcp-acceptance-artifacts/
           if-no-files-found: error
           retention-days: 90
 

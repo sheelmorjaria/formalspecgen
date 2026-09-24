@@ -33,16 +33,20 @@ from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_t
 from pipeline.mcp_artifacts import (
     MCPArtifactError,
     publish_new_artifacts,
-    read_bounded_text,
 )
 from pipeline.mcp_policy import (
     MCPAdmission,
     MCPPolicyViolation,
     authorize_mcp_invocation,
 )
+from pipeline.mcp_provider_policy import resolve_documentation_model
 from pipeline.verify import verify_detailed
 from pipeline.verification_policy import decide_result
-from pipeline.workflow_services import run_java_inspection, run_java_verification
+from pipeline.workflow_services import (
+    run_documentation_preparation,
+    run_java_inspection,
+    run_java_verification,
+)
 from pipeline.workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
@@ -409,15 +413,15 @@ def analyze_codebase(target_dir: str, out_dir: str = "extracted",
         _workspace_path(project_root, must_exist=False)))
 
 
-def document_code(source: str, out: str) -> dict[str, Any]:
-    """Create bounded, deterministic, unreviewed Java documentation artifacts."""
-    from pipeline.code_documentation import (
-        DocumentationBundle,
-        prepare_deterministic_documentation,
-    )
-
+def document_code(
+        source: str, out: str, project_root: str = ".",
+        no_llm: bool = False, provider: str = "ollama",
+        model: str | None = None,
+        result_export: str | None = None) -> dict[str, Any]:
+    """Create bounded, unreviewed Java documentation artifacts."""
     request = DocumentationWorkflowRequest(
-        source, out, no_llm=True, provider=None)
+        source, out, project_root=project_root, no_llm=no_llm,
+        provider=provider, model=model, result_export=result_export)
     effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
         "document_code", mode=request.mode, language=request.language,
@@ -433,6 +437,7 @@ def document_code(source: str, out: str) -> dict[str, Any]:
             resource_budget={
                 "max_input_bytes": MCP_DOCUMENT_MAX_INPUT_BYTES,
                 "max_result_bytes": MCP_DOCUMENT_MAX_RESULT_BYTES,
+                "max_provider_response_bytes": 128 * 1024,
             })
         output_path = Path(request.out)
         if (output_path.is_absolute() or ".." in output_path.parts
@@ -440,33 +445,54 @@ def document_code(source: str, out: str) -> dict[str, Any]:
             raise MCPArtifactError(
                 "OUTPUT_SCOPE_VIOLATION",
                 "documentation output must be a relative Markdown path")
+        project_path = Path(request.project_root)
+        if project_path.is_absolute() or ".." in project_path.parts:
+            raise MCPArtifactError(
+                "OUTPUT_SCOPE_VIOLATION",
+                "documentation project root must be a relative output namespace")
+        if request.result_export is not None:
+            export_path = Path(request.result_export)
+            if (export_path.is_absolute() or ".." in export_path.parts
+                    or export_path.suffix.lower() != ".json"):
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "documentation export must be a relative JSON path")
         output_root = context.output_root
         assert output_root is not None
-        source_path = context.resolve_input(request.source)
-        text = read_bounded_text(
-            source_path, admission, max_bytes=MCP_DOCUMENT_MAX_INPUT_BYTES)
-        prepared = prepare_deterministic_documentation(source_path, text)
-        if not isinstance(prepared, DocumentationBundle):
-            result = {**prepared, "mcp_admission": admission.summary()}
+        prepared = run_documentation_preparation(
+            request, context, resolve_model=resolve_documentation_model)
+        if prepared.bundle is None:
+            result = {**prepared.payload, "mcp_admission": admission.summary()}
             return bind_workflow_result(
                 result, request, WorkflowInterface.MCP, context=context)
-        artifacts = publish_new_artifacts(
-            output_root,
-            {
-                request.out: prepared.document_text,
-                f"domains/candidates/{prepared.candidate_filename}":
-                    prepared.candidate_text,
-            },
-            admission,
-            max_total_bytes=MCP_DOCUMENT_MAX_RESULT_BYTES)
-        result = dict(prepared.result)
+        candidate_name = (project_path / "domains" / "candidates" /
+                          prepared.bundle.candidate_filename).as_posix()
+        document_path = str(output_root / request.out)
+        candidate_path = str(output_root / candidate_name)
+        result = dict(prepared.payload)
         result.update({
-            "document": artifacts[request.out]["path"],
-            "candidate": artifacts[
-                f"domains/candidates/{prepared.candidate_filename}"]["path"],
-            "artifacts": artifacts,
+            "document": document_path,
+            "candidate": candidate_path,
             "mcp_admission": admission.summary(),
         })
+        bound = bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+        pending: dict[str, str] = {
+            request.out: prepared.bundle.document_text,
+            candidate_name: prepared.bundle.candidate_text,
+        }
+        if request.result_export is not None:
+            pending[request.result_export] = json.dumps(
+                bound, indent=2, ensure_ascii=False, default=str) + "\n"
+        artifacts = publish_new_artifacts(
+            output_root, pending, admission,
+            max_total_bytes=MCP_DOCUMENT_MAX_RESULT_BYTES)
+        result["artifacts"] = artifacts
+        result["publication"] = {
+            "status": "COMMITTED",
+            "kind": "unreviewed-documentation-artifacts",
+            "artifacts": artifacts,
+        }
         return bind_workflow_result(
             result, request, WorkflowInterface.MCP, context=context)
     except MCPArtifactError as exc:

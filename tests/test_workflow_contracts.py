@@ -5,10 +5,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from pipeline.mcp_policy import MCPPolicyViolation, authorize_mcp_invocation
+from pipeline.mcp_provider_policy import resolve_documentation_model
+from pipeline.code_documentation import DocumentationNarrative
 from pipeline.workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
@@ -17,7 +20,10 @@ from pipeline.workflow_contracts import (
     WorkflowInterface,
     bind_workflow_result,
 )
-from pipeline.workflow_services import run_java_verification
+from pipeline.workflow_services import (
+    run_documentation_preparation,
+    run_java_verification,
+)
 
 
 def test_equivalent_cli_and_mcp_verification_inputs_normalize_identically(
@@ -112,3 +118,90 @@ def test_result_envelope_keeps_assurance_dimensions_separate(tmp_path):
     assert envelope["execution"] is None
     assert envelope["publication"] is None
     assert envelope["approval"] is None
+
+
+def _documentation_context(
+        request: DocumentationWorkflowRequest, tmp_path: Path, **budget: int
+) -> WorkflowContext:
+    base = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=tmp_path, output_root=tmp_path / "out")
+    return WorkflowContext(
+        WorkflowInterface.CLI, base.authority, tmp_path,
+        request.required_effects(WorkflowInterface.CLI),
+        tmp_path / "out", budget)
+
+
+def test_documentation_service_reports_language_read_and_extraction_failures(
+        tmp_path):
+    rust = tmp_path / "Counter.rs"
+    rust.write_text("struct Counter { value: i32 }", encoding="utf-8")
+    request = DocumentationWorkflowRequest(
+        str(rust), "Counter.md", no_llm=True)
+    assert run_documentation_preparation(
+        request, _documentation_context(request, tmp_path)).payload["status"] == \
+        "UNSUPPORTED_LANGUAGE"
+
+    invalid = tmp_path / "Invalid.java"
+    invalid.write_bytes(b"\xff")
+    request = DocumentationWorkflowRequest(
+        str(invalid), "Invalid.md", no_llm=True)
+    assert run_documentation_preparation(
+        request, _documentation_context(request, tmp_path)).payload["code"] == \
+        "input_unavailable"
+
+    oversized = tmp_path / "Oversized.java"
+    oversized.write_text("class Oversized {}", encoding="utf-8")
+    request = DocumentationWorkflowRequest(
+        str(oversized), "Oversized.md", no_llm=True)
+    assert run_documentation_preparation(
+        request, _documentation_context(
+            request, tmp_path, max_input_bytes=1)).payload["code"] == \
+        "INPUT_LIMIT_EXCEEDED"
+
+    empty = tmp_path / "Empty.java"
+    empty.write_text("class Empty {}", encoding="utf-8")
+    request = DocumentationWorkflowRequest(str(empty), "Empty.md", no_llm=True)
+    assert run_documentation_preparation(
+        request, _documentation_context(request, tmp_path)).payload["code"] == \
+        "UNPARSEABLE_SOURCE"
+
+    with patch("pathlib.Path.open", side_effect=OSError("read denied")):
+        assert run_documentation_preparation(
+            request, _documentation_context(request, tmp_path)).payload["code"] == \
+            "input_unavailable"
+
+
+def test_documentation_service_bounds_provider_result(tmp_path):
+    source = tmp_path / "Counter.java"
+    source.write_text(
+        "public class Counter { private int value = 1; "
+        "public void down() { if (value > 0) value = value - 1; } "
+        "public void up() { if (value < 1) value = value + 1; } }",
+        encoding="utf-8")
+    request = DocumentationWorkflowRequest(
+        str(source), "Counter.md", provider="ollama")
+    generated = DocumentationNarrative(
+        {"overview": "x" * 100, "invariant_prose": {}}, "fixture", {})
+    result = run_documentation_preparation(
+        request, _documentation_context(
+            request, tmp_path, max_provider_response_bytes=10),
+        generate=lambda *_args: generated)
+    assert result.payload["code"] == "PROVIDER_RESULT_LIMIT_EXCEEDED"
+
+
+def test_mcp_documentation_model_policy_is_server_controlled(monkeypatch):
+    monkeypatch.setenv(
+        "FORMALSPECGEN_MCP_DOCUMENT_MODELS",
+        "ollama:approved:tag, openai:approved-openai")
+    assert resolve_documentation_model("ollama", "approved:tag") == "approved:tag"
+    assert resolve_documentation_model("openai", "approved-openai") == \
+        "approved-openai"
+    assert resolve_documentation_model("glm", None)
+    with pytest.raises(MCPPolicyViolation, match="not approved"):
+        resolve_documentation_model("unknown", None)
+    with pytest.raises(MCPPolicyViolation, match="not approved"):
+        resolve_documentation_model("ollama", "unapproved")
+    monkeypatch.setenv("FORMALSPECGEN_MCP_DOCUMENT_MODELS", "malformed")
+    with pytest.raises(MCPPolicyViolation, match="provider:model"):
+        resolve_documentation_model("ollama", None)

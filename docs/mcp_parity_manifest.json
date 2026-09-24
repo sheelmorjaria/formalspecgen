@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v2",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "0735f4bcd5b10342e853a1b43737156c58d46878edaa2dc7fd7b02a6bf7e0045",
+  "plan_sha256": "5d08b1689b613d3177f2d4215ab63bf4d443990080aa7fdb2582d1e83b2f8a6b",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -6468,6 +6468,30 @@
             "providers": [],
             "output_scope": "designated-new-artifacts",
             "evidence": "unreviewed-documentation"
+          },
+          {
+            "name": "java-provider-assisted-documentation",
+            "modes": [
+              "provider-assisted"
+            ],
+            "languages": [
+              "java"
+            ],
+            "backends": [
+              "builtin-documentation"
+            ],
+            "effects": [
+              "provider_access",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [
+              "glm",
+              "ollama",
+              "openai"
+            ],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unreviewed-provider-documentation"
           }
         ],
         "compatibility_aliases": []
@@ -6487,11 +6511,51 @@
             "default": null,
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "no_llm",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "source",
-          "out"
+          "out",
+          "project_root",
+          "no_llm",
+          "provider",
+          "model",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -6507,34 +6571,34 @@
           "source"
         ],
         "observed_mcp_fields": [
-          "out",
-          "source"
-        ],
-        "missing_mcp_fields": [
           "model",
           "no_llm",
-          "project_root",
-          "provider",
-          "result_export"
-        ],
-        "unverified_argument_mappings": [
-          "source",
           "out",
           "project_root",
-          "no_llm",
-          "result_export",
           "provider",
-          "model"
+          "result_export",
+          "source"
         ],
-        "required_variants": [],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "java-deterministic",
+          "java-deterministic-export",
+          "java-project-root",
+          "java-provider-export",
+          "java-provider-glm",
+          "java-provider-model",
+          "java-provider-ollama",
+          "java-provider-openai"
+        ],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -11949,5 +12013,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "da6bdb54556067d3120108c1539159c6f370fd47c4d87c1a732bf5baf4042c91"
+  "sha256": "273429aaaf69c9d94e1e50c41833fa085c147941f6123db8c3958972f63a322d"
 }

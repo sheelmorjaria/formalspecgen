@@ -112,7 +112,8 @@ def test_mcp_analyze_and_document_guarded(tmp_path, monkeypatch):
     escape = mcp_server.analyze_codebase("..", out_dir="extracted")
     assert escape["code"] == "path_outside_workspace"
 
-    documented = mcp_server.document_code(str(source), "docs/S.md")
+    documented = mcp_server.document_code(
+        str(source), "docs/S.md", no_llm=True)
     assert documented["status"] == "DOCUMENTED"
     assert documented["claim"] == "UNREVIEWED_EXTRACTION_DOCUMENTATION"
     assert documented["mcp_admission"]["profile"] == \

@@ -1023,7 +1023,7 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .code_documentation import document_code
+    from .workflow_services import run_documentation_preparation
     from .workflow_contracts import (
         DocumentationWorkflowRequest,
         WorkflowContext,
@@ -1039,17 +1039,25 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
         request.required_effects(WorkflowInterface.CLI),
         workspace_root=Path(request.source).parent,
         output_root=Path(request.out).expanduser().resolve().parent)
-    context.require("workspace_write_new")
-    if request.provider is not None:
-        context.require("provider_access")
-    result = document_code(
-        request.source,
-        request.out,
-        project_root=request.project_root,
-        provider=request.provider or "ollama",
-        model=request.model,
-        no_llm=request.no_llm,
-    )
+    defaults = {
+        "glm": config.GLM_MODEL,
+        "openai": config.OPENAI_MODEL,
+        "ollama": config.OLLAMA_MODEL,
+    }
+    prepared = run_documentation_preparation(
+        request, context,
+        resolve_model=lambda provider, model: model or defaults[provider])
+    result = dict(prepared.payload)
+    if prepared.bundle is not None:
+        context.require("workspace_write_new")
+        destination = Path(request.out)
+        candidate = (Path(request.project_root) / "domains" / "candidates" /
+                     prepared.bundle.candidate_filename)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(prepared.bundle.document_text, encoding="utf-8")
+        candidate.write_text(prepared.bundle.candidate_text, encoding="utf-8")
+        result.update({"document": str(destination), "candidate": str(candidate)})
     result = bind_workflow_result(
         result, request, WorkflowInterface.CLI, context=context)
     if args.json:
