@@ -30,7 +30,7 @@ _TS_LANGUAGES = {
 }
 
 _RUST_SIGNATURE = re.compile(
-    r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?(?:const\s+)?fn\s+"
+    r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?(?:const\s+)?(?:async\s+)?fn\s+"
     r"[A-Za-z_]\w*\s*(?:<[^>{;]*>)?\s*\([^;{}]*\)\s*(?:->\s*[^;{]+)?")
 _RUST_TRAIT = re.compile(r"(?m)^\s*(?:pub\s+)?trait\s+[A-Za-z_]\w*")
 _C_SIGNATURE = re.compile(
@@ -41,10 +41,13 @@ _CPP_METHOD = re.compile(
     r"[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?(?:override\s*)?(?:;|\{)")
 _CPP_CLASS = re.compile(r"(?m)^\s*(?:class|struct)\s+[A-Za-z_]\w*")
 
-_RUST_CONTRACT_ATTR = re.compile(r"#\[(?:requires|ensures|after_expiry|pure|trusted)"
-                                 r"[\s\S]*?\]")
+_RUST_ATTRIBUTE = re.compile(
+    r"#\[\s*(?P<name>[A-Za-z_]\w*)(?:\([\s\S]*?\))?\s*\]")
+_RUST_CONTRACT_NAMES = {"requires", "ensures", "after_expiry", "pure", "terminates"}
+_RUST_PROOF_TRUST_NAMES = {"trusted", "extern_spec", "verify_only_spec"}
 _ACSL_BLOCK = re.compile(r"/\*@(?:.|\n)*?\*/", re.MULTILINE)
 _CPP_ASSERT = re.compile(r"(?m)\bassert\s*\([^;]+\)\s*;")
+_ACSL_PROOF_TRUST = re.compile(r"\b(?:admit|admits|axiom|axiomatic)\b", re.I)
 
 
 def _walk(root):
@@ -123,12 +126,137 @@ def public_api_surface(source: str, language: str) -> list[str]:
 
 def contract_clauses(source: str, language: str) -> set[str]:
     """Normalized native-contract clause set (proof hints excluded by shape)."""
+    surface = native_contract_surface(source, language)
+    clauses = set(surface["global_contracts"])
+    for item in surface["functions"]:
+        clauses.update(item["contracts"])
+    return clauses
+
+
+def native_contract_surface(source: str, language: str) -> dict:
+    """Declaration-bound native contracts plus proof-trust controls.
+
+    Existing functions retain their own clauses during a refactor. New private
+    helpers may carry copied contracts, but trust attributes and verifier
+    escape hatches are compared independently of API visibility.
+    """
     if language == "rust":
-        return {_normalize(m.group(0)) for m in _RUST_CONTRACT_ATTR.finditer(source)}
+        return _rust_contract_surface(source)
     if language == "c":
-        return {_normalize(m.group(0)) for m in _ACSL_BLOCK.finditer(source)
-                if not re.search(r"\bloop\b", m.group(0))}
-    return {_normalize(m.group(0)) for m in _CPP_ASSERT.finditer(source)}
+        return _c_contract_surface(source)
+    if language == "cpp":
+        return {
+            "functions": [],
+            "api": public_api_surface(source, language),
+            "global_contracts": sorted(
+                _normalize(match.group(0)) for match in _CPP_ASSERT.finditer(source)),
+            "proof_trust": [],
+            "parse_errors": [],
+        }
+    raise ValueError(f"unsupported native contract language: {language}")
+
+
+def _rust_contract_surface(source: str) -> dict:
+    attributes = list(_RUST_ATTRIBUTE.finditer(source))
+    signatures = list(_RUST_SIGNATURE.finditer(source))
+    assigned_contracts: set[int] = set()
+    assigned_trust: set[int] = set()
+    functions = []
+    proof_trust = []
+    for signature_match in signatures:
+        signature = _normalize(signature_match.group(0))
+        attached = _contiguous_preceding(source, attributes, signature_match.start())
+        contracts = []
+        for attribute in attached:
+            name = attribute.group("name").lower()
+            normalized = _normalize(attribute.group(0))
+            if name in _RUST_CONTRACT_NAMES:
+                contracts.append(normalized)
+                assigned_contracts.add(attribute.start())
+            if name in _RUST_PROOF_TRUST_NAMES:
+                proof_trust.append(f"{signature}: {normalized}")
+                assigned_trust.add(attribute.start())
+        functions.append({"signature": signature, "contracts": contracts})
+
+    parse_errors = []
+    for attribute in attributes:
+        name = attribute.group("name").lower()
+        if name in _RUST_CONTRACT_NAMES and attribute.start() not in assigned_contracts:
+            parse_errors.append(
+                f"unbound Rust contract attribute at offset {attribute.start()}")
+        if name in _RUST_PROOF_TRUST_NAMES and attribute.start() not in assigned_trust:
+            proof_trust.append(
+                f"unbound@{attribute.start()}: {_normalize(attribute.group(0))}")
+    api = sorted(
+        [item["signature"] for item in functions
+         if re.match(r"^pub(?:\([^)]*\))?\s+", item["signature"])] +
+        [_normalize(match.group(0)) for match in _RUST_TRAIT.finditer(source)])
+    return {
+        "functions": sorted(functions, key=lambda item: item["signature"]),
+        "api": api,
+        "global_contracts": [],
+        "proof_trust": sorted(proof_trust),
+        "parse_errors": parse_errors,
+    }
+
+
+def _c_contract_surface(source: str) -> dict:
+    blocks = list(_ACSL_BLOCK.finditer(source))
+    signatures = list(_C_SIGNATURE.finditer(source))
+    assigned: set[int] = set()
+    functions = []
+    proof_trust = []
+    for signature_match in signatures:
+        signature = _normalize(signature_match.group(0))
+        attached = _contiguous_preceding(source, blocks, signature_match.start())
+        contracts = []
+        for block in attached:
+            normalized = _normalize(block.group(0))
+            if re.search(r"\bloop\b", block.group(0)):
+                continue
+            assigned.add(block.start())
+            if _ACSL_PROOF_TRUST.search(block.group(0)):
+                proof_trust.append(f"{signature}: {normalized}")
+            else:
+                contracts.append(normalized)
+        functions.append({"signature": signature, "contracts": contracts})
+
+    parse_errors = []
+    for block in blocks:
+        if re.search(r"\bloop\b", block.group(0)):
+            continue
+        normalized = _normalize(block.group(0))
+        if block.start() not in assigned:
+            if _ACSL_PROOF_TRUST.search(block.group(0)):
+                proof_trust.append(f"unbound@{block.start()}: {normalized}")
+            else:
+                parse_errors.append(
+                    f"unbound ACSL contract block at offset {block.start()}")
+    api = sorted(
+        item["signature"] for item in functions
+        if not re.match(r"^static\b", item["signature"]))
+    return {
+        "functions": sorted(functions, key=lambda item: item["signature"]),
+        "api": api,
+        "global_contracts": [],
+        "proof_trust": sorted(proof_trust),
+        "parse_errors": parse_errors,
+    }
+
+
+def _contiguous_preceding(source: str, candidates: list[re.Match],
+                          declaration_start: int) -> list[re.Match]:
+    """Return annotations immediately preceding a declaration, in source order."""
+    cursor = declaration_start
+    selected = []
+    for candidate in reversed(candidates):
+        if candidate.end() > cursor:
+            continue
+        if source[candidate.end():cursor].strip():
+            break
+        selected.append(candidate)
+        cursor = candidate.start()
+    return list(reversed(selected))
 
 
 def language_for(suffix: str) -> str | None:

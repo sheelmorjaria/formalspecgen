@@ -44,6 +44,7 @@ _SEMANTIC_MODIFIER = re.compile(
     re.I,
 )
 _JAVA_UNICODE_ESCAPE = re.compile(r"\\u+[0-9A-Fa-f]{4}")
+_BARE_CARRIAGE_RETURN = re.compile(r"\r(?!\n)")
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,15 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
         raise JMLParseError(
             "Java Unicode escapes are unsupported at the contract boundary "
             f"(offset {unicode_escape.start()})")
+    bare_cr = _BARE_CARRIAGE_RETURN.search(source)
+    if strict and bare_cr:
+        # Java treats CR, LF, and CRLF as line terminators.  The contract
+        # scanner and artifact writer currently preserve source bytes, so a
+        # bare CR must be rejected rather than interpreted differently from
+        # javac/OpenJML.
+        raise JMLParseError(
+            "bare carriage-return line endings are unsupported at the contract "
+            f"boundary (offset {bare_cr.start()})")
 
     records: list[JMLStatement] = []
     for offset, body in _active_jml_annotations(source, reject_conditional=strict):

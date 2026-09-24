@@ -34,6 +34,11 @@ _CONTRACT_JAVA_ANNOTATIONS = {
     "pure", "nullable", "nonnull", "nullablebydefault", "nonnullbydefault",
     "helper", "specpublic", "specprotected", "model", "ghost",
 }
+_PROOF_TRUST_JAVA_ANNOTATIONS = {
+    "skipesc", "skiprac", "skipinfer", "trusted", "helper", "options",
+    "codejavamath", "codesafemath", "codebigintmath",
+    "specjavamath", "specsafemath", "specbigintmath",
+}
 
 
 def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
@@ -96,6 +101,7 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         "clauses": {"class": [], "members": {}},
         "semantic_modifiers": {"class": [], "members": {}, "fields": {}},
         "java_annotations": {"class": [], "members": {}, "fields": {}},
+        "proof_trust": {"class": [], "members": {}, "fields": {}, "assumptions": []},
         "private_assumptions": {},
         "parse_errors": declaration_issues,
     }
@@ -134,6 +140,8 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
             continue
         if containing is not None:
             if record.keyword == "assume":
+                surface["proof_trust"]["assumptions"].append(
+                    f"{containing['signature']}: {record.text}")
                 target = (surface["clauses"]["members"] if containing["included"]
                           else surface["private_assumptions"])
                 target.setdefault(containing["signature"], []).append(record.text)
@@ -155,8 +163,13 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
             elif record.keyword == "assume":
                 surface["private_assumptions"].setdefault(
                     following["signature"], []).append(record.text)
+            if record.keyword == "assume":
+                surface["proof_trust"]["assumptions"].append(
+                    f"{following['signature']}: {record.text}")
         else:
             surface["clauses"]["class"].append(record.text)
+            if record.keyword == "assume":
+                surface["proof_trust"]["assumptions"].append(f"class: {record.text}")
 
     surface["clauses"]["members"] = {
         key: surface["clauses"]["members"][key]
@@ -166,7 +179,7 @@ def contract_surface(code: str, *, public_only: bool = False) -> dict[str, Any]:
         key: surface["private_assumptions"][key]
         for key in sorted(surface["private_assumptions"])
     }
-    for collection in ("semantic_modifiers", "java_annotations"):
+    for collection in ("semantic_modifiers", "java_annotations", "proof_trust"):
         for scope in ("members", "fields"):
             surface[collection][scope] = {
                 key: values
@@ -387,8 +400,12 @@ def _add_java_annotations(
     if declaration is None:
         return
     target = surface["java_annotations"]
+    proof_trust = surface["proof_trust"]
     target["class"] = sorted(
         _annotation_signature(item) for item in declaration.annotations)
+    proof_trust["class"] = sorted(
+        _annotation_signature(item) for item in declaration.annotations
+        if _annotation_affects_proof_trust(item))
 
     ast_members = [
         *(('method', item) for item in declaration.methods),
@@ -407,6 +424,12 @@ def _add_java_annotations(
                 ast_member.annotations:
             target["members"].setdefault(owner["signature"], []).extend(sorted(
                 _annotation_signature(item) for item in ast_member.annotations))
+        trust_annotations = sorted(
+            _annotation_signature(item) for item in ast_member.annotations
+            if _annotation_affects_proof_trust(item))
+        if owner is not None and trust_annotations:
+            proof_trust["members"].setdefault(
+                owner["signature"], []).extend(trust_annotations)
 
     for ast_field in declaration.fields:
         signatures = sorted(_annotation_signature(item)
@@ -424,6 +447,11 @@ def _add_java_annotations(
                               for item in ast_field.annotations)
             if owner is not None and (not public_only or owner[3] or public_spec):
                 target["fields"].setdefault(owner[2], []).extend(signatures)
+            trust_annotations = sorted(
+                _annotation_signature(item) for item in ast_field.annotations
+                if _annotation_affects_proof_trust(item))
+            if owner is not None and trust_annotations:
+                proof_trust["fields"].setdefault(owner[2], []).extend(trust_annotations)
 
 
 def _has_contract_java_annotation(annotations: dict[str, Any]) -> bool:
@@ -444,6 +472,11 @@ def _annotation_is_public_spec(annotation: Any) -> bool:
     return name in {"specpublic", "specprotected"}
 
 
+def _annotation_affects_proof_trust(annotation: Any) -> bool:
+    name = annotation.name.rsplit(".", 1)[-1].replace("_", "").lower()
+    return name in _PROOF_TRUST_JAVA_ANNOTATIONS
+
+
 def _place_semantic_modifier(
         surface: dict[str, Any],
         record: jml_io.JMLStatement,
@@ -457,13 +490,19 @@ def _place_semantic_modifier(
         public_only: bool) -> None:
     """Attach a semantic JML modifier to its class, field, or method scope."""
     modifiers = surface["semantic_modifiers"]
+    proof_trust = surface["proof_trust"]
     owner = declaration_owner or containing
     if owner is not None:
+        if record.keyword == "helper":
+            proof_trust["members"].setdefault(
+                owner["signature"], []).append(record.text)
         if owner["included"] or record.keyword in {"spec_public", "spec_protected"}:
             modifiers["members"].setdefault(owner["signature"], []).append(record.text)
         return
     if declaration_field is not None:
         _, _, signature, observable, _ = declaration_field
+        if record.keyword == "helper":
+            proof_trust["fields"].setdefault(signature, []).append(record.text)
         if (not public_only or observable or
                 record.keyword in {"spec_public", "spec_protected"}):
             modifiers["fields"].setdefault(signature, []).append(record.text)
@@ -477,6 +516,8 @@ def _place_semantic_modifier(
             class_open = class_match.end() - 1
     if class_open < 0 or record.offset < class_open:
         modifiers["class"].append(record.text)
+        if record.keyword == "helper":
+            proof_trust["class"].append(record.text)
         return
 
     following_member = next(
@@ -485,17 +526,24 @@ def _place_semantic_modifier(
         (field for field in fields if field[0] > record.offset), None)
     if following_member is not None and (
             following_field is None or following_member["start"] < following_field[0]):
+        if record.keyword == "helper":
+            proof_trust["members"].setdefault(
+                following_member["signature"], []).append(record.text)
         if (following_member["included"] or
                 record.keyword in {"spec_public", "spec_protected"}):
             modifiers["members"].setdefault(
                 following_member["signature"], []).append(record.text)
     elif following_field is not None:
         _, _, signature, observable, _ = following_field
+        if record.keyword == "helper":
+            proof_trust["fields"].setdefault(signature, []).append(record.text)
         if (not public_only or observable or
                 record.keyword in {"spec_public", "spec_protected"}):
             modifiers["fields"].setdefault(signature, []).append(record.text)
     else:
         modifiers["class"].append(record.text)
+        if record.keyword == "helper":
+            proof_trust["class"].append(record.text)
 
 
 def _matching_brace(masked: str, opening: int) -> int:

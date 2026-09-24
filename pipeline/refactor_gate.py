@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 from .java_contracts import contract_surface, has_reviewed_contract, surface_differences
@@ -62,6 +63,32 @@ def _sha256(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
+def _read_text_exact(path: Path) -> str:
+    """Read source without Python universal-newline translation."""
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return handle.read()
+
+
+def _java_fileset_trust_manifest(files: list[Path]) -> tuple[dict, dict]:
+    """Return parse failures and proof-trust inputs for a Java source set."""
+    errors = {}
+    manifest = {}
+    for path in files:
+        try:
+            source = _read_text_exact(path)
+        except OSError as exc:
+            errors[path.name] = [str(exc)]
+            continue
+        surface = contract_surface(source, public_only=True)
+        if surface["parse_errors"]:
+            errors[path.name] = surface["parse_errors"]
+        proof_trust = surface.get("proof_trust", {})
+        if (proof_trust.get("class") or proof_trust.get("members") or
+                proof_trust.get("fields") or proof_trust.get("assumptions")):
+            manifest[path.name] = proof_trust
+    return errors, manifest
+
+
 def public_method_surface(source: str) -> list[str]:
     """Extract a formatting-insensitive public/protected declaration surface."""
     return sorted(re.sub(r"\s+", " ", match.group(1)).strip()
@@ -88,7 +115,7 @@ def _verification(path: Path, extra_files: list[Path] | None = None) -> dict:
 
 def _polyglot_verification(source_file: Path, language: str) -> dict:
     """Re-verify one non-Java revision with its native prover (esc equivalent)."""
-    code = source_file.read_text(encoding="utf-8")
+    code = _read_text_exact(source_file)
     if language == "rust":
         from .verify_rust import verify_rust
         result = verify_rust(code, mode="esc", backend="prusti")
@@ -108,32 +135,49 @@ def _polyglot_verification(source_file: Path, language: str) -> dict:
 def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
                               language: str) -> dict:
     """Contract-preserving gate for rust (Prusti), c (Frama-C), and cpp (ESBMC)."""
-    from .polyglot_surface import contract_clauses, public_api_surface
+    from .polyglot_surface import native_contract_surface
 
-    baseline = baseline_file.read_text(encoding="utf-8")
-    refactored = refactored_file.read_text(encoding="utf-8")
-    baseline_contract = contract_clauses(baseline, language)
-    refactored_contract = contract_clauses(refactored, language)
-    if not baseline_contract:
+    baseline = _read_text_exact(baseline_file)
+    refactored = _read_text_exact(refactored_file)
+    baseline_surface = native_contract_surface(baseline, language)
+    refactored_surface = native_contract_surface(refactored, language)
+    if baseline_surface["parse_errors"] or refactored_surface["parse_errors"]:
+        return _fail(
+            "unsupported_contract_syntax",
+            f"The {language} contract surface is incomplete or unsupported",
+            {"baseline": baseline_surface["parse_errors"],
+             "refactored": refactored_surface["parse_errors"]},
+        )
+    baseline_contracts = [
+        clause for item in baseline_surface["functions"] for clause in item["contracts"]
+    ] + baseline_surface["global_contracts"]
+    if not baseline_contracts:
         return _fail("missing_trusted_contract",
                      f"Baseline contains no {language} contract clauses")
-    # Subset, not equality: every baseline clause must survive verbatim, and
-    # added clauses on new items (an extracted helper's copied contract, a
-    # strategy trait's method declaration) are permitted — mirroring the
-    # Java lane, where private helpers may repeat the public obligations,
-    # and this gate's own API rule (baseline signatures must survive).
-    if not baseline_contract <= refactored_contract:
-        return _fail("contract_surface_changed",
-                     "Every baseline contract clause must survive the refactor")
-    baseline_api = public_api_surface(baseline, language)
-    refactored_api = public_api_surface(refactored, language)
+    baseline_api = baseline_surface["api"]
+    refactored_api = refactored_surface["api"]
     if not baseline_api:
         return _fail("method_surface_changed", "Baseline exposes no public API surface")
-    # An extracted helper may ADD a signature; contract preservation requires
-    # every baseline signature to survive verbatim (subset, not equality).
-    if not set(baseline_api) <= set(refactored_api):
+    if not Counter(baseline_api) <= Counter(refactored_api):
         return _fail("method_surface_changed",
-                     "Every baseline public signature must survive the refactor")
+                     "An existing externally visible native API declaration changed")
+    baseline_bindings = Counter(
+        json.dumps(item, sort_keys=True, separators=(",", ":"))
+        for item in baseline_surface["functions"])
+    refactored_bindings = Counter(
+        json.dumps(item, sort_keys=True, separators=(",", ":"))
+        for item in refactored_surface["functions"])
+    if not baseline_bindings <= refactored_bindings or \
+            baseline_surface["global_contracts"] != refactored_surface["global_contracts"]:
+        return _fail("contract_surface_changed",
+                     "Existing native contracts must remain bound to their declarations")
+    if baseline_surface["proof_trust"] != refactored_surface["proof_trust"]:
+        return _fail(
+            "proof_trust_changed",
+            "Refactoring changed native trust or verification-suppression controls",
+            {"baseline": baseline_surface["proof_trust"],
+             "refactored": refactored_surface["proof_trust"]},
+        )
     if baseline == refactored:
         return _fail("source_unchanged", "No refactoring change was detected")
     baseline_proof = _polyglot_verification(baseline_file, language)
@@ -150,13 +194,14 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
         "status": "VERIFIED",
         "claim": "BOUNDED_REFACTOR_CONTRACT_PRESERVED" if bounded
                  else "REFACTOR_CONTRACT_PRESERVED",
-        "scope": ("bounded_native_contract_check_same_api_surface" if bounded else
-                  "same_normalized_native_contract_and_public_api_surface_with_independent_proofs"),
+        "scope": ("bounded_declaration_bound_native_contract_check" if bounded else
+                  "declaration_bound_native_contract_and_proof_trust_with_independent_proofs"),
         "language": language, "verifier": {"rust": "prusti", "c": "frama-c-wp",
                                            "cpp": "esbmc"}[language],
         "baseline_sha256": _sha256(baseline),
         "refactored_sha256": _sha256(refactored),
-        "contract_sha256": _sha256("\n".join(sorted(baseline_contract))),
+        "contract_sha256": _sha256(json.dumps(
+            baseline_surface, sort_keys=True, separators=(",", ":"))),
         "method_surface_sha256": _sha256("\n".join(baseline_api)),
         "baseline_deductive_proof": not bounded,
         "refactored_deductive_proof": not bounded,
@@ -175,8 +220,8 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
     """
     baseline_file, refactored_file = Path(baseline_path), Path(refactored_path)
     try:
-        baseline = baseline_file.read_text(encoding="utf-8")
-        refactored = refactored_file.read_text(encoding="utf-8")
+        baseline = _read_text_exact(baseline_file)
+        refactored = _read_text_exact(refactored_file)
     except OSError as exc:
         return _fail("source_unavailable", str(exc))
     from .polyglot_surface import language_for
@@ -237,7 +282,7 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
     """Prove a preserved primary contract with all extracted collaborators in one ESC run."""
     baseline_file, directory = Path(baseline_path), Path(refactored_directory)
     try:
-        baseline = baseline_file.read_text(encoding="utf-8")
+        baseline = _read_text_exact(baseline_file)
     except OSError as exc:
         return _fail("source_unavailable", str(exc))
     if baseline_file.suffix.lower() not in {".java", ".jml"}:
@@ -246,7 +291,7 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
         return _fail("refactored_directory_unavailable", "Refactored path must be a directory")
     primary = directory / baseline_file.name
     try:
-        refactored_primary = primary.read_text(encoding="utf-8")
+        refactored_primary = _read_text_exact(primary)
     except OSError as exc:
         return _fail("primary_source_missing", str(exc))
     files = sorted(path for path in directory.iterdir()
@@ -269,6 +314,21 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
         return _fail("primary_method_surface_changed", "Primary public/protected declarations differ")
     baseline_dependencies = [candidate for candidate in baseline_file.parent.glob("*.java")
                               if candidate != baseline_file]
+    baseline_errors, baseline_trust = _java_fileset_trust_manifest(
+        [baseline_file, *baseline_dependencies])
+    refactored_errors, refactored_trust = _java_fileset_trust_manifest(files)
+    if baseline_errors or refactored_errors:
+        return _fail(
+            "fileset_contract_syntax_unsupported",
+            "Every Java source in the proof file set must satisfy the contract boundary",
+            {"baseline": baseline_errors, "refactored": refactored_errors},
+        )
+    if baseline_trust != refactored_trust:
+        return _fail(
+            "proof_trust_changed",
+            "Refactoring changed assumptions or verification controls in the proof file set",
+            {"baseline": baseline_trust, "refactored": refactored_trust},
+        )
     baseline_proof = _verification(baseline_file, baseline_dependencies)
     if baseline_proof["status"] != "VERIFIED":
         return _fail("baseline_not_verified", "Baseline failed OpenJML", baseline_proof)
@@ -276,7 +336,7 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
     if refactored_proof["status"] != "VERIFIED":
         return _fail("refactored_system_not_verified",
                      "Refactored file set failed OpenJML", refactored_proof)
-    manifest = [{"path": path.name, "sha256": _sha256(path.read_text(encoding="utf-8"))}
+    manifest = [{"path": path.name, "sha256": _sha256(_read_text_exact(path))}
                 for path in files]
     return {"status": "VERIFIED", "claim": "MULTIFILE_REFACTOR_CONTRACT_PRESERVED",
             "scope": "primary_jml_api_preservation_plus_joint_refactored_fileset_esc",
