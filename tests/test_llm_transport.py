@@ -106,7 +106,8 @@ class LlmTransportTests(unittest.TestCase):
     def test_provider_router_is_explicit_and_defaults_to_glm(self):
         self.assertIs(llm._chat_fn("openai"), llm._openai_chat)
         self.assertIs(llm._chat_fn("ollama"), llm._ollama_chat)
-        self.assertIs(llm._chat_fn("unknown"), llm._glm_chat)
+        with self.assertRaisesRegex(ValueError, "unknown LLM provider"):
+            llm._chat_fn("unknown")
 
     def test_ollama_structured_router_sends_json_schema(self):
         schema = {"type": "object", "required": ["schema_version"]}

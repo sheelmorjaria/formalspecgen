@@ -21,7 +21,8 @@ def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
     with patch("mcp_server.verify", return_value=(0, "ok")):
         result = mcp_server.verify_code("Counter.java", "check")
     assert result["status"] == "VERIFIED"
-    assert result["claim"] == "NO_PROOF"
+    assert result["claim"] == "STATIC_CHECK"
+    assert result["request_satisfied"] is True
     assert result["exit_code"] == 0
 
 

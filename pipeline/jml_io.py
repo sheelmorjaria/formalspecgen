@@ -15,13 +15,20 @@ import re
 _CLASS = re.compile(r'\bpublic\s+(?:final\s+|abstract\s+)?class\s+(\w+)')
 # annotation lines for DISPLAY (//@ lines + /*@ ... */ block markers)
 _JML_LINE = re.compile(r'^\s*//@|^\s*/\*@|^\s*\*@|\*@\s*/|^\s*//')
-_SL = re.compile(r'^\s*//@\s*(.*?)\s*$')
+_SL = re.compile(r'//@\s*(.*?)\s*$')
 _BLOCK = re.compile(r'/\*@(.*?)\*/', re.DOTALL)   # /*@ ... */ blocks, incl. single-line
 # a clause must contain a JML contract keyword — this drops method signatures and stray
 # modifier annotations (spec_public / pure) that the block regex would otherwise capture.
 _KW = re.compile(r'\b(requires|ensures|invariant|assignable|signals|loop_invariant|'
                  r'decreases|forall|exists|product|sum|max|min|represents|accessible|'
-                 r'measured_by|assert|assume|constraint|diverges|when)\b')
+                 r'measured_by|assert|assume|constraint|diverges|when|also|behavior|'
+                 r'normal_behavior|exceptional_behavior)\b', re.I)
+_TOKEN = re.compile(
+    r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|'
+    r'\\[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*|'
+    r'0[xX][0-9A-Fa-f_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?[A-Za-z]*|'
+    r'<==>|==>|<==|<=|>=|==|!=|&&|\|\||\+\+|--|<<|>>>|>>|::|->|'
+    r'[^\s]')
 
 
 def class_name(stub: str):
@@ -92,8 +99,17 @@ def extract_jml(stub: str):
 
 
 def normalize_clause(clause: str) -> str:
-    c = clause.strip().rstrip(";").strip()
-    return re.sub(r'\s+', ' ', c).lower()
+    """Canonicalize layout while preserving every semantic token.
+
+    JML identifiers and Java string/character literals are case-sensitive.  In
+    particular, lower-casing a clause can turn a contract about ``"Admin"``
+    into one about ``"admin"``.  Token-based whitespace normalization accepts
+    harmless formatting changes without rewriting identifier or literal data.
+    """
+    tokens = _TOKEN.findall(clause.strip())
+    while tokens and tokens[-1] == ";":
+        tokens.pop()
+    return " ".join(tokens)
 
 
 def _is_clause(c: str) -> bool:
@@ -109,7 +125,7 @@ def extract_clauses(stub: str):
     """
     out = []
     for ln in stub.splitlines():
-        m = _SL.match(ln)
+        m = _SL.search(ln)
         if m and m.group(1).strip():
             out.append(m.group(1).strip())
     for blk in _BLOCK.findall(stub):           # each /*@ ... */ block (single- or multi-line)
@@ -118,6 +134,28 @@ def extract_clauses(stub: str):
             if c:
                 out.append(c)
     return [normalize_clause(c) for c in out if _is_clause(c)]
+
+
+def extract_clause_records(stub: str) -> list[tuple[int, str]]:
+    """Return ``(source_offset, clause)`` records for structural comparison.
+
+    Offsets let callers bind method contracts to the declaration they govern
+    and distinguish class invariants from annotations inside method bodies.
+    """
+    records: list[tuple[int, str]] = []
+    for match in re.finditer(r"(?m)//@\s*(.*?)\s*$", stub):
+        clause = match.group(1).strip()
+        if clause and _is_clause(clause):
+            records.append((match.start(), normalize_clause(clause)))
+    for block in _BLOCK.finditer(stub):
+        body = block.group(1)
+        cursor = 0
+        for raw in body.splitlines(keepends=True):
+            clause = raw.strip().lstrip("*").lstrip("@").strip()
+            if clause and _is_clause(clause):
+                records.append((block.start(1) + cursor, normalize_clause(clause)))
+            cursor += len(raw)
+    return sorted(records)
 
 
 def clause_diff(a: str, b: str):

@@ -273,7 +273,10 @@ def _ollama_chat(messages, model, temperature):
 
 
 def _chat_fn(provider, json_schema=None):
-    """Return the chat function for a provider (glm | openai | ollama). Default glm."""
+    """Return the chat function for an explicitly supported provider."""
+    if provider not in {"glm", "openai", "ollama"}:
+        raise ValueError(
+            f"unknown LLM provider {provider!r}; expected glm, openai, or ollama")
     if provider == "ollama" and json_schema is not None:
         def structured_for(schema, schema_name="formal_spec_gen_json"):
             def ollama_structured(messages, model, temperature):

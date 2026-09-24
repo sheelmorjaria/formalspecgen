@@ -26,7 +26,8 @@ def _public_contract_clauses(source: str) -> list[str]:
     treated as changed public API clauses.
     """
     return sorted({clause for clause in extract_clauses(source)
-                   if not clause.startswith(("loop_invariant", "invariant", "private invariant", "public invariant", "decreases", "assume"))})
+                   if not re.match(r"^(?:loop_invariant|decreases|assert)\b",
+                                   clause, re.I)})
 
 
 def _sha256(source: str) -> str:

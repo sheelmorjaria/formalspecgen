@@ -8,17 +8,17 @@ import json
 import argparse
 import re
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 
 from . import config, jml_io, strategy
 from .ide import apply_passes
-from .lifecycle import failure_fingerprint, sha256_text
+from .lifecycle import sha256_text
 from .llm import LLMError, _chat_fn, strip_fence
 from .parse_check import parse_check
 from .parse_vcs import parse_vcs
-from .verify import classify, has_dropped_vc, verify
+from .verify import has_dropped_vc, verify
+from .verification_policy import decide_verification
 
 
 IMPLEMENT_SYSTEM = """You are a formal-verification engineer using Java, JML, OpenJML 21, and Z3.
@@ -54,23 +54,112 @@ _METHOD = re.compile(
     r"[\w<>\[\], ?]+\s+\w+\s*\([^;{}]*\)\s*(?:throws\s+[^{]+)?\{")
 _FIELD = re.compile(
     r"(?m)^\s*(?:public|protected|private)\s+(?:static\s+)?(?:final\s+)?"
+    r"(?:/\*@.*?@\*/\s+)?"
     r"[\w<>\[\], ?]+\s+\w+\s*(?:=[^;]*)?;")
-_PROOF_ONLY = re.compile(r"^(?:loop_invariant|decreases|assert|assume)\b", re.I)
+_PROOF_ONLY = re.compile(r"^(?:loop_invariant|decreases|assert)\b", re.I)
+_CLASS_CLAUSE = re.compile(
+    r"^(?:(?:public|protected|private)\s+)?(?:invariant|constraint|represents|accessible)\b",
+    re.I,
+)
+
+
+def _matching_brace(code: str, opening: int) -> int:
+    """Find a Java brace while ignoring comments and quoted literals."""
+    depth = 0
+    index = opening
+    state = "code"
+    while index < len(code):
+        char = code[index]
+        following = code[index + 1] if index + 1 < len(code) else ""
+        if state == "code":
+            if char == '"':
+                state = "string"
+            elif char == "'":
+                state = "char"
+            elif char == "/" and following == "/":
+                state = "line_comment"
+                index += 1
+            elif char == "/" and following == "*":
+                state = "block_comment"
+                index += 1
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+        elif state in {"string", "char"}:
+            if char == "\\":
+                index += 1
+            elif (state == "string" and char == '"') or (state == "char" and char == "'"):
+                state = "code"
+        elif state == "line_comment" and char in "\r\n":
+            state = "code"
+        elif state == "block_comment" and char == "*" and following == "/":
+            state = "code"
+            index += 1
+        index += 1
+    return len(code)
+
+
+def _normalized_declaration(value: str) -> str:
+    value = value.strip()
+    if value.endswith("{"):
+        value = value[:-1]
+    return " ".join(jml_io._TOKEN.findall(value.strip()))
 
 
 def _surface(code: str) -> dict:
-    def normalized(matches):
-        return sorted(re.sub(r"\s+", " ", match.group(0)).strip().rstrip("{").strip()
-                      for match in matches)
     cname = jml_io.class_name(code)
-    constructors = [] if not cname else normalized(re.finditer(
-        rf"(?m)^\s*(?:public|protected|private)\s+{re.escape(cname)}\s*\([^;{{}}]*\)\s*{{", code))
-    clauses = [clause for clause in jml_io.extract_clauses(code)
-               if not _PROOF_ONLY.match(clause)]
-    return {"class": cname, "methods": normalized(_METHOD.finditer(code)),
-            "constructors": constructors,
-            "fields": normalized(_FIELD.finditer(code)),
-            "clauses": sorted(clauses)}
+    method_matches = list(_METHOD.finditer(code))
+    constructor_matches = [] if not cname else list(re.finditer(
+        rf"(?m)^\s*(?:public|protected|private)\s+{re.escape(cname)}\s*\([^;{{}}]*\)\s*{{",
+        code,
+    ))
+    members = []
+    for kind, matches in (("method", method_matches), ("constructor", constructor_matches)):
+        for match in matches:
+            opening = code.rfind("{", match.start(), match.end())
+            signature = _normalized_declaration(match.group(0))
+            members.append({"kind": kind, "start": match.start(), "open": opening,
+                            "close": _matching_brace(code, opening), "signature": signature})
+    members.sort(key=lambda item: item["start"])
+    fields = [(match.start(), _normalized_declaration(match.group(0)))
+              for match in _FIELD.finditer(code)]
+
+    owned = {item["signature"]: [] for item in members}
+    class_clauses = []
+    for position, clause in jml_io.extract_clause_records(code):
+        if _PROOF_ONLY.match(clause):
+            continue
+        containing = next((item for item in members
+                           if item["open"] < position < item["close"]), None)
+        if containing is not None:
+            # Assumptions inside a body change what the prover is allowed to
+            # take as fact and are therefore part of the trusted surface.
+            if re.match(r"^assume\b", clause, re.I):
+                owned[containing["signature"]].append(clause)
+            continue
+        if _CLASS_CLAUSE.match(clause):
+            class_clauses.append(clause)
+            continue
+        following = next((item for item in members if item["start"] > position), None)
+        intervening_field = next((offset for offset, _ in fields if offset > position), None)
+        if following is not None and (intervening_field is None or
+                                      following["start"] < intervening_field):
+            owned[following["signature"]].append(clause)
+        else:
+            class_clauses.append(clause)
+
+    return {
+        "class": cname,
+        "methods": sorted(item["signature"] for item in members if item["kind"] == "method"),
+        "constructors": sorted(item["signature"] for item in members
+                               if item["kind"] == "constructor"),
+        "fields": sorted(value for _, value in fields),
+        "clauses": {"class": class_clauses,
+                    "members": {key: owned[key] for key in sorted(owned)}},
+    }
 
 
 def trusted_surface_matches(stub: str, candidate: str) -> tuple[bool, dict]:
@@ -208,21 +297,31 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
         if javac_exit:
             vcs = parse_check(javac_text)
             status, exit_code, proof_text = "COMPILE_FAILED", javac_exit, javac_text
+            decision = {"claim": "NO_PROOF", "request_satisfied": False,
+                        "tool_exit_code": javac_exit, "tool_completed": False}
         elif verification_mode == "compile":
             exit_code, proof_text, status, vcs = 0, javac_text, "COMPILED", []
+            decision = decide_verification(
+                tool="javac", mode="compile", exit_code=0, output=javac_text,
+                status="COMPILED")
         else:
             exit_code, proof_text = verify(source, mode=verification_mode)
             (attempt_dir / f"{verification_mode}.log").write_text(proof_text, encoding="utf-8")
-            classified = classify(exit_code)
-            status = ("STATIC_CHECKED" if verification_mode == "check" and exit_code == 0
-                      else classified)
-            if verification_mode == "esc" and status == "VERIFIED" and has_dropped_vc(proof_text):
-                status = "VACUOUS_VERIFIED"
+            raw_status = ("STATIC_CHECKED" if verification_mode == "check" and exit_code == 0
+                          else None)
+            decision = decide_verification(
+                tool="openjml", mode=verification_mode, exit_code=exit_code,
+                output=proof_text, status=raw_status,
+                dropped_obligations=has_dropped_vc(proof_text))
+            status = decision["status"]
             vcs = ((parse_vcs(proof_text) if verification_mode == "esc" else parse_check(proof_text))
                    if exit_code else [])
         rows = [{"file": vc.file, "line": vc.line, "category": vc.category,
                  "method": vc.method, "detail": vc.detail, "raw": vc.raw} for vc in vcs]
         attempt = {"attempt": number, "status": status, "exit_code": exit_code,
+                   "claim": decision["claim"],
+                   "request_satisfied": decision["request_satisfied"],
+                   "tool_exit_code": decision["tool_exit_code"],
                    "model": used_model, "tokens": usage, "candidate_hash": sha256_text(transformed),
                    "contract_hash": trusted_surface_hash(stub),
                    "vcs": rows, "accepted_passes": accepted_passes or [],
@@ -238,10 +337,9 @@ def synthesize_implementation(stub: str, provider: str = "glm", model: str | Non
               "implementation_code": final_code,
               "implementation_path": str(root / f"{cname}.java") if final_code else "",
               "verifier": "openjml", "verification_backend": "jml",
-              "claim": ("DEDUCTIVE_PROOF" if final_status == "VERIFIED" and
-                        verification_mode == "esc" else
-                        "STATIC_CHECK" if final_status in {"STATIC_CHECKED", "COMPILED"} else
-                        "NO_PROOF"),
+              "claim": attempts[-1].get("claim", "NO_PROOF") if attempts else "NO_PROOF",
+              "request_satisfied": (attempts[-1].get("request_satisfied", False)
+                                    if attempts else False),
               "trusted_contract_hash": trusted_surface_hash(stub),
               "native_synthesis": True, "external_handoff_used": False,
               "verification_mode": verification_mode}

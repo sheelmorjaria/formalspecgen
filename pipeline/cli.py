@@ -61,7 +61,7 @@ from .staged_architecture import UnifiedArchitecture
 from .architecture_tla_renderer import render_unified_architecture
 from .architecture_tlc_gate import validate_architecture_with_tlc
 from .tla_backend import generate_and_check
-from .verify import classify, verify
+from .verify import verify
 from .verify_c import verify_c
 from .verify_rust import verify_rust
 from .validate import check_stub
@@ -550,12 +550,15 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .verification_policy import decide_result, decide_verification
+
     source = Path(args.source)
     suffix = source.suffix.lower()
     if suffix in {".java", ".jml"}:
         exit_code, output = verify(source, mode=args.mode)
         result = {
-            "status": classify(exit_code),
+            **decide_verification(tool="openjml", mode=args.mode,
+                                  exit_code=exit_code, output=output),
             "exit_code": exit_code,
             "mode": args.mode,
             "language": "java",
@@ -564,6 +567,8 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
         }
     elif suffix == ".rs":
         result = verify_rust(_read(args.source), mode=args.mode, backend=args.backend)
+        result = decide_result(result, tool=args.backend if args.mode == "esc" else "rustc",
+                               mode=args.mode)
     elif suffix == ".c":
         if args.mode != "esc":
             result = {
@@ -575,6 +580,7 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
             }
         else:
             result = verify_c(_read(args.source), mode=args.mode)
+            result = decide_result(result, tool="frama-c", mode=args.mode)
     elif suffix in {".cc", ".cpp", ".cxx"}:
         if args.mode != "esc":
             result = {
@@ -588,6 +594,7 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
             from .verify_cpp import verify_cpp
 
             result = verify_cpp(source)
+            result = decide_result(result, tool="esbmc", mode=args.mode)
     else:
         result = {
             "status": "UNSUPPORTED_LANGUAGE",
@@ -597,12 +604,14 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
         }
     status, exit_code = result.get("status", "UNKNOWN"), int(result.get("exit_code", 1))
     output = str(result.get("output") or result.get("message") or "")
-    ui.console.print(f"[{'green' if exit_code == 0 else 'red'}]{status}[/]")
+    ui.console.print(
+        f"[{'green' if result.get('request_satisfied', False) else 'red'}]{status}[/]"
+    )
     if output.strip():
         ui.console.print(Syntax(output, "text", word_wrap=True))
     if args.json:
         _write_json(result, args.json, ui.console)
-    return 0 if exit_code == 0 else 1
+    return 0 if result.get("request_satisfied", False) else 1
 
 
 def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:

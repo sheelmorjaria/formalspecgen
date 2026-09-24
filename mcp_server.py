@@ -26,8 +26,8 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
 
 from pipeline import config
 from pipeline.java_inspection import inspect_java_file
-from pipeline.orchestrator import run_implementation_loop
 from pipeline.verify import verify
+from pipeline.verification_policy import decide_result, decide_verification
 
 
 def _workspace_path(value: str, *, must_exist: bool = True) -> Path:
@@ -53,15 +53,44 @@ def _guarded(call: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         return {"status": "FAIL", "claim": "NO_PROOF", "code": code, "message": message}
 
 
+def _load_system_plan(plan_path: str, mode: str) -> dict[str, Any]:
+    """Decode a plan and validate every referenced input within the workspace."""
+    path = _workspace_path(plan_path)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("system plan must be a JSON object")
+    components = value.get("components")
+    if not isinstance(components, list):
+        raise ValueError("system plan components must be a list")
+    required = ({"interface_file", "reviewed_domain", "validation_evidence"}
+                if mode == "implement" else {"file"})
+    for index, component in enumerate(components):
+        if not isinstance(component, dict):
+            raise ValueError(f"system component {index} must be an object")
+        for field in required:
+            raw = component.get(field)
+            if not isinstance(raw, str) or not raw.strip():
+                raise ValueError(f"system component {index} requires {field}")
+            component[field] = str(_workspace_path(raw))
+    composition = value.get("composition")
+    if isinstance(composition, dict) and isinstance(composition.get("files"), dict):
+        composition["files"] = {
+            name: str(_workspace_path(raw))
+            for name, raw in composition["files"].items()
+        }
+    return value
+
+
 def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     """Verify Java, Rust, or C source and return a structured verdict."""
     path = _workspace_path(file_path)
     suffix = path.suffix.lower()
     if suffix in {".java", ".jml"}:
         exit_code, output = verify(path, mode=mode)
-        return {"status": "VERIFIED" if exit_code == 0 else "VERIFY_FAILED",
-                "claim": "DEDUCTIVE_PROOF" if exit_code == 0 and mode == "esc" else "NO_PROOF",
-                "exit_code": exit_code, "mode": mode, "file": str(path), "output": output}
+        decision = decide_verification(
+            tool="openjml", mode=mode, exit_code=exit_code, output=output)
+        return {**decision, "exit_code": exit_code, "mode": mode,
+                "file": str(path), "output": output}
     if suffix == ".rs":
         from pipeline.verify_rust import verify_rust
         result = verify_rust(path.read_text(encoding="utf-8"), mode=mode, backend="prusti")
@@ -70,7 +99,8 @@ def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
         result = verify_c_source(path.read_text(encoding="utf-8"), mode=mode)
     else:
         return {"status": "UNSUPPORTED_LANGUAGE", "claim": "NO_PROOF", "file": str(path)}
-    return {"file": str(path), **result}
+    tool = "prusti" if suffix == ".rs" else "frama-c"
+    return {"file": str(path), **decide_result(result, tool=tool, mode=mode)}
 
 
 def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, Any]:
@@ -215,7 +245,10 @@ def system(plan_path: str, mode: str = "implement", out_dir: str = "runs/system"
     """
     from pipeline import system_orchestrator
     def dispatch() -> dict[str, Any]:
-        plan = _workspace_path(plan_path)
+        if mode not in {"implement", "refactor", "correct"}:
+            raise ValueError(f"unknown system mode {mode!r}: expected implement, "
+                             "refactor, or correct")
+        plan = _load_system_plan(plan_path, mode)
         destination = _workspace_path(out_dir, must_exist=False)
         if mode == "implement":
             return system_orchestrator.verify_system(plan, out_dir=destination,
@@ -226,8 +259,7 @@ def system(plan_path: str, mode: str = "implement", out_dir: str = "runs/system"
         if mode == "correct":
             return system_orchestrator.correct_system(plan, out_dir=destination,
                                                       max_workers=max_workers)
-        raise ValueError(f"unknown system mode {mode!r}: expected implement, "
-                         "refactor, or correct")
+        raise AssertionError("unreachable")
     return _guarded(dispatch)
 
 
