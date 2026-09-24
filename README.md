@@ -117,6 +117,11 @@ effects; it is not a command-wide safety label. A matching profile is a permissi
 invocation receives only the effects it explicitly requested. See the
 [strict MCP admission guide](docs/MCP_ADMISSION.md) for the current workflow matrix, admission
 requirements, evidence behavior, and permanent human trust boundary.
+The broader CLI-to-MCP migration is tracked from the live argparse schema in the generated
+[parity status](docs/MCP_PARITY_STATUS.md) and
+[machine-readable manifest](docs/mcp_parity_manifest.json). CI rejects unmapped commands,
+arguments, defaults, choices, hidden options, and stale generated reports; adapter presence is
+reported separately from strict admission and complete workflow parity.
 
 Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and

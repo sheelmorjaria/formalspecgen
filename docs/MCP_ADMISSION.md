@@ -5,6 +5,10 @@ command, mode, language, backend, provider policy, workspace effects, and eviden
 has completed admission testing. An unlisted combination fails before side effects with
 `ISOLATION_UNSUPPORTED` and `claim=NO_PROOF`.
 
+The full migration inventory is generated from the live CLI parser and the reviewed target plan.
+See [MCP_PARITY_STATUS.md](MCP_PARITY_STATUS.md) for the current per-command completion report.
+Being inventoried or having a legacy handler does not make a workflow admitted.
+
 A profile is a permission ceiling, not a bundle of permissions silently granted to every matching
 request. An invocation receives only the intersection of its explicitly requested effects and that
 ceiling. Omitting execution, publication, provider access, or writes means the corresponding effect

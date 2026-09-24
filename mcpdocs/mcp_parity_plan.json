@@ -1,0 +1,4113 @@
+{
+  "schema": "formalspecgen-full-mcp-parity-plan-v1",
+  "status": "implementation_target_not_runtime_policy",
+  "baseline_revision": "91c6790",
+  "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
+  "baseline_command_count": 38,
+  "baseline_argument_declaration_count": 205,
+  "inventory_provenance": {
+    "source": "Prior user-guide command_inventory.json, cross-checked against selected pinned CLI parser and MCP source sections during this response; no checkout execution.",
+    "sha256": "3ad5c50157657f8206c56f7a15303ae914095d8ddd958703dd98243f8d8cc4c7"
+  },
+  "sources": [
+    "https://raw.githubusercontent.com/sheelmorjaria/formalspecgen/91c6790/pipeline/cli.py",
+    "https://raw.githubusercontent.com/sheelmorjaria/formalspecgen/91c6790/mcp_server.py",
+    "https://raw.githubusercontent.com/sheelmorjaria/formalspecgen/91c6790/pipeline/capability_registry.py",
+    "https://raw.githubusercontent.com/sheelmorjaria/formalspecgen/91c6790/pipeline/mcp_policy.py",
+    "https://raw.githubusercontent.com/sheelmorjaria/formalspecgen/91c6790/docs/MCP_ADMISSION.md"
+  ],
+  "additional_required_coverage": {
+    "installed_plugins": "Enumerate trusted installed plugin schemas without importing workspace-controlled plugins; validate handler, policy, argument mappings and semantic modes. Do not auto-grant permissions.",
+    "root_help": "Expose generated schema/help through descriptions or a read-only capability reference.",
+    "root_version": "Expose exact server/application/registry/policy versions through metadata.",
+    "repl": "Reuse structured command/session workflows; terminal navigation need not be emulated.",
+    "legacy_mcp_only_tools": "Retain declared compatibility behavior; account for each tool separately rather than confusing their count with CLI parity."
+  },
+  "completion_rule": "Every valid CLI semantic profile completes through MCP on a provisioned reference environment under approved policy; a registered tool returning only unsupported/rejected is incomplete.",
+  "commands": [
+    {
+      "cli_command": "doctor",
+      "proposed_mcp_tool": "doctor_environment",
+      "workflow_kind": "direct",
+      "requirements": "Probe each selected tool through the shared executor; return readiness, not proof.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Write JSON to PATH; without a value, print JSON to stdout.",
+            "default": null,
+            "required": false,
+            "nargs": "?",
+            "const": "-"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--require"
+          ],
+          "proposed_mcp_field": "require",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--require"
+            ],
+            "description": "Require a named judge to be READY. Repeat for multiple judges.",
+            "default": [],
+            "required": false,
+            "action": "append"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--strict"
+          ],
+          "proposed_mcp_field": "strict",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--strict"
+            ],
+            "description": "Fail on the report's non-ready/misconfigured state.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--judges"
+          ],
+          "proposed_mcp_field": "judges",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--judges"
+            ],
+            "description": "Include the executable judge manifest.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/doctor.py"
+    },
+    {
+      "cli_command": "draft",
+      "proposed_mcp_tool": "draft_contract",
+      "workflow_kind": "resumable",
+      "requirements": "Both generative clarification and canonical-domain rendering; retain draft_canonical_contract as a compatible adapter.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "requirement"
+          ],
+          "proposed_mcp_field": "requirement",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "requirement"
+            ],
+            "description": "Quoted natural-language requirement, not a filename.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--no-clarify"
+          ],
+          "proposed_mcp_field": "no_clarify",
+          "disposition": "structured_session_parameter",
+          "requirement": "Map to explicit clarification/session semantics; no stdin prompts; record unresolved requirements and do not fabricate consent.",
+          "baseline_declaration": {
+            "flags": [
+              "--no-clarify"
+            ],
+            "description": "Skip interactive clarification; use only with a previously reviewed, complete requirement.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "proposed_mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target language.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-file"
+          ],
+          "proposed_mcp_field": "out_file",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-file"
+            ],
+            "description": "Native/canonical contract file; Java generative drafting uses its run output rather than this option.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--canonical-domain"
+          ],
+          "proposed_mcp_field": "canonical_domain",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--canonical-domain"
+            ],
+            "description": "Reviewed V2 module name to render deterministically.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--fallback-provider"
+          ],
+          "proposed_mcp_field": "fallback_provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--fallback-provider"
+            ],
+            "description": "Explicit alternate provider.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Java drafting run root.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "proposed_mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Attempt cap; omitted values are resolved by the drafting pipeline.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--resample-budget"
+          ],
+          "proposed_mcp_field": "resample_budget",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--resample-budget"
+            ],
+            "description": "Fresh generation budget; pipeline default when omitted.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--feedback-budget"
+          ],
+          "proposed_mcp_field": "feedback_budget",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--feedback-budget"
+            ],
+            "description": "Diagnostic-feedback budget; pipeline default when omitted.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/canonical_draft.py"
+    },
+    {
+      "cli_command": "implement",
+      "proposed_mcp_tool": "implement_code",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Preserve all assurance, budget, postprocessing, refinement, parallel-wrapper, dependency and DMA options.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "stub"
+          ],
+          "proposed_mcp_field": "stub",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "stub"
+            ],
+            "description": "Reviewed contract source: Java/JML, Rust, C, or C++.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Implementation/run output root.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "proposed_mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Maximum generation/proof attempts.",
+            "default": 5,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--resample-budget"
+          ],
+          "proposed_mcp_field": "resample_budget",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--resample-budget"
+            ],
+            "description": "Fresh candidates without diagnostic feedback.",
+            "default": 1,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--feedback-budget"
+          ],
+          "proposed_mcp_field": "feedback_budget",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--feedback-budget"
+            ],
+            "description": "Feedback-assisted attempts.",
+            "default": 4,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--accept-pass"
+          ],
+          "proposed_mcp_field": "accept_pass",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--accept-pass"
+            ],
+            "description": "Explicitly accepted transformation pass; repeatable. Review each semantic effect.",
+            "default": [],
+            "required": false,
+            "action": "append"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--assurance-level"
+          ],
+          "proposed_mcp_field": "assurance_level",
+          "disposition": "assurance_parameter",
+          "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
+          "baseline_declaration": {
+            "flags": [
+              "--assurance-level"
+            ],
+            "description": "Requested pipeline profile; returned claim is authoritative.",
+            "default": "critical",
+            "required": false,
+            "choices": [
+              "critical",
+              "standard",
+              "lightweight"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--method-proof-only"
+          ],
+          "proposed_mcp_field": "method_proof_only",
+          "disposition": "assurance_parameter",
+          "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
+          "baseline_declaration": {
+            "flags": [
+              "--method-proof-only"
+            ],
+            "description": "Skip architecture/TLC and request method-level proof only; not critical assurance.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--clarifications"
+          ],
+          "proposed_mcp_field": "clarifications",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--clarifications"
+            ],
+            "description": "Authoritative concurrency assumptions as text, not a file path.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--abstraction"
+          ],
+          "proposed_mcp_field": "abstraction",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--abstraction"
+            ],
+            "description": "Concurrency abstraction.",
+            "default": "atomic_operations",
+            "required": false,
+            "choices": [
+              "atomic_operations",
+              "lock_protocol"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--v2-reviewed-domain"
+          ],
+          "proposed_mcp_field": "v2_reviewed_domain",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--v2-reviewed-domain"
+            ],
+            "description": "Promoted V2 JSON for source/model refinement.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--v2-validation-evidence"
+          ],
+          "proposed_mcp_field": "v2_validation_evidence",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--v2-validation-evidence"
+            ],
+            "description": "Matching hash-bound validation evidence; supply with --v2-reviewed-domain.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--parallel-wrapper"
+          ],
+          "proposed_mcp_field": "parallel_wrapper",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--parallel-wrapper"
+            ],
+            "description": "Optional deterministic Rust wrapper.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "rayon"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--parallel-kernel"
+          ],
+          "proposed_mcp_field": "parallel_kernel",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--parallel-kernel"
+            ],
+            "description": "Proved scalar Rust kernel name.",
+            "default": "process_chunk",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--parallel-out"
+          ],
+          "proposed_mcp_field": "parallel_out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--parallel-out"
+            ],
+            "description": "Destination for the generated Rust parallel wrapper.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--dependencies"
+          ],
+          "proposed_mcp_field": "dependencies",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--dependencies"
+            ],
+            "description": "External adapter dependency; takes the adapter-injection branch.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "stripe",
+              "aws",
+              "curl",
+              "kernel-driver"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--dma-profile"
+          ],
+          "proposed_mcp_field": "dma_profile",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--dma-profile"
+            ],
+            "description": "Declared kernel-driver DMA profile JSON; required for that dependency.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/orchestrator.py"
+    },
+    {
+      "cli_command": "verify",
+      "proposed_mcp_tool": "verify_code",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Retain parse/check/esc and every supported native backend; never substitute a different backend silently.",
+      "baseline_strict_mcp": "Admitted subset",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML, Rust, C, or C++ source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--mode"
+          ],
+          "proposed_mcp_field": "mode",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--mode"
+            ],
+            "description": "Requested checking stage.",
+            "default": "esc",
+            "required": false,
+            "choices": [
+              "parse",
+              "check",
+              "esc"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--backend"
+          ],
+          "proposed_mcp_field": "backend",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--backend"
+            ],
+            "description": "Rust backend; ignored for other languages.",
+            "default": "prusti",
+            "required": false,
+            "choices": [
+              "prusti",
+              "kani"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/verification_policy.py"
+    },
+    {
+      "cli_command": "verify-refactor",
+      "proposed_mcp_tool": "verify_refactor",
+      "workflow_kind": "direct_or_task_with_approval",
+      "requirements": "Single-file and multifile preservation; optional signing uses the human approval broker.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "proposed_mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Previously reviewed source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "proposed_mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate source file, or supported Java collaborator directory.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--signing-key"
+          ],
+          "proposed_mcp_field": "signing_key",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--signing-key"
+            ],
+            "description": "GPG key for a detached verdict signature; requires --json.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/refactor_gate.py"
+    },
+    {
+      "cli_command": "optimize-algorithm",
+      "proposed_mcp_tool": "optimize_algorithm",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Preserve strategy and destination; generation and proof are separate permissioned stages.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Verified Java/JML baseline.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--strategy"
+          ],
+          "proposed_mcp_field": "strategy",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--strategy"
+            ],
+            "description": "Requested strategy; nested_loop is syntactically accepted but rejected as a potential regression.",
+            "default": null,
+            "required": true,
+            "choices": [
+              "hashmap",
+              "two_pointer",
+              "binary_search",
+              "nested_loop"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Candidate file; retain the public Java class filename.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/algorithm_optimization.py"
+    },
+    {
+      "cli_command": "discover-algorithms",
+      "proposed_mcp_tool": "discover_algorithms",
+      "workflow_kind": "direct_or_task",
+      "requirements": "All selected strategies, worker limits, output roots and provider/model selection; parent budget bounds fanout.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML specification or verified baseline.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Root for strategy-isolated candidates.",
+            "default": "discovered",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--strategies"
+          ],
+          "proposed_mcp_field": "strategies",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--strategies"
+            ],
+            "description": "all, or comma-separated registered strategy names.",
+            "default": "all",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-workers"
+          ],
+          "proposed_mcp_field": "max_workers",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-workers"
+            ],
+            "description": "Concurrent strategy workers; use 1 with a constrained local model.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/algorithm_discovery.py"
+    },
+    {
+      "cli_command": "assess-security",
+      "proposed_mcp_tool": "assess_security",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Formal and SAST stages; no-sast keeps its restricted claim rather than full assessment assurance.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--no-sast"
+          ],
+          "proposed_mcp_field": "no_sast",
+          "disposition": "assurance_parameter",
+          "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
+          "baseline_declaration": {
+            "flags": [
+              "--no-sast"
+            ],
+            "description": "Omit SAST; explicitly reduces the assessment scope.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/security_assessment.py"
+    },
+    {
+      "cli_command": "security-inspect",
+      "proposed_mcp_tool": "security_inspect",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Sandbox actual formal/SAST probes; name does not imply non-executing behavior.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Authorized target source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/security_poc.py"
+    },
+    {
+      "cli_command": "security-exploit",
+      "proposed_mcp_tool": "security_exploit",
+      "workflow_kind": "direct",
+      "requirements": "Generate reviewed-source local reproduction templates only; no implicit compile, execution or network activity.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "report"
+          ],
+          "proposed_mcp_field": "report",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "report"
+            ],
+            "description": "JSON produced by security-inspect.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "proposed_mcp_field": "target",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "The matching authorized source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Generated local test-template directory.",
+            "default": "security-pocs",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/security_poc.py"
+    },
+    {
+      "cli_command": "remediate",
+      "proposed_mcp_tool": "remediate_code",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Preserve target, report, provider/model and separate output artifact behavior.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "proposed_mcp_field": "target",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "Original source; preserved rather than overwritten.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "report"
+          ],
+          "proposed_mcp_field": "report",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "report"
+            ],
+            "description": "Matching vulnerability report.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Patch and evidence directory.",
+            "default": "remediated",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/remediation.py"
+    },
+    {
+      "cli_command": "correct-behavior",
+      "proposed_mcp_tool": "correct_behavior",
+      "workflow_kind": "direct_or_task_with_approval",
+      "requirements": "All strategy/hardware/pool/attempt parameters; report contract change, not contract preservation; obtain approval before any promotion.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "proposed_mcp_field": "target",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "Source or supported typed-domain input for the chosen correction lane.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--cwe"
+          ],
+          "proposed_mcp_field": "cwe",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--cwe"
+            ],
+            "description": "Weakness identifier, for example CWE-400.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--strategy"
+          ],
+          "proposed_mcp_field": "strategy",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--strategy"
+            ],
+            "description": "Explicit correction policy.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "bound-loop",
+              "static-pool",
+              "bounded-cache",
+              "bounded-pool",
+              "checked-math",
+              "lock-timeout",
+              "canonicalize",
+              "fail-safe",
+              "immutable-snapshot"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--hardware"
+          ],
+          "proposed_mcp_field": "hardware",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--hardware"
+            ],
+            "description": "Human-reviewed hardware profile JSON.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--struct-size-bytes"
+          ],
+          "proposed_mcp_field": "struct_size_bytes",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--struct-size-bytes"
+            ],
+            "description": "Explicit element size for hardware capacity derivation.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--pool-field"
+          ],
+          "proposed_mcp_field": "pool_field",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--pool-field"
+            ],
+            "description": "Bounded occupancy counter to materialize.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--auto-strategy"
+          ],
+          "proposed_mcp_field": "auto_strategy",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--auto-strategy"
+            ],
+            "description": "Use the deterministic shape-based strategy selector.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Strengthened contracts, candidates and verdicts.",
+            "default": "corrections",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "proposed_mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Maximum proof-repair attempts.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/behavior_correction.py"
+    },
+    {
+      "cli_command": "verify-bisimulation",
+      "proposed_mcp_tool": "verify_bisimulation",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Keep scoped mapping-preflight semantics; do not upgrade this into bounded equivalence.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "proposed_mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Baseline source.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "proposed_mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate source.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "mapping"
+          ],
+          "proposed_mcp_field": "mapping",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "mapping"
+            ],
+            "description": "Source-mapping JSON for the preflight checker.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/bisimulation.py"
+    },
+    {
+      "cli_command": "inspect",
+      "proposed_mcp_tool": "inspect_code",
+      "workflow_kind": "direct",
+      "requirements": "Bounded read-only inspection; optional JSON export is a separately authorized write.",
+      "baseline_strict_mcp": "Admitted subset",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/java_inspection.py"
+    },
+    {
+      "cli_command": "apply-refactor",
+      "proposed_mcp_tool": "apply_refactor",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Every supported pattern, inspected method, baseline hash, output path and proof gate.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Baseline source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--inspection"
+          ],
+          "proposed_mcp_field": "inspection",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--inspection"
+            ],
+            "description": "Required for Java: matching hash-bound inspect JSON.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--pattern"
+          ],
+          "proposed_mcp_field": "pattern",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--pattern"
+            ],
+            "description": "Transformation profile.",
+            "default": "extract-method",
+            "required": false,
+            "choices": [
+              "extract-method",
+              "factory-method",
+              "state",
+              "decorator",
+              "facade",
+              "null-object",
+              "strategy"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--method"
+          ],
+          "proposed_mcp_field": "method",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--method"
+            ],
+            "description": "Eligible method identified during inspection.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Same-named Java file, or the output required by the selected profile.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/refactor_actions.py"
+    },
+    {
+      "cli_command": "architecture",
+      "proposed_mcp_tool": "architecture",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Clarifications, abstraction, generated TLA destination and TLC evidence.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "stub"
+          ],
+          "proposed_mcp_field": "stub",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "stub"
+            ],
+            "description": "Source/contract whose semantics match a supported adapter.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--clarifications"
+          ],
+          "proposed_mcp_field": "clarifications",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--clarifications"
+            ],
+            "description": "Reviewed concurrency assumptions as text.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--abstraction"
+          ],
+          "proposed_mcp_field": "abstraction",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--abstraction"
+            ],
+            "description": "Requested model abstraction.",
+            "default": "atomic_operations",
+            "required": false,
+            "choices": [
+              "atomic_operations",
+              "lock_protocol"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--emit-tla"
+          ],
+          "proposed_mcp_field": "emit_tla",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--emit-tla"
+            ],
+            "description": "TLA+ output path; matching .cfg is also written.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/tla_backend.py"
+    },
+    {
+      "cli_command": "design-system",
+      "proposed_mcp_tool": "design_system",
+      "workflow_kind": "resumable",
+      "requirements": "Ordinary and staged design, all supported languages, attempts and TLC limits; clarify without terminal input.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "requirement"
+          ],
+          "proposed_mcp_field": "requirement",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "requirement"
+            ],
+            "description": "Quoted system-level requirement.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Proposal provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-file"
+          ],
+          "proposed_mcp_field": "out_file",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-file"
+            ],
+            "description": "Architecture JSON destination.",
+            "default": "architecture.json",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--timeout"
+          ],
+          "proposed_mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--timeout"
+            ],
+            "description": "TLC timeout in seconds.",
+            "default": 120,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "proposed_mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Proposal/repair budget.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--staged"
+          ],
+          "proposed_mcp_field": "staged",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--staged"
+            ],
+            "description": "Use typed fragments and the TLA/TLC publication gate.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "proposed_mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target filenames/lowering language in the staged route.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/system_design.py"
+    },
+    {
+      "cli_command": "validate-architecture",
+      "proposed_mcp_tool": "validate_architecture",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Architecture input, timeout and exact real-TLC observation.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "UnifiedArchitecture JSON, normally from staged design-system.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--timeout"
+          ],
+          "proposed_mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--timeout"
+            ],
+            "description": "TLC timeout in seconds.",
+            "default": 120,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/architecture_tlc_gate.py"
+    },
+    {
+      "cli_command": "domain",
+      "proposed_mcp_tool": "elicit_domain",
+      "workflow_kind": "resumable",
+      "requirements": "Schema V1/V2, restart, project destination and provider; force/reviewed replacement requires constrained approval.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "idea"
+          ],
+          "proposed_mcp_field": "idea",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "idea"
+            ],
+            "description": "Quoted domain idea; answers are gathered interactively.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "proposed_mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project containing domains and candidates.",
+            "default": ".",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--force"
+          ],
+          "proposed_mcp_field": "force",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--force"
+            ],
+            "description": "Allow replacing an existing candidate; does not itself authorize a reviewed replacement.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--replace-reviewed-domain"
+          ],
+          "proposed_mcp_field": "replace_reviewed_domain",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--replace-reviewed-domain"
+            ],
+            "description": "Explicitly authorize the reviewed-domain replacement path after human review.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--restart-clarifications"
+          ],
+          "proposed_mcp_field": "restart_clarifications",
+          "disposition": "structured_session_parameter",
+          "requirement": "Map to explicit clarification/session semantics; no stdin prompts; record unresolved requirements and do not fabricate consent.",
+          "baseline_declaration": {
+            "flags": [
+              "--restart-clarifications"
+            ],
+            "description": "Discard saved domain answers and start elicitation again.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--schema-version"
+          ],
+          "proposed_mcp_field": "schema_version",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--schema-version"
+            ],
+            "description": "1 creates plugin scaffolding; 2 creates a typed candidate. Choose 2 explicitly for this guide.",
+            "default": 1,
+            "required": false,
+            "choices": [
+              1,
+              2
+            ],
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/domain_generator.py"
+    },
+    {
+      "cli_command": "validate-domain",
+      "proposed_mcp_tool": "validate_domain",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Candidate name, project root, TLA export, deterministic traversal and real TLC.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "name"
+          ],
+          "proposed_mcp_field": "name",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "name"
+            ],
+            "description": "Module name or displayed candidate basename, not a path.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "proposed_mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root.",
+            "default": ".",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--emit-tla"
+          ],
+          "proposed_mcp_field": "emit_tla",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--emit-tla"
+            ],
+            "description": "Model path; also emits matching .cfg.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/domain_v2_validation.py"
+    },
+    {
+      "cli_command": "promote-domain",
+      "proposed_mcp_tool": "promote_domain",
+      "workflow_kind": "human_approval",
+      "requirements": "Callable coordinator requests, tracks and completes a human-authorized promotion; trusted executor remains outside ordinary agent admission.",
+      "baseline_strict_mcp": "Human-only",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "name"
+          ],
+          "proposed_mcp_field": "name",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "name"
+            ],
+            "description": "Module name or candidate basename, not a path.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "proposed_mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root.",
+            "default": ".",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--replace-reviewed-domain"
+          ],
+          "proposed_mcp_field": "replace_reviewed_domain",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--replace-reviewed-domain"
+            ],
+            "description": "Permit replacement of an existing reviewed artifact after deliberate review.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--schema-version"
+          ],
+          "proposed_mcp_field": "schema_version",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--schema-version"
+            ],
+            "description": "Select schema explicitly; otherwise infer V2 when its validation evidence exists.",
+            "default": null,
+            "required": false,
+            "choices": [
+              1,
+              2
+            ],
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--accept-candidate-sha256"
+          ],
+          "proposed_mcp_field": "accept_candidate_sha256",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--accept-candidate-sha256"
+            ],
+            "description": "Required for V2: the reviewed candidate digest from its validation evidence.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--signing-key"
+          ],
+          "proposed_mcp_field": "signing_key",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--signing-key"
+            ],
+            "description": "Reviewer-owned GPG key for a detached promotion signature.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/domain_v2_promotion.py"
+    },
+    {
+      "cli_command": "sign-artifact",
+      "proposed_mcp_tool": "sign_artifact",
+      "workflow_kind": "human_approval",
+      "requirements": "Callable coordinator binds exact artifact and key policy; trusted signing service requires authenticated human approval.",
+      "baseline_strict_mcp": "Human-only",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Reviewed artifact or verdict path.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--key"
+          ],
+          "proposed_mcp_field": "key",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--key"
+            ],
+            "description": "Local GPG identity/key ID.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/domain_v2_promotion.py"
+    },
+    {
+      "cli_command": "manage-trust",
+      "proposed_mcp_tool": "manage_trust",
+      "workflow_kind": "read_or_human_approval",
+      "requirements": "List under authorized read policy; add/remove under separately authenticated administrative approval.",
+      "baseline_strict_mcp": "Human-only",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "--add-key"
+          ],
+          "proposed_mcp_field": "add_key",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--add-key"
+            ],
+            "description": "Exported reviewer public-key path.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--remove-key"
+          ],
+          "proposed_mcp_field": "remove_key",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
+          "baseline_declaration": {
+            "flags": [
+              "--remove-key"
+            ],
+            "description": "Reviewer key ID to remove.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--list"
+          ],
+          "proposed_mcp_field": "list",
+          "disposition": "read_only_action_selector",
+          "requirement": "Separate trust-registry listing from add/remove permissions; do not grant administrative authority to list.",
+          "baseline_declaration": {
+            "flags": [
+              "--list"
+            ],
+            "description": "List keys; listing is also the default when no action is supplied.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--registry"
+          ],
+          "proposed_mcp_field": "registry",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--registry"
+            ],
+            "description": "Registry JSON path.",
+            "default": "trusted_keys.json",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/trust.py"
+    },
+    {
+      "cli_command": "verify-heap",
+      "proposed_mcp_tool": "verify_heap",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Provider-assisted inference and every reachable native/proof stage retain limits, scope and evidence.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Rust Box-linked source, or C/.h intrusive-list source.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Predicate proposal provider when the source lacks the required predicate.",
+            "default": "ollama",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/heap.py"
+    },
+    {
+      "cli_command": "verify-hal",
+      "proposed_mcp_tool": "verify_hal",
+      "workflow_kind": "direct_or_task",
+      "requirements": "HAL input and real backend execution; hardware assumptions remain explicit.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "C/.h HAL source with supported MMIO/bitfield patterns.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/hal_mmio.py"
+    },
+    {
+      "cli_command": "macro-dictionary",
+      "proposed_mcp_tool": "macro_dictionary",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Dictionary-only, source translation, synthesis and no-verify profiles; retain macro_translate compatibility alias without forcing synthesis.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "dictionary"
+          ],
+          "proposed_mcp_field": "dictionary",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "dictionary"
+            ],
+            "description": "Human-reviewed macros.json dictionary.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--source"
+            ],
+            "description": "C/.h source containing relevant invocations.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--synthesize"
+          ],
+          "proposed_mcp_field": "synthesize",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--synthesize"
+            ],
+            "description": "Run the macros-to-V2 workflow; requires --source.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--no-verify"
+          ],
+          "proposed_mcp_field": "no_verify",
+          "disposition": "assurance_parameter",
+          "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
+          "baseline_declaration": {
+            "flags": [
+              "--no-verify"
+            ],
+            "description": "Skip the Z3 model-proof step; do not claim that proof.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Provider for unresolved semantic proposals.",
+            "default": "ollama",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/macro_semantics.py"
+    },
+    {
+      "cli_command": "verify-lockfree",
+      "proposed_mcp_tool": "verify_lockfree",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Real backend interleaving checks and bounded claim, with explicit scheduler assumptions.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported C pthread single-producer/single-consumer ring source.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/lockfree.py"
+    },
+    {
+      "cli_command": "verify-distributed",
+      "proposed_mcp_tool": "verify_distributed",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Fault selection and explicit message fields; model faults do not authorize real network traffic.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "domain"
+          ],
+          "proposed_mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "domain"
+            ],
+            "description": "async_message_passing V2 YAML/JSON model.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--faults"
+          ],
+          "proposed_mcp_field": "faults",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--faults"
+            ],
+            "description": "Comma-separated fault models.",
+            "default": "message_loss,duplication,reordering",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--message-fields"
+          ],
+          "proposed_mcp_field": "message_fields",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--message-fields"
+            ],
+            "description": "Comma-separated state fields representing message slots.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/distributed.py"
+    },
+    {
+      "cli_command": "verify-linearizability",
+      "proposed_mcp_tool": "verify_linearizability",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Source/domain pair, correspondence gate and bounded-history evidence.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java source using the supported locking discipline.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--domain"
+          ],
+          "proposed_mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--domain"
+            ],
+            "description": "Matching lock-protocol V2 YAML/JSON.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/linearizability.py"
+    },
+    {
+      "cli_command": "verify-unbounded",
+      "proposed_mcp_tool": "verify_unbounded",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Explicit or provider-proposed invariant; preserve actual induction verdict and limits.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "C/C++ source containing supported simple while-loops.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--invariant"
+          ],
+          "proposed_mcp_field": "invariant",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--invariant"
+            ],
+            "description": "Human-supplied invariant expression; otherwise a provider proposes one.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Invariant proposal provider.",
+            "default": "ollama",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/unbounded.py"
+    },
+    {
+      "cli_command": "prove-equivalence",
+      "proposed_mcp_tool": "prove_equivalence",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Both domains and mapping; bound inputs and preserve the bounded scope.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "proposed_mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Baseline V2 YAML/JSON.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "proposed_mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate V2 YAML/JSON.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--mapping"
+          ],
+          "proposed_mcp_field": "mapping",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--mapping"
+            ],
+            "description": "JSON object with a states list of baseline_state/refactored_state pairs.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/equivalence.py"
+    },
+    {
+      "cli_command": "generate-traceability-matrix",
+      "proposed_mcp_tool": "generate_traceability_matrix",
+      "workflow_kind": "direct",
+      "requirements": "Domain, source tree, requirements file, Markdown output and optional JSON export; no proof inferred from trace links.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "domain"
+          ],
+          "proposed_mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "domain"
+            ],
+            "description": "V2 candidate/reviewed domain.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Source file or directory.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--reqs"
+          ],
+          "proposed_mcp_field": "reqs",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--reqs"
+            ],
+            "description": "Requirements text containing REQ-### identifiers.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Markdown matrix destination.",
+            "default": "traceability-matrix.md",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/traceability.py"
+    },
+    {
+      "cli_command": "compose",
+      "proposed_mcp_tool": "compose",
+      "workflow_kind": "direct_or_task",
+      "requirements": "All CLI languages, actors, reviewed-domain roots, output roots, ESC/check-only choice and backend evidence.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "CompositionSpec JSON containing architecture, bindings and use_cases.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "proposed_mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Explicit reviewed-domain directory; defaults to the configured resource directory.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Generated composition sources.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--no-esc"
+          ],
+          "proposed_mcp_field": "no_esc",
+          "disposition": "assurance_parameter",
+          "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
+          "baseline_declaration": {
+            "flags": [
+              "--no-esc"
+            ],
+            "description": "Stop at the reduced checking stage; no deductive composition claim.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--actors"
+          ],
+          "proposed_mcp_field": "actors",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--actors"
+            ],
+            "description": "Comma-separated actor names for supported concurrent preflight.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "proposed_mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Native composition target.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/composition.py"
+    },
+    {
+      "cli_command": "reverify",
+      "proposed_mcp_tool": "reverify_composition",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Changed-module selection and exact dependency/evidence invalidation.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Existing composition JSON.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--changed-module"
+          ],
+          "proposed_mcp_field": "changed_module",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--changed-module"
+            ],
+            "description": "Name of the changed reviewed V2 module.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "proposed_mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Reviewed-domain directory.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/composition_render.py"
+    },
+    {
+      "cli_command": "system",
+      "proposed_mcp_tool": "system",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Implement/refactor/correct; provider/model/attempts; aggregate worker budgets; executable option maps to an operator-approved toolchain identity.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Mode-specific system JSON plan.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Per-component output/evidence root.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-workers"
+          ],
+          "proposed_mcp_field": "max_workers",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-workers"
+            ],
+            "description": "Parallel component workers.",
+            "default": 4,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--mode"
+          ],
+          "proposed_mcp_field": "mode",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--mode"
+            ],
+            "description": "Plan interpretation and workflow.",
+            "default": "implement",
+            "required": false,
+            "choices": [
+              "implement",
+              "refactor",
+              "correct"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Provider for corrective subagents; not forwarded to the implement workers by this handler.",
+            "default": "ollama",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Model for corrective subagents.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "proposed_mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Corrective worker proof-repair cap.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--executable"
+          ],
+          "proposed_mcp_field": "toolchain_id",
+          "disposition": "operator_configured_equivalent",
+          "requirement": "Use a server-configured allowlisted executable/toolchain identity; never execute an arbitrary agent-supplied path or command. Record the mapping.",
+          "baseline_declaration": {
+            "flags": [
+              "--executable"
+            ],
+            "description": "Internal subprocess executable override; hidden from ordinary help.",
+            "default": "formalspecgen",
+            "required": false,
+            "hidden": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/system_orchestrator.py"
+    },
+    {
+      "cli_command": "unified-system",
+      "proposed_mcp_tool": "unified_system",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Evidence input, output root, language and reviewed-V2 directory.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "proposed_mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Java: UnifiedArchitecture JSON. Native: the current handler expects a CompositionSpec-shaped artifact instead.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--evidence"
+          ],
+          "proposed_mcp_field": "evidence",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--evidence"
+            ],
+            "description": "Matching validation evidence JSON.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Lowered/generated output root.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "proposed_mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target language.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "proposed_mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Reviewed V2 directory for non-Java composition lowering.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/unified_system_runner.py"
+    },
+    {
+      "cli_command": "analyze-codebase",
+      "proposed_mcp_tool": "analyze_codebase",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Bounded tree extraction and unreviewed candidates; no project hooks or workspace plugin imports.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "target_dir"
+          ],
+          "proposed_mcp_field": "target_dir",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "target_dir"
+            ],
+            "description": "Existing source directory.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "proposed_mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Extraction reports/artifact directory.",
+            "default": "extracted",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "proposed_mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project receiving candidate domain registrations.",
+            "default": ".",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/codebase_analysis.py"
+    },
+    {
+      "cli_command": "document-code",
+      "proposed_mcp_tool": "document_code",
+      "workflow_kind": "direct_or_task",
+      "requirements": "Deterministic and provider-assisted modes; account for document and candidate-registration writes.",
+      "baseline_strict_mcp": "Not admitted",
+      "implementation_status": "target_not_verified",
+      "argument_mappings": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "proposed_mcp_field": "source",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported source file.",
+            "required": true,
+            "positional": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "proposed_mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "requirement": "Authorize destination and new-vs-replace behavior; snapshot expected prior digest for approved replacement. Evidence remains no-replace.",
+          "baseline_declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Markdown destination.",
+            "default": null,
+            "required": true
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "proposed_mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots.",
+          "baseline_declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root for extraction context.",
+            "default": ".",
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--no-llm"
+          ],
+          "proposed_mcp_field": "no_llm",
+          "disposition": "typed_parameter",
+          "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
+          "baseline_declaration": {
+            "flags": [
+              "--no-llm"
+            ],
+            "description": "Use only the deterministic documentation sections.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "JSON content is the structured MCP result; preserve optional file export using controlled publication. stdout is transport presentation, not a subprocess.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "proposed_mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "proposed_mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "requirement": "Explicit approved endpoint/model identity; export policy and budget apply. Fallback requires separate authorization and evidence.",
+          "baseline_declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "target_not_verified"
+        }
+      ],
+      "baseline_source": "pipeline/code_documentation.py"
+    }
+  ]
+}

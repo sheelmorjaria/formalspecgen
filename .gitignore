@@ -91,6 +91,7 @@ archive/vscode-extension/.vscode-test/
 # Editor and operating-system noise
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 .idea/
 *.swp
 *.swo

@@ -130,6 +130,11 @@ def register_plugin(
         )
         for argument in declaration.arguments:
             command.add_argument(*argument.flags, **argument.kwargs)
+        command.set_defaults(
+            _plugin_handler=declaration.handler,
+            _plugin_handler_id=declaration.handler_id,
+            _plugin_id=plugin.plugin_id,
+        )
         known.add(declaration.command_name)
         registered.append(declaration.command_name)
     return tuple(registered)
@@ -2826,6 +2831,10 @@ def build_parser(
 def dispatch(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
+    plugin_handler = getattr(args, "_plugin_handler", None)
+    if plugin_handler is not None:
+        result = plugin_handler(args)
+        return 0 if result is None else result
     if args.command == "doctor":
         return command_doctor(args, ui)
     if args.command == "draft":

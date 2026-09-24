@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import pytest
 
@@ -7,7 +8,10 @@ from pipeline.cli import (
     CLI_COMMAND_PLUGIN_ABI,
     CommandDeclaration,
     CommandPlugin,
+    SessionStore,
+    TerminalUI,
     build_parser,
+    dispatch,
 )
 
 
@@ -35,6 +39,10 @@ def test_external_command_plugin_registers_without_product_dependency():
     parser = build_parser((_plugin(),))
     args = parser.parse_args(["external-check"])
     assert args.project_root == "."
+    assert dispatch(
+        args, TerminalUI(), SessionStore(Path(".")), {}) == 0
+    assert args._plugin_handler_id == "external.commands:check"
+    assert args._plugin_id == "external.commands.v1"
 
 
 def test_plugin_abi_and_command_collisions_fail_closed():
