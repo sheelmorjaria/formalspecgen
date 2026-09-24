@@ -39,10 +39,15 @@ _BEHAVIOR_HEADER = re.compile(
 )
 _IGNORED_ANNOTATION = re.compile(
     r"^(?:(?:public|protected|private)\s+)?"
-    r"(?:spec_public|spec_protected|pure|helper|nullable|non_null|nullable_by_default|"
-    r"non_null_by_default|model|ghost)$",
+    r"(?:spec_public|spec_protected|pure|helper|model|ghost)$",
     re.I,
 )
+_SEMANTIC_MODIFIER = re.compile(
+    r"^(?:(?:public|protected|private)\s+)?"
+    r"(?P<modifier>nullable|non_null|nullable_by_default|non_null_by_default)$",
+    re.I,
+)
+_JAVA_UNICODE_ESCAPE = re.compile(r"\\u+[0-9A-Fa-f]{4}")
 
 
 @dataclass(frozen=True)
@@ -211,6 +216,17 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
     markers. Semicolons inside parentheses (notably quantifiers) and literals
     do not split statements.
     """
+    unicode_escape = _JAVA_UNICODE_ESCAPE.search(source)
+    if strict and unicode_escape:
+        # Java translates eligible Unicode escapes before recognizing tokens
+        # and comments.  This scanner deliberately operates on source text, so
+        # accepting escape-bearing input could make it disagree with javac or
+        # OpenJML about where an annotation begins.  Reject the whole lexical
+        # feature until that translation can be implemented with source maps.
+        raise JMLParseError(
+            "Java Unicode escapes are unsupported at the contract boundary "
+            f"(offset {unicode_escape.start()})")
+
     records: list[JMLStatement] = []
     for offset, body in _active_jml_annotations(source):
         for relative, raw_statement in _split_statements(body):
@@ -223,6 +239,9 @@ def parse_jml_statements(source: str, *, strict: bool = True) -> list[JMLStateme
                                             prefix.group(1).lower()))
             elif _BEHAVIOR_HEADER.fullmatch(normalized):
                 records.append(JMLStatement(offset + relative, normalized, "behavior"))
+            elif semantic := _SEMANTIC_MODIFIER.fullmatch(normalized):
+                records.append(JMLStatement(offset + relative, normalized,
+                                            semantic.group("modifier").lower()))
             elif _IGNORED_ANNOTATION.fullmatch(normalized):
                 continue
             elif strict:
