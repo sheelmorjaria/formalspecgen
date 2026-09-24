@@ -63,7 +63,7 @@ jobs:
           retention-days: 14
 
   rust-lanes:
-    name: Rayon and Tokio offline gates
+    name: Rayon and Tokio strict-offline gates
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -90,9 +90,9 @@ jobs:
             pyproject.toml
       - name: Install test dependencies
         run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
-      - name: Run offline Rayon and Tokio gates
+      - name: Run strict-offline Rayon and Tokio gates
         env:
-          # GitHub runners have network access but do not reliably retain sparse-index
-          # metadata between jobs; versions remain exact through Cargo.lock/--locked.
-          FORMALSPECGEN_CARGO_OFFLINE: "0"
+          # Dependencies and sparse-index metadata were populated by cargo fetch;
+          # the generated-crate checks must not resolve over the network.
+          FORMALSPECGEN_CARGO_OFFLINE: "1"
         run: python -m pytest --no-cov tests/test_parallel_wrapper.py tests/test_v2_async_serializer.py

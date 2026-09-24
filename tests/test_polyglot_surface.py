@@ -66,7 +66,8 @@ def test_cpp_surface_includes_classes_and_methods():
 
 def test_contract_clauses_per_language():
     rust = contract_clauses(
-        "#[requires(value >= 0)]\n#[ensures(result >= 0)]\npub fn f(value: i32) -> i32",
+        "#[requires(value >= 0)]\n#[ensures(result >= 0)]\n"
+        "pub fn f(value: i32) -> i32 { value }",
         "rust")
     assert any("requires" in clause for clause in rust)
     assert any("ensures" in clause for clause in rust)
@@ -84,6 +85,8 @@ def test_regex_fallback_when_tree_sitter_absent(monkeypatch):
     surface = surface_module.public_api_surface(RUST, "rust")
     assert surface  # fallback still extracts signatures
     assert any("fn" in s for s in surface)
+    assert surface_module.public_api_surface(C, "c")
+    assert surface_module.public_api_surface(CPP, "cpp")
 
 
 def test_unparseable_source_and_unknown_suffix_fall_back(tmp_path):

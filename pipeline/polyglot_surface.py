@@ -7,8 +7,9 @@
 analogue of `refactor_gate.public_method_surface`); `contract_clauses` yields
 the normalized native-contract set (Prusti attributes, ACSL blocks, C++
 assertion checks) — the analogue of `refactor_gate._public_contract_clauses`.
-Both fall back to deterministic regex extraction when the Tree-sitter grammars
-are unavailable, mirroring `codebase_analysis`'s optional-import guard.
+Public API inspection retains a regex fallback for minimal installations.
+Rust contract-preservation claims require Tree-sitter so attributes and
+declaration ownership cannot silently disappear.
 """
 from __future__ import annotations
 
@@ -41,10 +42,11 @@ _CPP_METHOD = re.compile(
     r"[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:const\s*)?(?:override\s*)?(?:;|\{)")
 _CPP_CLASS = re.compile(r"(?m)^\s*(?:class|struct)\s+[A-Za-z_]\w*")
 
-_RUST_ATTRIBUTE = re.compile(
-    r"#\[\s*(?P<name>[A-Za-z_]\w*)(?:\([\s\S]*?\))?\s*\]")
 _RUST_CONTRACT_NAMES = {"requires", "ensures", "after_expiry", "pure", "terminates"}
 _RUST_PROOF_TRUST_NAMES = {"trusted", "extern_spec", "verify_only_spec"}
+_RUST_CONDITIONAL_ATTRIBUTE_NAMES = {"cfg", "cfg_attr"}
+_RUST_CONTAINER_NODES = {"mod_item", "impl_item", "trait_item"}
+_RUST_CALLABLE_NODES = {"function_item", "function_signature_item"}
 _ACSL_BLOCK = re.compile(r"/\*@(?:.|\n)*?\*/", re.MULTILINE)
 _CPP_ASSERT = re.compile(r"(?m)\bassert\s*\([^;]+\)\s*;")
 _ACSL_PROOF_TRUST = re.compile(r"\b(?:admit|admits|axiom|axiomatic)\b", re.I)
@@ -157,47 +159,147 @@ def native_contract_surface(source: str, language: str) -> dict:
 
 
 def _rust_contract_surface(source: str) -> dict:
-    attributes = list(_RUST_ATTRIBUTE.finditer(source))
-    signatures = list(_RUST_SIGNATURE.finditer(source))
-    assigned_contracts: set[int] = set()
-    assigned_trust: set[int] = set()
-    functions = []
-    proof_trust = []
-    for signature_match in signatures:
-        signature = _normalize(signature_match.group(0))
-        attached = _contiguous_preceding(source, attributes, signature_match.start())
-        contracts = []
-        for attribute in attached:
-            name = attribute.group("name").lower()
-            normalized = _normalize(attribute.group(0))
-            if name in _RUST_CONTRACT_NAMES:
-                contracts.append(normalized)
-                assigned_contracts.add(attribute.start())
-            if name in _RUST_PROOF_TRUST_NAMES:
-                proof_trust.append(f"{signature}: {normalized}")
-                assigned_trust.add(attribute.start())
-        functions.append({"signature": signature, "contracts": contracts})
+    if Parser is None:
+        return _empty_rust_surface(
+            "tree-sitter Rust parsing is required for contract preservation")
+    parser = Parser()
+    parser.language = Language(_TS_LANGUAGES[".rs"])
+    root = parser.parse(source.encode("utf-8")).root_node
+    if root.has_error:
+        return _empty_rust_surface(
+            "Rust source could not be parsed completely at the contract boundary")
 
-    parse_errors = []
-    for attribute in attributes:
-        name = attribute.group("name").lower()
-        if name in _RUST_CONTRACT_NAMES and attribute.start() not in assigned_contracts:
-            parse_errors.append(
-                f"unbound Rust contract attribute at offset {attribute.start()}")
-        if name in _RUST_PROOF_TRUST_NAMES and attribute.start() not in assigned_trust:
-            proof_trust.append(
-                f"unbound@{attribute.start()}: {_normalize(attribute.group(0))}")
-    api = sorted(
-        [item["signature"] for item in functions
-         if re.match(r"^pub(?:\([^)]*\))?\s+", item["signature"])] +
-        [_normalize(match.group(0)) for match in _RUST_TRAIT.finditer(source)])
-    return {
-        "functions": sorted(functions, key=lambda item: item["signature"]),
-        "api": api,
-        "global_contracts": [],
-        "proof_trust": sorted(proof_trust),
-        "parse_errors": parse_errors,
+    state = {
+        "functions": [], "api": [], "proof_trust": [], "parse_errors": [],
+        "processed_callables": set(),
     }
+    _collect_rust_items(source, root, (), state)
+    for node in _walk(root):
+        if node.type in _RUST_CALLABLE_NODES and node.start_byte not in \
+                state["processed_callables"]:
+            state["parse_errors"].append(
+                f"unsupported Rust callable ownership at offset {node.start_byte}")
+    return {
+        "functions": sorted(
+            state["functions"], key=lambda item: (item["identity"], item["signature"])),
+        "api": sorted(state["api"]),
+        "global_contracts": [],
+        "proof_trust": sorted(state["proof_trust"]),
+        "parse_errors": state["parse_errors"],
+    }
+
+
+def _empty_rust_surface(error: str) -> dict:
+    return {"functions": [], "api": [], "global_contracts": [],
+            "proof_trust": [], "parse_errors": [error]}
+
+
+def _collect_rust_items(source: str, container, owners: tuple[str, ...],
+                        state: dict) -> None:
+    """Collect callables from one parsed Rust item container."""
+    pending_attributes = []
+    for child in container.named_children:
+        if child.type in {"attribute_item", "inner_attribute_item"}:
+            pending_attributes.append(child)
+            continue
+        if child.type in {"line_comment", "block_comment"}:
+            continue
+        if child.type in _RUST_CALLABLE_NODES:
+            _add_rust_callable(source, child, pending_attributes, owners, state)
+        elif child.type in _RUST_CONTAINER_NODES:
+            _add_rust_container(source, child, pending_attributes, owners, state)
+        else:
+            _classify_rust_attributes(
+                source, pending_attributes,
+                f"unbound@{child.start_byte}", state, contracts=None)
+            contains_item_macro = child.type in {"macro_invocation", "macro_definition"} or (
+                child.type == "expression_statement" and
+                any(node.type == "macro_invocation" for node in _walk(child)))
+            if contains_item_macro:
+                state["parse_errors"].append(
+                    f"item-level Rust macros are unsupported at offset {child.start_byte}")
+        pending_attributes = []
+    _classify_rust_attributes(
+        source, pending_attributes, f"unbound@{container.end_byte}",
+        state, contracts=None)
+
+
+def _add_rust_container(source: str, node, attributes: list,
+                        owners: tuple[str, ...], state: dict) -> None:
+    body = node.child_by_field_name("body")
+    header_end = body.start_byte if body is not None else node.end_byte
+    header = _normalize(
+        source.encode("utf-8")[node.start_byte:header_end].decode("utf-8"))
+    kind = {"mod_item": "module", "impl_item": "impl", "trait_item": "trait"}[node.type]
+    owner = f"{kind}:{header}"
+    identity = "crate::" + "::".join((*owners, owner))
+    _classify_rust_attributes(source, attributes, identity, state, contracts=None)
+    if node.type in {"mod_item", "trait_item"} and \
+            re.match(r"^pub(?:\([^)]*\))?\s+", header):
+        state["api"].append(identity)
+    if body is None:
+        state["parse_errors"].append(
+            f"external Rust {kind} ownership is unsupported at offset {node.start_byte}")
+        return
+    _collect_rust_items(source, body, (*owners, owner), state)
+
+
+def _add_rust_callable(source: str, node, attributes: list,
+                       owners: tuple[str, ...], state: dict) -> None:
+    name_node = node.child_by_field_name("name")
+    if name_node is None:
+        state["parse_errors"].append(
+            f"Rust callable has no parsed name at offset {node.start_byte}")
+        return
+    name = _node_text(source, name_node)
+    body = node.child_by_field_name("body")
+    signature_end = body.start_byte if body is not None else node.end_byte
+    signature = _normalize(
+        source.encode("utf-8")[node.start_byte:signature_end].decode("utf-8")
+    ).removesuffix(";").rstrip()
+    path = "::".join((*owners, name)) if owners else name
+    identity = f"crate::{path}"
+    contracts = []
+    _classify_rust_attributes(source, attributes, identity, state, contracts)
+    state["functions"].append(
+        {"identity": identity, "signature": signature, "contracts": contracts})
+    state["processed_callables"].add(node.start_byte)
+    if re.match(r"^pub(?:\([^)]*\))?\s+", signature):
+        state["api"].append(f"{identity}: {signature}")
+
+
+def _classify_rust_attributes(source: str, attributes: list, identity: str,
+                              state: dict, contracts: list[str] | None) -> None:
+    for attribute_item in attributes:
+        attribute = next(
+            (child for child in attribute_item.named_children
+             if child.type == "attribute"), None)
+        if attribute is None or not attribute.named_children:
+            state["parse_errors"].append(
+                f"unsupported Rust attribute at offset {attribute_item.start_byte}")
+            continue
+        path_node = attribute.named_children[0]
+        path = _node_text(source, path_node)
+        name = path.rsplit("::", 1)[-1].lower()
+        normalized = _normalize(_node_text(source, attribute_item))
+        if name in _RUST_CONDITIONAL_ATTRIBUTE_NAMES:
+            state["parse_errors"].append(
+                f"conditional Rust attribute {path} is unsupported at offset "
+                f"{attribute_item.start_byte}")
+        elif name in _RUST_CONTRACT_NAMES:
+            if contracts is None:
+                state["parse_errors"].append(
+                    f"unbound Rust contract attribute at offset {attribute_item.start_byte}")
+            else:
+                contracts.append(normalized)
+        elif name in _RUST_PROOF_TRUST_NAMES:
+            state["proof_trust"].append(f"{identity}: {normalized}")
+        else:
+            # Attribute macros can transform declarations. Preserve every
+            # unclassified attribute in the proof-trust inventory so a change
+            # cannot disappear merely because this front end does not know it.
+            state["proof_trust"].append(
+                f"{identity}: unclassified {normalized}")
 
 
 def _c_contract_surface(source: str) -> dict:
