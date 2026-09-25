@@ -239,9 +239,9 @@ jobs:
               "https://github.com/viperproject/prusti-dev/releases/download/v-${PRUSTI_VERSION}/prusti-release-ubuntu.zip"
             echo "$PRUSTI_SHA256  $archive" | sha256sum --check --strict
             mkdir -p tools/prusti
-            python -m zipfile -e "$archive" tools/prusti
-            chmod +x tools/prusti/prusti-*
+            unzip -q "$archive" -d tools/prusti
           fi
+          chmod +x tools/prusti/prusti-* tools/prusti/viper_tools/z3/bin/z3
           if [ ! -x "$KANI_BIN" ]; then
             archive="$RUNNER_TEMP/kani.tar.gz"
             curl --fail --location --retry 3 \
