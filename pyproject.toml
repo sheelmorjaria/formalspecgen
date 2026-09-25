@@ -29,6 +29,7 @@ formalspecgen = "pipeline.cli:main"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0,<2"]
+a2a = ["a2a-sdk[http-server]==1.1.5"]
 
 [tool.setuptools.packages.find]
 include = ["pipeline*", "formalspec_core*"]

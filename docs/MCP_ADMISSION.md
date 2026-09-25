@@ -51,6 +51,10 @@ boundary will reject the operation even when the broader profile could have allo
 | `verify_code` | Yes | Admitted | `parse`, `check` / C or C++ / structured rejection | Read request metadata; no external execution | None | Immutable unsupported-mode result | None |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
+| `submit_work_item` | No coordinator CLI | Admitted | `submit` / approved workflow and A2A 1.0 worker | Read current revision; append service task state; dispatch to an approved worker | Worker endpoint only; no model/provider permission | Hash-chained worker-task events and unaccepted proposal references | Trusted acceptance and human merge review remain separate |
+| `get_work_item` | No coordinator CLI | Admitted | local read or explicit remote refresh | Principal-scoped service-state read; refresh separately adds dispatch and state-write authority | Worker endpoint only for refresh | Current worker state; no proof claim | None for status; acceptance remains separate |
+| `get_work_artifacts` | No coordinator CLI | Admitted | digest-bound artifact references | Principal-scoped service-state read only | None | Unaccepted worker artifact identities | Required before retrieval/application/integration |
+| `cancel_work_item` | No coordinator CLI | Admitted | remote task cancellation | Principal-scoped state read/write and approved worker dispatch | Approved worker endpoint | Hash-chained cancellation outcome; no proof claim | None |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -78,6 +82,13 @@ The provisioned acceptance job installs checksum-pinned OpenJML, Prusti, Kani, a
 plus ESBMC, enters a delegated cgroup leaf, and exercises positive and negative fixtures through the
 real stdio MCP server. The revision-bound parity report may count `verify` complete only when that
 job also observes the expected bounded/deductive claim distinctions and validates publication.
+
+The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
+alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and
+append-only state live outside the agent workspace. Endpoint, Agent Card digest, principal,
+credentials, path ceilings, workflow allowlists, and budgets are operator-controlled. See
+[A2A_COORDINATION.md](A2A_COORDINATION.md). The provisioned A2A job exercises both the official
+A2A 1.0 client/server round trip and submission through the real MCP stdio server.
 
 ## Available through CLI but not admitted to strict MCP
 
@@ -149,6 +160,15 @@ profile must bind server-controlled endpoint/model selection, explicit source-ex
 request budgets, and a no-fallback policy. Credentials remain in the trusted controller and are
 excluded from generated-program environments and evidence logs. Provider output remains an
 untrusted proposal until independently reviewed and checked.
+
+### A2A coordination profiles
+
+Remote worker dispatch is separate from local execution and provider access. A coordinator
+profile may read/write service-owned task state and contact an approved worker, but cannot acquire
+compiler execution, provider, signing, promotion, or source-application authority. A work item's
+`authority_ref` is resolved against operator policy; it is not a serialized grant. Worker task
+completion remains `NO_PROOF` with acceptance pending until trusted integration validates and
+tests the proposal on the integrated revision.
 
 ## Permanent human boundary
 

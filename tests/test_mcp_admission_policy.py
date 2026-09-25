@@ -120,6 +120,11 @@ def test_human_trust_action_cannot_receive_an_mcp_profile():
     ("non-executing", {"effects": ("workspace_write_new",)}, "designated output scope"),
     ("non-executing", {"effects": ("shell_escape",)}, "unknown MCP profile effects"),
     ("non-executing", {"output_scope": "working-tree"}, "unknown MCP output scope"),
+    ("non-executing", {"effects": ("remote_worker_dispatch",)},
+     "requires A2A coordination"),
+    ("a2a-coordination", {
+        "effects": ("remote_worker_dispatch", "external_execution")},
+     "cannot acquire local execution"),
 ])
 def test_registry_rejects_incoherent_profile_permissions(
         isolation, profile_change, message):
@@ -143,7 +148,9 @@ def test_registry_rejects_incoherent_profile_permissions(
 def test_every_strict_capability_has_visible_invocation_profiles():
     strict = mcp_capabilities(strict_isolation=True)
     assert {item.name for item in strict} == {
-        "verify_code", "inspect_code", "document_code"}
+        "verify_code", "inspect_code", "document_code",
+        "submit_work_item", "get_work_item", "get_work_artifacts",
+        "cancel_work_item"}
     assert all(item.mcp_profiles for item in strict)
     documentation = capability("document_code")
     assert documentation.cli_command == "document-code"

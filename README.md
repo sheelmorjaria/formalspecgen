@@ -74,7 +74,10 @@ python mcp_server.py
 
 The strict server catalogue exposes the isolated polyglot `verify_code` workflow, the
 non-executing Java/JML `inspect_code` tool, and deterministic or explicitly provider-assisted
-Java `document_code`. Verification preserves Java/OpenJML parse, check, and ESC; Rust/rustc,
+Java `document_code`. It can also expose the operator-configured A2A proposal bridge
+(`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`); see the
+[A2A coordination guide](docs/A2A_COORDINATION.md). Worker completion never means acceptance,
+proof, signing, or merge authority. Verification preserves Java/OpenJML parse, check, and ESC; Rust/rustc,
 Prusti, and Kani; C/Frama-C WP; and bounded C++/ESBMC routes. Every compiler and verifier stage
 uses the same network-denied Bubblewrap+cgroup boundary and publishes its actual observations.
 Inspection
@@ -84,7 +87,7 @@ one bounded source and creates new unreviewed Markdown and V2-candidate artifact
 `.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`) and never
 replaces an existing artifact. Provider-assisted documentation separately requires provider
 authority and an approved endpoint/model. The registry retains
-a 39-tool legacy catalogue
+a 43-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
@@ -95,7 +98,8 @@ covering the full verification surface: `verify_code`,
 `generate_traceability_matrix`, `verify_unbounded`, `verify_linearizability`,
 `verify_distributed`, `verify_heap`, `verify_hal`, `macro_translate`,
 `verify_lockfree`, `verify_weak_memory`, `verify_wcet`, `verify_liveness`,
-`verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, and `doctor_environment`. The
+`verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, `doctor_environment`,
+`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`. The
 OS-lane tools keep the same epistemic split as the CLI: `verify_lockfree`
 mints its claim only from real ESBMC interleaving results, the
 deterministic structural lanes (`verify_weak_memory`, `verify_wcet`,

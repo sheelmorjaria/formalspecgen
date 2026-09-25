@@ -1,7 +1,7 @@
 {
   "schema": "formalspecgen-mcp-parity-manifest-v2",
   "application_version": "13.0.0",
-  "admission_policy_version": "mcp-admission-v2",
+  "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
   "plan_sha256": "1fcfc406dfb439d69938c9b9dbc43cadf9992a21310b375326119ac1ac2973ca",
@@ -12343,5 +12343,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "d5b4a34d9c6d0d16f2d248fc05262453cb53c0a7275c8f51bceb5f39c79d6e3f"
+  "sha256": "5c2bad1d55c510eb405d82a6d8744ff32e29c3c944a85b6acd91c9e56b77da20"
 }

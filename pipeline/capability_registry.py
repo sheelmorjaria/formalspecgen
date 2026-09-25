@@ -20,6 +20,9 @@ MCP_EFFECTS = frozenset({
     "external_execution",
     "provider_access",
     "evidence_publication",
+    "service_state_read",
+    "service_state_write",
+    "remote_worker_dispatch",
 })
 MCP_OUTPUT_SCOPES = frozenset({
     "none", "designated-new-artifacts", "immutable-evidence-only",
@@ -106,7 +109,8 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
     )
     mcp_isolation = value.get("mcp_isolation", "unsupported")
     if mcp_isolation not in {
-            "non-executing", "strict-java", "strict-execution", "unsupported"}:
+            "a2a-coordination", "non-executing", "strict-java",
+            "strict-execution", "unsupported"}:
         raise ValueError(f"unknown MCP isolation profile: {mcp_isolation}")
     mcp_profiles = tuple(
         MCPInvocationProfile(
@@ -141,6 +145,14 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
         if mcp_isolation == "non-executing" and \
                 "external_execution" in profile.effects:
             raise ValueError("non-executing MCP profiles cannot authorize execution")
+        if "remote_worker_dispatch" in profile.effects and \
+                mcp_isolation != "a2a-coordination":
+            raise ValueError(
+                "remote worker dispatch requires A2A coordination isolation")
+        if mcp_isolation == "a2a-coordination" and \
+                set(profile.effects) & {"external_execution", "provider_access"}:
+            raise ValueError(
+                "A2A coordination cannot acquire local execution or provider access")
         if "workspace_write_new" in profile.effects and \
                 profile.output_scope != "designated-new-artifacts":
             raise ValueError("MCP workspace writes require a designated output scope")
@@ -199,6 +211,10 @@ _MCP_TOOLS = (
     "verify_dma",
     "extract_intrusive_list",
     "resolve_callbacks",
+    "submit_work_item",
+    "get_work_item",
+    "get_work_artifacts",
+    "cancel_work_item",
 )
 
 _GENERIC_DATA = [{'name': 'verify_code',
@@ -421,6 +437,95 @@ _GENERIC_DATA = [{'name': 'verify_code',
                     'providers': ('glm', 'openai', 'ollama'),
                     'output_scope': 'designated-new-artifacts',
                     'evidence': 'unreviewed-provider-documentation'}),
+  'milestone': None},
+ {'name': 'submit_work_item',
+  'description': ('Submit an authority-bound implementation proposal to an '
+                  'operator-approved A2A worker.'),
+  'cli_command': None,
+  'mcp_tool': 'submit_work_item',
+  'arguments': (),
+  'epistemic_boundary': ('Worker completion produces a proposal only; it is not '
+                         'acceptance, proof, or merge authority.'),
+  'trust_action': False,
+  'mcp_isolation': 'a2a-coordination',
+  'mcp_profiles': ({'name': 'a2a-submit-proposal',
+                    'modes': ('submit',),
+                    'languages': ('none',),
+                    'backends': ('a2a-1.0',),
+                    'effects': ('workspace_read', 'service_state_write',
+                                'remote_worker_dispatch'),
+                    'required_effects': ('workspace_read', 'service_state_write',
+                                         'remote_worker_dispatch'),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'append-only-worker-task-events'},),
+  'milestone': None},
+ {'name': 'get_work_item',
+  'description': 'Read and optionally refresh an authorized A2A work item.',
+  'cli_command': None,
+  'mcp_tool': 'get_work_item',
+  'arguments': (),
+  'epistemic_boundary': 'Worker task state never implies implementation acceptance.',
+  'trust_action': False,
+  'mcp_isolation': 'a2a-coordination',
+  'mcp_profiles': ({'name': 'a2a-read-task',
+                    'modes': ('local',),
+                    'languages': ('none',),
+                    'backends': ('a2a-1.0',),
+                    'effects': ('service_state_read',),
+                    'required_effects': ('service_state_read',),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'append-only-worker-task-events'},
+                   {'name': 'a2a-refresh-task',
+                    'modes': ('refresh',),
+                    'languages': ('none',),
+                    'backends': ('a2a-1.0',),
+                    'effects': ('service_state_read', 'service_state_write',
+                                'remote_worker_dispatch'),
+                    'required_effects': ('service_state_read', 'service_state_write',
+                                         'remote_worker_dispatch'),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'append-only-worker-task-events'}),
+  'milestone': None},
+ {'name': 'get_work_artifacts',
+  'description': 'Retrieve digest-bound artifact references for an authorized work item.',
+  'cli_command': None,
+  'mcp_tool': 'get_work_artifacts',
+  'arguments': (),
+  'epistemic_boundary': 'Artifact references remain unaccepted worker output.',
+  'trust_action': False,
+  'mcp_isolation': 'a2a-coordination',
+  'mcp_profiles': ({'name': 'a2a-read-artifact-references',
+                    'modes': ('artifacts',),
+                    'languages': ('none',),
+                    'backends': ('a2a-1.0',),
+                    'effects': ('service_state_read',),
+                    'required_effects': ('service_state_read',),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'digest-bound-worker-artifact-references'},),
+  'milestone': None},
+ {'name': 'cancel_work_item',
+  'description': 'Request cancellation of an authorized A2A work item.',
+  'cli_command': None,
+  'mcp_tool': 'cancel_work_item',
+  'arguments': (),
+  'epistemic_boundary': 'Cancellation is a task outcome, not a verification result.',
+  'trust_action': False,
+  'mcp_isolation': 'a2a-coordination',
+  'mcp_profiles': ({'name': 'a2a-cancel-task',
+                    'modes': ('cancel',),
+                    'languages': ('none',),
+                    'backends': ('a2a-1.0',),
+                    'effects': ('service_state_read', 'service_state_write',
+                                'remote_worker_dispatch'),
+                    'required_effects': ('service_state_read', 'service_state_write',
+                                         'remote_worker_dispatch'),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'append-only-worker-task-events'},),
   'milestone': None},
  {'name': 'assess_security',
   'description': 'assess security',
@@ -768,7 +873,8 @@ def mcp_capabilities(*, strict_isolation: bool = False) -> tuple[CapabilitySpec,
         item
         for item in capabilities
         if item.mcp_isolation in {
-            "non-executing", "strict-java", "strict-execution"}
+            "a2a-coordination", "non-executing", "strict-java",
+            "strict-execution"}
         and item.mcp_profiles
     )
 

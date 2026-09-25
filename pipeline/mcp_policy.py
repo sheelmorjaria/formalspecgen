@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .capability_registry import MCP_EFFECTS, MCPInvocationProfile, capability
 
 
-MCP_ADMISSION_POLICY_VERSION = "mcp-admission-v2"
+MCP_ADMISSION_POLICY_VERSION = "mcp-admission-v3"
 
 
 class MCPPolicyViolation(RuntimeError):

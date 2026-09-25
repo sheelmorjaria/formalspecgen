@@ -1,0 +1,2 @@
+# Pinned official A2A v1 transport and local acceptance-server dependencies.
+a2a-sdk[http-server]==1.1.5

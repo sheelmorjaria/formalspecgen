@@ -3,9 +3,11 @@
 Install the optional SDK with ``pip install 'formalspecgen[mcp]'``.  The core functions in this
 module remain importable without the SDK, which keeps the CLI and test environments lightweight.
 
-Every tool confines its inputs AND outputs to the current workspace and returns
+Workspace tools confine inputs and outputs to the current workspace and return
 structured verdict objects; a tool failure is never converted into a success
-claim.  Deliberately NOT exposed: ``promote-domain`` (hash-bound human
+claim. The admitted catalogue also includes an operator-configured A2A bridge
+whose workers can return unaccepted candidate artifacts. Deliberately NOT
+exposed: ``promote-domain`` (hash-bound human
 acceptance of reviewed artifacts is a trust action that stays with the CLI),
 the interactive clarification wizards (``domain``, non-canonical ``draft``,
 ``design-system``), and the reviewer trust actions ``sign-artifact`` /
@@ -38,6 +40,7 @@ from pipeline.mcp_policy import (
     MCPAdmission,
     MCPPolicyViolation,
     authorize_mcp_invocation,
+    require_mcp_effect,
 )
 from pipeline.mcp_provider_policy import resolve_documentation_model
 from pipeline.isolated_verification import (
@@ -64,6 +67,83 @@ MCP_DOCUMENT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_DOCUMENT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_INSPECT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
+
+
+def _operator_controlled_path(
+        variable: str, *, require_file: bool = False) -> Path:
+    raw = os.environ.get(variable)
+    if not raw:
+        raise ValueError(f"{variable} is not configured")
+    supplied = Path(raw).expanduser()
+    if not supplied.is_absolute():
+        raise ValueError(f"{variable} must be an absolute operator-controlled path")
+    if supplied.is_symlink():
+        raise ValueError(f"{variable} must not be a symlink")
+    path = supplied.resolve()
+    workspace = Path.cwd().resolve()
+    if path == workspace or workspace in path.parents:
+        raise ValueError(f"{variable} must be outside the agent workspace")
+    if require_file:
+        if not path.is_file():
+            raise ValueError(f"{variable} must identify a regular file")
+        if path.stat().st_mode & 0o022:
+            raise ValueError(f"{variable} must not be group- or world-writable")
+    elif path.exists() and (not path.is_dir() or path.stat().st_mode & 0o022):
+        raise ValueError(
+            f"{variable} must be a protected directory when it already exists")
+    return path
+
+
+def _configured_a2a_coordinator(*, create_state: bool):
+    """Build the coordinator exclusively from server-side configuration."""
+    from pipeline.a2a_coordination import (
+        A2ACoordinator,
+        CoordinationPolicy,
+        OfficialA2AWorkerClient,
+        TaskStore,
+    )
+
+    policy_path = _operator_controlled_path(
+        "FORMALSPECGEN_A2A_POLICY", require_file=True)
+    state_root = _operator_controlled_path("FORMALSPECGEN_A2A_STATE_ROOT")
+    return A2ACoordinator(
+        CoordinationPolicy.load(policy_path),
+        TaskStore(state_root, create=create_state),
+        OfficialA2AWorkerClient(),
+        project_root=Path.cwd(),
+    )
+
+
+def _a2a_principal() -> str:
+    principal = os.environ.get("FORMALSPECGEN_A2A_PRINCIPAL", "").strip()
+    if not principal:
+        raise ValueError("FORMALSPECGEN_A2A_PRINCIPAL is not configured")
+    return principal
+
+
+def _coordination_response(record: dict[str, Any], admission: MCPAdmission) -> dict[str, Any]:
+    state = str(record.get("state", "unknown"))
+    return {
+        "status": state.upper(),
+        "claim": "NO_PROOF",
+        "request_satisfied": state not in {"failed", "rejected"},
+        "work_item_id": record.get("work_item_id"),
+        "worker_task": record,
+        "worker_completed": state == "completed",
+        "implementation_accepted": False,
+        "mcp_admission": admission.summary(),
+    }
+
+
+def _coordination_error(exc: Exception) -> dict[str, Any]:
+    from pipeline.a2a_coordination import A2ACoordinationError
+
+    if isinstance(exc, A2ACoordinationError):
+        return exc.as_dict()
+    return {
+        "status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+        "code": "invalid_request", "message": str(exc),
+    }
 
 
 def _strict_mcp_isolation_enabled() -> bool:
@@ -930,6 +1010,121 @@ def resolve_callbacks(source: str) -> dict[str, Any]:
     from pipeline.os_patterns import resolve_callbacks as run_resolve
     return _guarded(lambda: run_resolve(
         _workspace_path(source).read_text(encoding="utf-8")))
+
+
+def submit_work_item(
+        work_item_id: str, base_revision: str, objective: str, workflow: str,
+        variant: dict[str, str], allowed_paths: list[str],
+        protected_paths: list[str], acceptance_plan_ref: str,
+        authority_ref: str, deliverables: list[str],
+        requested_effects: list[str], resource_budget: dict[str, int],
+        worker_id: str | None = None,
+        parent_work_item_id: str | None = None) -> dict[str, Any]:
+    """Submit a bounded proposal to an operator-approved A2A worker.
+
+    The authority reference is resolved server-side. Worker completion never
+    means that the patch was accepted, proved, signed, or merged.
+    """
+    effects = (
+        "workspace_read", "service_state_write", "remote_worker_dispatch")
+    admission = authorize_mcp_invocation(
+        "submit_work_item", mode="submit", language="none",
+        backend="a2a-1.0", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        from pipeline.a2a_coordination import WorkItem, current_git_revision
+
+        require_mcp_effect(admission, "workspace_read")
+        if current_git_revision(Path.cwd()) != base_revision:
+            raise ValueError("base_revision does not identify the current checkout")
+        item = WorkItem(
+            work_item_id=work_item_id,
+            base_revision=base_revision,
+            objective=objective,
+            workflow=workflow,
+            variant=variant,
+            allowed_paths=tuple(allowed_paths),
+            protected_paths=tuple(protected_paths),
+            acceptance_plan_ref=acceptance_plan_ref,
+            authority_ref=authority_ref,
+            deliverables=tuple(deliverables),
+            requested_effects=tuple(requested_effects),
+            resource_budget=resource_budget,
+            parent_work_item_id=parent_work_item_id,
+        )
+        require_mcp_effect(admission, "service_state_write")
+        coordinator = _configured_a2a_coordinator(create_state=True)
+        require_mcp_effect(admission, "remote_worker_dispatch")
+        record = coordinator.submit(item, _a2a_principal(), worker_id)
+        return _coordination_response(record, admission)
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+def get_work_item(
+        work_item_id: str, refresh: bool = True) -> dict[str, Any]:
+    """Read an authorized work item, optionally refreshing it over A2A."""
+    effects = (("service_state_read", "service_state_write",
+                "remote_worker_dispatch") if refresh else ("service_state_read",))
+    admission = authorize_mcp_invocation(
+        "get_work_item", mode="refresh" if refresh else "local",
+        language="none", backend="a2a-1.0", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        require_mcp_effect(admission, "service_state_read")
+        coordinator = _configured_a2a_coordinator(create_state=False)
+        if refresh:
+            require_mcp_effect(admission, "remote_worker_dispatch")
+            require_mcp_effect(admission, "service_state_write")
+        record = coordinator.get(
+            work_item_id, _a2a_principal(), refresh=refresh)
+        return _coordination_response(record, admission)
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+def get_work_artifacts(work_item_id: str) -> dict[str, Any]:
+    """Return digest-bound worker artifact references, never implicit files."""
+    admission = authorize_mcp_invocation(
+        "get_work_artifacts", mode="artifacts", language="none",
+        backend="a2a-1.0", effects=("service_state_read",))
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        require_mcp_effect(admission, "service_state_read")
+        coordinator = _configured_a2a_coordinator(create_state=False)
+        result = coordinator.artifacts(work_item_id, _a2a_principal())
+        return {
+            **result,
+            "claim": "NO_PROOF",
+            "request_satisfied": True,
+            "implementation_accepted": False,
+            "mcp_admission": admission.summary(),
+        }
+    except Exception as exc:
+        return _coordination_error(exc)
+
+
+def cancel_work_item(work_item_id: str) -> dict[str, Any]:
+    """Cancel a principal-owned work item and its remote A2A task."""
+    effects = (
+        "service_state_read", "service_state_write", "remote_worker_dispatch")
+    admission = authorize_mcp_invocation(
+        "cancel_work_item", mode="cancel", language="none",
+        backend="a2a-1.0", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        require_mcp_effect(admission, "service_state_read")
+        coordinator = _configured_a2a_coordinator(create_state=False)
+        require_mcp_effect(admission, "remote_worker_dispatch")
+        require_mcp_effect(admission, "service_state_write")
+        record = coordinator.cancel(work_item_id, _a2a_principal())
+        return _coordination_response(record, admission)
+    except Exception as exc:
+        return _coordination_error(exc)
 
 
 def doctor_environment() -> dict[str, Any]:

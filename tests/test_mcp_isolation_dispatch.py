@@ -77,9 +77,14 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
         "verify_code": "strict-execution",
         "inspect_code": "non-executing",
         "document_code": "non-executing",
+        "submit_work_item": "a2a-coordination",
+        "get_work_item": "a2a-coordination",
+        "get_work_artifacts": "a2a-coordination",
+        "cancel_work_item": "a2a-coordination",
     }
     assert all(item.mcp_isolation in {
-        "strict-java", "strict-execution", "non-executing", "unsupported"
+        "a2a-coordination", "strict-java", "strict-execution",
+        "non-executing", "unsupported"
     } for item in mcp_capabilities())
 
 
@@ -98,4 +103,6 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
 
     monkeypatch.setattr(mcp_server, "FastMCP", FakeFastMCP)
     server = mcp_server.create_server()
-    assert server.registered == ["verify_code", "inspect_code", "document_code"]
+    assert server.registered == [
+        "verify_code", "inspect_code", "document_code", "submit_work_item",
+        "get_work_item", "get_work_artifacts", "cancel_work_item"]
