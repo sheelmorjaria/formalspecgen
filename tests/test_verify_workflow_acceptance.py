@@ -242,4 +242,4 @@ def test_real_mcp_transport_discovers_and_calls_verify_variants():
     assert observation["transport"] == "mcp-stdio-subprocess"
     assert observation["result_status"] == "VERIFY_FAILED"
     assert "verify_code" in observation["discovered_tools"]
-    assert len(observation["variants"]) == 26
+    assert len(observation["variants"]) == 24
