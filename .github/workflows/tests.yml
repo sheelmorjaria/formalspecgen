@@ -316,6 +316,7 @@ jobs:
             --command verify \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: provisioned-mcp-acceptance-${{ github.sha }}
