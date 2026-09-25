@@ -173,15 +173,17 @@ jobs:
       KANI_SHA256: "3b5f7afd3b51603ee720db7bc1bc4fe46b5a4f5d36daad9939c4b4c658b51ac0"
       FRAMAC_VERSION: "33.0-Arsenic"
       FRAMAC_SHA256: "c754c31bb32d151acf7db3bcfdc5181b076bdbff813b19049e984f639eba3735"
-      RUSTUP_HOME: ${{ runner.temp }}/formalspecgen-rustup
-      CARGO_HOME: ${{ runner.temp }}/formalspecgen-cargo
       RUSTC_BIN: /usr/bin/rustc
       PRUSTI_BIN: ${{ github.workspace }}/tools/prusti/prusti-rustc
-      KANI_BIN: ${{ runner.temp }}/kani/kani-0.67.0/bin/kani-driver
-      FRAMAC_BIN: ${{ runner.temp }}/frama-package/bin/frama-c
       CC_BIN: /usr/bin/gcc
     steps:
       - uses: actions/checkout@v4
+      - name: Configure runner-local verifier paths
+        run: |
+          echo "RUSTUP_HOME=$RUNNER_TEMP/formalspecgen-rustup" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$RUNNER_TEMP/formalspecgen-cargo" >> "$GITHUB_ENV"
+          echo "KANI_BIN=$RUNNER_TEMP/kani/kani-${KANI_VERSION}/bin/kani-driver" >> "$GITHUB_ENV"
+          echo "FRAMAC_BIN=$RUNNER_TEMP/frama-package/bin/frama-c" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
