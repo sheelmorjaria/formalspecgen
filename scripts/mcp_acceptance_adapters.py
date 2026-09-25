@@ -239,6 +239,8 @@ async def _verify_observation() -> dict:
             "execution_status": (item.get("execution") or {}).get("status"),
             "resource_events": (item.get("execution") or {}).get("resource_events"),
             "message": item.get("message"),
+            "execution_output_head": str(
+                (item.get("execution") or {}).get("output") or "")[:12000],
             "output_tail": str(item.get("output") or "")[-12000:],
         } for item in results]
         raise RuntimeError(
