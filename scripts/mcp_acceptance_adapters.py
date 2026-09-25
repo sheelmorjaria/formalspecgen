@@ -272,8 +272,11 @@ async def _verify_observation() -> dict:
         "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
         "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
     ]
-    if [item.get("claim") for item in results] != expected_claims:
-        raise RuntimeError("verify_code transport claim limits changed")
+    actual_claims = [item.get("claim") for item in results]
+    if actual_claims != expected_claims:
+        raise RuntimeError(
+            "verify_code transport claim limits changed: "
+            f"actual={actual_claims!r}; expected={expected_claims!r}")
     if [bool(item.get("request_satisfied")) for item in results] != (
             [True] * 11 + [False] * 15):
         raise RuntimeError("verify_code transport satisfaction decisions changed")
