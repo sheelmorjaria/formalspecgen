@@ -274,7 +274,8 @@ jobs:
           "$CARGO_HOME/bin/rustup" toolchain install "$kani_toolchain" --profile minimal
           ln -sfnT "$RUSTUP_HOME/toolchains/$kani_toolchain" \
             "$(dirname "$(dirname "$KANI_BIN")")/toolchain"
-          "$PRUSTI_BIN" --version
+          env -u PRUSTI_BIN -u PRUSTI_VERSION -u PRUSTI_SHA256 \
+            "$PRUSTI_BIN" --version
           "$KANI_BIN" --version
           "$FRAMAC_BIN" -version
           esbmc --version
