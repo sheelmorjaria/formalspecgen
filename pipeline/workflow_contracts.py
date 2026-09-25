@@ -195,7 +195,8 @@ class VerificationWorkflowRequest:
         effective = {
             "java": "openjml", "jml": "openjml", "c": "frama-c",
             "cpp": "esbmc",
-        }.get(language, backend if language == "rust" else "unknown")
+        }.get(language, (backend if mode == "esc" else "rustc")
+              if language == "rust" else "unknown")
         object.__setattr__(self, "source", source)
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "backend", backend)
@@ -203,7 +204,9 @@ class VerificationWorkflowRequest:
         object.__setattr__(self, "effective_backend", effective)
 
     def required_effects(self, interface: WorkflowInterface) -> tuple[str, ...]:
-        effects = ["workspace_read", "external_execution"]
+        effects = ["workspace_read"]
+        if not (self.language in {"c", "cpp"} and self.mode != "esc"):
+            effects.append("external_execution")
         if interface is WorkflowInterface.MCP:
             effects.append("evidence_publication")
         if self.result_export:

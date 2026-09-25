@@ -78,7 +78,9 @@ def _sandbox_verify_detailed(java_files, mode, timeout, executor=None):
     if missing:
         return VerificationExecutionResult(
             TOOL_ERROR_EXIT, "<source file unavailable: " + ", ".join(missing) + ">", None)
-    names = [path.name for path in sources]
+    names = [(path.with_suffix(".java").name
+              if path.suffix.lower() == ".jml" else path.name)
+             for path in sources]
     if len(names) != len(set(names)):
         return VerificationExecutionResult(
             TOOL_ERROR_EXIT, "<duplicate Java source basenames cannot share a snapshot>", None)
@@ -90,8 +92,13 @@ def _sandbox_verify_detailed(java_files, mode, timeout, executor=None):
     specs = Path(specs_value).resolve() if specs_value and Path(specs_value).exists() else None
     with tempfile.TemporaryDirectory(prefix="formalspecgen-openjml-") as temporary:
         root = Path(temporary)
-        snapshot = SourceSnapshot.create(
-            root / "snapshot", {path.name: path.read_bytes() for path in sources})
+        snapshot_files = {}
+        for path, active_name in zip(sources, names):
+            content = path.read_bytes()
+            if path.suffix.lower() == ".jml":
+                snapshot_files[f"reviewed/{path.name}"] = content
+            snapshot_files[active_name] = content
+        snapshot = SourceSnapshot.create(root / "snapshot", snapshot_files)
         command = [str(openjml), f"-{mode}"]
         readonly_paths = []
         if specs is not None:
@@ -104,7 +111,11 @@ def _sandbox_verify_detailed(java_files, mode, timeout, executor=None):
             tool="openjml", command=tuple(command), snapshot=snapshot,
             workspace=root / "workspace",
             policy=ExecutionPolicy(
-                timeout_s=float(timeout), max_memory_bytes=2 * 1024 * 1024 * 1024),
+                timeout_s=float(timeout), max_memory_bytes=2 * 1024 * 1024 * 1024,
+                # The JVM creates GC/compiler workers from the visible host CPU
+                # count.  Keep the execution unit bounded without preventing
+                # OpenJML from starting on high-core-count acceptance runners.
+                max_processes=128),
             readonly_paths=tuple(dict.fromkeys(readonly_paths))))
     if observation.status == "TIMEOUT":
         return VerificationExecutionResult(

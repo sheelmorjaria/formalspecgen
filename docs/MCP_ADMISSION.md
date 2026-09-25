@@ -44,7 +44,11 @@ boundary will reject the operation even when the broader profile could have allo
 
 | Workflow | CLI | Strict MCP | Modes / language / backend | Workspace effects | Provider access | Evidence | Human approval |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `verify_code` | Yes | Admitted | `parse`, `check`, `esc` / Java or JML / OpenJML | Read immutable input; execute in bounded disposable workspace; publish new immutable evidence | None | Exact execution observation and terminal manifest | Required for any later promotion or signing |
+| `verify_code` | Yes | Admitted | `parse`, `check`, `esc` / Java or JML / OpenJML | Read immutable input; strict execution; optional new JSON export | None | Exact execution observation and terminal manifest | Required for any later promotion or signing |
+| `verify_code` | Yes | Admitted | `parse`, `check` / Rust / rustc | Reviewed and transformed compiler inputs are both snapshotted; strict execution | None | Static-check observation and terminal manifest; no proof claim | Required for any later promotion or signing |
+| `verify_code` | Yes | Admitted | `esc` / Rust / Prusti or Kani | Read immutable input; strict execution | None | Deductive Prusti or bounded Kani evidence with terminal manifest | Required for any later promotion or signing |
+| `verify_code` | Yes | Admitted | `esc` / C or C++ / Frama-C WP or ESBMC | Strict compiler/preflight and verifier stages | None | Deductive C or bounded C++ evidence with every execution stage | Required for any later promotion or signing |
+| `verify_code` | Yes | Admitted | `parse`, `check` / C or C++ / structured rejection | Read request metadata; no external execution | None | Immutable unsupported-mode result | None |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
 
@@ -62,6 +66,18 @@ fields.
 Published verification evidence records requested and granted effects, the complete canonical
 profile definition and its SHA-256 digest, and the admission-policy version. This binds a run to the
 policy contents that authorized it rather than relying on a mutable profile name.
+
+`verify_code` accepts `source`, `mode`, `backend`, and optional `result_export`. The backend field
+selects Prusti or Kani only for Rust ESC; Java/JML, C, and C++ resolve to their named backend without
+silent substitution. A result export is a separate invocation profile requiring the complete read,
+execution, evidence-publication, and new-write effect set. Omitting the write effect cannot be
+repaired later at the file boundary. Existing destinations, absolute paths, traversal, and unsafe
+symlink components are rejected without replacing prior data.
+
+The provisioned acceptance job installs checksum-pinned OpenJML, Prusti, Kani, and Frama-C bundles
+plus ESBMC, enters a delegated cgroup leaf, and exercises positive and negative fixtures through the
+real stdio MCP server. The revision-bound parity report may count `verify` complete only when that
+job also observes the expected bounded/deductive claim distinctions and validates publication.
 
 ## Available through CLI but not admitted to strict MCP
 

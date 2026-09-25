@@ -8,6 +8,7 @@ from rich.console import Console
 
 import mcp_server
 from pipeline import cli, implementation
+from pipeline.isolated_verification import IsolatedVerificationResult
 from pipeline.llm import _chat_fn
 from pipeline.refactor_gate import _public_contract_clauses
 from pipeline.verify import VerificationExecutionResult
@@ -98,7 +99,9 @@ def test_cli_semantic_failure_with_zero_tool_exit_is_failure(tmp_path):
         "status": "VERIFY_FAILED", "exit_code": 0, "claim": "NO_PROOF",
         "proved_goals": 3, "total_goals": 4,
     }
-    with patch.object(cli, "verify_c", return_value=backend_result):
+    with patch.object(
+            cli, "execute_isolated_verification",
+            return_value=IsolatedVerificationResult(backend_result)):
         assert cli.command_verify(args, ui) == 1
 
 

@@ -9,11 +9,12 @@ import pytest
 
 import mcp_server
 from pipeline.capability_registry import mcp_capabilities
+from pipeline.isolated_verification import IsolatedVerificationResult
 
 
 @pytest.mark.parametrize("suffix", [".rs", ".c"])
 @pytest.mark.parametrize("setting", [None, "1"])
-def test_native_direct_and_refactor_routes_fail_before_dispatch(
+def test_native_direct_is_admitted_but_refactor_still_fails_before_dispatch(
         tmp_path, monkeypatch, suffix, setting):
     monkeypatch.chdir(tmp_path)
     if setting is None:
@@ -26,10 +27,16 @@ def test_native_direct_and_refactor_routes_fail_before_dispatch(
     baseline.write_text("int f(void) { return 1; }", encoding="utf-8")
     candidate.write_text("int f(void) { return 1; }", encoding="utf-8")
 
-    direct = mcp_server.verify_code(str(candidate))
-    assert direct["status"] == "ISOLATION_UNSUPPORTED"
-    assert direct["claim"] == "NO_PROOF"
-    assert direct["request_satisfied"] is False
+    raw = {"status": "VERIFIED", "exit_code": 0, "claim": "DEDUCTIVE_PROOF"}
+    if suffix == ".c":
+        raw.update({"proved_goals": 1, "total_goals": 1})
+    with patch("mcp_server.execute_isolated_verification",
+               return_value=IsolatedVerificationResult(raw)) as direct_backend:
+        direct = mcp_server.verify_code(str(candidate))
+    direct_backend.assert_called_once()
+    assert direct["status"] == "VERIFIED"
+    assert direct["request_satisfied"] is True
+    assert direct["strict_isolation_supported"] is True
 
     with patch(
             "pipeline.refactor_gate.verify_contract_preserving_refactor"
@@ -67,12 +74,12 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
     strict = {item.mcp_tool: item.mcp_isolation
               for item in mcp_capabilities(strict_isolation=True)}
     assert strict == {
-        "verify_code": "strict-java",
+        "verify_code": "strict-execution",
         "inspect_code": "non-executing",
         "document_code": "non-executing",
     }
     assert all(item.mcp_isolation in {
-        "strict-java", "non-executing", "unsupported"
+        "strict-java", "strict-execution", "non-executing", "unsupported"
     } for item in mcp_capabilities())
 
 

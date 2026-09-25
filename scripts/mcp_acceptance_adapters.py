@@ -71,14 +71,15 @@ def _fixture_provider() -> Iterator[str]:
 
 async def _call_tool(
         workspace: Path, tool_name: str, calls: list[dict],
-        *, environment: dict[str, str] | None = None) -> tuple[object, object, dict, list[dict]]:
+        *, environment: dict[str, str] | None = None,
+        timeout_s: float = 45) -> tuple[object, object, dict, list[dict]]:
     child_environment = dict(os.environ)
     child_environment.update(environment or {})
     parameters = StdioServerParameters(
         command=sys.executable,
         args=[str(Path(mcp_server.__file__).resolve())],
         cwd=str(workspace), env=child_environment)
-    with anyio.fail_after(45):
+    with anyio.fail_after(timeout_s):
         async with stdio_client(parameters) as (read, write):
             async with ClientSession(read, write) as session:
                 initialized = await session.initialize()
@@ -158,6 +159,133 @@ async def _document_observation() -> dict:
     return _observation(initialized, tools, schema, semantic_result, results[-1])
 
 
+async def _verify_observation() -> dict:
+    fixtures = {
+        "Proven.java": (
+            "public class Proven {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public static int value() { return 1; }\n}\n"),
+        "Proven.jml": (
+            "public class Proven {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public static int value() { return 1; }\n}\n"),
+        "Broken.java": (
+            "public class Broken {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public static int value() { return 2; }\n}\n"),
+        "Checked.rs": "pub fn value() -> i32 { 1 }\n",
+        "Prusti.rs": (
+            "use prusti_contracts::*;\n"
+            "#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { 1 }\n"),
+        "BrokenPrusti.rs": (
+            "use prusti_contracts::*;\n"
+            "#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { 2 }\n"),
+        "Kani.rs": (
+            "pub fn value() -> i32 { 1 }\n"
+            "#[kani::proof]\nfn proof_value() { assert!(value() == 1); }\n"),
+        "BrokenKani.rs": (
+            "#[kani::proof]\nfn proof_value() { assert!(false); }\n"),
+        "proof.c": (
+            "/*@ assigns \\nothing; ensures \\result == 1; */\n"
+            "int value(void) { return 1; }\n"),
+        "broken.c": (
+            "/*@ assigns \\nothing; ensures \\result == 1; */\n"
+            "int value(void) { return 2; }\n"),
+        "proof.cpp": "int main() { return 0; }\n",
+        "broken.cpp": "#include <cassert>\nint main() { assert(false); }\n",
+    }
+    calls = [
+        {"source": "Proven.java", "mode": "parse"},
+        {"source": "Proven.java", "mode": "check"},
+        {"source": "Proven.java", "mode": "esc"},
+        {"source": "Proven.java", "mode": "check",
+         "result_export": "verify/java-check.json"},
+        {"source": "Proven.jml", "mode": "esc"},
+        {"source": "Checked.rs", "mode": "parse"},
+        {"source": "Checked.rs", "mode": "check"},
+        {"source": "Prusti.rs", "mode": "esc", "backend": "prusti"},
+        {"source": "Kani.rs", "mode": "esc", "backend": "kani"},
+        {"source": "proof.c", "mode": "esc"},
+        {"source": "proof.cpp", "mode": "esc"},
+        {"source": "proof.c", "mode": "check"},
+        {"source": "proof.cpp", "mode": "parse"},
+        {"source": "Broken.java", "mode": "esc"},
+        {"source": "BrokenPrusti.rs", "mode": "esc", "backend": "prusti"},
+        {"source": "BrokenKani.rs", "mode": "esc", "backend": "kani"},
+        {"source": "broken.c", "mode": "esc"},
+        {"source": "broken.cpp", "mode": "esc"},
+    ]
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-verify-") as directory:
+        workspace = Path(directory)
+        for name, source in fixtures.items():
+            (workspace / name).write_text(source, encoding="utf-8")
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "verify_code", calls, timeout_s=300)
+        export_exists = (
+            workspace / ".formalspecgen/mcp-output/verify/java-check.json").is_file()
+    expected = [
+        "VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED",
+        "PARSED", "RUST_CHECKED", "VERIFIED", "VERIFIED", "VERIFIED",
+        "VERIFIED", "UNSUPPORTED_MODE", "UNSUPPORTED_MODE",
+        "VERIFY_FAILED", "VERIFY_FAILED", "VERIFY_FAILED", "VERIFY_FAILED",
+        "VERIFY_FAILED",
+    ]
+    statuses = [item.get("status") for item in results]
+    if statuses != expected:
+        diagnostics = [{
+            "status": item.get("status"),
+            "execution_status": (item.get("execution") or {}).get("status"),
+            "message": item.get("message"),
+            "output_tail": str(item.get("output") or "")[-1000:],
+        } for item in results]
+        raise RuntimeError(
+            "verify_code transport variants failed: "
+            f"{statuses!r}; diagnostics={diagnostics!r}")
+    expected_claims = [
+        "NO_PROOF", "STATIC_CHECK", "DEDUCTIVE_PROOF", "STATIC_CHECK",
+        "DEDUCTIVE_PROOF", "NO_PROOF", "STATIC_CHECK", "DEDUCTIVE_PROOF",
+        "BOUNDED_EVIDENCE", "DEDUCTIVE_PROOF", "BOUNDED_CPP_PROOF",
+        "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
+        "NO_PROOF", "NO_PROOF",
+    ]
+    if [item.get("claim") for item in results] != expected_claims:
+        raise RuntimeError("verify_code transport claim limits changed")
+    if [bool(item.get("request_satisfied")) for item in results] != (
+            [True] * 11 + [False] * 7):
+        raise RuntimeError("verify_code transport satisfaction decisions changed")
+    executed = (*range(11), *range(13, 18))
+    if any((results[index].get("execution") or {}).get(
+            "policy_compliance") != "ENFORCED" for index in executed):
+        raise RuntimeError("an executing verification route was not isolated")
+    if any((item.get("evidence") or {}).get(
+            "publication_status") != "COMMITTED" for item in results):
+        raise RuntimeError("a verification route lacked committed evidence")
+    if not export_exists:
+        raise RuntimeError("verify_code controlled result export was not published")
+    semantic_result = [{
+        "status": item.get("status"),
+        "claim": item.get("claim"),
+        "request_satisfied": item.get("request_satisfied"),
+        "backend": ((item.get("workflow_result") or {}).get("request") or {}).get(
+            "effective_backend"),
+        "policy": ((item.get("execution") or {}).get("policy_compliance")),
+        "receipt": ((item.get("evidence") or {}).get("publication_status")),
+    } for item in results]
+    observation = _observation(
+        initialized, tools, schema, semantic_result, results[-1])
+    observation["variants"] = [
+        "java-parse", "java-check", "java-esc", "java-export", "jml-esc",
+        "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac",
+        "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode",
+        "java-negative", "rust-prusti-negative", "rust-kani-negative",
+        "c-framac-negative", "cpp-esbmc-negative",
+    ]
+    observation["semantic_results"] = semantic_result
+    return observation
+
+
 def _observation(
         initialized: object, tools: object, schema: dict,
         semantic_result: object, last_result: dict) -> dict:
@@ -176,6 +304,7 @@ def _observation(
 _ADAPTERS = {
     "inspect": _inspect_observation,
     "document-code": _document_observation,
+    "verify": _verify_observation,
 }
 
 
@@ -185,3 +314,15 @@ def collect_transport_observation(command: str) -> dict:
     except KeyError as exc:
         raise ValueError(f"no reviewed MCP acceptance adapter for {command}") from exc
     return anyio.run(adapter)
+
+
+async def _schema_observation(tool_name: str) -> dict:
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-schema-") as directory:
+        initialized, tools, schema, results = await _call_tool(
+            Path(directory), tool_name, [])
+    return _observation(initialized, tools, schema, [], results[-1] if results else {})
+
+
+def collect_tool_schema(tool_name: str) -> dict:
+    """Observe discovery through real stdio without executing the workflow."""
+    return anyio.run(_schema_observation, tool_name)

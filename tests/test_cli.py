@@ -194,14 +194,21 @@ class CliTests(unittest.TestCase):
             self.assertEqual(cli.command_implement(args, self.ui), 2)
 
     def test_verify_success_failure_and_json(self):
+        from pipeline.isolated_verification import IsolatedVerificationResult
         args = SimpleNamespace(source="X.java", mode="esc", json=str(self.root / "v.json"),
                                backend="prusti")
-        with patch.object(cli, "verify", return_value=(0, "ok")):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({
+                              "status": "VERIFIED", "exit_code": 0, "output": "ok"})):
             self.assertEqual(cli.command_verify(args, self.ui), 0)
-        with patch.object(cli, "verify", return_value=(6, "bad")):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({
+                              "status": "VERIFY_FAILED", "exit_code": 6, "output": "bad"})):
             self.assertEqual(cli.command_verify(args, self.ui), 1)
         args.json = None
-        with patch.object(cli, "verify", return_value=(0, "")):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({
+                              "status": "VERIFIED", "exit_code": 0, "output": ""})):
             self.assertEqual(cli.command_verify(args, self.ui), 0)
 
     def test_command_verify_hal_success_failure_and_json(self):
@@ -347,26 +354,32 @@ class CliTests(unittest.TestCase):
 
         rust = self.root / "Counter.rs"; rust.write_text("fn counter() {}", encoding="utf-8")
         verify_args = SimpleNamespace(source=str(rust), mode="esc", backend="prusti", json=None)
-        with patch.object(cli, "verify_rust", return_value={"status": "VERIFIED", "exit_code": 0}):
+        from pipeline.isolated_verification import IsolatedVerificationResult
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({"status": "VERIFIED", "exit_code": 0})):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
         verify_args.backend = "kani"
-        with patch.object(cli, "verify_rust", return_value={"status": "VERIFY_FAILED", "exit_code": 1}):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({"status": "VERIFY_FAILED", "exit_code": 1})):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 1)
         verify_args.backend = "prusti"; verify_args.mode = "check"
-        with patch.object(cli, "verify_rust", return_value={"status": "RUST_CHECKED", "exit_code": 0}):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({"status": "RUST_CHECKED", "exit_code": 0})):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
 
         cfile = self.root / "counter.c"; cfile.write_text("int counter(void) { return 0; }", encoding="utf-8")
         verify_args.source = str(cfile); verify_args.mode = "esc"
-        with patch.object(cli, "verify_c", return_value={"status": "VERIFIED", "exit_code": 0}):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({"status": "VERIFIED", "exit_code": 0,
+                                                      "proved_goals": 1, "total_goals": 1})):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
         verify_args.mode = "check"
         self.assertEqual(cli.command_verify(verify_args, self.ui), 1)
         cpp = self.root / "counter.cpp"; cpp.write_text("int main() {}", encoding="utf-8")
         verify_args.source = str(cpp); verify_args.mode = "esc"
-        with patch("pipeline.verify_cpp.verify_cpp",
-                   return_value={"status": "VERIFIED", "exit_code": 0,
-                                 "claim": "BOUNDED_CPP_PROOF"}):
+        with patch.object(cli, "execute_isolated_verification", return_value=
+                          IsolatedVerificationResult({"status": "VERIFIED", "exit_code": 0,
+                                                      "claim": "BOUNDED_CPP_PROOF"})):
             self.assertEqual(cli.command_verify(verify_args, self.ui), 0)
         unknown = self.root / "x.txt"; unknown.write_text("x", encoding="utf-8")
         verify_args.source = str(unknown); verify_args.mode = "esc"
@@ -375,9 +388,7 @@ class CliTests(unittest.TestCase):
     def test_rust_lint_blocks_verification_and_failed_language_draft(self):
         source = self.root / "Unsafe.rs"; source.write_text("unsafe fn x() {}", encoding="utf-8")
         args = SimpleNamespace(source=str(source), mode="esc", backend="prusti", json=None)
-        with patch.object(cli, "verify_rust", return_value={
-                "status": "RUST_LINT_FAILED", "exit_code": 2}):
-            self.assertEqual(cli.command_verify(args, self.ui), 1)
+        self.assertEqual(cli.command_verify(args, self.ui), 1)
         draft_args = SimpleNamespace(out_file=None)
         self.assertEqual(cli._finish_language_draft(
             {"status": "PARSE_ERROR", "warnings": [{"line": 1, "message": "bad"}]},

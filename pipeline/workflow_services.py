@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import code_documentation, java_inspection
-from .verification_policy import decide_verification
+from .isolated_verification import (
+    IsolatedVerificationResult,
+    execute_isolated_verification,
+)
+from .verification_policy import decide_result, decide_verification
 from .workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
@@ -57,6 +61,49 @@ def run_java_verification(
         "language": "java",
         "source": str(source),
         "output": str(output),
+    }
+    return VerificationServiceResult(payload, backend_result)
+
+
+def run_verification(
+        request: VerificationWorkflowRequest, context: WorkflowContext,
+        *, execute: Callable[..., IsolatedVerificationResult] | None = None
+        ) -> VerificationServiceResult:
+    """Execute and interpret every supported verification route uniformly."""
+    source = context.resolve_input(request.source, must_exist=False)
+    if request.language not in {"java", "jml", "rust", "c", "cpp"}:
+        payload = {
+            "status": "UNSUPPORTED_LANGUAGE", "exit_code": 2,
+            "claim": "NO_PROOF", "request_satisfied": False,
+            "message": f"unsupported source language: {request.language}",
+        }
+        return VerificationServiceResult(
+            payload, IsolatedVerificationResult(payload))
+    if request.language in {"c", "cpp"} and request.mode != "esc":
+        payload = {
+            "status": "UNSUPPORTED_MODE", "exit_code": 2,
+            "claim": "NO_PROOF", "request_satisfied": False,
+            "language": request.language,
+            "message": f"{request.language} verification supports only esc mode",
+        }
+        return VerificationServiceResult(
+            payload, IsolatedVerificationResult(payload))
+    context.require("external_execution")
+    backend_result = (execute or execute_isolated_verification)(
+        source, mode=request.mode, backend=request.backend)
+    raw = dict(backend_result.payload)
+    tool = request.effective_backend
+    decision = decide_result(raw, tool=tool, mode=request.mode)
+    payload = {
+        **raw, **decision,
+        "exit_code": backend_result.exit_code,
+        "mode": request.mode,
+        "language": request.language,
+        "source": str(source),
+        "output": backend_result.output,
+        "execution": (backend_result.observation.as_dict()
+                      if backend_result.observation else None),
+        "execution_stages": [item.as_dict() for item in backend_result.observations],
     }
     return VerificationServiceResult(payload, backend_result)
 

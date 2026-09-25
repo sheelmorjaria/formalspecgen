@@ -72,13 +72,18 @@ pip install 'formalspecgen[mcp]'
 python mcp_server.py
 ```
 
-The strict server catalogue exposes `verify_code` (the isolated Java lane), the
-non-executing Java/JML `inspect_code` tool, and deterministic Java `document_code`. Inspection
+The strict server catalogue exposes the isolated polyglot `verify_code` workflow, the
+non-executing Java/JML `inspect_code` tool, and deterministic or explicitly provider-assisted
+Java `document_code`. Verification preserves Java/OpenJML parse, check, and ESC; Rust/rustc,
+Prusti, and Kani; C/Frama-C WP; and bounded C++/ESBMC routes. Every compiler and verifier stage
+uses the same network-denied Bubblewrap+cgroup boundary and publishes its actual observations.
+Inspection
 reads one bounded source and can optionally create a new JSON result beneath the designated output
 root; the read-only invocation receives no write authority. Documentation reads
 one bounded source and creates new unreviewed Markdown and V2-candidate artifacts beneath
-`.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`); it never
-calls a provider or external process and never replaces an existing artifact. The registry retains
+`.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`) and never
+replaces an existing artifact. Provider-assisted documentation separately requires provider
+authority and an approved endpoint/model. The registry retains
 a 39-tool legacy catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
@@ -111,14 +116,13 @@ tool failure into a success claim. LLM-backed tools (`remediate_code`,
 
 Strict isolation is a server-wide dispatch policy and is enabled by default. Undeclared tools are
 not registered, and direct attempts to enter their handlers fail with
-`ISOLATION_UNSUPPORTED` before downstream workflow or backend dispatch. The MCP `verify_code` route
-is restricted to the strictly isolated Java lane. Successful
-Java responses include the exact executor observation and an immutable evidence receipt containing
-the run identity, terminal-manifest path, and manifest digest. Rust and C verification remain
-available to CLI workflows, but MCP rejects those lanes with `ISOLATION_UNSUPPORTED` until their
-formal backends use the same boundary and publication path. Set
-`FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` only to opt into the complete legacy MCP catalogue; its native responses
-explicitly report that strict isolation and durable publication are unsupported.
+`ISOLATION_UNSUPPORTED` before downstream workflow or backend dispatch. Admitted `verify_code`
+responses include every executor-stage observation and an immutable evidence receipt containing
+the run identity, terminal-manifest path, and manifest digest. Rust Kani and C++ claims remain
+explicitly bounded; parsing and compiler checking never become proof. Non-ESC C/C++ requests return
+a structured unsupported-mode result without launching a process. The compatibility variable
+`FORMALSPECGEN_MCP_STRICT_JAVA_ONLY=0` retains its historical name and opts into the complete legacy
+catalogue; it is not an admission mechanism for those additional workflows.
 
 Admission is specific to a command, mode, language, backend, provider policy, and set of requested
 effects; it is not a command-wide safety label. A matching profile is a permission ceiling, and the

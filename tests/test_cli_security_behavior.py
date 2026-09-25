@@ -59,10 +59,14 @@ def test_design_system_cli_success_failure_and_exception(tmp_path):
 
 
 def test_verify_cli_dispatches_cpp_modes_and_unknown_language(tmp_path):
+    from pipeline.isolated_verification import IsolatedVerificationResult
     ui = _ui(); source = tmp_path / "Counter.cpp"; source.write_text("int main(){}")
     args = SimpleNamespace(source=str(source), mode="check", backend=None, json=None)
     assert cli.command_verify(args, ui) == 1
-    with patch("pipeline.verify_cpp.verify_cpp", return_value={"status": "VERIFIED", "exit_code": 0, "output": "ok"}):
+    with patch("pipeline.cli.execute_isolated_verification", return_value=
+               IsolatedVerificationResult({
+                   "status": "VERIFIED", "exit_code": 0,
+                   "claim": "BOUNDED_CPP_PROOF", "output": "ok"})):
         args.mode = "esc"
         assert cli.command_verify(args, ui) == 0
     unknown = tmp_path / "input.xyz"; unknown.write_text("x")

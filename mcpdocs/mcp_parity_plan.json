@@ -729,7 +729,7 @@
       "workflow_kind": "direct_or_task",
       "requirements": "Retain parse/check/esc and every supported native backend; never substitute a different backend silently.",
       "baseline_strict_mcp": "Admitted subset",
-      "implementation_status": "target_not_verified",
+      "implementation_status": "verified",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -746,7 +746,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -768,7 +768,7 @@
               "esc"
             ]
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -785,7 +785,7 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -806,9 +806,45 @@
               "kani"
             ]
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "java-parse", "java-check", "java-esc", "java-export",
+          "jml-esc", "rust-parse", "rust-check", "rust-prusti",
+          "rust-kani", "c-framac", "cpp-esbmc",
+          "c-unsupported-mode", "cpp-unsupported-mode"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_verify_workflow_acceptance.py::test_verify_cli_and_mcp_requests_normalize_equivalently",
+            "variants": ["java-parse", "java-check", "java-esc", "java-export", "jml-esc", "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac", "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_verify_workflow_acceptance.py::test_verify_cli_parser_and_transport_schema_cover_all_inputs",
+            "variants": ["java-parse", "java-check", "java-esc", "java-export", "jml-esc", "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac", "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_verify_workflow_acceptance.py::test_verify_effects_exports_and_unsupported_modes_are_enforced",
+            "variants": ["java-parse", "java-check", "java-esc", "java-export", "jml-esc", "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac", "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_verify_workflow_acceptance.py::test_verify_cli_and_mcp_results_are_semantically_equivalent",
+            "variants": ["java-parse", "java-check", "java-esc", "java-export", "jml-esc", "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac", "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_verify_workflow_acceptance.py::test_real_mcp_transport_discovers_and_calls_verify_variants",
+            "variants": ["java-parse", "java-check", "java-esc", "java-export", "jml-esc", "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac", "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode"]
+          }
+        ]
+      },
       "baseline_source": "pipeline/verification_policy.py"
     },
     {

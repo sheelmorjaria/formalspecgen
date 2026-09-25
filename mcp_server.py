@@ -40,12 +40,15 @@ from pipeline.mcp_policy import (
     authorize_mcp_invocation,
 )
 from pipeline.mcp_provider_policy import resolve_documentation_model
+from pipeline.isolated_verification import (
+    IsolatedVerificationResult,
+    execute_isolated_verification,
+)
 from pipeline.verify import verify_detailed
-from pipeline.verification_policy import decide_result
 from pipeline.workflow_services import (
     run_documentation_preparation,
     run_java_inspection,
-    run_java_verification,
+    run_verification,
 )
 from pipeline.workflow_contracts import (
     DocumentationWorkflowRequest,
@@ -174,10 +177,22 @@ def _publish_verification_evidence(
         claim = EvidenceClaim(decision.get("claim", "NO_PROOF"))
     except ValueError:
         claim = EvidenceClaim.NO_PROOF
+    observations = [item.as_dict() for item in getattr(detailed, "observations", ())]
     observation = detailed.observation.as_dict() if detailed.observation else None
-    snapshot_files = observation.get("snapshot_files", []) if observation else []
+    tool_identities = list(decision.get("tool_identities", []))
+    if not tool_identities and observation and observation.get("command"):
+        executable = Path(observation["command"][0])
+        if executable.is_file():
+            content = executable.read_bytes()
+            tool_identities.append({
+                "path": str(executable), "size": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            })
+    snapshot_files = [record for stage in observations
+                      for record in stage.get("snapshot_files", [])]
     executed_source = next(
-        (item for item in snapshot_files if item.get("path") == path.name), None)
+        (item for item in snapshot_files
+         if item.get("path") in {path.name, f"reviewed/{path.name}"}), None)
     source_sha256 = (executed_source.get("sha256") if executed_source
                      else sha256_text(path.read_text(encoding="utf-8")))
     ledger.record(
@@ -192,7 +207,9 @@ def _publish_verification_evidence(
                 observation.get("snapshot_manifest_sha256") if observation else None),
             "raw_output_sha256": sha256_text(detailed.output),
             "backend_exit_code": detailed.exit_code,
+            "tool_identities": tool_identities,
             "execution_observation": observation,
+            "execution_stages": observations,
         })
     manifest = ledger.commit({
         "final_status": decision.get("status", "UNKNOWN"),
@@ -203,8 +220,12 @@ def _publish_verification_evidence(
             observation.get("snapshot_manifest_sha256") if observation else None),
         "effective_arguments": observation.get("command") if observation else None,
         "execution_policy_compliance": (
-            observation.get("policy_compliance") if observation else "NOT_ENFORCED"),
+            observation.get("policy_compliance") if observation else
+            "NOT_APPLICABLE" if not admission.permits("external_execution")
+            else "NOT_ENFORCED"),
         "execution_observation": observation,
+        "execution_stages": observations,
+        "tool_identities": tool_identities,
         "mcp_admission": admission.summary(),
         "workflow_request": request.as_dict(),
         "claim_policy_version": "verification-policy-v1",
@@ -217,9 +238,12 @@ def _publish_verification_evidence(
     }
 
 
-def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
-    """Verify Java, Rust, or C source and return a structured verdict."""
-    request = VerificationWorkflowRequest(file_path, mode=mode)
+def verify_code(
+        source: str, mode: str = "esc", backend: str = "prusti",
+        result_export: str | None = None) -> dict[str, Any]:
+    """Verify Java/JML, Rust, C/ACSL, or C++ under an admitted strict profile."""
+    request = VerificationWorkflowRequest(
+        source, mode=mode, backend=backend, result_export=result_export)
     effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
         "verify_code", mode=request.mode, language=request.language,
@@ -227,64 +251,86 @@ def verify_code(file_path: str, mode: str = "esc") -> dict[str, Any]:
     if _strict_mcp_isolation_enabled() and not admission.admitted:
         return bind_workflow_result(
             admission.rejection(), request, WorkflowInterface.MCP)
-    context = (WorkflowContext.for_mcp(admission, effects)
+    context = (WorkflowContext.for_mcp(
+        admission, effects,
+        output_root=(_designated_mcp_output_root()
+                     if request.result_export is not None else None))
                if admission.admitted else None)
-    path = (context.resolve_input(request.source) if context
-            else _workspace_path(request.source))
-    suffix = path.suffix.lower()
-    if suffix in {".java", ".jml"}:
-        assert context is not None
-        service = run_java_verification(
-            request, context,
-            lambda source, selected_mode: verify_detailed(
-                source, mode=selected_mode))
-        detailed = service.backend_result
-        decision = {
-            key: value for key, value in service.payload.items()
-            if key not in {"exit_code", "mode", "language", "source", "output"}
+    try:
+        path = (context.resolve_input(request.source) if context
+                else _workspace_path(request.source))
+    except (ValueError, FileNotFoundError) as exc:
+        message = str(exc)
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+            "code": ("path_outside_workspace" if "workspace" in message
+                     else "input_unavailable"), "message": message,
+            "mcp_admission": admission.summary(),
         }
-        exit_code, output = detailed.exit_code, detailed.output
-        try:
-            receipt = _publish_verification_evidence(
-                path, request.mode, detailed, decision, admission, context,
-                request)
-        except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
-            result = {"status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
-                    "request_satisfied": False, "exit_code": exit_code,
-                    "mode": request.mode, "file": str(path), "output": output,
-                    "execution": detailed.as_dict().get("execution"),
-                    "message": str(exc), "strict_isolation_supported": True,
-                    "durable_publication_supported": False,
-                    "mcp_admission": admission.summary()}
-            return bind_workflow_result(
-                result, request, WorkflowInterface.MCP, context=context)
-        result = {**decision, "exit_code": exit_code, "mode": request.mode,
-                "file": str(path), "output": output,
-                "execution": detailed.as_dict().get("execution"),
-                "evidence": receipt, "strict_isolation_supported": True,
-                "durable_publication_supported": True,
-                "mcp_admission": admission.summary()}
         return bind_workflow_result(
             result, request, WorkflowInterface.MCP, context=context)
-    if suffix == ".rs":
-        from pipeline.verify_rust import verify_rust
-        result = verify_rust(
-            path.read_text(encoding="utf-8"), mode=request.mode,
-            backend=request.effective_backend)
-    elif suffix == ".c":
-        from pipeline.verify_c import verify_c as verify_c_source
-        result = verify_c_source(path.read_text(encoding="utf-8"), mode=request.mode)
-    else:
+    assert context is not None
+    def execute(source: Path, *, mode: str, backend: str):
+        if request.language in {"java", "jml"}:
+            detailed = verify_detailed(source, mode=mode)
+            return IsolatedVerificationResult(
+                {"exit_code": detailed.exit_code, "output": detailed.output},
+                (detailed.observation,) if detailed.observation else ())
+        return execute_isolated_verification(source, mode=mode, backend=backend)
+
+    service = run_verification(request, context, execute=execute)
+    detailed = service.backend_result
+    decision = dict(service.payload)
+    try:
+        receipt = _publish_verification_evidence(
+            path, request.mode, detailed, decision, admission, context, request)
+    except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
         result = {
-            "status": "UNSUPPORTED_LANGUAGE", "claim": "NO_PROOF",
-            "file": str(path)}
-        return bind_workflow_result(result, request, WorkflowInterface.MCP)
-    tool = "prusti" if suffix == ".rs" else "frama-c"
-    result = {"file": str(path), **decide_result(
-                result, tool=tool, mode=request.mode),
-            "strict_isolation_supported": False,
-            "durable_publication_supported": False}
-    return bind_workflow_result(result, request, WorkflowInterface.MCP)
+            **decision, "status": "EVIDENCE_PUBLICATION_FAILED",
+            "claim": "NO_PROOF", "request_satisfied": False,
+            "message": str(exc), "file": str(path),
+            "strict_isolation_supported": True,
+            "durable_publication_supported": False,
+            "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    result = {
+        **decision, "file": str(path), "evidence": receipt,
+        "strict_isolation_supported": True,
+        "durable_publication_supported": True,
+        "mcp_admission": admission.summary(),
+    }
+    try:
+        if request.result_export is not None:
+            export = Path(request.result_export)
+            if export.is_absolute() or ".." in export.parts or export.suffix.lower() != ".json":
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "verification export must be a relative JSON path")
+            context.require("workspace_write_new")
+            assert context.output_root is not None
+            bound = bind_workflow_result(
+                result, request, WorkflowInterface.MCP, context=context)
+            artifacts = publish_new_artifacts(
+                context.output_root,
+                {request.result_export: json.dumps(
+                    bound, indent=2, ensure_ascii=False, default=str) + "\n"},
+                admission, max_total_bytes=2 * 1024 * 1024)
+            result["result_export"] = {
+                "status": "COMMITTED", "kind": "verification-result-export",
+                "artifacts": artifacts,
+            }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except (OSError, ValueError, MCPPolicyViolation, MCPArtifactError) as exc:
+        result = {
+            **result, "status": "RESULT_EXPORT_FAILED",
+            "claim": "NO_PROOF", "request_satisfied": False,
+            "message": str(exc),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
 
 
 def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, Any]:

@@ -19,7 +19,10 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping
 
 
-_ALLOWED_ENVIRONMENT = {"LANG", "LC_ALL", "PATH", "SOURCE_DATE_EPOCH", "TZ"}
+_ALLOWED_ENVIRONMENT = {
+    "CARGO_HOME", "JAVA_HOME", "LANG", "LC_ALL", "PATH", "RUSTUP_HOME",
+    "SOURCE_DATE_EPOCH", "TZ",
+}
 _SYSTEM_MOUNTS = ("/usr", "/bin", "/lib", "/lib64")
 _SYSTEM_FILES = ("/etc/ld.so.cache",)
 

@@ -52,6 +52,7 @@ from .domain_v2_tla import render_v2_tla
 from .domain_v2_validation import validate_v2_candidate
 from .elicit import augment_spec, extract_ambiguities
 from .jml_io import class_name as java_class_name
+from .isolated_verification import execute_isolated_verification
 from .llm import LLMError, _chat_fn
 from .orchestrator import run as draft_contract, run_implementation_loop
 from .rust_support import draft_rust
@@ -61,9 +62,6 @@ from .staged_architecture import UnifiedArchitecture
 from .architecture_tla_renderer import render_unified_architecture
 from .architecture_tlc_gate import validate_architecture_with_tlc
 from .tla_backend import generate_and_check
-from .verify import verify
-from .verify_c import verify_c
-from .verify_rust import verify_rust
 from .validate import check_stub
 from .v2_jml_serializer import render_reviewed_v2_file
 
@@ -555,14 +553,13 @@ def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .verification_policy import decide_result
     from .workflow_contracts import (
         VerificationWorkflowRequest,
         WorkflowContext,
         WorkflowInterface,
         bind_workflow_result,
     )
-    from .workflow_services import run_java_verification
+    from .workflow_services import run_verification
 
     request = VerificationWorkflowRequest(
         args.source, mode=args.mode, backend=args.backend,
@@ -571,54 +568,8 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
     context = WorkflowContext.for_cli(
         request.required_effects(WorkflowInterface.CLI),
         workspace_root=source.parent)
-    suffix = source.suffix.lower()
-    if suffix in {".java", ".jml"}:
-        service = run_java_verification(
-            request, context,
-            lambda path, selected_mode: verify(path, mode=selected_mode))
-        result = service.payload
-    elif suffix == ".rs":
-        context.require("external_execution")
-        result = verify_rust(
-            _read(request.source), mode=request.mode, backend=request.backend)
-        result = decide_result(
-            result, tool=request.backend if request.mode == "esc" else "rustc",
-            mode=request.mode)
-    elif suffix == ".c":
-        if request.mode != "esc":
-            result = {
-                "status": "UNSUPPORTED_MODE",
-                "exit_code": 2,
-                "claim": "NO_PROOF",
-                "language": "c",
-                "message": "C/ACSL currently supports --mode esc through Frama-C WP",
-            }
-        else:
-            context.require("external_execution")
-            result = verify_c(_read(request.source), mode=request.mode)
-            result = decide_result(result, tool="frama-c", mode=request.mode)
-    elif suffix in {".cc", ".cpp", ".cxx"}:
-        if request.mode != "esc":
-            result = {
-                "status": "UNSUPPORTED_MODE",
-                "exit_code": 2,
-                "claim": "NO_PROOF",
-                "language": "cpp",
-                "message": "C++ supports bounded ESBMC verification through --mode esc",
-            }
-        else:
-            from .verify_cpp import verify_cpp
-
-            context.require("external_execution")
-            result = verify_cpp(source)
-            result = decide_result(result, tool="esbmc", mode=request.mode)
-    else:
-        result = {
-            "status": "UNSUPPORTED_LANGUAGE",
-            "exit_code": 2,
-            "claim": "NO_PROOF",
-            "message": f"unsupported source extension: {suffix or '<none>'}",
-        }
+    result = run_verification(
+        request, context, execute=execute_isolated_verification).payload
     result = bind_workflow_result(
         result, request, WorkflowInterface.CLI, context=context)
     status, exit_code = result.get("status", "UNKNOWN"), int(result.get("exit_code", 1))
@@ -2359,7 +2310,8 @@ def build_parser(
         "kernel-driver)",
     )
 
-    check = sub.add_parser("verify", help="run OpenJML directly on a Java/JML source")
+    check = sub.add_parser(
+        "verify", help="run the selected verifier on Java/JML, Rust, C, or C++ source")
     check.add_argument("source")
     check.add_argument("--mode", choices=["parse", "check", "esc"], default="esc")
     check.add_argument("--json")

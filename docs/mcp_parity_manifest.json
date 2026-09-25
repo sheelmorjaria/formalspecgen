@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v2",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "5d08b1689b613d3177f2d4215ab63bf4d443990080aa7fdb2582d1e83b2f8a6b",
+  "plan_sha256": "1fcfc406dfb439d69938c9b9dbc43cadf9992a21310b375326119ac1ac2973ca",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -788,7 +788,7 @@
         "handler_id": "pipeline.cli:dispatch:verify",
         "human_only": false,
         "mcp_exposed_intent": false,
-        "help": "run OpenJML directly on a Java/JML source",
+        "help": "run the selected verifier on Java/JML, Rust, C, or C++ source",
         "description": null,
         "arguments": [
           {
@@ -4163,7 +4163,7 @@
     ],
     "command_count": 38,
     "argument_declaration_count": 205,
-    "sha256": "8b9f6f3625fd7aef772c74b90c1af01958535d092323c2693d6da27b5daf7ab6"
+    "sha256": "d79da98997aaa03720dedcf6a8208e2de861c235f35e48ec18b56c23e3ded257"
   },
   "metrics": {
     "discovered_commands": 38,
@@ -10809,6 +10809,313 @@
             "providers": [],
             "output_scope": "immutable-evidence-only",
             "evidence": "execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "rust-compiler-verification",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "rustc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "rust-prusti-verification",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "rust-kani-verification",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "kani"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "bounded-execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "c-framac-verification",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "cpp-esbmc-verification",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "bounded-execution-observation-and-terminal-manifest"
+          },
+          {
+            "name": "c-unsupported-mode-rejection",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "structured-unsupported-mode-rejection"
+          },
+          {
+            "name": "cpp-unsupported-mode-rejection",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "structured-unsupported-mode-rejection"
+          },
+          {
+            "name": "java-openjml-verification-export",
+            "modes": [
+              "check",
+              "esc",
+              "parse"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-compiler-verification-export",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "rustc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-prusti-verification-export",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-kani-verification-export",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "kani"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "c-framac-verification-export",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "cpp-esbmc-verification-export",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-execution-observation-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
           }
         ],
         "compatibility_aliases": []
@@ -10816,7 +11123,7 @@
       "mcp_input_schema": {
         "fields": [
           {
-            "name": "file_path",
+            "name": "source",
             "required": true,
             "default": null,
             "annotation": "str",
@@ -10828,11 +11135,27 @@
             "default": "esc",
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "backend",
+            "required": false,
+            "default": "prusti",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
-          "file_path",
-          "mode"
+          "source",
+          "mode",
+          "backend",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -10845,29 +11168,36 @@
           "source"
         ],
         "observed_mcp_fields": [
-          "file_path",
-          "mode"
-        ],
-        "missing_mcp_fields": [
           "backend",
+          "mode",
           "result_export",
           "source"
         ],
-        "unverified_argument_mappings": [
-          "source",
-          "mode",
-          "result_export",
-          "backend"
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "c-framac",
+          "c-unsupported-mode",
+          "cpp-esbmc",
+          "cpp-unsupported-mode",
+          "java-check",
+          "java-esc",
+          "java-export",
+          "java-parse",
+          "jml-esc",
+          "rust-check",
+          "rust-kani",
+          "rust-parse",
+          "rust-prusti"
         ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -12013,5 +12343,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "273429aaaf69c9d94e1e50c41833fa085c147941f6123db8c3958972f63a322d"
+  "sha256": "d5b4a34d9c6d0d16f2d248fc05262453cb53c0a7275c8f51bceb5f39c79d6e3f"
 }

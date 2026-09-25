@@ -15,7 +15,8 @@ from . import config
 _HARNESS = re.compile(r"#\s*\[\s*kani::proof\s*\]\s*(?:pub\s+)?fn\s+(\w+)")
 _PRUSTI = re.compile(r"(?m)^\s*#\[(?:requires|ensures|pure|predicate)(?:\([^\n]*\))?\]\s*$")
 _VERIFIED_SUMMARY = re.compile(r"successfully verified (\d+) of (\d+) properties", re.I)
-_SUCCESS_CHECK = re.compile(r"(?m)^\s*Check \d+:.*Status: SUCCESS\s*$")
+_SUCCESS_CHECK = re.compile(
+    r"(?ms)^\s*Check \d+:.*?^\s*-\s*Status:\s*SUCCESS\s*$")
 
 
 def kani_harnesses(code: str) -> list[str]:

@@ -78,7 +78,7 @@ class MCPAdmission:
 def canonical_profile_definition(
         profile: MCPInvocationProfile) -> dict[str, Any]:
     """Return the stable, complete permission ceiling bound into evidence."""
-    return {
+    definition = {
         "name": profile.name,
         "modes": sorted(set(profile.modes)),
         "languages": sorted(set(profile.languages)),
@@ -88,6 +88,9 @@ def canonical_profile_definition(
         "output_scope": profile.output_scope,
         "evidence": profile.evidence,
     }
+    if profile.required_effects:
+        definition["required_effects"] = sorted(set(profile.required_effects))
+    return definition
 
 
 def profile_definition_sha256(profile: MCPInvocationProfile) -> str:
@@ -133,6 +136,8 @@ def authorize_mcp_invocation(
                 normalized_backend not in profile.backends:
             continue
         if not set(requested_effects).issubset(profile.effects):
+            continue
+        if not set(profile.required_effects).issubset(requested_effects):
             continue
         if normalized_provider is not None and \
                 normalized_provider not in profile.providers:

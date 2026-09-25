@@ -71,6 +71,7 @@ def test_verify_selects_default_timeouts_and_combines_output(tmp_path):
     with patch.object(verify.config, "OPENJML", str(tool)):
         assert verify.verify(source, mode="esc", executor=executor) == (6, "stdoutstderr")
     assert executor.request.policy.timeout_s == verify.config.ESC_TIMEOUT
+    assert executor.request.policy.max_processes == 128
     assert executor.request.command[-1] == "/input/A.java"
 
     executor = FakeExecutor(exit_code=6)
@@ -155,6 +156,18 @@ def test_detailed_result_preserves_exact_execution_and_specs_path(tmp_path):
     assert str(specs.resolve()) in result.observation.command
     assert result.as_dict()["execution"]["snapshot_manifest_sha256"] == \
         executor.request.snapshot.manifest_sha256
+
+
+def test_jml_input_preserves_reviewed_bytes_and_executes_as_java(tmp_path):
+    tool, source = _tool_and_source(tmp_path, "Probe.jml")
+    executor = FakeExecutor(output="ok")
+    with patch.object(verify.config, "OPENJML", str(tool)):
+        result = verify.verify_detailed(source, mode="esc", executor=executor)
+    assert result.exit_code == 0
+    assert executor.request.command[-1] == "/input/Probe.java"
+    records = {item["path"]: item for item in executor.request.snapshot.manifest}
+    assert set(records) == {"Probe.java", "reviewed/Probe.jml"}
+    assert records["Probe.java"]["sha256"] == records["reviewed/Probe.jml"]["sha256"]
 
 
 @pytest.mark.parametrize("exit_code,status", [

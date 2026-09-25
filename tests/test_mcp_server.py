@@ -45,15 +45,21 @@ def test_mcp_verify_code_returns_structured_java_verdict(tmp_path, monkeypatch):
         "claim": "STATIC_CHECK", "request_satisfied": True}
 
 
-def test_mcp_native_verification_is_fail_closed_by_default(tmp_path, monkeypatch):
+def test_mcp_native_verification_uses_admitted_strict_profile(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("FORMALSPECGEN_MCP_STRICT_JAVA_ONLY", "1")
     Path("counter.c").write_text("int counter(void) { return 0; }", encoding="utf-8")
-    result = mcp_server.verify_code("counter.c", "esc")
-    assert result["status"] == "ISOLATION_UNSUPPORTED"
+    from pipeline.isolated_verification import IsolatedVerificationResult
+    with patch("mcp_server.execute_isolated_verification", return_value=
+               IsolatedVerificationResult({
+                   "status": "VERIFY_FAILED", "exit_code": 1,
+                   "claim": "NO_PROOF", "output": "goal failed"})):
+        result = mcp_server.verify_code("counter.c", "esc")
+    assert result["status"] == "VERIFY_FAILED"
     assert result["claim"] == "NO_PROOF"
     assert result["request_satisfied"] is False
-    assert result["strict_isolation_supported"] is False
+    assert result["strict_isolation_supported"] is True
+    assert result["mcp_admission"]["profile"] == "c-framac-verification"
 
 
 def test_mcp_receipt_binds_exact_execution_observation(tmp_path, monkeypatch):
