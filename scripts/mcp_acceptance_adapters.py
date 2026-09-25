@@ -209,8 +209,18 @@ async def _verify_observation() -> dict:
         {"source": "Kani.rs", "mode": "esc", "backend": "kani"},
         {"source": "proof.c", "mode": "esc"},
         {"source": "proof.cpp", "mode": "esc"},
+        {"source": "proof.c", "mode": "parse"},
         {"source": "proof.c", "mode": "check"},
         {"source": "proof.cpp", "mode": "parse"},
+        {"source": "proof.cpp", "mode": "check"},
+        {"source": "proof.c", "mode": "parse",
+         "result_export": "verify/c-parse.json"},
+        {"source": "proof.c", "mode": "check",
+         "result_export": "verify/c-check.json"},
+        {"source": "proof.cpp", "mode": "parse",
+         "result_export": "verify/cpp-parse.json"},
+        {"source": "proof.cpp", "mode": "check",
+         "result_export": "verify/cpp-check.json"},
         {"source": "Broken.java", "mode": "esc"},
         {"source": "BrokenPrusti.rs", "mode": "esc", "backend": "prusti"},
         {"source": "BrokenKani.rs", "mode": "esc", "backend": "kani"},
@@ -223,12 +233,20 @@ async def _verify_observation() -> dict:
             (workspace / name).write_text(source, encoding="utf-8")
         initialized, tools, schema, results = await _call_tool(
             workspace, "verify_code", calls, timeout_s=300)
-        export_exists = (
-            workspace / ".formalspecgen/mcp-output/verify/java-check.json").is_file()
+        export_root = workspace / ".formalspecgen/mcp-output/verify"
+        expected_exports = {
+            "java-check.json", "c-parse.json", "c-check.json",
+            "cpp-parse.json", "cpp-check.json",
+        }
+        published_exports = (
+            {item.name for item in export_root.iterdir()}
+            if export_root.is_dir() else set())
     expected = [
         "VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED",
         "PARSED", "RUST_CHECKED", "VERIFIED", "VERIFIED", "VERIFIED",
         "VERIFIED", "UNSUPPORTED_MODE", "UNSUPPORTED_MODE",
+        "UNSUPPORTED_MODE", "UNSUPPORTED_MODE", "UNSUPPORTED_MODE",
+        "UNSUPPORTED_MODE", "UNSUPPORTED_MODE", "UNSUPPORTED_MODE",
         "VERIFY_FAILED", "VERIFY_FAILED", "VERIFY_FAILED", "VERIFY_FAILED",
         "VERIFY_FAILED",
     ]
@@ -251,22 +269,25 @@ async def _verify_observation() -> dict:
         "DEDUCTIVE_PROOF", "NO_PROOF", "STATIC_CHECK", "DEDUCTIVE_PROOF",
         "BOUNDED_EVIDENCE", "DEDUCTIVE_PROOF", "BOUNDED_CPP_PROOF",
         "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
-        "NO_PROOF", "NO_PROOF",
+        "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
+        "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF", "NO_PROOF",
     ]
     if [item.get("claim") for item in results] != expected_claims:
         raise RuntimeError("verify_code transport claim limits changed")
     if [bool(item.get("request_satisfied")) for item in results] != (
-            [True] * 11 + [False] * 7):
+            [True] * 11 + [False] * 15):
         raise RuntimeError("verify_code transport satisfaction decisions changed")
-    executed = (*range(11), *range(13, 18))
+    executed = (*range(11), *range(19, 26))
     if any((results[index].get("execution") or {}).get(
             "policy_compliance") != "ENFORCED" for index in executed):
         raise RuntimeError("an executing verification route was not isolated")
     if any((item.get("evidence") or {}).get(
             "publication_status") != "COMMITTED" for item in results):
         raise RuntimeError("a verification route lacked committed evidence")
-    if not export_exists:
-        raise RuntimeError("verify_code controlled result export was not published")
+    if not expected_exports <= published_exports:
+        raise RuntimeError(
+            "verify_code controlled result exports were not published: "
+            f"missing={sorted(expected_exports - published_exports)!r}")
     semantic_result = [{
         "status": item.get("status"),
         "claim": item.get("claim"),
@@ -281,7 +302,10 @@ async def _verify_observation() -> dict:
     observation["variants"] = [
         "java-parse", "java-check", "java-esc", "java-export", "jml-esc",
         "rust-parse", "rust-check", "rust-prusti", "rust-kani", "c-framac",
-        "cpp-esbmc", "c-unsupported-mode", "cpp-unsupported-mode",
+        "cpp-esbmc", "c-parse-unsupported", "c-check-unsupported",
+        "cpp-parse-unsupported", "cpp-check-unsupported",
+        "c-parse-unsupported-export", "c-check-unsupported-export",
+        "cpp-parse-unsupported-export", "cpp-check-unsupported-export",
         "java-negative", "rust-prusti-negative", "rust-kani-negative",
         "c-framac-negative", "cpp-esbmc-negative",
     ]

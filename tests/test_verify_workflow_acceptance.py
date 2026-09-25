@@ -39,8 +39,14 @@ CASES = (
     ("Probe.rs", "esc", "kani", None),
     ("Probe.c", "esc", "prusti", None),
     ("Probe.cpp", "esc", "prusti", None),
+    ("Probe.c", "parse", "prusti", None),
     ("Probe.c", "check", "prusti", None),
     ("Probe.cpp", "parse", "prusti", None),
+    ("Probe.cpp", "check", "prusti", None),
+    ("Probe.c", "parse", "prusti", "results/c-parse.json"),
+    ("Probe.c", "check", "prusti", "results/c-check.json"),
+    ("Probe.cpp", "parse", "prusti", "results/cpp-parse.json"),
+    ("Probe.cpp", "check", "prusti", "results/cpp-check.json"),
 )
 
 
@@ -156,6 +162,38 @@ def test_verify_effects_exports_and_unsupported_modes_are_enforced(
     assert result["evidence"]["publication_status"] == "COMMITTED"
 
 
+@pytest.mark.parametrize("name", ["Probe.c", "Probe.cpp"])
+@pytest.mark.parametrize("mode", ["parse", "check"])
+@pytest.mark.parametrize("exporting", [False, True])
+def test_unsupported_native_mode_results_publish_with_optional_export(
+        tmp_path, monkeypatch, name, mode, exporting):
+    monkeypatch.chdir(tmp_path)
+    source = _source(tmp_path, name)
+    relative_export = (
+        f"unsupported/{source.suffix[1:]}-{mode}.json" if exporting else None)
+    with patch("mcp_server.execute_isolated_verification") as backend:
+        result = mcp_server.verify_code(
+            source.name, mode=mode, result_export=relative_export)
+    backend.assert_not_called()
+    assert result["status"] == "UNSUPPORTED_MODE"
+    assert result["claim"] == "NO_PROOF"
+    assert result["request_satisfied"] is False
+    assert result["evidence"]["publication_status"] == "COMMITTED"
+    assert result["mcp_admission"]["granted_effects"] == sorted(
+        {"workspace_read", "evidence_publication"}
+        | ({"workspace_write_new"} if exporting else set()))
+    if exporting:
+        assert result["result_export"]["status"] == "COMMITTED"
+        exported = (
+            tmp_path / ".formalspecgen/mcp-output" / str(relative_export))
+        payload = json.loads(exported.read_text(encoding="utf-8"))
+        assert payload["status"] == "UNSUPPORTED_MODE"
+        assert payload["claim"] == "NO_PROOF"
+        assert payload["request_satisfied"] is False
+    else:
+        assert "result_export" not in result
+
+
 def test_verify_cli_and_mcp_results_are_semantically_equivalent(
         tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -204,4 +242,4 @@ def test_real_mcp_transport_discovers_and_calls_verify_variants():
     assert observation["transport"] == "mcp-stdio-subprocess"
     assert observation["result_status"] == "VERIFY_FAILED"
     assert "verify_code" in observation["discovered_tools"]
-    assert len(observation["variants"]) == 18
+    assert len(observation["variants"]) == 26

@@ -129,6 +129,26 @@ def test_unsupported_native_modes_stop_before_execution(tmp_path, suffix, mode):
     assert execute.requests == []
 
 
+@pytest.mark.parametrize("suffix", [".c", ".cpp"])
+@pytest.mark.parametrize("mode", ["parse", "check"])
+@pytest.mark.parametrize("exporting", [False, True])
+def test_unsupported_native_modes_admit_rejection_with_optional_export(
+        tmp_path, suffix, mode, exporting):
+    export = f"results/{suffix[1:]}-{mode}.json" if exporting else None
+    request = VerificationWorkflowRequest(
+        str(tmp_path / f"Probe{suffix}"), mode=mode, result_export=export)
+    admission = authorize_mcp_invocation(
+        "verify_code", mode=request.mode, language=request.language,
+        backend=request.effective_backend,
+        effects=request.required_effects(WorkflowInterface.MCP))
+    assert admission.admitted is True
+    assert admission.permits("external_execution") is False
+    assert admission.permits("workspace_write_new") is exporting
+    suffix_name = "rejection-export" if exporting else "rejection"
+    assert admission.profile.name == (
+        f"{request.language}-unsupported-mode-{suffix_name}")
+
+
 @pytest.mark.parametrize(
     ("name", "mode", "backend", "profile"),
     [

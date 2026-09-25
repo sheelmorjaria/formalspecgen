@@ -10932,6 +10932,32 @@
             "evidence": "structured-unsupported-mode-rejection"
           },
           {
+            "name": "c-unsupported-mode-rejection-export",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "structured-unsupported-mode-rejection-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
             "name": "cpp-unsupported-mode-rejection",
             "modes": [
               "check",
@@ -10950,6 +10976,32 @@
             "providers": [],
             "output_scope": "immutable-evidence-only",
             "evidence": "structured-unsupported-mode-rejection"
+          },
+          {
+            "name": "cpp-unsupported-mode-rejection-export",
+            "modes": [
+              "check",
+              "parse"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "structured-unsupported-mode-rejection-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "workspace_read",
+              "workspace_write_new"
+            ]
           },
           {
             "name": "java-openjml-verification-export",
@@ -12343,5 +12395,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "5c2bad1d55c510eb405d82a6d8744ff32e29c3c944a85b6acd91c9e56b77da20"
+  "sha256": "8501fae698b2bebfb089ce0a3df94da4e9c3d67f4242d60395c7363368102b3a"
 }
