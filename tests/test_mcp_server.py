@@ -428,13 +428,16 @@ def test_mcp_create_server_registers_all_permitted_tools():
     """Registry is the MCP source of truth; trust actions stay out."""
     from pipeline.capability_registry import mcp_capabilities
     registered = [item.mcp_tool for item in mcp_capabilities()]
-    assert len(registered) == 43
+    assert len(registered) == 47
     for name in ("prove_equivalence", "generate_traceability_matrix",
                  "verify_unbounded", "verify_linearizability",
                  "verify_distributed", "verify_heap", "verify_hal",
                  "macro_translate", "verify_lockfree",
                  "verify_weak_memory", "verify_wcet", "verify_liveness",
                  "verify_dma", "extract_intrusive_list", "resolve_callbacks"):
+        assert name in registered
+    for name in ("start_agent_run", "get_agent_run", "resume_agent_run",
+                 "cancel_agent_run"):
         assert name in registered
     for excluded in (
             "sign_artifact", "manage_trust", "promote_domain"):

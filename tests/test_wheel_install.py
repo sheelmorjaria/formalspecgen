@@ -45,6 +45,7 @@ import json
 from pathlib import Path
 import mcp_server
 from pipeline import config
+from pipeline.agentic import AgentGoal
 from pipeline.cwe_registry import entries
 from pipeline.doctor import inspect_environment
 from pipeline.scaffold_domain import load_spec
@@ -61,6 +62,7 @@ assert report["domains"]
 assert (root / "security/cwe_manifest.json").is_file()
 assert (root / "ci/rust-deps/Cargo.lock").is_file()
 assert callable(mcp_server.create_server)
+assert AgentGoal.__name__ == "AgentGoal"
 import tree_sitter, tree_sitter_java, tree_sitter_rust, tree_sitter_c, tree_sitter_cpp
 print(json.dumps({"root": str(root), "domain": domain["domain_name"],
                   "elevator": elevator.domain_name, "cwes": len(entries())}))

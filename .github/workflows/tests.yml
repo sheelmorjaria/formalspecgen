@@ -335,7 +335,8 @@ jobs:
           echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/runner/cgroup.procs" >/dev/null
           exec python -m pytest -q --no-cov \
             tests/test_sandbox_acceptance.py \
-            tests/test_mcp_openjml_acceptance.py
+            tests/test_mcp_openjml_acceptance.py \
+            tests/test_agentic_transport_acceptance.py
       - name: Produce provisioned MCP workflow acceptance evidence
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"

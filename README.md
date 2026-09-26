@@ -77,7 +77,12 @@ non-executing Java/JML `inspect_code` tool, and deterministic or explicitly prov
 Java `document_code`. It can also expose the operator-configured A2A proposal bridge
 (`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`); see the
 [A2A coordination guide](docs/A2A_COORDINATION.md). Worker completion never means acceptance,
-proof, signing, or merge authority. Verification preserves Java/OpenJML parse, check, and ESC; Rust/rustc,
+proof, signing, or merge authority. The MCP-only supervised goal layer
+(`start_agent_run`, `get_agent_run`, `resume_agent_run`, and `cancel_agent_run`) can bind an approved
+Java/JML snapshot, accept only the typed `inspect` then `verify` plan, and publish a no-replace review
+that references the actual child evidence. It has no source-write, provider, delegation, approval,
+signing, promotion, trust-policy, or merge permission; see the
+[supervisor guide](docs/AGENTIC_SUPERVISOR.md). Verification preserves Java/OpenJML parse, check, and ESC; Rust/rustc,
 Prusti, and Kani; C/Frama-C WP; and bounded C++/ESBMC routes. Every compiler and verifier stage
 uses the same network-denied Bubblewrap+cgroup boundary and publishes its actual observations.
 Inspection
@@ -87,7 +92,7 @@ one bounded source and creates new unreviewed Markdown and V2-candidate artifact
 `.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`) and never
 replaces an existing artifact. Provider-assisted documentation separately requires provider
 authority and an approved endpoint/model. The registry retains
-a 43-tool catalogue
+a 47-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
@@ -99,7 +104,8 @@ covering the full verification surface: `verify_code`,
 `verify_distributed`, `verify_heap`, `verify_hal`, `macro_translate`,
 `verify_lockfree`, `verify_weak_memory`, `verify_wcet`, `verify_liveness`,
 `verify_dma`, `extract_intrusive_list`, `resolve_callbacks`, `doctor_environment`,
-`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`. The
+`submit_work_item`, `get_work_item`, `get_work_artifacts`, `cancel_work_item`,
+`start_agent_run`, `get_agent_run`, `resume_agent_run`, and `cancel_agent_run`. The
 OS-lane tools keep the same epistemic split as the CLI: `verify_lockfree`
 mints its claim only from real ESBMC interleaving results, the
 deterministic structural lanes (`verify_weak_memory`, `verify_wcet`,

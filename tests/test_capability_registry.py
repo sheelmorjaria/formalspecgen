@@ -40,7 +40,7 @@ def test_registry_rejects_unknown_mcp_isolation_profile():
 
 
 def test_registry_retains_only_the_generic_vfs_milestone():
-    assert len(CAPABILITIES) == 47
+    assert len(CAPABILITIES) == 51
     assert {item.name for item in CAPABILITIES if item.milestone is not None} == {
         "m55_vfs"
     }

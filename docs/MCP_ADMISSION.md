@@ -55,6 +55,8 @@ boundary will reject the operation even when the broader profile could have allo
 | `get_work_item` | No coordinator CLI | Admitted | local read or explicit remote refresh | Principal-scoped service-state read; refresh separately adds dispatch and state-write authority | Worker endpoint only for refresh | Current worker state; no proof claim | None for status; acceptance remains separate |
 | `get_work_artifacts` | No coordinator CLI | Admitted | digest-bound artifact references | Principal-scoped service-state read only | None | Unaccepted worker artifact identities | Required before retrieval/application/integration |
 | `cancel_work_item` | No coordinator CLI | Admitted | remote task cancellation | Principal-scoped state read/write and approved worker dispatch | Approved worker endpoint | Hash-chained cancellation outcome; no proof claim | None |
+| `start_agent_run` / `resume_agent_run` | No supervisor CLI | Admitted | supervised `inspect` then `verify` / Java or JML / OpenJML | Exact source read; strict verification; protected service-state read/write | None | Child verification manifest plus no-replace goal review | Required for contract changes, applying source changes, signing, promotion, trust changes, or merge |
+| `get_agent_run` / `cancel_agent_run` | No supervisor CLI | Admitted | principal-scoped local state | Protected service-state read, plus state write and terminal-review publication for cancellation | None | Hash-chained run events and no-replace cancellation review; cancellation never becomes proof | None |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -89,6 +91,12 @@ append-only state live outside the agent workspace. Endpoint, Agent Card digest,
 credentials, path ceilings, workflow allowlists, and budgets are operator-controlled. See
 [A2A_COORDINATION.md](A2A_COORDINATION.md). The provisioned A2A job exercises both the official
 A2A 1.0 client/server round trip and submission through the real MCP stdio server.
+
+The supervised goal tools are also MCP-only and do not alter the CLI parity denominator. Their
+operator-owned state is outside the workspace, while the exact approved source remains bound by Git
+revision and SHA-256. See [AGENTIC_SUPERVISOR.md](AGENTIC_SUPERVISOR.md). The initial profile accepts
+only a typed `inspect` then `verify` proposal; it cannot edit source or contracts, call a provider,
+delegate work, approve, sign, promote, or merge.
 
 ## Available through CLI but not admitted to strict MCP
 

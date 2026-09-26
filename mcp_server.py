@@ -7,6 +7,9 @@ Workspace tools confine inputs and outputs to the current workspace and return
 structured verdict objects; a tool failure is never converted into a success
 claim. The admitted catalogue also includes an operator-configured A2A bridge
 whose workers can return unaccepted candidate artifacts. Deliberately NOT
+exposed through the supervised goal profile are source edits, provider calls,
+worker delegation, contract changes, approval, signing, promotion, or merge.
+Deliberately NOT
 exposed: ``promote-domain`` (hash-bound human
 acceptance of reviewed artifacts is a trust action that stays with the CLI),
 the interactive clarification wizards (``domain``, non-canonical ``draft``,
@@ -119,6 +122,57 @@ def _a2a_principal() -> str:
     if not principal:
         raise ValueError("FORMALSPECGEN_A2A_PRINCIPAL is not configured")
     return principal
+
+
+def _agent_principal() -> str:
+    principal = os.environ.get("FORMALSPECGEN_AGENT_PRINCIPAL", "").strip()
+    if not principal:
+        raise ValueError("FORMALSPECGEN_AGENT_PRINCIPAL is not configured")
+    return principal
+
+
+def _configured_agent_supervisor(
+        admission: MCPAdmission, *, create_state: bool):
+    """Build the supervisor from protected service state and admitted handlers."""
+    from pipeline.agentic.action_gateway import AgentActionGateway
+    from pipeline.agentic.state_store import AgentRunStore
+    from pipeline.agentic.supervisor import AgentSupervisor
+
+    state_root = _operator_controlled_path("FORMALSPECGEN_AGENT_STATE_ROOT")
+    store = AgentRunStore(state_root, create=create_state)
+    gateway = AgentActionGateway(
+        workspace_root=Path.cwd(), admission=admission,
+        inspect=inspect_code, verify=verify_code)
+    return AgentSupervisor(store, gateway, admission)
+
+
+def _agent_response(
+        record: dict[str, Any], admission: MCPAdmission) -> dict[str, Any]:
+    public_record = {key: value for key, value in record.items()
+                     if key != "principal_id"}
+    state = str(record.get("state", "unknown"))
+    return {
+        "status": state.upper(),
+        "claim": record.get("claim", "NO_PROOF"),
+        "request_satisfied": bool(record.get("request_satisfied", False)),
+        "run_id": record.get("run_id"),
+        "agent_run": public_record,
+        "review": record.get("review"),
+        "source_changes_applied": False,
+        "human_approval_granted": False,
+        "mcp_admission": admission.summary(),
+    }
+
+
+def _agent_error(exc: Exception) -> dict[str, Any]:
+    from pipeline.agentic.contracts import AgentRunError
+
+    if isinstance(exc, AgentRunError):
+        return exc.as_dict()
+    return {
+        "status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+        "code": "invalid_request", "message": str(exc),
+    }
 
 
 def _coordination_response(record: dict[str, Any], admission: MCPAdmission) -> dict[str, Any]:
@@ -1134,6 +1188,132 @@ def cancel_work_item(work_item_id: str) -> dict[str, Any]:
         return _coordination_response(record, admission)
     except Exception as exc:
         return _coordination_error(exc)
+
+
+def start_agent_run(
+        run_id: str, objective: str, base_revision: str, source: str,
+        source_sha256: str,
+        mode: str = "esc", proposed_actions: list[str] | None = None,
+        allowed_paths: list[str] | None = None,
+        protected_paths: list[str] | None = None,
+        resource_budget: dict[str, int] | None = None) -> dict[str, Any]:
+    """Run the supervised inspect-and-verify profile over approved source bytes.
+
+    The proposed actions are untrusted input. This release accepts only the
+    reviewed ``inspect`` then ``verify`` plan and performs no source writes,
+    provider calls, delegation, contract changes, approval, signing, or merge.
+    """
+    effects = (
+        "workspace_read", "external_execution", "evidence_publication",
+        "service_state_read", "service_state_write")
+    language = {
+        ".java": "java", ".jml": "jml",
+    }.get(Path(source).suffix.lower(), "unsupported")
+    admission = authorize_mcp_invocation(
+        "start_agent_run", mode="supervise", language=language,
+        backend="openjml", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        from pipeline.a2a_coordination import current_git_revision
+        from pipeline.agentic.contracts import AGENT_ACTIONS, AgentGoal
+
+        require_mcp_effect(admission, "workspace_read")
+        path = _workspace_path(source)
+        relative = path.relative_to(Path.cwd().resolve()).as_posix()
+        if current_git_revision(Path.cwd()) != base_revision:
+            raise ValueError("base_revision does not identify the current checkout")
+        ceilings = {
+            "max_actions": 2, "max_failures": 1,
+            "max_input_bytes": MCP_INSPECT_MAX_INPUT_BYTES,
+        }
+        requested_budget = resource_budget or {}
+        unknown_budget = sorted(set(requested_budget) - set(ceilings))
+        if unknown_budget:
+            raise ValueError(
+                "unknown agent resource budgets: " + ", ".join(unknown_budget))
+        for name, value in requested_budget.items():
+            if not isinstance(value, int) or value < 0 or value > ceilings[name]:
+                raise ValueError(f"agent resource budget exceeds server ceiling: {name}")
+        budget = {**ceilings, **requested_budget}
+        if path.stat().st_size > budget["max_input_bytes"]:
+            raise ValueError("source exceeds the approved input budget")
+        normalized_allowed = tuple(allowed_paths or (relative,))
+        if normalized_allowed != (relative,):
+            raise ValueError(
+                "the initial supervised profile permits only the approved source path")
+        observed_source_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        if observed_source_sha256 != source_sha256:
+            raise ValueError("source_sha256 does not identify the approved source bytes")
+        goal = AgentGoal(
+            run_id=run_id, objective=objective, base_revision=base_revision,
+            source=relative, source_sha256=observed_source_sha256, mode=mode,
+            proposed_actions=tuple(proposed_actions or AGENT_ACTIONS),
+            allowed_paths=normalized_allowed,
+            protected_paths=tuple(protected_paths or ()),
+            resource_budget=budget,
+        )
+        require_mcp_effect(admission, "service_state_write")
+        principal = _agent_principal()
+        supervisor = _configured_agent_supervisor(admission, create_state=True)
+        record = supervisor.start(goal, principal)
+        return _agent_response(record, admission)
+    except Exception as exc:
+        return _agent_error(exc)
+
+
+def get_agent_run(run_id: str) -> dict[str, Any]:
+    """Read durable supervised-run state without executing or resuming it."""
+    effects = ("service_state_read",)
+    admission = authorize_mcp_invocation(
+        "get_agent_run", mode="local", language="none",
+        backend="builtin-supervisor", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        require_mcp_effect(admission, "service_state_read")
+        principal = _agent_principal()
+        supervisor = _configured_agent_supervisor(admission, create_state=False)
+        return _agent_response(supervisor.get(run_id, principal), admission)
+    except Exception as exc:
+        return _agent_error(exc)
+
+
+def resume_agent_run(run_id: str) -> dict[str, Any]:
+    """Resume between recorded actions; never replay an uncertain action."""
+    effects = (
+        "workspace_read", "external_execution", "evidence_publication",
+        "service_state_read", "service_state_write")
+    admission = authorize_mcp_invocation(
+        "resume_agent_run", mode="resume", language="none",
+        backend="builtin-supervisor", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        principal = _agent_principal()
+        supervisor = _configured_agent_supervisor(admission, create_state=False)
+        record = supervisor.resume(run_id, principal)
+        return _agent_response(record, admission)
+    except Exception as exc:
+        return _agent_error(exc)
+
+
+def cancel_agent_run(run_id: str) -> dict[str, Any]:
+    """Cancel a supervised run without granting execution or trust authority."""
+    effects = (
+        "service_state_read", "service_state_write", "evidence_publication")
+    admission = authorize_mcp_invocation(
+        "cancel_agent_run", mode="cancel", language="none",
+        backend="builtin-supervisor", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        principal = _agent_principal()
+        supervisor = _configured_agent_supervisor(admission, create_state=False)
+        record = supervisor.cancel(run_id, principal)
+        return _agent_response(record, admission)
+    except Exception as exc:
+        return _agent_error(exc)
 
 
 def doctor_environment() -> dict[str, Any]:
