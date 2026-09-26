@@ -13,13 +13,15 @@ import asyncio
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
 import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Protocol
@@ -68,6 +70,10 @@ def _digest(value: Any) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _lease_deadline(seconds: float) -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
 
 
 def _scope(value: str) -> str:
@@ -494,7 +500,8 @@ class TaskStore:
 
     def begin_dispatch(
             self, work_item_id: str,
-            principal_id: str) -> tuple[dict[str, Any], bool]:
+            principal_id: str, *, owner_id: str,
+            lease_seconds: float) -> tuple[dict[str, Any], bool]:
         """Atomically claim the pre-dispatch task before any network call."""
         with self._locked() as lock:
             record = self._load_unlocked(work_item_id)
@@ -503,9 +510,13 @@ class TaskStore:
                     or record.get("dispatch_state", "not_started") != "not_started"):
                 fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
                 return record, False
+            attempt_id = str(uuid.uuid4())
             record.update({
                 "state": "dispatching",
                 "dispatch_state": "in_flight",
+                "dispatch_attempt_id": attempt_id,
+                "dispatch_owner_id": owner_id,
+                "dispatch_lease_expires_at": _lease_deadline(lease_seconds),
                 "worker_outcome": {
                     "status": "dispatching",
                     "message": "worker submission is in flight",
@@ -516,62 +527,247 @@ class TaskStore:
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             return updated, True
 
-    def mark_dispatch_uncertain(
+    def renew_dispatch_lease(
             self, work_item_id: str, principal_id: str, *,
-            code: str, message: str) -> dict[str, Any]:
-        """Retain authority reservations when submission outcome is unknown."""
+            attempt_id: str, owner_id: str,
+            lease_seconds: float) -> bool:
+        """Renew only the live dispatch attempt owned by this coordinator."""
         with self._locked() as lock:
             record = self._load_unlocked(work_item_id)
             self._authorize(record, principal_id)
-            if record.get("state") not in TERMINAL_STATES:
-                cancellation_requested = bool(
-                    record.get("cancellation_requested", False))
+            owned = (
+                record.get("state") not in TERMINAL_STATES
+                and record.get("dispatch_state") == "in_flight"
+                and record.get("dispatch_attempt_id") == attempt_id
+                and record.get("dispatch_owner_id") == owner_id
+            )
+            if owned:
                 record.update({
-                    "state": ("cancellation_pending" if cancellation_requested
-                              else "dispatch_uncertain"),
-                    "dispatch_state": "uncertain",
-                    "worker_outcome": {
-                        "status": "dispatch_uncertain",
-                        "code": code,
-                        "message": message,
-                    },
+                    "dispatch_lease_expires_at": _lease_deadline(lease_seconds),
                     "updated_at": _now(),
                 })
-                record = self._append_unlocked(record)
+                self._append_unlocked(record)
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-            return record
+            return owned
 
-    def record_remote_observation(
+    @staticmethod
+    def _lease_expired(value: Any, now: datetime) -> bool:
+        try:
+            deadline = datetime.fromisoformat(str(value))
+        except ValueError as exc:
+            raise A2ACoordinationError(
+                "TASK_EVIDENCE_INVALID", "dispatch lease is invalid") from exc
+        if deadline.tzinfo is None:
+            raise A2ACoordinationError(
+                "TASK_EVIDENCE_INVALID", "dispatch lease has no timezone")
+        return deadline <= now
+
+    def claim_reconciliation(
             self, work_item_id: str, principal_id: str, *,
-            remote_task_id: str, remote_state: str,
-            worker_result: Mapping[str, Any] | None,
-            message: str) -> dict[str, Any]:
-        """Bind the remote identity without losing concurrent cancellation intent."""
+            owner_id: str, lease_seconds: float,
+            now: datetime | None = None) -> tuple[dict[str, Any], bool]:
+        """Claim recovery only after dispatch ownership is absent or expired."""
+        observed_at = now or datetime.now(timezone.utc)
         with self._locked() as lock:
             record = self._load_unlocked(work_item_id)
             self._authorize(record, principal_id)
-            cancellation_requested = bool(
-                record.get("cancellation_requested", False))
-            terminal = remote_state in TERMINAL_STATES
-            state = (
-                "cancellation_pending"
-                if cancellation_requested and not terminal else remote_state)
-            changes: dict[str, Any] = {
-                "state": state,
-                "dispatch_state": "confirmed",
-                "remote_state": remote_state,
-                "remote_task_id": remote_task_id,
-                "worker_result": (dict(worker_result)
-                                  if worker_result is not None else None),
+            if (record.get("state") in TERMINAL_STATES
+                    or record.get("remote_task_id")):
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return record, False
+            dispatch_state = record.get("dispatch_state")
+            if dispatch_state == "in_flight":
+                if not self._lease_expired(
+                        record.get("dispatch_lease_expires_at"), observed_at):
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                    return record, False
+            elif dispatch_state == "recovering":
+                if not self._lease_expired(
+                        record.get("recovery_lease_expires_at"), observed_at):
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                    return record, False
+            elif dispatch_state != "uncertain":
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return record, False
+            if not record.get("dispatch_attempt_id"):
+                record["dispatch_attempt_id"] = str(uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    "formalspecgen-dispatch:" + str(record["request_sha256"])))
+            record.update({
+                "state": ("cancellation_pending"
+                          if record.get("cancellation_requested")
+                          else "dispatch_uncertain"),
+                "dispatch_state": "recovering",
+                "recovery_owner_id": owner_id,
+                "recovery_lease_expires_at": (
+                    observed_at + timedelta(seconds=lease_seconds)).isoformat(),
                 "worker_outcome": {
-                    "status": remote_state, "message": message},
-                "acceptance": {"status": "pending", "claim": "NO_PROOF"},
-                "updated_at": _now(),
-            }
-            if cancellation_requested:
-                changes["cancellation_status"] = (
-                    "remote_terminal" if terminal else "pending")
-            record.update(changes)
+                    "status": "reconciling",
+                    "message": "reconciling an unresolved dispatch attempt",
+                },
+                "updated_at": observed_at.isoformat(),
+            })
+            updated = self._append_unlocked(record)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            return updated, True
+
+    @staticmethod
+    def _add_diagnostic(
+            record: dict[str, Any], code: str, message: str,
+            **details: Any) -> None:
+        diagnostic = {
+            "code": code, "message": message, "observed_at": _now(),
+            **details,
+        }
+        diagnostics = list(record.get("coordination_diagnostics", ()))
+        diagnostics.append(diagnostic)
+        record["coordination_diagnostics"] = diagnostics[-64:]
+        record["coordination_diagnostic_count"] = int(
+            record.get("coordination_diagnostic_count", 0)) + 1
+
+    def transition_remote_event(
+            self, work_item_id: str, principal_id: str, *,
+            attempt_id: str, event_kind: str,
+            remote_task_id: str | None = None,
+            remote_state: str | None = None,
+            worker_result: Mapping[str, Any] | None = None,
+            operation: str | None = None,
+            code: str | None = None,
+            message: str = "") -> dict[str, Any]:
+        """Apply an attempt-bound observation or RPC failure atomically."""
+        with self._locked() as lock:
+            record = self._load_unlocked(work_item_id)
+            self._authorize(record, principal_id)
+            if record.get("dispatch_attempt_id") != attempt_id:
+                self._add_diagnostic(
+                    record, "STALE_DISPATCH_ATTEMPT",
+                    "event belongs to another dispatch attempt",
+                    event_kind=event_kind, attempt_id=attempt_id)
+                record["updated_at"] = _now()
+                updated = self._append_unlocked(record)
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return updated
+            bound_remote_id = record.get("remote_task_id")
+            if (remote_task_id and bound_remote_id
+                    and remote_task_id != bound_remote_id):
+                self._add_diagnostic(
+                    record, "REMOTE_TASK_ID_CONFLICT",
+                    "event identifies another remote task",
+                    event_kind=event_kind, remote_task_id=remote_task_id)
+                record.update({
+                    "coordination_status": "inconsistent",
+                    "updated_at": _now(),
+                })
+                updated = self._append_unlocked(record)
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return updated
+
+            current_terminal = record.get("state") in TERMINAL_STATES
+            if current_terminal:
+                if event_kind == "observation":
+                    same = (
+                        remote_state == record.get("remote_state")
+                        and (dict(worker_result)
+                             if worker_result is not None else None)
+                        == record.get("worker_result")
+                    )
+                    if same:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                        return record
+                    incoming_terminal = remote_state in TERMINAL_STATES
+                    diagnostic_code = (
+                        "TERMINAL_STATE_CONFLICT" if incoming_terminal
+                        else "STALE_REMOTE_OBSERVATION")
+                    self._add_diagnostic(
+                        record, diagnostic_code,
+                        "remote event cannot replace a terminal outcome",
+                        remote_state=remote_state,
+                        remote_task_id=remote_task_id)
+                    if incoming_terminal:
+                        record["coordination_status"] = "inconsistent"
+                else:
+                    self._add_diagnostic(
+                        record, ("LATE_PROTOCOL_ERROR"
+                                 if event_kind == "protocol_error"
+                                 else "LATE_TRANSPORT_ERROR"),
+                        "remote error arrived after a terminal outcome",
+                        operation=operation, error_code=code)
+                record["updated_at"] = _now()
+                updated = self._append_unlocked(record)
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return updated
+
+            if event_kind == "protocol_error":
+                remote_terminal = remote_state in TERMINAL_STATES
+                record.update({
+                    "state": "failed" if remote_terminal else "dispatch_uncertain",
+                    "dispatch_state": "confirmed",
+                    "remote_state": remote_state,
+                    "remote_task_id": remote_task_id,
+                    "worker_outcome": {
+                        "status": "failed" if remote_terminal
+                        else "remote_observation_invalid",
+                        "code": code, "message": message,
+                    },
+                    "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+                })
+                self._add_diagnostic(
+                    record, code or "WORKER_RESULT_INVALID", message,
+                    operation="observation", remote_state=remote_state)
+            elif event_kind == "transport_error":
+                cancellation_requested = bool(
+                    record.get("cancellation_requested", False))
+                if operation == "cancel":
+                    record.update({
+                        "state": "cancellation_pending",
+                        "cancellation_status": "uncertain",
+                        "worker_outcome": {
+                            "status": "cancellation_uncertain",
+                            "code": code, "message": message,
+                        },
+                    })
+                else:
+                    record.update({
+                        "state": ("cancellation_pending"
+                                  if cancellation_requested
+                                  else "dispatch_uncertain"),
+                        "dispatch_state": "uncertain",
+                        "worker_outcome": {
+                            "status": ("reconciliation_failed"
+                                       if operation == "reconcile"
+                                       else "dispatch_uncertain"),
+                            "code": code, "message": message,
+                        },
+                    })
+                self._add_diagnostic(
+                    record, code or "REMOTE_TRANSPORT_ERROR", message,
+                    operation=operation)
+            elif event_kind == "observation" and remote_state is not None:
+                cancellation_requested = bool(
+                    record.get("cancellation_requested", False))
+                terminal = remote_state in TERMINAL_STATES
+                state = (
+                    "cancellation_pending"
+                    if cancellation_requested and not terminal
+                    else remote_state)
+                record.update({
+                    "state": state,
+                    "dispatch_state": "confirmed",
+                    "remote_state": remote_state,
+                    "remote_task_id": remote_task_id,
+                    "worker_result": (dict(worker_result)
+                                      if worker_result is not None else None),
+                    "worker_outcome": {
+                        "status": remote_state, "message": message},
+                    "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+                })
+                if cancellation_requested:
+                    record["cancellation_status"] = (
+                        "remote_terminal" if terminal else "pending")
+            else:
+                raise A2ACoordinationError(
+                    "TASK_EVIDENCE_INVALID", "invalid remote transition event")
+            record["updated_at"] = _now()
             updated = self._append_unlocked(record)
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             return updated
@@ -643,11 +839,51 @@ class A2ACoordinator:
 
     def __init__(
             self, policy: CoordinationPolicy, store: TaskStore,
-            client: WorkerClient, *, project_root: Path):
+            client: WorkerClient, *, project_root: Path,
+            coordinator_id: str | None = None,
+            dispatch_lease_seconds: float = 60.0):
+        if (not math.isfinite(dispatch_lease_seconds)
+                or dispatch_lease_seconds <= 0):
+            raise ValueError("dispatch_lease_seconds must be positive")
+        selected_coordinator = coordinator_id or str(uuid.uuid4())
+        if not _IDENTIFIER.fullmatch(selected_coordinator):
+            raise ValueError("coordinator_id is invalid")
         self.policy = policy
         self.store = store
         self.client = client
         self.project_root = project_root.resolve()
+        self.coordinator_id = selected_coordinator
+        self.dispatch_lease_seconds = dispatch_lease_seconds
+
+    @contextmanager
+    def _dispatch_lease(
+            self, work_item_id: str, principal_id: str,
+            attempt_id: str):
+        """Renew dispatch ownership while this process waits on the worker."""
+        stop = threading.Event()
+        interval = max(0.05, self.dispatch_lease_seconds / 3)
+
+        def heartbeat() -> None:
+            while not stop.wait(interval):
+                try:
+                    renewed = self.store.renew_dispatch_lease(
+                        work_item_id, principal_id,
+                        attempt_id=attempt_id,
+                        owner_id=self.coordinator_id,
+                        lease_seconds=self.dispatch_lease_seconds)
+                except Exception:
+                    return
+                if not renewed:
+                    return
+
+        thread = threading.Thread(
+            target=heartbeat, name=f"a2a-lease-{work_item_id}", daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join(timeout=min(interval, 1.0))
 
     def _authorize(
             self, item: WorkItem, principal_id: str,
@@ -778,6 +1014,9 @@ class A2ACoordinator:
             "worker_id": worker.worker_id,
             "state": "queued",
             "dispatch_state": "not_started",
+            "dispatch_attempt_id": None,
+            "dispatch_owner_id": None,
+            "dispatch_lease_expires_at": None,
             "remote_task_id": None,
             "remote_state": None,
             "cancellation_requested": False,
@@ -785,6 +1024,9 @@ class A2ACoordinator:
             "work_item": item.as_dict(),
             "worker_result": None,
             "worker_outcome": None,
+            "coordination_status": "consistent",
+            "coordination_diagnostics": [],
+            "coordination_diagnostic_count": 0,
             "acceptance": {"status": "pending", "claim": "NO_PROOF"},
             "authority_sha256": _digest(grant.as_dict()),
             "worker_profile_sha256": _digest(worker.as_dict()),
@@ -800,34 +1042,33 @@ class A2ACoordinator:
         if not created:
             return stored
         dispatch_record, dispatch = self.store.begin_dispatch(
-            item.work_item_id, principal_id)
+            item.work_item_id, principal_id,
+            owner_id=self.coordinator_id,
+            lease_seconds=self.dispatch_lease_seconds)
         if not dispatch:
             return dispatch_record
+        attempt_id = str(dispatch_record["dispatch_attempt_id"])
         try:
-            observation = self.client.submit(worker, item)
+            with self._dispatch_lease(
+                    item.work_item_id, principal_id, attempt_id):
+                observation = self.client.submit(worker, item)
         except Exception as exc:
             if isinstance(exc, A2ACoordinationError):
                 code, message = exc.code, str(exc)
             else:
                 code, message = "WORKER_UNAVAILABLE", str(exc)
-            return self.store.mark_dispatch_uncertain(
-                item.work_item_id, principal_id, code=code, message=message)
-        try:
-            return self._apply_observation(item, principal_id, observation)
-        except A2ACoordinationError as exc:
-            return self.store.update(
+            return self.store.transition_remote_event(
                 item.work_item_id, principal_id,
-                state="failed", dispatch_state="confirmed",
-                remote_task_id=observation.remote_task_id,
-                remote_state=observation.state,
-                worker_outcome={
-                    "status": "failed", "code": exc.code,
-                    "message": str(exc)},
-                acceptance={"status": "pending", "claim": "NO_PROOF"})
+                attempt_id=attempt_id, event_kind="transport_error",
+                operation="submit", code=code, message=message)
+        return self._apply_observation(
+            item, principal_id, observation,
+            attempt_id=attempt_id)
 
     def _apply_observation(
             self, item: WorkItem, principal_id: str,
             observation: RemoteTaskObservation, *,
+            attempt_id: str,
             request_remote_cancellation: bool = True) -> dict[str, Any]:
         state = observation.state.lower().removeprefix("task_state_")
         supported = {
@@ -835,11 +1076,23 @@ class A2ACoordinator:
             "completed", "failed", "cancelled", "rejected",
         }
         if state not in supported:
-            raise A2ACoordinationError(
-                "WORKER_RESULT_INVALID", "unknown worker task state")
-        result = self._validate_result(item, observation.result)
-        record = self.store.record_remote_observation(
+            return self.store.transition_remote_event(
+                item.work_item_id, principal_id,
+                attempt_id=attempt_id, event_kind="protocol_error",
+                remote_task_id=observation.remote_task_id,
+                remote_state=state, code="WORKER_RESULT_INVALID",
+                message="unknown worker task state")
+        try:
+            result = self._validate_result(item, observation.result)
+        except A2ACoordinationError as exc:
+            return self.store.transition_remote_event(
+                item.work_item_id, principal_id,
+                attempt_id=attempt_id, event_kind="protocol_error",
+                remote_task_id=observation.remote_task_id,
+                remote_state=state, code=exc.code, message=str(exc))
+        record = self.store.transition_remote_event(
             item.work_item_id, principal_id,
+            attempt_id=attempt_id, event_kind="observation",
             remote_task_id=observation.remote_task_id,
             remote_state=state, worker_result=result,
             message=observation.message)
@@ -859,18 +1112,18 @@ class A2ACoordinator:
         try:
             observation = self.client.cancel(worker, str(remote_task_id))
         except Exception as exc:
-            return self.store.update(
+            return self.store.transition_remote_event(
                 item.work_item_id, principal_id,
-                state="cancellation_pending",
-                cancellation_status="uncertain",
-                worker_outcome={
-                    "status": "cancellation_uncertain",
-                    "message": str(exc),
-                })
+                attempt_id=str(record["dispatch_attempt_id"]),
+                event_kind="transport_error",
+                remote_task_id=str(remote_task_id),
+                operation="cancel", code="WORKER_UNAVAILABLE",
+                message=str(exc))
         # A cancellation response may still report a non-terminal remote state.
         # Record that observation without recursively issuing cancellation calls.
         return self._apply_observation(
             item, principal_id, observation,
+            attempt_id=str(record["dispatch_attempt_id"]),
             request_remote_cancellation=False)
 
     @staticmethod
@@ -889,27 +1142,39 @@ class A2ACoordinator:
         worker = self.policy.workers[record["worker_id"]]
         item = self._item(record)
         if not record.get("remote_task_id"):
-            if record.get("dispatch_state") != "uncertain":
-                return record
             reconcile = getattr(self.client, "reconcile", None)
             if not callable(reconcile):
                 return record
+            record, claimed = self.store.claim_reconciliation(
+                work_item_id, principal_id,
+                owner_id=self.coordinator_id,
+                lease_seconds=self.dispatch_lease_seconds)
+            if not claimed:
+                return record
+            attempt_id = str(record["dispatch_attempt_id"])
             try:
                 observation = reconcile(worker, item)
             except Exception as exc:
-                return self.store.update(
+                return self.store.transition_remote_event(
                     work_item_id, principal_id,
-                    worker_outcome={
-                        "status": "reconciliation_failed",
-                        "message": str(exc),
-                    })
+                    attempt_id=attempt_id, event_kind="transport_error",
+                    operation="reconcile", code="WORKER_UNAVAILABLE",
+                    message=str(exc))
             if observation is None:
-                return record
-            return self._apply_observation(item, principal_id, observation)
+                return self.store.transition_remote_event(
+                    work_item_id, principal_id,
+                    attempt_id=attempt_id, event_kind="transport_error",
+                    operation="reconcile", code="REMOTE_TASK_NOT_OBSERVED",
+                    message="the worker did not report the dispatch attempt")
+            return self._apply_observation(
+                item, principal_id, observation,
+                attempt_id=attempt_id)
         if record.get("cancellation_requested"):
             return self._cancel_remote(item, principal_id, record)
         observation = self.client.get(worker, record["remote_task_id"])
-        return self._apply_observation(item, principal_id, observation)
+        return self._apply_observation(
+            item, principal_id, observation,
+            attempt_id=str(record["dispatch_attempt_id"]))
 
     def artifacts(self, work_item_id: str, principal_id: str) -> dict[str, Any]:
         record = self.store.get(work_item_id, principal_id)
@@ -920,6 +1185,9 @@ class A2ACoordinator:
             "artifacts": result.get("artifacts", []),
             "patch_sha256": result.get("patch_sha256"),
             "acceptance": record["acceptance"],
+            "coordination_status": record.get("coordination_status", "consistent"),
+            "coordination_diagnostics": record.get(
+                "coordination_diagnostics", []),
         }
 
     def cancel(self, work_item_id: str, principal_id: str) -> dict[str, Any]:

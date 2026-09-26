@@ -130,6 +130,22 @@ is requested while dispatch may be in flight, the record remains
 then forwarded; the bridge does not claim confirmed cancellation before a
 terminal remote observation.
 
+Every dispatch has a persisted attempt identifier, owner, and renewable lease.
+The dispatching coordinator renews that lease while the worker request is in
+flight. A different coordinator does not recover an attempt while its lease is
+valid. After the lease expires, one recovery owner atomically claims
+reconciliation and looks up the original request-bound context; it never sends
+the work item again. A missing lookup or reconciliation error returns the task
+to uncertainty without releasing its reservation or cancellation intent.
+
+Remote observations and transport failures are applied atomically against the
+expected attempt and remote task identity. Once a terminal outcome is recorded,
+a delayed non-terminal response or later RPC error is retained only as a
+diagnostic and cannot reactivate the task or erase its artifacts. A different
+terminal outcome or remote task identity marks the coordination record
+`inconsistent`; strict MCP reports `COORDINATION_INCONSISTENT` with
+`request_satisfied: false` while preserving the first authoritative outcome.
+
 These non-terminal states never satisfy the MCP request:
 
 | Local state | Meaning |
@@ -138,8 +154,8 @@ These non-terminal states never satisfy the MCP request:
 | `dispatch_uncertain` | The response was lost or submission outcome is unknown. |
 | `cancellation_pending` | Cancellation intent is durable but not yet confirmed remotely. |
 
-Operators must reconcile uncertain tasks or apply a separately reviewed lease
-policy. Simply restarting or resubmitting does not release their reservation.
+Simply restarting or resubmitting does not release an uncertain task's
+reservation. Refreshing the task performs lease-governed reconciliation.
 The current aggregate-budget check is an active-work allocation: terminal tasks
 release concurrency capacity. It is not a refund or accounting record for
 tokens, money, or wall time already consumed; deployments must meter cumulative

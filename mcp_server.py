@@ -124,13 +124,17 @@ def _a2a_principal() -> str:
 def _coordination_response(record: dict[str, Any], admission: MCPAdmission) -> dict[str, Any]:
     state = str(record.get("state", "unknown"))
     unresolved = {"dispatching", "dispatch_uncertain", "cancellation_pending"}
+    inconsistent = record.get("coordination_status") == "inconsistent"
     return {
-        "status": state.upper(),
+        "status": "COORDINATION_INCONSISTENT" if inconsistent else state.upper(),
         "claim": "NO_PROOF",
-        "request_satisfied": state not in {"failed", "rejected"} | unresolved,
+        "request_satisfied": (
+            not inconsistent
+            and state not in {"failed", "rejected"} | unresolved),
         "work_item_id": record.get("work_item_id"),
         "worker_task": record,
         "worker_completed": state == "completed",
+        "coordination_inconsistent": inconsistent,
         "implementation_accepted": False,
         "mcp_admission": admission.summary(),
     }
@@ -1097,10 +1101,14 @@ def get_work_artifacts(work_item_id: str) -> dict[str, Any]:
         require_mcp_effect(admission, "service_state_read")
         coordinator = _configured_a2a_coordinator(create_state=False)
         result = coordinator.artifacts(work_item_id, _a2a_principal())
+        inconsistent = result.get("coordination_status") == "inconsistent"
         return {
             **result,
+            "status": ("COORDINATION_INCONSISTENT" if inconsistent
+                       else result["status"]),
             "claim": "NO_PROOF",
-            "request_satisfied": True,
+            "request_satisfied": not inconsistent,
+            "coordination_inconsistent": inconsistent,
             "implementation_accepted": False,
             "mcp_admission": admission.summary(),
         }

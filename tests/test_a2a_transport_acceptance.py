@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import socket
 import sys
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -52,7 +54,11 @@ except ImportError as exc:  # pragma: no cover - depends on optional environment
     pytest.skip("A2A SDK is not installed", allow_module_level=True)
 
 from pipeline.a2a_coordination import (
+    A2ACoordinator,
+    AuthorityGrant,
+    CoordinationPolicy,
     OfficialA2AWorkerClient,
+    TaskStore,
     WorkItem,
     WorkerProfile,
     agent_card_sha256,
@@ -62,6 +68,53 @@ import mcp_server
 
 
 REVISION = "a" * 40
+
+
+class CrashAfterRemoteAcceptanceClient:
+    """Terminate after remote acceptance but before coordinator persistence."""
+
+    def __init__(self):
+        self.delegate = OfficialA2AWorkerClient(timeout_seconds=5)
+
+    def submit(self, worker, item):
+        self.delegate.submit(worker, item)
+        os._exit(73)
+
+    def get(self, worker, task_id):  # pragma: no cover - crash fixture boundary
+        return self.delegate.get(worker, task_id)
+
+    def cancel(self, worker, task_id):  # pragma: no cover - crash fixture boundary
+        return self.delegate.cancel(worker, task_id)
+
+    def reconcile(self, worker, item):  # pragma: no cover - crash fixture boundary
+        return self.delegate.reconcile(worker, item)
+
+
+def _coordination_policy(endpoint: str, card_digest: str, root: Path):
+    worker = WorkerProfile(
+        worker_id="fixture", endpoint=endpoint,
+        agent_card_sha256=card_digest, workflows=("verify",),
+        effects=("workspace_read", "workspace_write_new"),
+        allowed_paths=("pipeline/**",),
+        max_budget={"wall_seconds": 20})
+    grant = AuthorityGrant(
+        ref="fixture-grant", principal_id="aiderdesk", project_root=root,
+        workers=("fixture",), workflows=("verify",),
+        effects=("workspace_read", "workspace_write_new"),
+        allowed_paths=("pipeline/**",),
+        max_budget={"wall_seconds": 20})
+    return CoordinationPolicy({grant.ref: grant}, {worker.worker_id: worker})
+
+
+def _crash_after_remote_acceptance(
+        endpoint: str, card_digest: str,
+        state_root: str, project_root: str) -> None:
+    coordinator = A2ACoordinator(
+        _coordination_policy(endpoint, card_digest, Path(project_root)),
+        TaskStore(Path(state_root)), CrashAfterRemoteAcceptanceClient(),
+        project_root=Path(project_root), coordinator_id="crashing-owner",
+        dispatch_lease_seconds=2)
+    coordinator.submit(_item(), "aiderdesk", "fixture")
 
 
 class FixtureWorker(AgentExecutor):
@@ -222,6 +275,53 @@ def test_official_a2a_sdk_round_trip_and_agent_card_pinning():
         with pytest.raises(Exception, match="Agent Card digest changed"):
             OfficialA2AWorkerClient(timeout_seconds=5).submit(
                 changed_identity, _item())
+
+
+def test_process_death_after_remote_acceptance_reconciles_without_resubmit(
+        tmp_path):
+    with _server() as (endpoint, card):
+        card_digest = agent_card_sha256(card)
+        state_root = tmp_path / "crash-state"
+        context = multiprocessing.get_context("spawn")
+        process = context.Process(
+            target=_crash_after_remote_acceptance,
+            args=(endpoint, card_digest, str(state_root), str(Path.cwd())))
+        process.start()
+        process.join(timeout=15)
+        assert not process.is_alive()
+        assert process.exitcode == 73
+
+        store = TaskStore(state_root)
+        stranded = store.get("transport-001", "aiderdesk")
+        assert stranded["state"] == "dispatching"
+        assert stranded["dispatch_state"] == "in_flight"
+        assert stranded["remote_task_id"] is None
+        assert stranded["acceptance"] == {
+            "status": "pending", "claim": "NO_PROOF"}
+
+        lease_end = datetime.fromisoformat(
+            stranded["dispatch_lease_expires_at"])
+        assert lease_end > datetime.now(timezone.utc)
+        policy = _coordination_policy(endpoint, card_digest, Path.cwd())
+        recovery = A2ACoordinator(
+            policy, TaskStore(state_root),
+            OfficialA2AWorkerClient(timeout_seconds=5),
+            project_root=Path.cwd(), coordinator_id="recovery-owner",
+            dispatch_lease_seconds=2)
+
+        still_owned = recovery.get("transport-001", "aiderdesk")
+        assert still_owned["dispatch_state"] == "in_flight"
+        assert still_owned["remote_task_id"] is None
+        while datetime.now(timezone.utc) <= lease_end:
+            time.sleep(0.05)
+
+        recovered = recovery.get("transport-001", "aiderdesk")
+        assert recovered["state"] == "completed"
+        assert recovered["dispatch_state"] == "confirmed"
+        assert recovered["remote_task_id"]
+        assert recovered["worker_result"]["patch_sha256"] == "b" * 64
+        assert recovered["acceptance"] == {
+            "status": "pending", "claim": "NO_PROOF"}
 
 
 async def _mcp_round_trip(environment: dict[str, str], revision: str):

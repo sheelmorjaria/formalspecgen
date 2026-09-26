@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 from pathlib import Path
@@ -103,6 +105,44 @@ class PendingCancellationClient(FakeWorkerClient):
     def cancel(self, worker, task_id):
         self.calls.append(("cancel", worker.worker_id, task_id))
         return RemoteTaskObservation(task_id, "working", None, "still stopping")
+
+
+class CompletionDuringCancelClient(FakeWorkerClient):
+    def __init__(self):
+        super().__init__(state="working")
+        self.coordinator = None
+        self.item = None
+
+    def cancel(self, worker, task_id):
+        self.calls.append(("cancel", worker.worker_id, task_id))
+        record = self.coordinator.store.get(
+            self.item.work_item_id, "aiderdesk")
+        completed = self._observation(self.item, "completed")
+        self.coordinator._apply_observation(
+            self.item, "aiderdesk", completed,
+            attempt_id=record["dispatch_attempt_id"])
+        raise TimeoutError("cancellation reply was lost")
+
+
+class ProcessDeathClient(FakeWorkerClient):
+    def submit(self, worker, item):
+        self.calls.append(("submit", worker.worker_id, item.work_item_id))
+        self.items.append(item)
+        raise SystemExit(73)
+
+
+class BlockingSubmitClient(FakeWorkerClient):
+    def __init__(self):
+        super().__init__(state="working")
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def submit(self, worker, item):
+        self.calls.append(("submit", worker.worker_id, item.work_item_id))
+        self.items.append(item)
+        self.started.set()
+        assert self.release.wait(timeout=5)
+        return self._observation(item, "working")
 
 
 def _item(**changes):
@@ -341,6 +381,183 @@ def test_submission_context_identity_is_stable_and_request_bound():
 
     assert repeated == first
     assert changed != first
+
+
+def test_terminal_completion_rejects_late_nonterminal_observation(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item()
+    working = coordinator.submit(item, "aiderdesk")
+    attempt_id = working["dispatch_attempt_id"]
+
+    completed = coordinator._apply_observation(
+        item, "aiderdesk", client._observation(item, "completed"),
+        attempt_id=attempt_id)
+    stale = coordinator._apply_observation(
+        item, "aiderdesk", client._observation(item, "working"),
+        attempt_id=attempt_id)
+
+    assert stale["state"] == "completed"
+    assert stale["worker_result"] == completed["worker_result"]
+    assert stale["remote_state"] == "completed"
+    assert stale["coordination_diagnostics"][-1]["code"] == (
+        "STALE_REMOTE_OBSERVATION")
+
+
+def test_conflicting_terminal_observation_is_reported_not_selected(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item()
+    working = coordinator.submit(item, "aiderdesk")
+    attempt_id = working["dispatch_attempt_id"]
+    completed = coordinator._apply_observation(
+        item, "aiderdesk", client._observation(item, "completed"),
+        attempt_id=attempt_id)
+
+    conflicted = coordinator._apply_observation(
+        item, "aiderdesk",
+        RemoteTaskObservation("remote-1", "cancelled", None, "late"),
+        attempt_id=attempt_id)
+
+    assert conflicted["state"] == "completed"
+    assert conflicted["worker_result"] == completed["worker_result"]
+    assert conflicted["coordination_status"] == "inconsistent"
+    assert conflicted["coordination_diagnostics"][-1]["code"] == (
+        "TERMINAL_STATE_CONFLICT")
+
+
+def test_late_cancellation_error_cannot_replace_concurrent_completion(tmp_path):
+    client = CompletionDuringCancelClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    client.coordinator = coordinator
+    client.item = _item()
+    coordinator.submit(client.item, "aiderdesk")
+
+    result = coordinator.cancel(client.item.work_item_id, "aiderdesk")
+
+    assert result["state"] == "completed"
+    assert result["remote_state"] == "completed"
+    assert result["worker_result"]["patch_sha256"] == "c" * 64
+    assert result["coordination_diagnostics"][-1]["code"] == (
+        "LATE_TRANSPORT_ERROR")
+
+
+def test_observation_is_bound_to_dispatch_attempt_and_remote_identity(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item()
+    working = coordinator.submit(item, "aiderdesk")
+
+    stale_attempt = coordinator._apply_observation(
+        item, "aiderdesk", client._observation(item, "completed"),
+        attempt_id="another-attempt")
+    assert stale_attempt["state"] == "working"
+    assert stale_attempt["coordination_diagnostics"][-1]["code"] == (
+        "STALE_DISPATCH_ATTEMPT")
+
+    wrong_task = coordinator._apply_observation(
+        item, "aiderdesk",
+        RemoteTaskObservation(
+            "remote-2", "completed",
+            client._observation(item, "completed").result, "wrong task"),
+        attempt_id=working["dispatch_attempt_id"])
+    assert wrong_task["state"] == "working"
+    assert wrong_task["coordination_status"] == "inconsistent"
+    assert wrong_task["coordination_diagnostics"][-1]["code"] == (
+        "REMOTE_TASK_ID_CONFLICT")
+
+
+def test_expired_inflight_dispatch_recovers_without_resubmission(tmp_path):
+    crashed_client = ProcessDeathClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, crashed_client)
+    coordinator.dispatch_lease_seconds = 1
+    item = _item()
+    with pytest.raises(SystemExit, match="73"):
+        coordinator.submit(item, "aiderdesk")
+    persisted = coordinator.store.get(item.work_item_id, "aiderdesk")
+    assert persisted["dispatch_state"] == "in_flight"
+
+    coordinator.store.update(
+        item.work_item_id, "aiderdesk",
+        dispatch_lease_expires_at=(
+            datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())
+    recovery_client = FakeWorkerClient(state="working")
+    recovery_client.reconciliation = RemoteTaskObservation(
+        "remote-recovered", "working", None, "recovered")
+    recovered = A2ACoordinator(
+        coordinator.policy, TaskStore(tmp_path / "state"), recovery_client,
+        project_root=tmp_path, coordinator_id="recovery-owner",
+        dispatch_lease_seconds=1).get(item.work_item_id, "aiderdesk")
+
+    assert recovered["state"] == "working"
+    assert recovered["remote_task_id"] == "remote-recovered"
+    assert [call[0] for call in recovery_client.calls] == ["reconcile"]
+    assert [call[0] for call in crashed_client.calls] == ["submit"]
+
+
+def test_live_dispatch_lease_prevents_concurrent_recovery(tmp_path):
+    client = BlockingSubmitClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    coordinator.dispatch_lease_seconds = 0.3
+    item = _item()
+    outcome = []
+    thread = threading.Thread(
+        target=lambda: outcome.append(coordinator.submit(item, "aiderdesk")))
+    thread.start()
+    assert client.started.wait(timeout=2)
+    first_lease = coordinator.store.get(
+        item.work_item_id, "aiderdesk")["dispatch_lease_expires_at"]
+    deadline = time.monotonic() + 2
+    renewed_lease = first_lease
+    while renewed_lease == first_lease and time.monotonic() < deadline:
+        time.sleep(0.03)
+        renewed_lease = coordinator.store.get(
+            item.work_item_id, "aiderdesk")["dispatch_lease_expires_at"]
+    assert renewed_lease != first_lease
+
+    recovery_client = FakeWorkerClient(state="working")
+    second = A2ACoordinator(
+        coordinator.policy, TaskStore(tmp_path / "state"), recovery_client,
+        project_root=tmp_path, coordinator_id="other-owner",
+        dispatch_lease_seconds=0.3)
+    observed = second.get(item.work_item_id, "aiderdesk")
+    assert observed["dispatch_state"] == "in_flight"
+    assert recovery_client.calls == []
+
+    client.release.set()
+    thread.join(timeout=3)
+    assert not thread.is_alive()
+    assert outcome[0]["state"] == "working"
+
+
+def test_missing_reconciliation_keeps_uncertainty_and_reservation(tmp_path):
+    client = LostReplyClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item(resource_budget={"wall_seconds": 75})
+    coordinator.submit(item, "aiderdesk")
+
+    unresolved = coordinator.get(item.work_item_id, "aiderdesk")
+
+    assert unresolved["state"] == "dispatch_uncertain"
+    assert unresolved["dispatch_state"] == "uncertain"
+    assert unresolved["remote_task_id"] is None
+    assert unresolved["acceptance"] == {
+        "status": "pending", "claim": "NO_PROOF"}
+    replacement = _item(
+        work_item_id="replacement", resource_budget={"wall_seconds": 75})
+    with pytest.raises(A2ACoordinationError) as denied:
+        coordinator.submit(replacement, "aiderdesk")
+    assert denied.value.code == "AGGREGATE_BUDGET_DENIED"
+
+
+def test_terminal_refresh_never_contacts_worker(tmp_path):
+    coordinator, client = _coordinator(tmp_path)
+    item = _item()
+    completed = coordinator.submit(item, "aiderdesk")
+    refreshed = coordinator.get(item.work_item_id, "aiderdesk")
+
+    assert refreshed == completed
+    assert [call[0] for call in client.calls] == ["submit"]
 
 
 def test_parallel_children_share_the_authority_budget(tmp_path):

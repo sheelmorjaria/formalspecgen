@@ -85,6 +85,27 @@ def test_uncertain_and_pending_states_never_satisfy_mcp_request(monkeypatch):
             assert result["implementation_accepted"] is False
 
 
+def test_conflicting_remote_outcomes_are_visible_and_unsatisfied(monkeypatch):
+    monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "aiderdesk")
+    coordinator = Mock()
+    record = _record("completed")
+    record["coordination_status"] = "inconsistent"
+    record["coordination_diagnostics"] = [{
+        "code": "TERMINAL_STATE_CONFLICT",
+        "message": "remote event cannot replace a terminal outcome",
+    }]
+    coordinator.get.return_value = record
+    with patch("mcp_server._configured_a2a_coordinator",
+               return_value=coordinator):
+        result = mcp_server.get_work_item("work-001", refresh=False)
+
+    assert result["status"] == "COORDINATION_INCONSISTENT"
+    assert result["request_satisfied"] is False
+    assert result["coordination_inconsistent"] is True
+    assert result["worker_completed"] is True
+    assert result["implementation_accepted"] is False
+
+
 def test_artifact_and_cancel_routes_do_not_accept_caller_identity(monkeypatch):
     monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "aiderdesk")
     coordinator = Mock()
@@ -93,6 +114,8 @@ def test_artifact_and_cancel_routes_do_not_accept_caller_identity(monkeypatch):
         "artifacts": [{"artifact_id": "patch", "sha256": "c" * 64}],
         "patch_sha256": "d" * 64,
         "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+        "coordination_status": "consistent",
+        "coordination_diagnostics": [],
     }
     coordinator.cancel.return_value = _record("cancelled")
     with patch("mcp_server._configured_a2a_coordinator",
@@ -102,7 +125,30 @@ def test_artifact_and_cancel_routes_do_not_accept_caller_identity(monkeypatch):
     coordinator.artifacts.assert_called_once_with("work-001", "aiderdesk")
     coordinator.cancel.assert_called_once_with("work-001", "aiderdesk")
     assert artifacts["implementation_accepted"] is False
+    assert artifacts["coordination_inconsistent"] is False
     assert cancelled["claim"] == "NO_PROOF"
+
+
+def test_artifact_route_exposes_coordination_inconsistency(monkeypatch):
+    monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "aiderdesk")
+    coordinator = Mock()
+    coordinator.artifacts.return_value = {
+        "status": "completed", "work_item_id": "work-001",
+        "artifacts": [{"artifact_id": "patch", "sha256": "c" * 64}],
+        "patch_sha256": "d" * 64,
+        "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+        "coordination_status": "inconsistent",
+        "coordination_diagnostics": [{
+            "code": "TERMINAL_STATE_CONFLICT", "message": "conflict"}],
+    }
+    with patch("mcp_server._configured_a2a_coordinator",
+               return_value=coordinator):
+        result = mcp_server.get_work_artifacts("work-001")
+
+    assert result["status"] == "COORDINATION_INCONSISTENT"
+    assert result["request_satisfied"] is False
+    assert result["coordination_inconsistent"] is True
+    assert result["implementation_accepted"] is False
 
 
 def test_operator_configuration_cannot_live_in_agent_workspace(tmp_path, monkeypatch):
