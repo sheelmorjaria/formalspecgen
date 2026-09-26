@@ -99,6 +99,12 @@ sum of active sibling budgets cannot exceed the parent. Active work under one
 authority also shares its aggregate operator ceiling rather than multiplying it
 once per worker.
 
+Parent exclusions are inherited server-side before the effective child request
+is hashed, stored, and dispatched. The child's effective protected scope is the
+union of its own restrictions and every inherited parent restriction. A child
+may narrow its allowed paths or add protected paths, but it cannot remove or
+narrow a parent's protected scope.
+
 Workers return `formalspecgen-worker-result-v1` as an A2A artifact named
 `formalspecgen-work-result`. The result must bind the work-item ID and base
 revision, list changed paths, and provide SHA-256 identities for patch/artifact
@@ -113,6 +119,31 @@ response. The task record always retains:
   "acceptance": {"status": "pending", "claim": "NO_PROOF"}
 }
 ```
+
+Dispatch, remote state, and cancellation intent are recorded separately. A
+submission whose response is lost remains `dispatch_uncertain`; it is not
+reported as failed and its active resource reservation is retained. Submissions
+carry a deterministic, request-bound A2A context identifier so a later refresh
+can reconcile the remote task without blindly resubmitting it. If cancellation
+is requested while dispatch may be in flight, the record remains
+`cancellation_pending`. A late remote identity is recorded and cancellation is
+then forwarded; the bridge does not claim confirmed cancellation before a
+terminal remote observation.
+
+These non-terminal states never satisfy the MCP request:
+
+| Local state | Meaning |
+| --- | --- |
+| `dispatching` | The submission call is in flight. |
+| `dispatch_uncertain` | The response was lost or submission outcome is unknown. |
+| `cancellation_pending` | Cancellation intent is durable but not yet confirmed remotely. |
+
+Operators must reconcile uncertain tasks or apply a separately reviewed lease
+policy. Simply restarting or resubmitting does not release their reservation.
+The current aggregate-budget check is an active-work allocation: terminal tasks
+release concurrency capacity. It is not a refund or accounting record for
+tokens, money, or wall time already consumed; deployments must meter cumulative
+consumption separately.
 
 The trusted integration and acceptance runner must independently retrieve the
 proposal, validate its bytes and path manifest, apply it in an isolated

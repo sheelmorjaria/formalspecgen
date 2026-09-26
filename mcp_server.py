@@ -123,10 +123,11 @@ def _a2a_principal() -> str:
 
 def _coordination_response(record: dict[str, Any], admission: MCPAdmission) -> dict[str, Any]:
     state = str(record.get("state", "unknown"))
+    unresolved = {"dispatching", "dispatch_uncertain", "cancellation_pending"}
     return {
         "status": state.upper(),
         "claim": "NO_PROOF",
-        "request_satisfied": state not in {"failed", "rejected"},
+        "request_satisfied": state not in {"failed", "rejected"} | unresolved,
         "work_item_id": record.get("work_item_id"),
         "worker_task": record,
         "worker_completed": state == "completed",

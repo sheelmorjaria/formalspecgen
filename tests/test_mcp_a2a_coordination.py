@@ -72,6 +72,19 @@ def test_local_read_does_not_acquire_dispatch_or_write(monkeypatch):
     assert result["mcp_admission"]["granted_effects"] == ["service_state_read"]
 
 
+def test_uncertain_and_pending_states_never_satisfy_mcp_request(monkeypatch):
+    monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "aiderdesk")
+    coordinator = Mock()
+    with patch("mcp_server._configured_a2a_coordinator",
+               return_value=coordinator):
+        for state in ("dispatching", "dispatch_uncertain", "cancellation_pending"):
+            coordinator.get.return_value = _record(state)
+            result = mcp_server.get_work_item("work-001", refresh=False)
+            assert result["status"] == state.upper()
+            assert result["request_satisfied"] is False
+            assert result["implementation_accepted"] is False
+
+
 def test_artifact_and_cancel_routes_do_not_accept_caller_identity(monkeypatch):
     monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "aiderdesk")
     coordinator = Mock()

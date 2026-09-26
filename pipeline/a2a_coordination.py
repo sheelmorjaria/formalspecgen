@@ -17,7 +17,8 @@ import os
 import re
 import tempfile
 import threading
-from dataclasses import asdict, dataclass, field
+import uuid
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
@@ -293,6 +294,9 @@ class WorkerClient(Protocol):
     def submit(self, worker: WorkerProfile, work_item: WorkItem) -> RemoteTaskObservation: ...
     def get(self, worker: WorkerProfile, task_id: str) -> RemoteTaskObservation: ...
     def cancel(self, worker: WorkerProfile, task_id: str) -> RemoteTaskObservation: ...
+    def reconcile(
+            self, worker: WorkerProfile,
+            work_item: WorkItem) -> RemoteTaskObservation | None: ...
 
 
 class TaskStore:
@@ -446,6 +450,13 @@ class TaskStore:
                        for parent_scope in parent_item.get("allowed_paths", ())):
                 raise A2ACoordinationError(
                     "PARENT_AUTHORITY_DENIED", "child task widens parent path scope")
+        child_protected = tuple(work_item.get("protected_paths", ()))
+        for parent_scope in parent_item.get("protected_paths", ()):
+            if not any(_scope_contains(scope, parent_scope)
+                       for scope in child_protected):
+                raise A2ACoordinationError(
+                    "PARENT_AUTHORITY_DENIED",
+                    "child task drops a parent protected path scope")
         siblings = [
             item for item in current
             if item.get("state") not in TERMINAL_STATES
@@ -480,6 +491,126 @@ class TaskStore:
             created = self._append_unlocked(record)
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             return created, True
+
+    def begin_dispatch(
+            self, work_item_id: str,
+            principal_id: str) -> tuple[dict[str, Any], bool]:
+        """Atomically claim the pre-dispatch task before any network call."""
+        with self._locked() as lock:
+            record = self._load_unlocked(work_item_id)
+            self._authorize(record, principal_id)
+            if (record.get("state") in TERMINAL_STATES
+                    or record.get("dispatch_state", "not_started") != "not_started"):
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return record, False
+            record.update({
+                "state": "dispatching",
+                "dispatch_state": "in_flight",
+                "worker_outcome": {
+                    "status": "dispatching",
+                    "message": "worker submission is in flight",
+                },
+                "updated_at": _now(),
+            })
+            updated = self._append_unlocked(record)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            return updated, True
+
+    def mark_dispatch_uncertain(
+            self, work_item_id: str, principal_id: str, *,
+            code: str, message: str) -> dict[str, Any]:
+        """Retain authority reservations when submission outcome is unknown."""
+        with self._locked() as lock:
+            record = self._load_unlocked(work_item_id)
+            self._authorize(record, principal_id)
+            if record.get("state") not in TERMINAL_STATES:
+                cancellation_requested = bool(
+                    record.get("cancellation_requested", False))
+                record.update({
+                    "state": ("cancellation_pending" if cancellation_requested
+                              else "dispatch_uncertain"),
+                    "dispatch_state": "uncertain",
+                    "worker_outcome": {
+                        "status": "dispatch_uncertain",
+                        "code": code,
+                        "message": message,
+                    },
+                    "updated_at": _now(),
+                })
+                record = self._append_unlocked(record)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            return record
+
+    def record_remote_observation(
+            self, work_item_id: str, principal_id: str, *,
+            remote_task_id: str, remote_state: str,
+            worker_result: Mapping[str, Any] | None,
+            message: str) -> dict[str, Any]:
+        """Bind the remote identity without losing concurrent cancellation intent."""
+        with self._locked() as lock:
+            record = self._load_unlocked(work_item_id)
+            self._authorize(record, principal_id)
+            cancellation_requested = bool(
+                record.get("cancellation_requested", False))
+            terminal = remote_state in TERMINAL_STATES
+            state = (
+                "cancellation_pending"
+                if cancellation_requested and not terminal else remote_state)
+            changes: dict[str, Any] = {
+                "state": state,
+                "dispatch_state": "confirmed",
+                "remote_state": remote_state,
+                "remote_task_id": remote_task_id,
+                "worker_result": (dict(worker_result)
+                                  if worker_result is not None else None),
+                "worker_outcome": {
+                    "status": remote_state, "message": message},
+                "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+                "updated_at": _now(),
+            }
+            if cancellation_requested:
+                changes["cancellation_status"] = (
+                    "remote_terminal" if terminal else "pending")
+            record.update(changes)
+            updated = self._append_unlocked(record)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            return updated
+
+    def request_cancellation(
+            self, work_item_id: str,
+            principal_id: str) -> dict[str, Any]:
+        """Persist cancellation intent before deciding whether A2A can confirm it."""
+        with self._locked() as lock:
+            record = self._load_unlocked(work_item_id)
+            self._authorize(record, principal_id)
+            if record.get("state") in TERMINAL_STATES:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                return record
+            now = _now()
+            record["cancellation_requested"] = True
+            record.setdefault("cancellation_requested_at", now)
+            if record.get("dispatch_state", "not_started") == "not_started":
+                record.update({
+                    "state": "cancelled",
+                    "cancellation_status": "confirmed_local",
+                    "worker_outcome": {
+                        "status": "cancelled",
+                        "message": "cancelled before dispatch began",
+                    },
+                })
+            else:
+                record.update({
+                    "state": "cancellation_pending",
+                    "cancellation_status": "pending",
+                    "worker_outcome": {
+                        "status": "cancellation_pending",
+                        "message": "remote cancellation has not been confirmed",
+                    },
+                })
+            record["updated_at"] = now
+            updated = self._append_unlocked(record)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            return updated
 
     def update(
             self, work_item_id: str, principal_id: str,
@@ -572,6 +703,19 @@ class A2ACoordinator:
                     "BUDGET_DENIED", f"budget exceeds ceiling: {key}")
         return grant, worker
 
+    def _effective_item(
+            self, item: WorkItem, principal_id: str) -> WorkItem:
+        """Apply inherited restrictions before hashing, storage, and dispatch."""
+        if item.parent_work_item_id is None:
+            return item
+        parent_record = self.store.get(item.parent_work_item_id, principal_id)
+        parent = self._item(parent_record)
+        return replace(
+            item,
+            protected_paths=tuple(sorted(
+                set(item.protected_paths) | set(parent.protected_paths))),
+        )
+
     @staticmethod
     def _validate_result(
             item: WorkItem,
@@ -623,6 +767,7 @@ class A2ACoordinator:
     def submit(
             self, item: WorkItem, principal_id: str,
             worker_id: str | None = None) -> dict[str, Any]:
+        item = self._effective_item(item, principal_id)
         grant, worker = self._authorize(item, principal_id, worker_id)
         now = _now()
         record = {
@@ -632,7 +777,11 @@ class A2ACoordinator:
             "principal_id": principal_id,
             "worker_id": worker.worker_id,
             "state": "queued",
+            "dispatch_state": "not_started",
             "remote_task_id": None,
+            "remote_state": None,
+            "cancellation_requested": False,
+            "cancellation_status": "not_requested",
             "work_item": item.as_dict(),
             "worker_result": None,
             "worker_outcome": None,
@@ -650,22 +799,36 @@ class A2ACoordinator:
             record, aggregate_ceiling=aggregate_ceiling)
         if not created:
             return stored
+        dispatch_record, dispatch = self.store.begin_dispatch(
+            item.work_item_id, principal_id)
+        if not dispatch:
+            return dispatch_record
         try:
             observation = self.client.submit(worker, item)
-            return self._apply_observation(item, principal_id, observation)
-        except Exception as exc:  # worker errors become task failures, never proof
+        except Exception as exc:
             if isinstance(exc, A2ACoordinationError):
                 code, message = exc.code, str(exc)
             else:
                 code, message = "WORKER_UNAVAILABLE", str(exc)
+            return self.store.mark_dispatch_uncertain(
+                item.work_item_id, principal_id, code=code, message=message)
+        try:
+            return self._apply_observation(item, principal_id, observation)
+        except A2ACoordinationError as exc:
             return self.store.update(
-                item.work_item_id, principal_id, state="failed",
+                item.work_item_id, principal_id,
+                state="failed", dispatch_state="confirmed",
+                remote_task_id=observation.remote_task_id,
+                remote_state=observation.state,
                 worker_outcome={
-                    "status": "failed", "code": code, "message": message})
+                    "status": "failed", "code": exc.code,
+                    "message": str(exc)},
+                acceptance={"status": "pending", "claim": "NO_PROOF"})
 
     def _apply_observation(
             self, item: WorkItem, principal_id: str,
-            observation: RemoteTaskObservation) -> dict[str, Any]:
+            observation: RemoteTaskObservation, *,
+            request_remote_cancellation: bool = True) -> dict[str, Any]:
         state = observation.state.lower().removeprefix("task_state_")
         supported = {
             "submitted", "working", "input_required", "auth_required",
@@ -675,13 +838,40 @@ class A2ACoordinator:
             raise A2ACoordinationError(
                 "WORKER_RESULT_INVALID", "unknown worker task state")
         result = self._validate_result(item, observation.result)
-        return self.store.update(
-            item.work_item_id, principal_id, state=state,
+        record = self.store.record_remote_observation(
+            item.work_item_id, principal_id,
             remote_task_id=observation.remote_task_id,
-            worker_result=result,
-            worker_outcome={
-                "status": state, "message": observation.message},
-            acceptance={"status": "pending", "claim": "NO_PROOF"})
+            remote_state=state, worker_result=result,
+            message=observation.message)
+        if (request_remote_cancellation
+                and record.get("cancellation_requested")
+                and record.get("state") not in TERMINAL_STATES):
+            return self._cancel_remote(item, principal_id, record)
+        return record
+
+    def _cancel_remote(
+            self, item: WorkItem, principal_id: str,
+            record: Mapping[str, Any]) -> dict[str, Any]:
+        remote_task_id = record.get("remote_task_id")
+        if not remote_task_id:
+            return dict(record)
+        worker = self.policy.workers[str(record["worker_id"])]
+        try:
+            observation = self.client.cancel(worker, str(remote_task_id))
+        except Exception as exc:
+            return self.store.update(
+                item.work_item_id, principal_id,
+                state="cancellation_pending",
+                cancellation_status="uncertain",
+                worker_outcome={
+                    "status": "cancellation_uncertain",
+                    "message": str(exc),
+                })
+        # A cancellation response may still report a non-terminal remote state.
+        # Record that observation without recursively issuing cancellation calls.
+        return self._apply_observation(
+            item, principal_id, observation,
+            request_remote_cancellation=False)
 
     @staticmethod
     def _item(record: Mapping[str, Any]) -> WorkItem:
@@ -694,13 +884,32 @@ class A2ACoordinator:
             self, work_item_id: str, principal_id: str, *,
             refresh: bool = True) -> dict[str, Any]:
         record = self.store.get(work_item_id, principal_id)
-        if (not refresh or record["state"] in TERMINAL_STATES
-                or not record["remote_task_id"]):
+        if not refresh or record["state"] in TERMINAL_STATES:
             return record
         worker = self.policy.workers[record["worker_id"]]
+        item = self._item(record)
+        if not record.get("remote_task_id"):
+            if record.get("dispatch_state") != "uncertain":
+                return record
+            reconcile = getattr(self.client, "reconcile", None)
+            if not callable(reconcile):
+                return record
+            try:
+                observation = reconcile(worker, item)
+            except Exception as exc:
+                return self.store.update(
+                    work_item_id, principal_id,
+                    worker_outcome={
+                        "status": "reconciliation_failed",
+                        "message": str(exc),
+                    })
+            if observation is None:
+                return record
+            return self._apply_observation(item, principal_id, observation)
+        if record.get("cancellation_requested"):
+            return self._cancel_remote(item, principal_id, record)
         observation = self.client.get(worker, record["remote_task_id"])
-        return self._apply_observation(
-            self._item(record), principal_id, observation)
+        return self._apply_observation(item, principal_id, observation)
 
     def artifacts(self, work_item_id: str, principal_id: str) -> dict[str, Any]:
         record = self.store.get(work_item_id, principal_id)
@@ -714,19 +923,11 @@ class A2ACoordinator:
         }
 
     def cancel(self, work_item_id: str, principal_id: str) -> dict[str, Any]:
-        record = self.store.get(work_item_id, principal_id)
-        if record["state"] in TERMINAL_STATES:
+        record = self.store.request_cancellation(work_item_id, principal_id)
+        if (record["state"] in TERMINAL_STATES
+                or not record.get("remote_task_id")):
             return record
-        if not record["remote_task_id"]:
-            return self.store.update(
-                work_item_id, principal_id, state="cancelled",
-                worker_outcome={
-                    "status": "cancelled",
-                    "message": "cancelled before dispatch"})
-        worker = self.policy.workers[record["worker_id"]]
-        observation = self.client.cancel(worker, record["remote_task_id"])
-        return self._apply_observation(
-            self._item(record), principal_id, observation)
+        return self._cancel_remote(self._item(record), principal_id, record)
 
 
 class OfficialA2AWorkerClient:
@@ -759,6 +960,18 @@ class OfficialA2AWorkerClient:
             self, worker: WorkerProfile,
             task_id: str) -> RemoteTaskObservation:
         return self._run_sync(self._get(worker, task_id, cancel=True))
+
+    def reconcile(
+            self, worker: WorkerProfile,
+            work_item: WorkItem) -> RemoteTaskObservation | None:
+        return self._run_sync(self._reconcile(worker, work_item))
+
+    @staticmethod
+    def _submission_context_id(work_item: WorkItem) -> str:
+        """Stable A2A context identity for lookup after a lost submit reply."""
+        return str(uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"formalspecgen:{work_item.request_sha256}"))
 
     @staticmethod
     def _run_sync(coroutine):
@@ -852,6 +1065,7 @@ class OfficialA2AWorkerClient:
         try:
             request = SendMessageRequest(message=new_text_message(
                 _canonical_bytes(work_item.as_dict()).decode("utf-8"),
+                context_id=self._submission_context_id(work_item),
                 role=Role.ROLE_USER,
             ))
             task = None
@@ -863,6 +1077,27 @@ class OfficialA2AWorkerClient:
                     "WORKER_RESULT_INVALID",
                     "worker did not return an A2A task")
             return self._observation(task)
+        finally:
+            await client.close()
+            await http.aclose()
+
+    async def _reconcile(
+            self, worker: WorkerProfile,
+            work_item: WorkItem) -> RemoteTaskObservation | None:
+        from a2a.types import ListTasksRequest
+
+        client, http = await self._client(worker)
+        try:
+            response = await client.list_tasks(ListTasksRequest(
+                context_id=self._submission_context_id(work_item),
+                page_size=2, include_artifacts=True))
+            if not response.tasks:
+                return None
+            if len(response.tasks) != 1:
+                raise A2ACoordinationError(
+                    "WORKER_RECONCILIATION_CONFLICT",
+                    "stable submission identity resolved to multiple remote tasks")
+            return self._observation(response.tasks[0])
         finally:
             await client.close()
             await http.aclose()

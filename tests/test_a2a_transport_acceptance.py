@@ -204,12 +204,18 @@ def test_official_a2a_sdk_round_trip_and_agent_card_pinning():
             allowed_paths=("pipeline/**",),
             max_budget={"wall_seconds": 20},
         )
-        observation = OfficialA2AWorkerClient(
-            timeout_seconds=5).submit(profile, _item())
+        client = OfficialA2AWorkerClient(timeout_seconds=5)
+        observation = client.submit(profile, _item())
         assert observation.state == "completed"
         assert observation.remote_task_id
         assert observation.result["patch_sha256"] == "b" * 64
         assert observation.result["work_item_id"] == "transport-001"
+
+        reconciled = client.reconcile(profile, _item())
+        assert reconciled is not None
+        assert reconciled.remote_task_id == observation.remote_task_id
+        assert reconciled.state == "completed"
+        assert reconciled.result["patch_sha256"] == "b" * 64
 
         changed_identity = WorkerProfile(
             **{**profile.as_dict(), "agent_card_sha256": "f" * 64})

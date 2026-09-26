@@ -16,6 +16,7 @@ from pipeline.a2a_coordination import (
     A2ACoordinator,
     AuthorityGrant,
     CoordinationPolicy,
+    OfficialA2AWorkerClient,
     RemoteTaskObservation,
     TaskStore,
     WorkItem,
@@ -30,8 +31,10 @@ DIGEST = "b" * 64
 class FakeWorkerClient:
     def __init__(self, *, state="completed", changed_files=None):
         self.calls = []
+        self.items = []
         self.state = state
         self.changed_files = changed_files or ["pipeline/worker.py"]
+        self.reconciliation = None
 
     def _observation(self, item, state=None):
         selected = state or self.state
@@ -53,6 +56,7 @@ class FakeWorkerClient:
 
     def submit(self, worker, item):
         self.calls.append(("submit", worker.worker_id, item.work_item_id))
+        self.items.append(item)
         return self._observation(item)
 
     def get(self, worker, task_id):
@@ -63,6 +67,42 @@ class FakeWorkerClient:
     def cancel(self, worker, task_id):
         self.calls.append(("cancel", worker.worker_id, task_id))
         return RemoteTaskObservation(task_id, "cancelled", None, "cancelled")
+
+    def reconcile(self, worker, item):
+        self.calls.append(("reconcile", worker.worker_id, item.work_item_id))
+        return self.reconciliation
+
+
+class CancellingSubmitClient(FakeWorkerClient):
+    def __init__(self):
+        super().__init__(state="working")
+        self.coordinator = None
+        self.pending_record = None
+
+    def submit(self, worker, item):
+        self.calls.append(("submit", worker.worker_id, item.work_item_id))
+        self.items.append(item)
+        self.pending_record = self.coordinator.cancel(
+            item.work_item_id, "aiderdesk")
+        return self._observation(item, "working")
+
+
+class LostReplyClient(FakeWorkerClient):
+    def __init__(self):
+        super().__init__(state="working")
+        self.remote_active = False
+
+    def submit(self, worker, item):
+        self.calls.append(("submit", worker.worker_id, item.work_item_id))
+        self.items.append(item)
+        self.remote_active = True
+        raise TimeoutError("worker accepted the task but its reply was lost")
+
+
+class PendingCancellationClient(FakeWorkerClient):
+    def cancel(self, worker, task_id):
+        self.calls.append(("cancel", worker.worker_id, task_id))
+        return RemoteTaskObservation(task_id, "working", None, "still stopping")
 
 
 def _item(**changes):
@@ -213,6 +253,96 @@ def test_cancellation_reaches_remote_task_and_stays_non_proof(tmp_path):
     assert client.calls[-1] == ("cancel", "rust-worker", "remote-1")
 
 
+def test_inflight_cancellation_is_preserved_when_submit_reply_arrives(tmp_path):
+    client = CancellingSubmitClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    client.coordinator = coordinator
+
+    result = coordinator.submit(_item(), "aiderdesk")
+
+    assert client.pending_record["state"] == "cancellation_pending"
+    assert client.pending_record["remote_task_id"] is None
+    assert client.pending_record["cancellation_status"] == "pending"
+    assert result["state"] == "cancelled"
+    assert result["cancellation_requested"] is True
+    assert result["remote_task_id"] == "remote-1"
+    assert result["acceptance"] == {"status": "pending", "claim": "NO_PROOF"}
+    assert [call[0] for call in client.calls] == ["submit", "cancel"]
+
+
+def test_lost_submit_reply_remains_uncertain_and_reserves_budget(tmp_path):
+    client = LostReplyClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    uncertain = coordinator.submit(
+        _item(resource_budget={"wall_seconds": 75}), "aiderdesk")
+
+    assert uncertain["state"] == "dispatch_uncertain"
+    assert uncertain["dispatch_state"] == "uncertain"
+    assert uncertain["remote_task_id"] is None
+    assert client.remote_active is True
+    assert uncertain["acceptance"] == {"status": "pending", "claim": "NO_PROOF"}
+
+    replacement = _item(
+        work_item_id="replacement", resource_budget={"wall_seconds": 75})
+    with pytest.raises(A2ACoordinationError) as denied:
+        coordinator.submit(replacement, "aiderdesk")
+    assert denied.value.code == "AGGREGATE_BUDGET_DENIED"
+    assert [call[0] for call in client.calls] == ["submit"]
+
+
+def test_uncertain_cancel_reconciles_remote_identity_before_confirmation(tmp_path):
+    client = LostReplyClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item()
+    assert coordinator.submit(item, "aiderdesk")["state"] == "dispatch_uncertain"
+
+    pending = coordinator.cancel(item.work_item_id, "aiderdesk")
+    assert pending["state"] == "cancellation_pending"
+    assert pending["remote_task_id"] is None
+    assert not any(call[0] == "cancel" for call in client.calls)
+
+    client.reconciliation = RemoteTaskObservation(
+        "remote-reconciled", "working", None, "reconciled")
+    cancelled = coordinator.get(item.work_item_id, "aiderdesk")
+    assert cancelled["state"] == "cancelled"
+    assert cancelled["remote_task_id"] == "remote-reconciled"
+    assert [call[0] for call in client.calls] == [
+        "submit", "reconcile", "cancel"]
+
+
+def test_uncertain_duplicate_submission_does_not_blindly_resubmit(tmp_path):
+    client = LostReplyClient()
+    coordinator, _ = _coordinator(tmp_path, client)
+    first = coordinator.submit(_item(), "aiderdesk")
+    second = coordinator.submit(_item(), "aiderdesk")
+    assert second == first
+    assert [call[0] for call in client.calls] == ["submit"]
+
+
+def test_nonterminal_cancel_response_remains_pending_without_recursion(tmp_path):
+    client = PendingCancellationClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    item = _item()
+    coordinator.submit(item, "aiderdesk")
+
+    result = coordinator.cancel(item.work_item_id, "aiderdesk")
+
+    assert result["state"] == "cancellation_pending"
+    assert result["remote_state"] == "working"
+    assert result["cancellation_status"] == "pending"
+    assert [call[0] for call in client.calls] == ["submit", "cancel"]
+
+
+def test_submission_context_identity_is_stable_and_request_bound():
+    first = OfficialA2AWorkerClient._submission_context_id(_item())
+    repeated = OfficialA2AWorkerClient._submission_context_id(_item())
+    changed = OfficialA2AWorkerClient._submission_context_id(
+        _item(objective="A different bounded adapter"))
+
+    assert repeated == first
+    assert changed != first
+
+
 def test_parallel_children_share_the_authority_budget(tmp_path):
     client = FakeWorkerClient(state="working")
     coordinator, _ = _coordinator(tmp_path, client)
@@ -238,6 +368,69 @@ def test_child_task_cannot_widen_parent_path_authority(tmp_path):
     with pytest.raises(A2ACoordinationError) as denied:
         coordinator.submit(child, "aiderdesk")
     assert denied.value.code == "PARENT_AUTHORITY_DENIED"
+
+
+def test_child_inherits_omitted_parent_protected_paths_before_dispatch(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    parent = _item(
+        work_item_id="parent", resource_budget={"wall_seconds": 60},
+        protected_paths=("pipeline/mcp_policy.py",))
+    assert coordinator.submit(parent, "aiderdesk")["state"] == "working"
+
+    client.state = "completed"
+    client.changed_files = ["pipeline/mcp_policy.py"]
+    child = _item(
+        work_item_id="child", parent_work_item_id="parent",
+        protected_paths=(), resource_budget={"wall_seconds": 10})
+    result = coordinator.submit(child, "aiderdesk")
+
+    assert result["state"] == "failed"
+    assert result["worker_outcome"]["code"] == "WORKER_SCOPE_VIOLATION"
+    assert client.items[-1].protected_paths == ("pipeline/mcp_policy.py",)
+    assert result["work_item"]["protected_paths"] == ["pipeline/mcp_policy.py"]
+
+
+def test_child_cannot_narrow_parent_protected_tree(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    parent = _item(
+        work_item_id="parent", resource_budget={"wall_seconds": 60},
+        protected_paths=("pipeline/**",))
+    coordinator.submit(parent, "aiderdesk")
+
+    client.state = "completed"
+    client.changed_files = ["pipeline/mcp_policy.py"]
+    child = _item(
+        work_item_id="child", parent_work_item_id="parent",
+        protected_paths=("pipeline/workers/**",),
+        resource_budget={"wall_seconds": 10})
+    result = coordinator.submit(child, "aiderdesk")
+
+    assert result["state"] == "failed"
+    assert set(client.items[-1].protected_paths) == {
+        "pipeline/**", "pipeline/workers/**"}
+    assert result["worker_outcome"]["code"] == "WORKER_SCOPE_VIOLATION"
+
+
+def test_child_may_add_protection_and_return_other_allowed_changes(tmp_path):
+    client = FakeWorkerClient(state="working")
+    coordinator, _ = _coordinator(tmp_path, client)
+    parent = _item(
+        work_item_id="parent", resource_budget={"wall_seconds": 60},
+        protected_paths=("pipeline/mcp_policy.py",))
+    coordinator.submit(parent, "aiderdesk")
+
+    client.state = "completed"
+    client.changed_files = ["pipeline/worker.py"]
+    child = _item(
+        work_item_id="child", parent_work_item_id="parent",
+        protected_paths=("pipeline/secrets/**",),
+        resource_budget={"wall_seconds": 10})
+    result = coordinator.submit(child, "aiderdesk")
+    assert result["state"] == "completed"
+    assert set(result["work_item"]["protected_paths"]) == {
+        "pipeline/mcp_policy.py", "pipeline/secrets/**"}
 
 
 def test_scope_rejects_repository_and_service_metadata():
