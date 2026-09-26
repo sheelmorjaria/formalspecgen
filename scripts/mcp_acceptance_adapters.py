@@ -316,6 +316,162 @@ async def _verify_observation() -> dict:
     return observation
 
 
+async def _verify_refactor_observation() -> dict:
+    fixtures = {
+        "java/base/Account.java": (
+            "public class Account {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() { int x = 1; return x; }\n}\n"),
+        "java/good/Account.java": (
+            "public class Account {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() { return 1; }\n}\n"),
+        "java/bad/Account.java": (
+            "public class Account {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() { return 2; }\n}\n"),
+        "java/mutated/Account.java": (
+            "public class Account {\n"
+            "  //@ ensures \\result == 2;\n"
+            "  public int value() { return 2; }\n}\n"),
+        "java/multi-base/Service.java": (
+            "public class Service {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() { return 1; }\n}\n"),
+        "java/multi/Service.java": (
+            "public class Service {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() { return Helper.value(); }\n}\n"),
+        "java/multi/Helper.java": (
+            "public class Helper {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public static int value() { return 1; }\n}\n"),
+        "rust/base.rs": (
+            "use prusti_contracts::*;\n#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { let x = 1; x }\n"),
+        "rust/good.rs": (
+            "use prusti_contracts::*;\n#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { 1 }\n"),
+        "rust/bad.rs": (
+            "use prusti_contracts::*;\n#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { 2 }\n"),
+        "c/base.c": (
+            "/*@ assigns \\nothing; ensures \\result == 1; */\n"
+            "int value(void) { int x = 1; return x; }\n"),
+        "c/good.c": (
+            "/*@ assigns \\nothing; ensures \\result == 1; */\n"
+            "int value(void) { return 1; }\n"),
+        "c/bad.c": (
+            "/*@ assigns \\nothing; ensures \\result == 1; */\n"
+            "int value(void) { return 2; }\n"),
+        "cpp/base.cpp": (
+            "#include <cassert>\nclass Counter { public: void check() {\n"
+            "  int x = 1; assert(x == 1);\n} };\n"),
+        "cpp/good.cpp": (
+            "#include <cassert>\nclass Counter { public: void check() {\n"
+            "  assert(1 == 1);\n} };\n"),
+        "cpp/bad.cpp": (
+            "#include <cassert>\nclass Counter { public: void check() {\n"
+            "  assert(false);\n} };\n"),
+    }
+    calls = [
+        {"baseline": "java/base/Account.java",
+         "refactored": "java/good/Account.java"},
+        {"baseline": "java/base/Account.java",
+         "refactored": "java/bad/Account.java",
+         "result_export": "refactor/java-negative.json"},
+        {"baseline": "java/base/Account.java",
+         "refactored": "java/mutated/Account.java",
+         "result_export": "refactor/java-surface-rejected.json"},
+        {"baseline": "java/multi-base/Service.java",
+         "refactored": "java/multi"},
+        {"baseline": "rust/base.rs", "refactored": "rust/good.rs"},
+        {"baseline": "rust/base.rs", "refactored": "rust/bad.rs",
+         "result_export": "refactor/rust-negative.json"},
+        {"baseline": "c/base.c", "refactored": "c/good.c"},
+        {"baseline": "c/base.c", "refactored": "c/bad.c",
+         "result_export": "refactor/c-negative.json"},
+        {"baseline": "cpp/base.cpp", "refactored": "cpp/good.cpp"},
+        {"baseline": "cpp/base.cpp", "refactored": "cpp/bad.cpp",
+         "result_export": "refactor/cpp-negative.json"},
+        {"baseline": "java/base/Account.java",
+         "refactored": "java/good/Account.java", "signing_intent": True},
+    ]
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-refactor-") as directory:
+        workspace = Path(directory)
+        for name, source in fixtures.items():
+            path = workspace / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source, encoding="utf-8")
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "verify_refactor", calls, timeout_s=360)
+        exports = [
+            workspace / ".formalspecgen/mcp-output" / name
+            for name in (
+                "refactor/java-negative.json",
+                "refactor/java-surface-rejected.json",
+                "refactor/rust-negative.json",
+                "refactor/c-negative.json",
+                "refactor/cpp-negative.json",
+            )
+        ]
+        if missing := [str(path) for path in exports if not path.is_file()]:
+            raise RuntimeError(
+                "negative refactor result exports were not published: "
+                + ", ".join(missing))
+    expected_statuses = [
+        "VERIFIED", "FAIL", "FAIL", "VERIFIED", "VERIFIED", "FAIL",
+        "VERIFIED", "FAIL", "VERIFIED", "FAIL", "APPROVAL_REQUIRED",
+    ]
+    statuses = [item.get("status") for item in results]
+    if statuses != expected_statuses:
+        raise RuntimeError(
+            "verify_refactor transport variants failed: "
+            f"actual={statuses!r}; expected={expected_statuses!r}")
+    expected_claims = [
+        "REFACTOR_CONTRACT_PRESERVED", "NO_PROOF", "NO_PROOF",
+        "MULTIFILE_REFACTOR_CONTRACT_PRESERVED",
+        "REFACTOR_CONTRACT_PRESERVED", "NO_PROOF",
+        "REFACTOR_CONTRACT_PRESERVED", "NO_PROOF",
+        "BOUNDED_REFACTOR_CONTRACT_PRESERVED", "NO_PROOF", "NO_PROOF",
+    ]
+    if [item.get("claim") for item in results] != expected_claims:
+        raise RuntimeError("verify_refactor transport claim limits changed")
+    if any((item.get("evidence") or {}).get("publication_status") != "COMMITTED"
+           for item in results[:-1]):
+        raise RuntimeError("an unsigned refactor route lacked committed evidence")
+    observations = [
+        observation
+        for item in results[:-1]
+        for stage in (item.get("verification_stages") or [])
+        for observation in (stage.get("execution_stages") or [])
+    ]
+    if not observations or any(
+            observation.get("policy_compliance") != "ENFORCED"
+            for observation in observations):
+        raise RuntimeError(
+            "a refactor verification stage lacked enforced execution policy")
+    if results[-1].get("approval", {}).get("status") != "REQUIRED":
+        raise RuntimeError("signing intent did not stop at human approval")
+    semantic_result = [{
+        "status": item.get("status"), "claim": item.get("claim"),
+        "request_satisfied": item.get("request_satisfied"),
+        "receipt": (item.get("evidence") or {}).get("publication_status"),
+        "stages": len(item.get("verification_stages") or []),
+    } for item in results]
+    observation = _observation(
+        initialized, tools, schema, semantic_result, results[-1])
+    observation["variants"] = [
+        "java-single-success", "java-single-failure-export",
+        "java-surface-rejection-export", "java-multifile-success",
+        "rust-success", "rust-failure-export",
+        "c-success", "c-failure-export", "cpp-success", "cpp-failure-export",
+        "signing-approval-required",
+    ]
+    observation["semantic_results"] = semantic_result
+    return observation
+
+
 def _observation(
         initialized: object, tools: object, schema: dict,
         semantic_result: object, last_result: dict) -> dict:
@@ -335,6 +491,7 @@ _ADAPTERS = {
     "inspect": _inspect_observation,
     "document-code": _document_observation,
     "verify": _verify_observation,
+    "verify-refactor": _verify_refactor_observation,
 }
 
 

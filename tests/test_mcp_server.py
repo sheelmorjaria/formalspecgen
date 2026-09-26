@@ -188,8 +188,11 @@ def test_mcp_refactor_tools_guarded(tmp_path, monkeypatch):
         assert mcp_server.verify_refactor(str(source), str(target))[
             "claim"] == "REFACTOR_CONTRACT_PRESERVED"
     with patch("pipeline.refactor_gate.verify_multifile_contract_refactor",
-               return_value={"status": "VERIFIED"}):
+               return_value={"status": "VERIFIED",
+                             "claim": "MULTIFILE_REFACTOR_CONTRACT_PRESERVED"}):
         (tmp_path / "refactored").mkdir()
+        (tmp_path / "refactored" / "S.java").write_text(
+            "public class S {}\n", encoding="utf-8")
         assert mcp_server.verify_refactor(str(source), "refactored")["status"] == "VERIFIED"
 
     mapping = Path("mapping.json"); mapping.write_text("{}", encoding="utf-8")

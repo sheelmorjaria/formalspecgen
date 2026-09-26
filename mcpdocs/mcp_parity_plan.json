@@ -852,8 +852,8 @@
       "proposed_mcp_tool": "verify_refactor",
       "workflow_kind": "direct_or_task_with_approval",
       "requirements": "Single-file and multifile preservation; optional signing uses the human approval broker.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "baseline_strict_mcp": "Unsigned Java/JML, Rust, C and C++ preservation is admitted; signing intent is rejected pending authenticated human approval.",
+      "implementation_status": "unsigned_profiles_admitted_signing_incomplete",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -870,7 +870,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -887,7 +887,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -904,13 +904,13 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
             "--signing-key"
           ],
-          "proposed_mcp_field": "signing_key",
+          "proposed_mcp_field": "signing_intent",
           "disposition": "typed_intent_with_human_approval",
           "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy.",
           "baseline_declaration": {
@@ -921,7 +921,7 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "approval_coordinator_missing"
         }
       ],
       "baseline_source": "pipeline/refactor_gate.py"

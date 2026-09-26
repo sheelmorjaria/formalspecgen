@@ -7,7 +7,13 @@ from pipeline import cli
 
 def test_verify_refactor_can_sign_json_verdict(tmp_path):
     verdict = tmp_path / "verdict.json"
-    args = SimpleNamespace(baseline="baseline.java", refactored="refactored.java",
+    baseline = tmp_path / "baseline" / "Account.java"
+    refactored = tmp_path / "refactored" / "Account.java"
+    baseline.parent.mkdir()
+    refactored.parent.mkdir()
+    baseline.write_text("public class Account {}\n", encoding="utf-8")
+    refactored.write_text("public class Account { }\n", encoding="utf-8")
+    args = SimpleNamespace(baseline=str(baseline), refactored=str(refactored),
                            json=str(verdict), signing_key="reviewer")
     ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_args, **_kwargs: None))
     proof = {"status": "VERIFIED", "claim": "REFACTOR_CONTRACT_PRESERVED"}

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -14,9 +16,11 @@ from .isolated_verification import (
     execute_isolated_verification,
 )
 from .verification_policy import decide_result, decide_verification
+from .verify import VerificationExecutionResult, verify_files_detailed
 from .workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
+    RefactorWorkflowRequest,
     VerificationWorkflowRequest,
     WorkflowContext,
 )
@@ -32,6 +36,21 @@ class VerificationServiceResult:
 class DocumentationServiceResult:
     payload: dict[str, Any]
     bundle: code_documentation.DocumentationBundle | None
+
+
+@dataclass(frozen=True)
+class RefactorServiceResult:
+    payload: dict[str, Any]
+    stages: tuple[dict[str, Any], ...]
+    inputs: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _CapturedRefactorSource:
+    """One source read exactly once before hashing and private snapshotting."""
+
+    path: Path
+    content: bytes
 
 
 def run_java_verification(
@@ -239,3 +258,220 @@ def run_documentation_preparation(
     if provider_observation is not None:
         payload["provider"] = provider_observation
     return DocumentationServiceResult(payload, bundle)
+
+
+def run_refactor_verification(
+        request: RefactorWorkflowRequest, context: WorkflowContext, *,
+        execute_native: Callable[..., IsolatedVerificationResult] | None = None,
+        execute_java: Callable[[tuple[Path, ...], str], VerificationExecutionResult] | None =
+        None) -> RefactorServiceResult:
+    """Compare and independently verify an immutable baseline/candidate pair.
+
+    The semantic gate remains authoritative for contract and proof-trust
+    preservation.  This service prepares byte-identical private copies, injects
+    observation-preserving strict verifier adapters, and retains every stage for
+    publication by the transport adapter.
+    """
+    baseline = context.resolve_input(request.baseline)
+    refactored = context.resolve_input(request.refactored)
+    inputs, baseline_files, refactored_files = _refactor_inputs(
+        baseline, refactored, context)
+    if request.signing_intent:
+        payload = {
+            "status": "APPROVAL_REQUIRED", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "human_signing_required",
+            "message": (
+                "detached signing requires an authenticated human approval "
+                "workflow; no signing key is accepted by this service"),
+            "approval": {
+                "status": "REQUIRED", "action": "sign-refactor-evidence",
+                "signing_authority_available": False,
+            },
+            "language": request.language,
+            "backend": request.effective_backend,
+            "input_manifest": inputs,
+            "verification_stages": [],
+        }
+        return RefactorServiceResult(payload, (), inputs)
+
+    context.require("external_execution")
+    stages: list[dict[str, Any]] = []
+    native_executor = execute_native or execute_isolated_verification
+
+    def java_executor(
+            files: tuple[Path, ...], mode: str) -> VerificationExecutionResult:
+        return (execute_java or (
+            lambda values, selected: verify_files_detailed(values, mode=selected)
+        ))(files, mode)
+
+    def runner(stage: str, files: tuple[Path, ...], language: str) -> dict:
+        if language == "java":
+            result = _run_java_refactor_stage(files, java_executor)
+        else:
+            backend = "prusti" if language == "rust" else request.effective_backend
+            detailed = native_executor(files[0], mode="esc", backend=backend)
+            tool = {"rust": "prusti", "c": "frama-c", "cpp": "esbmc"}[language]
+            result = {
+                **decide_result(detailed.payload, tool=tool, mode="esc"),
+                "execution": (
+                    detailed.observation.as_dict() if detailed.observation else None),
+                "execution_stages": [item.as_dict() for item in detailed.observations],
+                "output": detailed.output,
+            }
+        stage_result = {"stage": stage, "language": language, **result}
+        stages.append(stage_result)
+        return result
+
+    from .refactor_gate import (
+        verify_contract_preserving_refactor,
+        verify_multifile_contract_refactor,
+    )
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-refactor-") as directory:
+        root = Path(directory)
+        prepared_baseline = _prepare_refactor_files(
+            root / "baseline", baseline_files, baseline)
+        prepared_refactored = _prepare_refactor_files(
+            root / "refactored", refactored_files,
+            refactored if refactored.is_file() else None)
+        if refactored.is_dir():
+            gate = verify_multifile_contract_refactor(
+                prepared_baseline, root / "refactored", runner=runner)
+        else:
+            assert prepared_refactored is not None
+            gate = verify_contract_preserving_refactor(
+                prepared_baseline, prepared_refactored, runner=runner)
+
+    success = gate.get("status") == "VERIFIED"
+    payload = {
+        **gate,
+        "claim": gate.get("claim", "NO_PROOF") if success else "NO_PROOF",
+        "request_satisfied": success,
+        "language": request.language,
+        "backend": request.effective_backend,
+        "input_manifest": inputs,
+        "verification_stages": stages,
+        "approval": None,
+    }
+    return RefactorServiceResult(payload, tuple(stages), inputs)
+
+
+def _run_java_refactor_stage(
+        files: tuple[Path, ...],
+        execute: Callable[[tuple[Path, ...], str], VerificationExecutionResult]
+        ) -> dict[str, Any]:
+    observations = []
+    check = execute(files, "check")
+    if check.observation is not None:
+        observations.append(check.observation.as_dict())
+    checked = decide_verification(
+        tool="openjml", mode="check", exit_code=check.exit_code,
+        output=check.output)
+    if not checked["request_satisfied"]:
+        return {
+            "status": "FAIL", "gate": "check", "claim": "NO_PROOF",
+            "request_satisfied": False, "tool_status": checked["status"],
+            "output": check.output, "execution": observations[-1] if observations else None,
+            "execution_stages": observations,
+        }
+    esc = execute(files, "esc")
+    if esc.observation is not None:
+        observations.append(esc.observation.as_dict())
+    proved = decide_verification(
+        tool="openjml", mode="esc", exit_code=esc.exit_code,
+        output=esc.output)
+    if not proved["request_satisfied"]:
+        return {
+            "status": "FAIL", "gate": "esc", "claim": "NO_PROOF",
+            "request_satisfied": False, "tool_status": proved["status"],
+            "output": esc.output, "execution": observations[-1] if observations else None,
+            "execution_stages": observations,
+        }
+    return {
+        "status": "VERIFIED", "gate": "esc",
+        "claim": "DEDUCTIVE_PROOF", "request_satisfied": True,
+        "tool_status": proved["status"], "output": esc.output,
+        "execution": observations[-1] if observations else None,
+        "execution_stages": observations,
+    }
+
+
+def _refactor_inputs(
+        baseline: Path, refactored: Path,
+        context: WorkflowContext) -> tuple[
+            dict[str, Any], tuple[_CapturedRefactorSource, ...],
+            tuple[_CapturedRefactorSource, ...]]:
+    if baseline.is_symlink() or refactored.is_symlink():
+        raise ValueError("refactor inputs must not be symlinks")
+    baseline_files = (baseline,)
+    if refactored.is_dir():
+        request_language = _language_for_path(baseline)
+        if request_language not in {"java", "jml"}:
+            raise ValueError("multifile refactoring supports Java/JML only")
+        dependencies = tuple(sorted(
+            path for path in baseline.parent.glob("*.java")
+            if path != baseline and path.is_file()))
+        baseline_files = (baseline, *dependencies)
+        refactored_files = tuple(sorted(
+            path for path in refactored.iterdir()
+            if path.is_file() and path.suffix.lower() in {".java", ".jml"}))
+        if not refactored_files:
+            raise ValueError("refactored directory contains no Java/JML sources")
+    elif refactored.is_file():
+        refactored_files = (refactored,)
+    else:
+        raise FileNotFoundError(str(refactored))
+    all_files = (*baseline_files, *refactored_files)
+    if any(path.is_symlink() for path in all_files):
+        raise ValueError("refactor source sets must not contain symlinks")
+    captured_baseline = tuple(
+        _CapturedRefactorSource(path, path.read_bytes()) for path in baseline_files)
+    captured_refactored = tuple(
+        _CapturedRefactorSource(path, path.read_bytes()) for path in refactored_files)
+    limit = context.resource_budget.get("max_input_bytes")
+    total = sum(
+        len(source.content)
+        for source in (*captured_baseline, *captured_refactored))
+    if limit is not None and total > limit:
+        raise ValueError(f"refactor inputs exceed the configured limit of {limit} bytes")
+    return {
+        "baseline": _source_records(captured_baseline, context.workspace_root),
+        "refactored": _source_records(captured_refactored, context.workspace_root),
+        "total_bytes": total,
+    }, captured_baseline, captured_refactored
+
+
+def _source_records(
+        files: tuple[_CapturedRefactorSource, ...],
+        workspace_root: Path) -> list[dict[str, Any]]:
+    records = []
+    for source in files:
+        path, content = source.path, source.content
+        try:
+            logical = path.resolve().relative_to(workspace_root).as_posix()
+        except ValueError:
+            logical = path.name
+        records.append({
+            "path": logical, "name": path.name, "size": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        })
+    return records
+
+
+def _prepare_refactor_files(
+        root: Path, files: tuple[_CapturedRefactorSource, ...],
+        primary: Path | None) -> Path | None:
+    root.mkdir(parents=True, exist_ok=False)
+    prepared_primary = None
+    for source in files:
+        destination = root / source.path.name
+        destination.write_bytes(source.content)
+        if primary is not None and source.path == primary:
+            prepared_primary = destination
+    return prepared_primary
+
+
+def _language_for_path(path: Path) -> str:
+    return {
+        ".java": "java", ".jml": "jml", ".rs": "rust", ".c": "c",
+        ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp",
+    }.get(path.suffix.lower(), "")

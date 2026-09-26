@@ -7,7 +7,7 @@ Do not edit it by hand.
 
 - Commands mapped: 38 / 38
 - Argument declarations mapped: 205 / 205
-- Commands with at least one admitted invocation profile: 3 / 38
+- Commands with at least one admitted invocation profile: 4 / 38
 - Complete command workflows: 0 / 38
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -52,7 +52,7 @@ Do not edit it by hand.
 | `verify-heap` | `verify_heap` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `verify-linearizability` | `verify_linearizability` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `verify-lockfree` | `verify_lockfree` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 2 |
-| `verify-refactor` | `verify_refactor` | `direct_or_task_with_approval` | `adapter_present_not_admitted` | `incomplete` | 4 |
+| `verify-refactor` | `verify_refactor` | `direct_or_task_with_approval` | `admitted` | `incomplete` | 4 |
 | `verify-unbounded` | `verify_unbounded` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 
 ## Drift

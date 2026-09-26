@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "1fcfc406dfb439d69938c9b9dbc43cadf9992a21310b375326119ac1ac2973ca",
+  "plan_sha256": "ccf5b6ce752f051e7bbdf3d97d2f73d2c0169ae381986d67ab386e340eb6af22",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4170,7 +4170,7 @@
     "mapped_commands": 38,
     "discovered_argument_declarations": 205,
     "mapped_argument_declarations": 205,
-    "commands_with_admitted_profile": 3,
+    "commands_with_admitted_profile": 4,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -12111,7 +12111,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "signing_key",
+          "mcp_field": "signing_intent",
           "disposition": "typed_intent_with_human_approval",
           "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy."
         },
@@ -12161,8 +12161,219 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "java-openjml-refactor-preservation",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "baseline-candidate-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ]
+          },
+          {
+            "name": "rust-prusti-refactor-preservation",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "baseline-candidate-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ]
+          },
+          {
+            "name": "c-framac-refactor-preservation",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "baseline-candidate-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ]
+          },
+          {
+            "name": "cpp-esbmc-refactor-preservation",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "immutable-evidence-only",
+            "evidence": "bounded-baseline-candidate-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read"
+            ]
+          },
+          {
+            "name": "java-openjml-refactor-preservation-export",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-prusti-refactor-preservation-export",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "c-framac-refactor-preservation-export",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "cpp-esbmc-refactor-preservation-export",
+            "modes": [
+              "preserve"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-baseline-candidate-observations-terminal-manifest-and-export",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -12180,11 +12391,27 @@
             "default": null,
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "signing_intent",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "baseline",
-          "refactored"
+          "refactored",
+          "result_export",
+          "signing_intent"
         ]
       },
       "workflow_completion": {
@@ -12194,21 +12421,17 @@
           "baseline",
           "refactored",
           "result_export",
-          "signing_key"
+          "signing_intent"
         ],
         "observed_mcp_fields": [
           "baseline",
-          "refactored"
-        ],
-        "missing_mcp_fields": [
-          "result_export",
-          "signing_key"
-        ],
-        "unverified_argument_mappings": [
-          "baseline",
           "refactored",
           "result_export",
-          "signing_key"
+          "signing_intent"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [
+          "signing_intent"
         ],
         "required_variants": [],
         "covered_variants": [],
@@ -12216,8 +12439,6 @@
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
           "argument_mappings_not_verified",
           "completion_contract_missing"
         ]
@@ -12395,5 +12616,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "8501fae698b2bebfb089ce0a3df94da4e9c3d67f4242d60395c7363368102b3a"
+  "sha256": "4305658553c5189125656e2c0630d4c5cf1f5b2501576c342a07e9ab6bc03b51"
 }

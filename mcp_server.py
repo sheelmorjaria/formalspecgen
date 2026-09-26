@@ -46,6 +46,10 @@ from pipeline.mcp_policy import (
     require_mcp_effect,
 )
 from pipeline.mcp_provider_policy import resolve_documentation_model
+from pipeline.multistage_evidence import (
+    canonical_digest,
+    publish_multistage_evidence,
+)
 from pipeline.isolated_verification import (
     IsolatedVerificationResult,
     execute_isolated_verification,
@@ -54,11 +58,13 @@ from pipeline.verify import verify_detailed
 from pipeline.workflow_services import (
     run_documentation_preparation,
     run_java_inspection,
+    run_refactor_verification,
     run_verification,
 )
 from pipeline.workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
+    RefactorWorkflowRequest,
     VerificationWorkflowRequest,
     WorkflowContext,
     WorkflowInterface,
@@ -70,6 +76,8 @@ MCP_DOCUMENT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_DOCUMENT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_INSPECT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
+MCP_REFACTOR_MAX_INPUT_BYTES = 4 * 1024 * 1024
+MCP_REFACTOR_MAX_RESULT_BYTES = 4 * 1024 * 1024
 
 
 def _operator_controlled_path(
@@ -817,17 +825,128 @@ def apply_refactor(source: str, inspection: str, pattern: str, method: str,
         _workspace_path(out, must_exist=False)))
 
 
-def verify_refactor(baseline: str, refactored: str) -> dict[str, Any]:
-    """Prove a contract-preserving refactor (file -> single-file gate, dir -> multifile)."""
-    def run() -> dict[str, Any]:
-        from pipeline.refactor_gate import (
-            verify_contract_preserving_refactor, verify_multifile_contract_refactor)
-        base = _workspace_path(baseline)
-        target = _workspace_path(refactored)
-        if target.is_dir():
-            return verify_multifile_contract_refactor(base, target)
-        return verify_contract_preserving_refactor(base, target)
-    return _guarded(run)
+def verify_refactor(
+        baseline: str, refactored: str, result_export: str | None = None,
+        signing_intent: bool = False) -> dict[str, Any]:
+    """Prove preservation without granting an agent reviewer-signing authority."""
+    request = RefactorWorkflowRequest(
+        baseline, refactored, result_export=result_export,
+        signing_intent=signing_intent)
+    if request.signing_intent:
+        return bind_workflow_result({
+            "status": "APPROVAL_REQUIRED", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "human_signing_required",
+            "message": (
+                "MCP records signing intent but never accepts a key or signs on "
+                "the reviewer's behalf"),
+            "approval": {
+                "status": "REQUIRED", "action": "sign-refactor-evidence",
+                "signing_authority_available": False,
+            },
+        }, request, WorkflowInterface.MCP)
+
+    effects = request.required_effects(WorkflowInterface.MCP)
+    admission = authorize_mcp_invocation(
+        "verify_refactor", mode=request.mode, language=request.language,
+        backend=request.effective_backend, effects=effects)
+    if _strict_mcp_isolation_enabled() and not admission.admitted:
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    if not admission.admitted:
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    context = WorkflowContext.for_mcp(
+        admission, effects,
+        output_root=(_designated_mcp_output_root()
+                     if request.result_export is not None else None),
+        resource_budget={"max_input_bytes": MCP_REFACTOR_MAX_INPUT_BYTES})
+    try:
+        service = run_refactor_verification(request, context)
+    except (OSError, ValueError, FileNotFoundError, MCPPolicyViolation) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "invalid_refactor_request",
+            "message": str(exc), "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+
+    result = {
+        **service.payload,
+        "mcp_admission": admission.summary(),
+        "strict_isolation_supported": True,
+    }
+    semantic_bindings = {
+        key: result.get(key) for key in (
+            "contract_sha256", "method_surface_sha256", "semantic_surface",
+            "proof_trust", "refactored_manifest_sha256")
+        if result.get(key) is not None
+    }
+    if result.get("verification") is not None:
+        # Pre-execution preservation failures carry the compared surfaces or
+        # proof-trust inventories here.  Bind that negative evidence too.
+        semantic_bindings["gate_evidence"] = result["verification"]
+    semantic_bindings["sha256"] = canonical_digest(semantic_bindings)
+    claim_limits = {
+        "contract_surface_preserved": bool(
+            result.get("contract_surface_preserved", False)),
+        "behavior_equivalence_proved": False,
+        "heap_topology_equivalence_proved": bool(
+            result.get("heap_topology_equivalence_proved", False)),
+        "bounded": request.language == "cpp",
+        "human_signature_present": False,
+    }
+    try:
+        context.require("evidence_publication")
+        receipt = publish_multistage_evidence(
+            Path.cwd() / ".formalspecgen" / "mcp-evidence", workflow="verify-refactor",
+            status=str(result.get("status", "FAIL")),
+            claim=str(result.get("claim", "NO_PROOF")),
+            request=request.as_dict(), admission=admission.summary(),
+            inputs=service.inputs, stages=service.stages,
+            semantic_bindings=semantic_bindings, claim_limits=claim_limits)
+    except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
+        result = {
+            **result, "status": "EVIDENCE_PUBLICATION_FAILED",
+            "claim": "NO_PROOF", "request_satisfied": False,
+            "message": str(exc), "durable_publication_supported": False,
+            "evidence": {
+                "publication_status": "FAILED", "message": str(exc),
+            },
+        }
+    else:
+        result["evidence"] = receipt
+        result["durable_publication_supported"] = True
+    try:
+        if request.result_export is not None:
+            export = Path(request.result_export)
+            if export.is_absolute() or ".." in export.parts or \
+                    export.suffix.lower() != ".json":
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "refactor result export must be a relative JSON path")
+            context.require("workspace_write_new")
+            assert context.output_root is not None
+            bound = bind_workflow_result(
+                result, request, WorkflowInterface.MCP, context=context)
+            artifacts = publish_new_artifacts(
+                context.output_root,
+                {request.result_export: json.dumps(
+                    bound, indent=2, ensure_ascii=False, default=str) + "\n"},
+                admission, max_total_bytes=MCP_REFACTOR_MAX_RESULT_BYTES)
+            result["result_export"] = {
+                "status": "COMMITTED", "kind": "refactor-result-export",
+                "artifacts": artifacts,
+            }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except (OSError, ValueError, MCPPolicyViolation, MCPArtifactError) as exc:
+        failed = {
+            **result, "status": "RESULT_EXPORT_FAILED", "claim": "NO_PROOF",
+            "request_satisfied": False, "message": str(exc),
+        }
+        return bind_workflow_result(
+            failed, request, WorkflowInterface.MCP, context=context)
 
 
 def verify_bisimulation(baseline: str, refactored: str, mapping: str) -> dict[str, Any]:

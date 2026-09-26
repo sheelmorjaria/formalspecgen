@@ -1,0 +1,1519 @@
+{
+  "schema": "formalspecgen-guide-mcp-capabilities-v1",
+  "admission_policy_version": "mcp-admission-v3",
+  "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
+  "capability_count": 12,
+  "cli_capability_count": 4,
+  "mcp_only_capability_count": 8,
+  "capabilities": [
+    {
+      "name": "verify_code",
+      "mcp_tool": "verify_code",
+      "cli_command": "verify",
+      "description": "verify code",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "default": "esc",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "backend",
+            "required": false,
+            "default": "prusti",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "mode",
+          "backend",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-openjml-verification",
+          "modes": [
+            "check",
+            "esc",
+            "parse"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "execution-observation-and-terminal-manifest",
+          "profile_sha256": "cb8c50a9def52fb2c675caa0d2f2d440c8f7dee196b2cd1fd36a22c794e66aed"
+        },
+        {
+          "name": "rust-compiler-verification",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "rustc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "execution-observation-and-terminal-manifest",
+          "profile_sha256": "d31173c1dc5b2169370f165d5c6c351d9ca2313288dab0a9c470d71079de5386"
+        },
+        {
+          "name": "rust-prusti-verification",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "execution-observation-and-terminal-manifest",
+          "profile_sha256": "f62a9a80898446a41f16dea54346b90904be866a94c8e2ea27825a378d35961f"
+        },
+        {
+          "name": "rust-kani-verification",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "kani"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "bounded-execution-observation-and-terminal-manifest",
+          "profile_sha256": "a4ef9b96f5fae8d979319f33d2b0c8e6e61c023a0bce74b2adf0205cf131c111"
+        },
+        {
+          "name": "c-framac-verification",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "execution-observation-and-terminal-manifest",
+          "profile_sha256": "8863ec9323f8fea4c476010e6564a3499c7e517f4762aba7265ad62206465541"
+        },
+        {
+          "name": "cpp-esbmc-verification",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "bounded-execution-observation-and-terminal-manifest",
+          "profile_sha256": "364588da180aace396aecc6a6c1b8624c482d2126b4c2faeaec3be280090c7c7"
+        },
+        {
+          "name": "c-unsupported-mode-rejection",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "structured-unsupported-mode-rejection",
+          "profile_sha256": "237b5c8be99532c8347f00c4b46161d50497bd20fdb3d5083d3ed4b7e81db581"
+        },
+        {
+          "name": "c-unsupported-mode-rejection-export",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "structured-unsupported-mode-rejection-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "4af33d878cd35dcc5d119b9e4d4bc6b47344e3674809ef236c5bb10cccc7a286"
+        },
+        {
+          "name": "cpp-unsupported-mode-rejection",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "structured-unsupported-mode-rejection",
+          "profile_sha256": "9308f701ead970607af5515f8d0675c0d31a6a51d4939b202c3696114ea95673"
+        },
+        {
+          "name": "cpp-unsupported-mode-rejection-export",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "structured-unsupported-mode-rejection-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "863d7c0cca396b9fc03835e4b579ccaefc4da1be0296d57042d060d7b00810c7"
+        },
+        {
+          "name": "java-openjml-verification-export",
+          "modes": [
+            "check",
+            "esc",
+            "parse"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "b382b51f00bfa7975e5827d6fd4e2407c9c0cb213786f4223ce651e970d710b3"
+        },
+        {
+          "name": "rust-compiler-verification-export",
+          "modes": [
+            "check",
+            "parse"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "rustc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "5f434ab8d9a8f77c89990db513f7d8b4d20612e7dff2e89c8533d9e9e6ab6cf0"
+        },
+        {
+          "name": "rust-prusti-verification-export",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "f9885ae09c9fc386010bb032a7c92b432077ea6f9f5de5b55f2ca28287c4c6e3"
+        },
+        {
+          "name": "rust-kani-verification-export",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "kani"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "09ccc4cc7eaff43d48125ee17de52b8f39c4498574893255d27d8cc7151cf107"
+        },
+        {
+          "name": "c-framac-verification-export",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "d4e1237659b0b068ecb915bf4313998ef87ca7ac70c2802d27ef5c704dc3f969"
+        },
+        {
+          "name": "cpp-esbmc-verification-export",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-execution-observation-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "6fe515428f396a53a7d5e0d767235f22a3384f64de76c5f0d633ee6c816db733"
+        }
+      ]
+    },
+    {
+      "name": "inspect_code",
+      "mcp_tool": "inspect_code",
+      "cli_command": "inspect",
+      "description": "inspect code",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-readonly-inspection",
+          "modes": [
+            "inspect"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "builtin-java-inspector"
+          ],
+          "effects": [
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "structured-findings",
+          "profile_sha256": "03a542cd3b9a5f4924f5377f5dee308a4f44384aa20420ab236974f431aae925"
+        },
+        {
+          "name": "java-inspection-export",
+          "modes": [
+            "inspect"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "builtin-java-inspector"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unreviewed-structured-inspection-export",
+          "profile_sha256": "5071c6843022da15930187f8d8f55e571606d5b21aa701838ebad6b8126b3a4d"
+        }
+      ]
+    },
+    {
+      "name": "document_code",
+      "mcp_tool": "document_code",
+      "cli_command": "document-code",
+      "description": "Generate unreviewed Java documentation deterministically or through an explicitly approved provider; no external execution.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "no_llm",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "out",
+          "project_root",
+          "no_llm",
+          "provider",
+          "model",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-deterministic-documentation",
+          "modes": [
+            "deterministic"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "builtin-documentation"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unreviewed-documentation",
+          "profile_sha256": "d966a96dcca602b22c20fdc7625510c3a3747811e0d5281f7685780fd1840d39"
+        },
+        {
+          "name": "java-provider-assisted-documentation",
+          "modes": [
+            "provider-assisted"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "builtin-documentation"
+          ],
+          "effects": [
+            "provider_access",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [
+            "glm",
+            "ollama",
+            "openai"
+          ],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unreviewed-provider-documentation",
+          "profile_sha256": "07b36a3038562e8c868a8c1b9a0634fbfb0d5aabe6eb32623e40a46cdbdb3764"
+        }
+      ]
+    },
+    {
+      "name": "submit_work_item",
+      "mcp_tool": "submit_work_item",
+      "cli_command": null,
+      "description": "Submit an authority-bound implementation proposal to an operator-approved A2A worker.",
+      "isolation": "a2a-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "work_item_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "base_revision",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "objective",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "workflow",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "variant",
+            "required": true,
+            "default": null,
+            "annotation": "dict[str, str]",
+            "keyword_only": false
+          },
+          {
+            "name": "allowed_paths",
+            "required": true,
+            "default": null,
+            "annotation": "list[str]",
+            "keyword_only": false
+          },
+          {
+            "name": "protected_paths",
+            "required": true,
+            "default": null,
+            "annotation": "list[str]",
+            "keyword_only": false
+          },
+          {
+            "name": "acceptance_plan_ref",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "authority_ref",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "deliverables",
+            "required": true,
+            "default": null,
+            "annotation": "list[str]",
+            "keyword_only": false
+          },
+          {
+            "name": "requested_effects",
+            "required": true,
+            "default": null,
+            "annotation": "list[str]",
+            "keyword_only": false
+          },
+          {
+            "name": "resource_budget",
+            "required": true,
+            "default": null,
+            "annotation": "dict[str, int]",
+            "keyword_only": false
+          },
+          {
+            "name": "worker_id",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "parent_work_item_id",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "work_item_id",
+          "base_revision",
+          "objective",
+          "workflow",
+          "variant",
+          "allowed_paths",
+          "protected_paths",
+          "acceptance_plan_ref",
+          "authority_ref",
+          "deliverables",
+          "requested_effects",
+          "resource_budget",
+          "worker_id",
+          "parent_work_item_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "a2a-submit-proposal",
+          "modes": [
+            "submit"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "a2a-1.0"
+          ],
+          "effects": [
+            "remote_worker_dispatch",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-worker-task-events",
+          "required_effects": [
+            "remote_worker_dispatch",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "profile_sha256": "39c646d0f35e913cbfafca2745847326a8bacb71e31507abccabc8775a241640"
+        }
+      ]
+    },
+    {
+      "name": "get_work_item",
+      "mcp_tool": "get_work_item",
+      "cli_command": null,
+      "description": "Read and optionally refresh an authorized A2A work item.",
+      "isolation": "a2a-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "work_item_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refresh",
+            "required": false,
+            "default": true,
+            "annotation": "bool",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "work_item_id",
+          "refresh"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "a2a-read-task",
+          "modes": [
+            "local"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "a2a-1.0"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-worker-task-events",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "d9ed426736b427fd50b381fbc216dba39e19abefe4cd9d4d283222778e80dc44"
+        },
+        {
+          "name": "a2a-refresh-task",
+          "modes": [
+            "refresh"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "a2a-1.0"
+          ],
+          "effects": [
+            "remote_worker_dispatch",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-worker-task-events",
+          "required_effects": [
+            "remote_worker_dispatch",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "04f55cae12680f1b33fdc8a1669d1e617c2e7dcf8fc785f54871852677f4840e"
+        }
+      ]
+    },
+    {
+      "name": "get_work_artifacts",
+      "mcp_tool": "get_work_artifacts",
+      "cli_command": null,
+      "description": "Retrieve digest-bound artifact references for an authorized work item.",
+      "isolation": "a2a-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "work_item_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "work_item_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "a2a-read-artifact-references",
+          "modes": [
+            "artifacts"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "a2a-1.0"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "digest-bound-worker-artifact-references",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "36a1476a315a3f0f6e87172c37064265d0edbea0229e35fde1af08dc72c6dae7"
+        }
+      ]
+    },
+    {
+      "name": "cancel_work_item",
+      "mcp_tool": "cancel_work_item",
+      "cli_command": null,
+      "description": "Request cancellation of an authorized A2A work item.",
+      "isolation": "a2a-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "work_item_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "work_item_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "a2a-cancel-task",
+          "modes": [
+            "cancel"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "a2a-1.0"
+          ],
+          "effects": [
+            "remote_worker_dispatch",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-worker-task-events",
+          "required_effects": [
+            "remote_worker_dispatch",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "772463e96bae8019fb1def3b28ed2a68f2a17913cc507979e7b71bf2ccb8b3ce"
+        }
+      ]
+    },
+    {
+      "name": "start_agent_run",
+      "mcp_tool": "start_agent_run",
+      "cli_command": null,
+      "description": "Start a supervised inspect-and-verify goal over one approved Java/JML source snapshot.",
+      "isolation": "strict-execution",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "run_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "objective",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "base_revision",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "source_sha256",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "default": "esc",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "proposed_actions",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
+          },
+          {
+            "name": "allowed_paths",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
+          },
+          {
+            "name": "protected_paths",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
+          },
+          {
+            "name": "resource_budget",
+            "required": false,
+            "default": null,
+            "annotation": "dict[str, int] | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "run_id",
+          "objective",
+          "base_revision",
+          "source",
+          "source_sha256",
+          "mode",
+          "proposed_actions",
+          "allowed_paths",
+          "protected_paths",
+          "resource_budget"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "supervised-java-inspect-verify",
+          "modes": [
+            "supervise"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "agent-review-and-child-manifests",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "profile_sha256": "b1abc3acc3557504259832228125d94cd8e6f68485753cd94a8cf8c34c00c734"
+        }
+      ]
+    },
+    {
+      "name": "get_agent_run",
+      "mcp_tool": "get_agent_run",
+      "cli_command": null,
+      "description": "Read a principal-owned supervised agent run without resuming it.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "run_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "run_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "read-supervised-agent-run",
+          "modes": [
+            "local"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "builtin-supervisor"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-agent-run-events",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "721f445b444d6430d1e4d4736fe4083350f2d57d6a5f938bc61687e809f4f207"
+        }
+      ]
+    },
+    {
+      "name": "resume_agent_run",
+      "mcp_tool": "resume_agent_run",
+      "cli_command": null,
+      "description": "Resume a principal-owned supervised run between known actions.",
+      "isolation": "strict-execution",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "run_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "run_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "resume-supervised-java-inspect-verify",
+          "modes": [
+            "resume"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "builtin-supervisor"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "agent-review-and-child-manifests",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "profile_sha256": "fc890c06a40621d70929974e21846d0cfd01a440ca5a800d7f521edb59b14275"
+        }
+      ]
+    },
+    {
+      "name": "cancel_agent_run",
+      "mcp_tool": "cancel_agent_run",
+      "cli_command": null,
+      "description": "Request cancellation of a principal-owned supervised agent run.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "run_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "run_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "cancel-supervised-agent-run",
+          "modes": [
+            "cancel"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "builtin-supervisor"
+          ],
+          "effects": [
+            "evidence_publication",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "append-only-agent-run-events",
+          "required_effects": [
+            "evidence_publication",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "62486ea46b630e9cf3ec31c0e91626777ba8d0aec0676276159feaf02e5044c0"
+        }
+      ]
+    },
+    {
+      "name": "verify_refactor",
+      "mcp_tool": "verify_refactor",
+      "cli_command": "verify-refactor",
+      "description": "Prove that independently checked baseline and candidate artifacts preserve the reviewed contract surface.",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "baseline",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refactored",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "signing_intent",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "baseline",
+          "refactored",
+          "result_export",
+          "signing_intent"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-openjml-refactor-preservation",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "baseline-candidate-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "profile_sha256": "04fd1893e1b14d14e6a3f8d5296ce070621751fa5942c882d72dc32d1ff927e7"
+        },
+        {
+          "name": "rust-prusti-refactor-preservation",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "baseline-candidate-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "profile_sha256": "60243f2ff8bb3acb5a242e2cd1f96b0ee50b1c743fdc4eaceb3aab476404f9f6"
+        },
+        {
+          "name": "c-framac-refactor-preservation",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "baseline-candidate-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "profile_sha256": "7e5abd08c11de8e418d109fe73e6e7d24828d3088168c04c49ddf224f6b9807d"
+        },
+        {
+          "name": "cpp-esbmc-refactor-preservation",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "immutable-evidence-only",
+          "evidence": "bounded-baseline-candidate-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read"
+          ],
+          "profile_sha256": "53c1128a94a22de79b2fc472fe27441fd37635405f6968a819199dbb9013b8ca"
+        },
+        {
+          "name": "java-openjml-refactor-preservation-export",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "6f3b138d7a44ffa2fc6b29b0013de0b4ba73c2ba7433d3a509b84372811b163f"
+        },
+        {
+          "name": "rust-prusti-refactor-preservation-export",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "bb1e16a1c719337d8d21d50eec6441fef57464df132b4f1f072fab5c35b780c6"
+        },
+        {
+          "name": "c-framac-refactor-preservation-export",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "baseline-candidate-observations-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "9b82bc1e896796cc6672f7d96d679c780e0149d73ea952525a07f77cbe0852f6"
+        },
+        {
+          "name": "cpp-esbmc-refactor-preservation-export",
+          "modes": [
+            "preserve"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-baseline-candidate-observations-terminal-manifest-and-export",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "3e47299111f74bbff7e158a44d55c1a12051d68a2bcf1a47ea83672a7c8c12d6"
+        }
+      ]
+    }
+  ]
+}

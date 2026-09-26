@@ -279,9 +279,55 @@ class DocumentationWorkflowRequest:
         }
 
 
+@dataclass(frozen=True)
+class RefactorWorkflowRequest:
+    """One baseline/candidate preservation request shared by CLI and MCP.
+
+    ``signing_intent`` records that a caller wants a detached human signature;
+    it deliberately carries no key identifier or signing authority.  The
+    strict MCP adapter returns an approval-required result for that variant.
+    """
+
+    baseline: str
+    refactored: str
+    result_export: str | None = None
+    signing_intent: bool = False
+    language: str = field(init=False)
+    mode: str = field(default="preserve", init=False)
+    effective_backend: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        baseline = str(Path(self.baseline).expanduser().resolve())
+        refactored = str(Path(self.refactored).expanduser().resolve())
+        language = _source_language(baseline)
+        effective = {
+            "java": "openjml", "jml": "openjml", "rust": "prusti",
+            "c": "frama-c", "cpp": "esbmc",
+        }.get(language, "unknown")
+        object.__setattr__(self, "baseline", baseline)
+        object.__setattr__(self, "refactored", refactored)
+        object.__setattr__(self, "language", language)
+        object.__setattr__(self, "effective_backend", effective)
+
+    def required_effects(self, interface: WorkflowInterface) -> tuple[str, ...]:
+        effects = ["workspace_read", "external_execution"]
+        if interface is WorkflowInterface.MCP:
+            effects.append("evidence_publication")
+        if self.result_export:
+            effects.append("workspace_write_new")
+        return _normalized_effects(tuple(effects))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": WORKFLOW_CONTRACT_SCHEMA,
+            "workflow": "verify-refactor",
+            **asdict(self),
+        }
+
+
 WorkflowRequest = (
     VerificationWorkflowRequest | InspectionWorkflowRequest |
-    DocumentationWorkflowRequest
+    DocumentationWorkflowRequest | RefactorWorkflowRequest
 )
 
 
@@ -305,7 +351,8 @@ class WorkflowResultEnvelope:
             payload: Mapping[str, Any], *,
             context: WorkflowContext | None = None) -> "WorkflowResultEnvelope":
         request_value = request.as_dict()
-        is_verification = request_value["workflow"] == "verify"
+        is_verification = request_value["workflow"] in {
+            "verify", "verify-refactor"}
         return cls(
             workflow=str(request_value["workflow"]), interface=interface,
             request=request_value,

@@ -74,7 +74,11 @@ python mcp_server.py
 
 The strict server catalogue exposes the isolated polyglot `verify_code` workflow, the
 non-executing Java/JML `inspect_code` tool, and deterministic or explicitly provider-assisted
-Java `document_code`. It can also expose the operator-configured A2A proposal bridge
+Java `document_code`. It also admits unsigned Java/JML, Rust, C, and C++
+`verify_refactor` profiles. Those profiles bind baseline and candidate snapshots, semantic and
+proof-trust surfaces, and every strict execution observation into one immutable bundle. A signing
+request stops at `APPROVAL_REQUIRED`; signing authority and keys are never exposed through MCP.
+The server can also expose the operator-configured A2A proposal bridge
 (`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`); see the
 [A2A coordination guide](docs/A2A_COORDINATION.md). Worker completion never means acceptance,
 proof, signing, or merge authority. The MCP-only supervised goal layer
@@ -92,7 +96,7 @@ one bounded source and creates new unreviewed Markdown and V2-candidate artifact
 `.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`) and never
 replaces an existing artifact. Provider-assisted documentation separately requires provider
 authority and an approved endpoint/model. The registry retains
-a 47-tool catalogue
+a 51-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,

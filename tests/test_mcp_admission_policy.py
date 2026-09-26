@@ -151,7 +151,7 @@ def test_every_strict_capability_has_visible_invocation_profiles():
         "verify_code", "inspect_code", "document_code",
         "submit_work_item", "get_work_item", "get_work_artifacts",
         "cancel_work_item", "start_agent_run", "get_agent_run",
-        "resume_agent_run", "cancel_agent_run"}
+        "resume_agent_run", "cancel_agent_run", "verify_refactor"}
     assert all(item.mcp_profiles for item in strict)
     documentation = capability("document_code")
     assert documentation.cli_command == "document-code"

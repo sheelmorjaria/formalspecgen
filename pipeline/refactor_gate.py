@@ -8,10 +8,14 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Callable
 
 from .java_contracts import contract_surface, has_reviewed_contract, surface_differences
 from .jml_io import class_name
 from .verify import classify, has_dropped_vc, verify, verify_files
+
+
+RefactorVerificationRunner = Callable[[str, tuple[Path, ...], str], dict]
 
 
 _METHOD = re.compile(
@@ -95,8 +99,13 @@ def public_method_surface(source: str) -> list[str]:
                   for match in _METHOD.finditer(source))
 
 
-def _verification(path: Path, extra_files: list[Path] | None = None) -> dict:
+def _verification(
+        path: Path, extra_files: list[Path] | None = None, *,
+        runner: RefactorVerificationRunner | None = None,
+        stage: str = "verification") -> dict:
     sources = [path, *(extra_files or [])]
+    if runner is not None:
+        return runner(stage, tuple(sources), "java")
     check_exit, check_output = (verify(path, mode="check") if not extra_files
                                 else verify_files(sources, mode="check"))
     if check_exit != 0:
@@ -113,8 +122,13 @@ def _verification(path: Path, extra_files: list[Path] | None = None) -> dict:
     return {"status": "VERIFIED", "gate": "esc", "tool_status": "VERIFIED"}
 
 
-def _polyglot_verification(source_file: Path, language: str) -> dict:
+def _polyglot_verification(
+        source_file: Path, language: str, *,
+        runner: RefactorVerificationRunner | None = None,
+        stage: str = "verification") -> dict:
     """Re-verify one non-Java revision with its native prover (esc equivalent)."""
+    if runner is not None:
+        return runner(stage, (source_file,), language)
     code = _read_text_exact(source_file)
     if language == "rust":
         from .verify_rust import verify_rust
@@ -133,7 +147,8 @@ def _polyglot_verification(source_file: Path, language: str) -> dict:
 
 
 def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
-                              language: str) -> dict:
+                              language: str, *,
+                              runner: RefactorVerificationRunner | None = None) -> dict:
     """Contract-preserving gate for rust (Prusti), c (Frama-C), and cpp (ESBMC)."""
     from .polyglot_surface import native_contract_surface
 
@@ -199,11 +214,13 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
         )
     if baseline == refactored:
         return _fail("source_unchanged", "No refactoring change was detected")
-    baseline_proof = _polyglot_verification(baseline_file, language)
+    baseline_proof = _polyglot_verification(
+        baseline_file, language, runner=runner, stage="baseline")
     if baseline_proof["status"] != "VERIFIED":
         return _fail("baseline_not_verified",
                      f"Baseline failed native {language} verification", baseline_proof)
-    refactored_proof = _polyglot_verification(refactored_file, language)
+    refactored_proof = _polyglot_verification(
+        refactored_file, language, runner=runner, stage="refactored")
     if refactored_proof["status"] != "VERIFIED":
         return _fail("refactored_not_verified",
                      f"Refactored source failed native {language} verification",
@@ -226,11 +243,16 @@ def _verify_polyglot_refactor(baseline_file: Path, refactored_file: Path,
         "refactored_deductive_proof": not bounded,
         "contract_surface_preserved": True, "behavior_equivalence_proved": False,
         "refactor_verified": False,
+        "baseline_verification": baseline_proof,
+        "refactored_verification": refactored_proof,
+        "semantic_surface": baseline_surface,
+        "proof_trust": baseline_surface.get("proof_trust", {}),
     }
 
 
 def verify_contract_preserving_refactor(baseline_path: str | Path,
-                                        refactored_path: str | Path) -> dict:
+                                        refactored_path: str | Path, *,
+                                        runner: RefactorVerificationRunner | None = None) -> dict:
     """Verify both revisions and bind an unchanged public contract/API surface to their hashes.
 
     Loop invariants and decreases clauses are implementation proof hints and may change with
@@ -249,7 +271,8 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
     if baseline_language != refactored_language:
         return _fail("unsupported_language", "Baseline and refactored languages must match")
     if baseline_language in {"rust", "c", "cpp"}:
-        return _verify_polyglot_refactor(baseline_file, refactored_file, baseline_language)
+        return _verify_polyglot_refactor(
+            baseline_file, refactored_file, baseline_language, runner=runner)
     if baseline_file.suffix.lower() not in {".java", ".jml"} or \
             refactored_file.suffix.lower() not in {".java", ".jml"}:
         return _fail("unsupported_language", "This profile supports Java/JML only")
@@ -275,10 +298,12 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
         return _fail("method_surface_changed", "Public/protected method declarations differ")
     if baseline == refactored:
         return _fail("source_unchanged", "No refactoring change was detected")
-    baseline_proof = _verification(baseline_file)
+    baseline_proof = _verification(
+        baseline_file, runner=runner, stage="baseline")
     if baseline_proof["status"] != "VERIFIED":
         return _fail("baseline_not_verified", "Baseline failed OpenJML", baseline_proof)
-    refactored_proof = _verification(refactored_file)
+    refactored_proof = _verification(
+        refactored_file, runner=runner, stage="refactored")
     if refactored_proof["status"] != "VERIFIED":
         return _fail("refactored_not_verified", "Refactored source failed OpenJML",
                      refactored_proof)
@@ -293,11 +318,16 @@ def verify_contract_preserving_refactor(baseline_path: str | Path,
         "baseline_deductive_proof": True, "refactored_deductive_proof": True,
         "contract_surface_preserved": True, "behavior_equivalence_proved": False,
         "refactor_verified": False,
+        "baseline_verification": baseline_proof,
+        "refactored_verification": refactored_proof,
+        "semantic_surface": baseline_surface,
+        "proof_trust": baseline_surface.get("proof_trust", {}),
     }
 
 
 def verify_multifile_contract_refactor(baseline_path: str | Path,
-                                       refactored_directory: str | Path) -> dict:
+                                       refactored_directory: str | Path, *,
+                                       runner: RefactorVerificationRunner | None = None) -> dict:
     """Prove a preserved primary contract with all extracted collaborators in one ESC run."""
     baseline_file, directory = Path(baseline_path), Path(refactored_directory)
     try:
@@ -348,10 +378,12 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
             "Refactoring changed assumptions or verification controls in the proof file set",
             {"baseline": baseline_trust, "refactored": refactored_trust},
         )
-    baseline_proof = _verification(baseline_file, baseline_dependencies)
+    baseline_proof = _verification(
+        baseline_file, baseline_dependencies, runner=runner, stage="baseline")
     if baseline_proof["status"] != "VERIFIED":
         return _fail("baseline_not_verified", "Baseline failed OpenJML", baseline_proof)
-    refactored_proof = _verify_file_set(files)
+    refactored_proof = _verify_file_set(
+        files, runner=runner, stage="refactored")
     if refactored_proof["status"] != "VERIFIED":
         return _fail("refactored_system_not_verified",
                      "Refactored file set failed OpenJML", refactored_proof)
@@ -367,10 +399,19 @@ def verify_multifile_contract_refactor(baseline_path: str | Path,
             "refactored_manifest_sha256": _sha256(json.dumps(manifest, sort_keys=True)),
             "baseline_deductive_proof": True, "refactored_fileset_deductive_proof": True,
             "contract_surface_preserved": True, "behavior_equivalence_proved": False,
-            "heap_topology_equivalence_proved": False, "refactor_verified": False}
+            "heap_topology_equivalence_proved": False, "refactor_verified": False,
+            "baseline_verification": baseline_proof,
+            "refactored_verification": refactored_proof,
+            "semantic_surface": baseline_surface,
+            "proof_trust": {"baseline": baseline_trust,
+                            "refactored": refactored_trust}}
 
 
-def _verify_file_set(files: list[Path]) -> dict:
+def _verify_file_set(
+        files: list[Path], *, runner: RefactorVerificationRunner | None = None,
+        stage: str = "verification") -> dict:
+    if runner is not None:
+        return runner(stage, tuple(files), "java")
     check_exit, check_output = verify_files(files, mode="check")
     if check_exit != 0:
         return {"status": "FAIL", "gate": "check", "tool_status": classify(check_exit),

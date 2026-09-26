@@ -50,7 +50,7 @@ def test_live_builtin_inventory_matches_every_planned_declaration():
         "mapped_commands": 38,
         "discovered_argument_declarations": 205,
         "mapped_argument_declarations": 205,
-        "commands_with_admitted_profile": 3,
+        "commands_with_admitted_profile": 4,
         "complete_workflow_commands": 0,
     }
     assert manifest["full_workflow_parity_complete"] is False

@@ -1,0 +1,3536 @@
+{
+  "schema": "formalspecgen-guide-command-inventory-v1",
+  "guide_revision": "91c6790",
+  "scope": "Pinned user-guide edition; not the moving runtime policy.",
+  "command_count": 38,
+  "argument_declaration_count": 205,
+  "commands_with_admitted_subset": 2,
+  "commands": [
+    {
+      "cli_command": "doctor",
+      "workflow_kind": "direct",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Write JSON to PATH; without a value, print JSON to stdout.",
+            "default": null,
+            "required": false,
+            "nargs": "?",
+            "const": "-"
+          }
+        },
+        {
+          "cli_flags": [
+            "--require"
+          ],
+          "mcp_field": "require",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--require"
+            ],
+            "description": "Require a named judge to be READY. Repeat for multiple judges.",
+            "default": [],
+            "required": false,
+            "action": "append"
+          }
+        },
+        {
+          "cli_flags": [
+            "--strict"
+          ],
+          "mcp_field": "strict",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--strict"
+            ],
+            "description": "Fail on the report's non-ready/misconfigured state.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--judges"
+          ],
+          "mcp_field": "judges",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--judges"
+            ],
+            "description": "Include the executable judge manifest.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "draft",
+      "workflow_kind": "resumable",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "requirement"
+          ],
+          "mcp_field": "requirement",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "requirement"
+            ],
+            "description": "Quoted natural-language requirement, not a filename.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--no-clarify"
+          ],
+          "mcp_field": "no_clarify",
+          "disposition": "structured_session_parameter",
+          "declaration": {
+            "flags": [
+              "--no-clarify"
+            ],
+            "description": "Skip interactive clarification; use only with a previously reviewed, complete requirement.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target language.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-file"
+          ],
+          "mcp_field": "out_file",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-file"
+            ],
+            "description": "Native/canonical contract file; Java generative drafting uses its run output rather than this option.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--canonical-domain"
+          ],
+          "mcp_field": "canonical_domain",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--canonical-domain"
+            ],
+            "description": "Reviewed V2 module name to render deterministically.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--fallback-provider"
+          ],
+          "mcp_field": "fallback_provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--fallback-provider"
+            ],
+            "description": "Explicit alternate provider.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Java drafting run root.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Attempt cap; omitted values are resolved by the drafting pipeline.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--resample-budget"
+          ],
+          "mcp_field": "resample_budget",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--resample-budget"
+            ],
+            "description": "Fresh generation budget; pipeline default when omitted.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--feedback-budget"
+          ],
+          "mcp_field": "feedback_budget",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--feedback-budget"
+            ],
+            "description": "Diagnostic-feedback budget; pipeline default when omitted.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "implement",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "stub"
+          ],
+          "mcp_field": "stub",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "stub"
+            ],
+            "description": "Reviewed contract source: Java/JML, Rust, C, or C++.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Implementation/run output root.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Maximum generation/proof attempts.",
+            "default": 5,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--resample-budget"
+          ],
+          "mcp_field": "resample_budget",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--resample-budget"
+            ],
+            "description": "Fresh candidates without diagnostic feedback.",
+            "default": 1,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--feedback-budget"
+          ],
+          "mcp_field": "feedback_budget",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--feedback-budget"
+            ],
+            "description": "Feedback-assisted attempts.",
+            "default": 4,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--accept-pass"
+          ],
+          "mcp_field": "accept_pass",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--accept-pass"
+            ],
+            "description": "Explicitly accepted transformation pass; repeatable. Review each semantic effect.",
+            "default": [],
+            "required": false,
+            "action": "append"
+          }
+        },
+        {
+          "cli_flags": [
+            "--assurance-level"
+          ],
+          "mcp_field": "assurance_level",
+          "disposition": "assurance_parameter",
+          "declaration": {
+            "flags": [
+              "--assurance-level"
+            ],
+            "description": "Requested pipeline profile; returned claim is authoritative.",
+            "default": "critical",
+            "required": false,
+            "choices": [
+              "critical",
+              "standard",
+              "lightweight"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--method-proof-only"
+          ],
+          "mcp_field": "method_proof_only",
+          "disposition": "assurance_parameter",
+          "declaration": {
+            "flags": [
+              "--method-proof-only"
+            ],
+            "description": "Skip architecture/TLC and request method-level proof only; not critical assurance.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--clarifications"
+          ],
+          "mcp_field": "clarifications",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--clarifications"
+            ],
+            "description": "Authoritative concurrency assumptions as text, not a file path.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--abstraction"
+          ],
+          "mcp_field": "abstraction",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--abstraction"
+            ],
+            "description": "Concurrency abstraction.",
+            "default": "atomic_operations",
+            "required": false,
+            "choices": [
+              "atomic_operations",
+              "lock_protocol"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--v2-reviewed-domain"
+          ],
+          "mcp_field": "v2_reviewed_domain",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--v2-reviewed-domain"
+            ],
+            "description": "Promoted V2 JSON for source/model refinement.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--v2-validation-evidence"
+          ],
+          "mcp_field": "v2_validation_evidence",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--v2-validation-evidence"
+            ],
+            "description": "Matching hash-bound validation evidence; supply with --v2-reviewed-domain.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--parallel-wrapper"
+          ],
+          "mcp_field": "parallel_wrapper",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--parallel-wrapper"
+            ],
+            "description": "Optional deterministic Rust wrapper.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "rayon"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--parallel-kernel"
+          ],
+          "mcp_field": "parallel_kernel",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--parallel-kernel"
+            ],
+            "description": "Proved scalar Rust kernel name.",
+            "default": "process_chunk",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--parallel-out"
+          ],
+          "mcp_field": "parallel_out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--parallel-out"
+            ],
+            "description": "Destination for the generated Rust parallel wrapper.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--dependencies"
+          ],
+          "mcp_field": "dependencies",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--dependencies"
+            ],
+            "description": "External adapter dependency; takes the adapter-injection branch.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "stripe",
+              "aws",
+              "curl",
+              "kernel-driver"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--dma-profile"
+          ],
+          "mcp_field": "dma_profile",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--dma-profile"
+            ],
+            "description": "Declared kernel-driver DMA profile JSON; required for that dependency.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Admitted subset",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML, Rust, C, or C++ source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--mode"
+          ],
+          "mcp_field": "mode",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--mode"
+            ],
+            "description": "Requested checking stage.",
+            "default": "esc",
+            "required": false,
+            "choices": [
+              "parse",
+              "check",
+              "esc"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--backend"
+          ],
+          "mcp_field": "backend",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--backend"
+            ],
+            "description": "Rust backend; ignored for other languages.",
+            "default": "prusti",
+            "required": false,
+            "choices": [
+              "prusti",
+              "kani"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-refactor",
+      "workflow_kind": "direct_or_task_with_approval",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Previously reviewed source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate source file, or supported Java collaborator directory.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--signing-key"
+          ],
+          "mcp_field": "signing_key",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--signing-key"
+            ],
+            "description": "GPG key for a detached verdict signature; requires --json.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "optimize-algorithm",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Verified Java/JML baseline.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--strategy"
+          ],
+          "mcp_field": "strategy",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--strategy"
+            ],
+            "description": "Requested strategy; nested_loop is syntactically accepted but rejected as a potential regression.",
+            "default": null,
+            "required": true,
+            "choices": [
+              "hashmap",
+              "two_pointer",
+              "binary_search",
+              "nested_loop"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Candidate file; retain the public Java class filename.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "discover-algorithms",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML specification or verified baseline.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Root for strategy-isolated candidates.",
+            "default": "discovered",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--strategies"
+          ],
+          "mcp_field": "strategies",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--strategies"
+            ],
+            "description": "all, or comma-separated registered strategy names.",
+            "default": "all",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-workers"
+          ],
+          "mcp_field": "max_workers",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-workers"
+            ],
+            "description": "Concurrent strategy workers; use 1 with a constrained local model.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "assess-security",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--no-sast"
+          ],
+          "mcp_field": "no_sast",
+          "disposition": "assurance_parameter",
+          "declaration": {
+            "flags": [
+              "--no-sast"
+            ],
+            "description": "Omit SAST; explicitly reduces the assessment scope.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "security-inspect",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Authorized target source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "security-exploit",
+      "workflow_kind": "direct",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "report"
+          ],
+          "mcp_field": "report",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "report"
+            ],
+            "description": "JSON produced by security-inspect.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "mcp_field": "target",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "The matching authorized source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Generated local test-template directory.",
+            "default": "security-pocs",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "remediate",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "mcp_field": "target",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "Original source; preserved rather than overwritten.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "report"
+          ],
+          "mcp_field": "report",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "report"
+            ],
+            "description": "Matching vulnerability report.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Patch and evidence directory.",
+            "default": "remediated",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "correct-behavior",
+      "workflow_kind": "direct_or_task_with_approval",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "target"
+          ],
+          "mcp_field": "target",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "target"
+            ],
+            "description": "Source or supported typed-domain input for the chosen correction lane.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--cwe"
+          ],
+          "mcp_field": "cwe",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--cwe"
+            ],
+            "description": "Weakness identifier, for example CWE-400.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--strategy"
+          ],
+          "mcp_field": "strategy",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--strategy"
+            ],
+            "description": "Explicit correction policy.",
+            "default": null,
+            "required": false,
+            "choices": [
+              "bound-loop",
+              "static-pool",
+              "bounded-cache",
+              "bounded-pool",
+              "checked-math",
+              "lock-timeout",
+              "canonicalize",
+              "fail-safe",
+              "immutable-snapshot"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--hardware"
+          ],
+          "mcp_field": "hardware",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--hardware"
+            ],
+            "description": "Human-reviewed hardware profile JSON.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--struct-size-bytes"
+          ],
+          "mcp_field": "struct_size_bytes",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--struct-size-bytes"
+            ],
+            "description": "Explicit element size for hardware capacity derivation.",
+            "default": null,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--pool-field"
+          ],
+          "mcp_field": "pool_field",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--pool-field"
+            ],
+            "description": "Bounded occupancy counter to materialize.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--auto-strategy"
+          ],
+          "mcp_field": "auto_strategy",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--auto-strategy"
+            ],
+            "description": "Use the deterministic shape-based strategy selector.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Strengthened contracts, candidates and verdicts.",
+            "default": "corrections",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Maximum proof-repair attempts.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-bisimulation",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Baseline source.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate source.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "mapping"
+          ],
+          "mcp_field": "mapping",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "mapping"
+            ],
+            "description": "Source-mapping JSON for the preflight checker.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "inspect",
+      "workflow_kind": "direct",
+      "strict_mcp_availability": "Admitted subset",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java/JML file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "apply-refactor",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Baseline source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--inspection"
+          ],
+          "mcp_field": "inspection",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--inspection"
+            ],
+            "description": "Required for Java: matching hash-bound inspect JSON.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--pattern"
+          ],
+          "mcp_field": "pattern",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--pattern"
+            ],
+            "description": "Transformation profile.",
+            "default": "extract-method",
+            "required": false,
+            "choices": [
+              "extract-method",
+              "factory-method",
+              "state",
+              "decorator",
+              "facade",
+              "null-object",
+              "strategy"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--method"
+          ],
+          "mcp_field": "method",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--method"
+            ],
+            "description": "Eligible method identified during inspection.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Same-named Java file, or the output required by the selected profile.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "architecture",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "stub"
+          ],
+          "mcp_field": "stub",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "stub"
+            ],
+            "description": "Source/contract whose semantics match a supported adapter.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--clarifications"
+          ],
+          "mcp_field": "clarifications",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--clarifications"
+            ],
+            "description": "Reviewed concurrency assumptions as text.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--abstraction"
+          ],
+          "mcp_field": "abstraction",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--abstraction"
+            ],
+            "description": "Requested model abstraction.",
+            "default": "atomic_operations",
+            "required": false,
+            "choices": [
+              "atomic_operations",
+              "lock_protocol"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--emit-tla"
+          ],
+          "mcp_field": "emit_tla",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--emit-tla"
+            ],
+            "description": "TLA+ output path; matching .cfg is also written.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "design-system",
+      "workflow_kind": "resumable",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "requirement"
+          ],
+          "mcp_field": "requirement",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "requirement"
+            ],
+            "description": "Quoted system-level requirement.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Proposal provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-file"
+          ],
+          "mcp_field": "out_file",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-file"
+            ],
+            "description": "Architecture JSON destination.",
+            "default": "architecture.json",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--timeout"
+          ],
+          "mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--timeout"
+            ],
+            "description": "TLC timeout in seconds.",
+            "default": 120,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Proposal/repair budget.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--staged"
+          ],
+          "mcp_field": "staged",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--staged"
+            ],
+            "description": "Use typed fragments and the TLA/TLC publication gate.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target filenames/lowering language in the staged route.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "validate-architecture",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "UnifiedArchitecture JSON, normally from staged design-system.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--timeout"
+          ],
+          "mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--timeout"
+            ],
+            "description": "TLC timeout in seconds.",
+            "default": 120,
+            "required": false,
+            "type": "int"
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "domain",
+      "workflow_kind": "resumable",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "idea"
+          ],
+          "mcp_field": "idea",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "idea"
+            ],
+            "description": "Quoted domain idea; answers are gathered interactively.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project containing domains and candidates.",
+            "default": ".",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--force"
+          ],
+          "mcp_field": "force",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--force"
+            ],
+            "description": "Allow replacing an existing candidate; does not itself authorize a reviewed replacement.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--replace-reviewed-domain"
+          ],
+          "mcp_field": "replace_reviewed_domain",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--replace-reviewed-domain"
+            ],
+            "description": "Explicitly authorize the reviewed-domain replacement path after human review.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--restart-clarifications"
+          ],
+          "mcp_field": "restart_clarifications",
+          "disposition": "structured_session_parameter",
+          "declaration": {
+            "flags": [
+              "--restart-clarifications"
+            ],
+            "description": "Discard saved domain answers and start elicitation again.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--schema-version"
+          ],
+          "mcp_field": "schema_version",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--schema-version"
+            ],
+            "description": "1 creates plugin scaffolding; 2 creates a typed candidate. Choose 2 explicitly for this guide.",
+            "default": 1,
+            "required": false,
+            "choices": [
+              1,
+              2
+            ],
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "validate-domain",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "name"
+          ],
+          "mcp_field": "name",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "name"
+            ],
+            "description": "Module name or displayed candidate basename, not a path.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root.",
+            "default": ".",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--emit-tla"
+          ],
+          "mcp_field": "emit_tla",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--emit-tla"
+            ],
+            "description": "Model path; also emits matching .cfg.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "promote-domain",
+      "workflow_kind": "human_approval",
+      "strict_mcp_availability": "Human-only",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "name"
+          ],
+          "mcp_field": "name",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "name"
+            ],
+            "description": "Module name or candidate basename, not a path.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root.",
+            "default": ".",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--replace-reviewed-domain"
+          ],
+          "mcp_field": "replace_reviewed_domain",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--replace-reviewed-domain"
+            ],
+            "description": "Permit replacement of an existing reviewed artifact after deliberate review.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--schema-version"
+          ],
+          "mcp_field": "schema_version",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--schema-version"
+            ],
+            "description": "Select schema explicitly; otherwise infer V2 when its validation evidence exists.",
+            "default": null,
+            "required": false,
+            "choices": [
+              1,
+              2
+            ],
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--accept-candidate-sha256"
+          ],
+          "mcp_field": "accept_candidate_sha256",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--accept-candidate-sha256"
+            ],
+            "description": "Required for V2: the reviewed candidate digest from its validation evidence.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--signing-key"
+          ],
+          "mcp_field": "signing_key",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--signing-key"
+            ],
+            "description": "Reviewer-owned GPG key for a detached promotion signature.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "sign-artifact",
+      "workflow_kind": "human_approval",
+      "strict_mcp_availability": "Human-only",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Reviewed artifact or verdict path.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--key"
+          ],
+          "mcp_field": "key",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--key"
+            ],
+            "description": "Local GPG identity/key ID.",
+            "default": null,
+            "required": true
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "manage-trust",
+      "workflow_kind": "read_or_human_approval",
+      "strict_mcp_availability": "Human-only",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "--add-key"
+          ],
+          "mcp_field": "add_key",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--add-key"
+            ],
+            "description": "Exported reviewer public-key path.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--remove-key"
+          ],
+          "mcp_field": "remove_key",
+          "disposition": "typed_intent_with_human_approval",
+          "declaration": {
+            "flags": [
+              "--remove-key"
+            ],
+            "description": "Reviewer key ID to remove.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--list"
+          ],
+          "mcp_field": "list",
+          "disposition": "read_only_action_selector",
+          "declaration": {
+            "flags": [
+              "--list"
+            ],
+            "description": "List keys; listing is also the default when no action is supplied.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--registry"
+          ],
+          "mcp_field": "registry",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--registry"
+            ],
+            "description": "Registry JSON path.",
+            "default": "trusted_keys.json",
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-heap",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Rust Box-linked source, or C/.h intrusive-list source.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Predicate proposal provider when the source lacks the required predicate.",
+            "default": "ollama",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-hal",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "C/.h HAL source with supported MMIO/bitfield patterns.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "macro-dictionary",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "dictionary"
+          ],
+          "mcp_field": "dictionary",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "dictionary"
+            ],
+            "description": "Human-reviewed macros.json dictionary.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--source"
+            ],
+            "description": "C/.h source containing relevant invocations.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--synthesize"
+          ],
+          "mcp_field": "synthesize",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--synthesize"
+            ],
+            "description": "Run the macros-to-V2 workflow; requires --source.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--no-verify"
+          ],
+          "mcp_field": "no_verify",
+          "disposition": "assurance_parameter",
+          "declaration": {
+            "flags": [
+              "--no-verify"
+            ],
+            "description": "Skip the Z3 model-proof step; do not claim that proof.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Provider for unresolved semantic proposals.",
+            "default": "ollama",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-lockfree",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported C pthread single-producer/single-consumer ring source.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-distributed",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "domain"
+          ],
+          "mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "domain"
+            ],
+            "description": "async_message_passing V2 YAML/JSON model.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--faults"
+          ],
+          "mcp_field": "faults",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--faults"
+            ],
+            "description": "Comma-separated fault models.",
+            "default": "message_loss,duplication,reordering",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--message-fields"
+          ],
+          "mcp_field": "message_fields",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--message-fields"
+            ],
+            "description": "Comma-separated state fields representing message slots.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-linearizability",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Java source using the supported locking discipline.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--domain"
+          ],
+          "mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--domain"
+            ],
+            "description": "Matching lock-protocol V2 YAML/JSON.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "verify-unbounded",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "C/C++ source containing supported simple while-loops.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--invariant"
+          ],
+          "mcp_field": "invariant",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--invariant"
+            ],
+            "description": "Human-supplied invariant expression; otherwise a provider proposes one.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Invariant proposal provider.",
+            "default": "ollama",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "prove-equivalence",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "baseline"
+          ],
+          "mcp_field": "baseline",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "baseline"
+            ],
+            "description": "Baseline V2 YAML/JSON.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "refactored"
+          ],
+          "mcp_field": "refactored",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "refactored"
+            ],
+            "description": "Candidate V2 YAML/JSON.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--mapping"
+          ],
+          "mcp_field": "mapping",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--mapping"
+            ],
+            "description": "JSON object with a states list of baseline_state/refactored_state pairs.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "generate-traceability-matrix",
+      "workflow_kind": "direct",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "domain"
+          ],
+          "mcp_field": "domain",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "domain"
+            ],
+            "description": "V2 candidate/reviewed domain.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Source file or directory.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--reqs"
+          ],
+          "mcp_field": "reqs",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--reqs"
+            ],
+            "description": "Requirements text containing REQ-### identifiers.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Markdown matrix destination.",
+            "default": "traceability-matrix.md",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "compose",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "CompositionSpec JSON containing architecture, bindings and use_cases.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Explicit reviewed-domain directory; defaults to the configured resource directory.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Generated composition sources.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--no-esc"
+          ],
+          "mcp_field": "no_esc",
+          "disposition": "assurance_parameter",
+          "declaration": {
+            "flags": [
+              "--no-esc"
+            ],
+            "description": "Stop at the reduced checking stage; no deductive composition claim.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--actors"
+          ],
+          "mcp_field": "actors",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--actors"
+            ],
+            "description": "Comma-separated actor names for supported concurrent preflight.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Native composition target.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "reverify",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Existing composition JSON.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--changed-module"
+          ],
+          "mcp_field": "changed_module",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--changed-module"
+            ],
+            "description": "Name of the changed reviewed V2 module.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Reviewed-domain directory.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "system",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Mode-specific system JSON plan.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Per-component output/evidence root.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-workers"
+          ],
+          "mcp_field": "max_workers",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-workers"
+            ],
+            "description": "Parallel component workers.",
+            "default": 4,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--mode"
+          ],
+          "mcp_field": "mode",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--mode"
+            ],
+            "description": "Plan interpretation and workflow.",
+            "default": "implement",
+            "required": false,
+            "choices": [
+              "implement",
+              "refactor",
+              "correct"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Provider for corrective subagents; not forwarded to the implement workers by this handler.",
+            "default": "ollama",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Model for corrective subagents.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--max-attempts"
+          ],
+          "mcp_field": "max_attempts",
+          "disposition": "bounded_parameter",
+          "declaration": {
+            "flags": [
+              "--max-attempts"
+            ],
+            "description": "Corrective worker proof-repair cap.",
+            "default": 3,
+            "required": false,
+            "type": "int"
+          }
+        },
+        {
+          "cli_flags": [
+            "--executable"
+          ],
+          "mcp_field": "toolchain_id",
+          "disposition": "operator_configured_equivalent",
+          "declaration": {
+            "flags": [
+              "--executable"
+            ],
+            "description": "Internal subprocess executable override; hidden from ordinary help.",
+            "default": "formalspecgen",
+            "required": false,
+            "hidden": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "unified-system",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "artifact"
+          ],
+          "mcp_field": "artifact",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "artifact"
+            ],
+            "description": "Java: UnifiedArchitecture JSON. Native: the current handler expects a CompositionSpec-shaped artifact instead.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--evidence"
+          ],
+          "mcp_field": "evidence",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--evidence"
+            ],
+            "description": "Matching validation evidence JSON.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Lowered/generated output root.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--lang"
+          ],
+          "mcp_field": "lang",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--lang"
+            ],
+            "description": "Target language.",
+            "default": "java",
+            "required": false,
+            "choices": [
+              "java",
+              "rust",
+              "c",
+              "cpp"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--v2-dir"
+          ],
+          "mcp_field": "v2_dir",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--v2-dir"
+            ],
+            "description": "Reviewed V2 directory for non-Java composition lowering.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "analyze-codebase",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "target_dir"
+          ],
+          "mcp_field": "target_dir",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "target_dir"
+            ],
+            "description": "Existing source directory.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out-dir"
+          ],
+          "mcp_field": "out_dir",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out-dir"
+            ],
+            "description": "Extraction reports/artifact directory.",
+            "default": "extracted",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project receiving candidate domain registrations.",
+            "default": ".",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "cli_command": "document-code",
+      "workflow_kind": "direct_or_task",
+      "strict_mcp_availability": "Not admitted",
+      "argument_declarations": [
+        {
+          "cli_flags": [
+            "source"
+          ],
+          "mcp_field": "source",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "source"
+            ],
+            "description": "Supported source file.",
+            "required": true,
+            "positional": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--out"
+          ],
+          "mcp_field": "out",
+          "disposition": "scoped_output_parameter",
+          "declaration": {
+            "flags": [
+              "--out"
+            ],
+            "description": "Markdown destination.",
+            "default": null,
+            "required": true
+          }
+        },
+        {
+          "cli_flags": [
+            "--project-root"
+          ],
+          "mcp_field": "project_root",
+          "disposition": "scoped_root_or_registry_reference",
+          "declaration": {
+            "flags": [
+              "--project-root"
+            ],
+            "description": "Project root for extraction context.",
+            "default": ".",
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--no-llm"
+          ],
+          "mcp_field": "no_llm",
+          "disposition": "typed_parameter",
+          "declaration": {
+            "flags": [
+              "--no-llm"
+            ],
+            "description": "Use only the deterministic documentation sections.",
+            "default": false,
+            "required": false,
+            "action": "store_true"
+          }
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "Machine-readable verdict destination; use a distinct file for each run.",
+            "default": null,
+            "required": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--provider"
+          ],
+          "mcp_field": "provider",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--provider"
+            ],
+            "description": "Generation provider.",
+            "default": "ollama",
+            "required": false,
+            "choices": [
+              "glm",
+              "openai",
+              "ollama"
+            ]
+          }
+        },
+        {
+          "cli_flags": [
+            "--model"
+          ],
+          "mcp_field": "model",
+          "disposition": "approved_provider_reference",
+          "declaration": {
+            "flags": [
+              "--model"
+            ],
+            "description": "Override the provider model for this command.",
+            "default": null,
+            "required": false
+          }
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "source": "Prior user-guide command_inventory.json, cross-checked against selected pinned CLI parser and MCP source sections during this response; no checkout execution.",
+    "sha256": "3ad5c50157657f8206c56f7a15303ae914095d8ddd958703dd98243f8d8cc4c7"
+  }
+}

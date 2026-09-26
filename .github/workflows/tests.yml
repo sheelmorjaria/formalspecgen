@@ -336,6 +336,7 @@ jobs:
           exec python -m pytest -q --no-cov \
             tests/test_sandbox_acceptance.py \
             tests/test_mcp_openjml_acceptance.py \
+            tests/test_refactor_workflow_acceptance.py \
             tests/test_agentic_transport_acceptance.py
       - name: Produce provisioned MCP workflow acceptance evidence
         env:

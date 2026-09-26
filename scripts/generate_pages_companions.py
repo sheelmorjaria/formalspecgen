@@ -12,8 +12,18 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
+import mcp_server
+from pipeline.capability_registry import mcp_capabilities
+from pipeline.mcp_policy import (
+    MCP_ADMISSION_POLICY_VERSION,
+    canonical_profile_definition,
+    profile_definition_sha256,
+)
+from pipeline.parity_inventory import handler_input_schema, reconcile_parity_plan
 
-GUIDE_INVENTORY_SCHEMA = "formalspecgen-guide-command-inventory-v1"
+
+GUIDE_INVENTORY_SCHEMA = "formalspecgen-guide-command-inventory-v2"
+GUIDE_CAPABILITIES_SCHEMA = "formalspecgen-guide-mcp-capabilities-v1"
 
 
 class _GuideLinks(HTMLParser):
@@ -39,40 +49,82 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _inventory(plan: dict) -> dict:
-    commands = []
-    for command in plan["commands"]:
-        arguments = []
-        for mapping in command.get("argument_mappings", []):
-            arguments.append({
-                "cli_flags": mapping["cli_flags"],
-                "mcp_field": mapping.get("proposed_mcp_field"),
-                "disposition": mapping.get("disposition"),
-                "declaration": mapping.get("baseline_declaration", {}),
-            })
-        commands.append({
-            "cli_command": command["cli_command"],
-            "workflow_kind": command.get("workflow_kind"),
-            "strict_mcp_availability": command.get("baseline_strict_mcp"),
-            "argument_declarations": arguments,
-        })
+def _handlers() -> dict[str, object]:
+    return {
+        name: value for name, value in vars(mcp_server).items()
+        if callable(value) and not name.startswith("_")
+    }
+
+
+def _inventory(plan: dict, handlers: dict[str, object]) -> dict:
+    parity = reconcile_parity_plan(plan, handlers=handlers)
+    commands = [{
+        "cli_command": item["cli_command"],
+        "mcp_tool": item["target_mcp_tool"],
+        "workflow_kind": item["workflow_kind"],
+        "admission_status": item["adapter"]["status"],
+        "completion_status": item["workflow_completion"]["status"],
+        "argument_declarations": item["arguments"],
+    } for item in parity["command_mappings"]]
     return {
         "schema": GUIDE_INVENTORY_SCHEMA,
-        "guide_revision": plan["baseline_revision"],
-        "scope": "Pinned user-guide edition; not the moving runtime policy.",
+        "application_version": parity["application_version"],
+        "plan_baseline_revision": parity["plan_baseline_revision"],
+        "scope": (
+            "Generated live CLI inventory and static admission view; "
+            "revision-bound completion requires CI acceptance evidence."),
         "command_count": len(commands),
         "argument_declaration_count": sum(
             len(command["argument_declarations"]) for command in commands),
-        "commands_with_admitted_subset": sum(
-            command["strict_mcp_availability"] == "Admitted subset"
-            for command in commands),
+        "commands_with_admitted_profile": parity["metrics"][
+            "commands_with_admitted_profile"],
+        "commands_complete_without_ci_evidence": parity["metrics"][
+            "complete_workflow_commands"],
+        "inventory_complete": parity["inventory_complete"],
         "commands": commands,
-        "provenance": plan.get("inventory_provenance", {}),
+        "provenance": {
+            "inventory_schema": parity["inventory"]["schema"],
+            "inventory_sha256": parity["inventory"]["sha256"],
+            "plugin_abi": parity["inventory"]["plugin_abi"],
+        },
+    }
+
+
+def _capabilities(handlers: dict[str, object]) -> dict:
+    capabilities = []
+    for capability in mcp_capabilities(strict_isolation=True):
+        handler = handlers.get(str(capability.mcp_tool))
+        capabilities.append({
+            "name": capability.name,
+            "mcp_tool": capability.mcp_tool,
+            "cli_command": capability.cli_command,
+            "description": capability.description,
+            "isolation": capability.mcp_isolation,
+            "catalogue": "cli-and-mcp" if capability.cli_command else "mcp-only",
+            "static_input_schema": (
+                handler_input_schema(handler) if handler is not None else None),
+            "profiles": [{
+                **canonical_profile_definition(profile),
+                "profile_sha256": profile_definition_sha256(profile),
+            } for profile in capability.mcp_profiles],
+        })
+    return {
+        "schema": GUIDE_CAPABILITIES_SCHEMA,
+        "admission_policy_version": MCP_ADMISSION_POLICY_VERSION,
+        "scope": (
+            "Strict catalogue generated from the capability registry and "
+            "Python handlers. Runtime MCP discovery is tested separately."),
+        "capability_count": len(capabilities),
+        "cli_capability_count": sum(
+            item["cli_command"] is not None for item in capabilities),
+        "mcp_only_capability_count": sum(
+            item["cli_command"] is None for item in capabilities),
+        "capabilities": capabilities,
     }
 
 
 def _guide_validation(
-        guide: Path, inventory_bytes: bytes,
+        guide: Path, inventory_bytes: bytes, capabilities_bytes: bytes,
         expected_local_files: set[str]) -> str:
     guide_bytes = guide.read_bytes()
     parser = _GuideLinks()
@@ -102,35 +154,39 @@ def _guide_validation(
     return "\n".join([
         "# Published guide validation",
         "",
-        "This record describes preparation of the static GitHub Pages edition. It is not formal",
-        "verification evidence and does not update the guide beyond its pinned `91c6790` scope.",
+        "This record describes preparation of the current static GitHub Pages edition. It is",
+        "documentation validation, not formal verification or revision-bound acceptance evidence.",
         "",
         "## Checked publication inputs",
         "",
         f"- `index.html` SHA-256: `{_sha256(guide_bytes)}`",
         f"- `command_inventory.json` SHA-256: `{_sha256(inventory_bytes)}`",
+        f"- `mcp_capabilities.json` SHA-256: `{_sha256(capabilities_bytes)}`",
         f"- Parsed HTML element IDs: {len(parser.ids)}",
         f"- Same-page fragment links checked: {len(fragment_links)}",
         "- Missing same-page targets: none",
         "- Duplicate element IDs: none",
-        "- Linked publication files: `command_inventory.json`, `VALIDATION.md`",
+        "- Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,",
+        "  `VALIDATION.md`, and the archived `91c6790` guide",
         "- Unexpected relative assets: none",
         "",
         "## Scope limits",
         "",
         "- External URLs were retained but not fetched as part of publication validation.",
-        "- No compiler, verifier, generated program, provider, or MCP server was run.",
-        "- The guide remains an offline documentation edition pinned to `91c6790`; newer runtime",
-        "  behavior must be checked against the current repository and generated parity report.",
+        "- No compiler, verifier, generated program, provider, or MCP transport was run.",
+        "- Static handler schemas do not replace runtime MCP discovery acceptance.",
+        "- Completion claims must be checked against the linked revision-bound CI evidence.",
         "",
     ])
 
 
-def _expected(plan_path: Path, site: Path) -> tuple[bytes, str]:
+def _expected(plan_path: Path, site: Path) -> tuple[bytes, bytes, str]:
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     if plan.get("schema") != "formalspecgen-full-mcp-parity-plan-v1":
         raise ValueError("unsupported parity-plan schema")
-    inventory = _inventory(plan)
+    handlers = _handlers()
+    inventory = _inventory(plan, handlers)
+    capabilities = _capabilities(handlers)
     if inventory["command_count"] != plan["baseline_command_count"]:
         raise ValueError("guide command count does not match its pinned plan")
     if inventory["argument_declaration_count"] != \
@@ -138,10 +194,13 @@ def _expected(plan_path: Path, site: Path) -> tuple[bytes, str]:
         raise ValueError("guide argument count does not match its pinned plan")
     inventory_bytes = (
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    capabilities_bytes = (
+        json.dumps(capabilities, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     validation = _guide_validation(
-        site / "index.html", inventory_bytes,
-        {"command_inventory.json", "VALIDATION.md"})
-    return inventory_bytes, validation
+        site / "index.html", inventory_bytes, capabilities_bytes,
+        {"archive/91c6790/", "command_inventory.json",
+         "mcp_capabilities.json", "VALIDATION.md"})
+    return inventory_bytes, capabilities_bytes, validation
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,9 +210,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--site", type=Path, default=Path("site"))
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
-    inventory, validation = _expected(args.plan, args.site)
+    inventory, capabilities, validation = _expected(args.plan, args.site)
     outputs = {
         args.site / "command_inventory.json": inventory,
+        args.site / "mcp_capabilities.json": capabilities,
         args.site / "VALIDATION.md": validation.encode("utf-8"),
     }
     if args.check:

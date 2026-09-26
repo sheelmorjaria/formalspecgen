@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -586,10 +587,13 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .refactor_gate import (
-        verify_contract_preserving_refactor,
-        verify_multifile_contract_refactor,
+    from .workflow_contracts import (
+        RefactorWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
     )
+    from .workflow_services import run_refactor_verification
 
     if getattr(args, "signing_key", None) and not args.json:
         ui.console.print(
@@ -597,11 +601,28 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
         )
         return 2
     ui.console.print("[cyan]Checking baseline and refactored contract surfaces…[/cyan]")
-    result = (
-        verify_multifile_contract_refactor(args.baseline, args.refactored)
-        if Path(args.refactored).is_dir()
-        else verify_contract_preserving_refactor(args.baseline, args.refactored)
+    request = RefactorWorkflowRequest(
+        args.baseline, args.refactored, result_export=args.json,
+        # A local CLI invocation may perform the human's separately requested
+        # signature below.  No signing authority enters the shared service.
+        signing_intent=False,
     )
+    paths = [Path(request.baseline), Path(request.refactored)]
+    common = Path(os.path.commonpath([str(path) for path in paths]))
+    workspace_root = common if common.is_dir() else common.parent
+    context = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=workspace_root)
+    try:
+        service = run_refactor_verification(request, context)
+        result = bind_workflow_result(
+            service.payload, request, WorkflowInterface.CLI, context=context)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "invalid_refactor_request",
+            "message": str(exc),
+        }
     _write_json(result, args.json, ui.console)
     if getattr(args, "signing_key", None) and args.json:
         from .domain_v2_promotion import sign_artifact
@@ -612,7 +633,7 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
             ui.console.print(f"[bold red]{escape(str(exc))}[/bold red]")
             return 2
         ui.console.print(f"[green]Refactor verdict signature:[/green] {signature}")
-    return 0 if result["status"] == "VERIFIED" else 1
+    return 0 if result.get("request_satisfied", False) else 1
 
 
 def command_optimize_algorithm(args: argparse.Namespace, ui: TerminalUI) -> int:
