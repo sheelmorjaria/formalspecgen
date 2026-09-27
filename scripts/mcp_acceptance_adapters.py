@@ -8,6 +8,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -21,6 +22,7 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 import mcp_server
+from pipeline.approval_service import record_human_decision
 
 
 def _sha256(value: object) -> str:
@@ -74,6 +76,10 @@ async def _call_tool(
         *, environment: dict[str, str] | None = None,
         timeout_s: float = 45) -> tuple[object, object, dict, list[dict]]:
     child_environment = dict(os.environ)
+    for name in (
+            "FORMALSPECGEN_ACCEPTANCE_REVIEWER_GNUPGHOME",
+            "FORMALSPECGEN_ACCEPTANCE_REVIEWER_KEY"):
+        child_environment.pop(name, None)
     child_environment.update(environment or {})
     parameters = StdioServerParameters(
         command=sys.executable,
@@ -93,6 +99,65 @@ async def _call_tool(
                         raise RuntimeError(f"{tool_name} MCP transport call failed")
                     results.append(response.structuredContent)
     return initialized, tools, tool.inputSchema, results
+
+
+async def _call_refactor_signing(
+        workspace: Path, arguments: dict, *, timeout_s: float = 180
+        ) -> tuple[object, object, dict, list[dict]]:
+    """Exercise request, out-of-band human approval, and protected completion."""
+    child_environment = dict(os.environ)
+    reviewer_home = child_environment.pop(
+        "FORMALSPECGEN_ACCEPTANCE_REVIEWER_GNUPGHOME", "")
+    reviewer_key = child_environment.pop(
+        "FORMALSPECGEN_ACCEPTANCE_REVIEWER_KEY", "")
+    approval_root = child_environment.get("FORMALSPECGEN_APPROVAL_ROOT", "")
+    if not reviewer_home or not reviewer_key or not approval_root:
+        raise RuntimeError("approval acceptance is not provisioned")
+    parameters = StdioServerParameters(
+        command=sys.executable,
+        args=[str(Path(mcp_server.__file__).resolve())],
+        cwd=str(workspace), env=child_environment)
+    with anyio.fail_after(timeout_s):
+        async with stdio_client(parameters) as (read, write):
+            async with ClientSession(read, write) as session:
+                initialized = await session.initialize()
+                tools = await session.list_tools()
+                schemas = {item.name: item.inputSchema for item in tools.tools}
+                response = await session.call_tool("verify_refactor", arguments)
+                if response.isError or not isinstance(response.structuredContent, dict):
+                    raise RuntimeError("signed verify_refactor request failed")
+                requested = response.structuredContent
+                request_id = (requested.get("approval") or {}).get("request_id")
+                if not request_id:
+                    raise RuntimeError("signed refactor returned no approval identity")
+                await anyio.to_thread.run_sync(
+                    lambda: record_human_decision(
+                        Path(approval_root), request_id, decision="approve",
+                        signing_key=reviewer_key, gpg_home=Path(reviewer_home)))
+                pending_response = await session.call_tool(
+                    "get_approval_request", {"request_id": request_id})
+                completed_response = await session.call_tool(
+                    "complete_refactor_signing", {"request_id": request_id})
+                if pending_response.isError or completed_response.isError or not isinstance(
+                        completed_response.structuredContent, dict):
+                    raise RuntimeError("approval completion MCP call failed")
+                pending = pending_response.structuredContent
+                completed = completed_response.structuredContent
+                signature = Path((completed.get("signature") or {}).get("path", ""))
+                artifact = Path(
+                    workspace / ".formalspecgen/mcp-output/refactor/signed.json")
+                verified = subprocess.run([
+                    "gpg", "--homedir", child_environment[
+                        "FORMALSPECGEN_APPROVAL_GNUPGHOME"],
+                    "--batch", "--verify", str(signature), str(artifact),
+                ], capture_output=True, text=True, check=False)
+                if verified.returncode != 0:
+                    raise RuntimeError("independent signature verification failed")
+                serialized = json.dumps(completed, sort_keys=True).lower()
+                if "private key" in serialized or "private_key_material" in serialized:
+                    raise RuntimeError("MCP response exposed private-key material")
+    return initialized, tools, schemas["verify_refactor"], [
+        requested, pending, completed]
 
 
 async def _inspect_observation() -> dict:
@@ -394,8 +459,6 @@ async def _verify_refactor_observation() -> dict:
         {"baseline": "cpp/base.cpp", "refactored": "cpp/good.cpp"},
         {"baseline": "cpp/base.cpp", "refactored": "cpp/bad.cpp",
          "result_export": "refactor/cpp-negative.json"},
-        {"baseline": "java/base/Account.java",
-         "refactored": "java/good/Account.java", "signing_intent": True},
     ]
     with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-refactor-") as directory:
         workspace = Path(directory)
@@ -405,6 +468,14 @@ async def _verify_refactor_observation() -> dict:
             path.write_text(source, encoding="utf-8")
         initialized, tools, schema, results = await _call_tool(
             workspace, "verify_refactor", calls, timeout_s=360)
+        signed_transport = await _call_refactor_signing(
+            workspace, {
+                "baseline": "java/base/Account.java",
+                "refactored": "java/good/Account.java",
+                "result_export": "refactor/signed.json",
+                "signing_intent": True,
+            }, timeout_s=360)
+        signing_results = signed_transport[3]
         exports = [
             workspace / ".formalspecgen/mcp-output" / name
             for name in (
@@ -421,7 +492,7 @@ async def _verify_refactor_observation() -> dict:
                 + ", ".join(missing))
     expected_statuses = [
         "VERIFIED", "FAIL", "FAIL", "VERIFIED", "VERIFIED", "FAIL",
-        "VERIFIED", "FAIL", "VERIFIED", "FAIL", "APPROVAL_REQUIRED",
+        "VERIFIED", "FAIL", "VERIFIED", "FAIL",
     ]
     statuses = [item.get("status") for item in results]
     if statuses != expected_statuses:
@@ -433,16 +504,16 @@ async def _verify_refactor_observation() -> dict:
         "MULTIFILE_REFACTOR_CONTRACT_PRESERVED",
         "REFACTOR_CONTRACT_PRESERVED", "NO_PROOF",
         "REFACTOR_CONTRACT_PRESERVED", "NO_PROOF",
-        "BOUNDED_REFACTOR_CONTRACT_PRESERVED", "NO_PROOF", "NO_PROOF",
+        "BOUNDED_REFACTOR_CONTRACT_PRESERVED", "NO_PROOF",
     ]
     if [item.get("claim") for item in results] != expected_claims:
         raise RuntimeError("verify_refactor transport claim limits changed")
     if any((item.get("evidence") or {}).get("publication_status") != "COMMITTED"
-           for item in results[:-1]):
+           for item in results):
         raise RuntimeError("an unsigned refactor route lacked committed evidence")
     observations = [
         observation
-        for item in results[:-1]
+        for item in results
         for stage in (item.get("verification_stages") or [])
         for observation in (stage.get("execution_stages") or [])
     ]
@@ -451,22 +522,35 @@ async def _verify_refactor_observation() -> dict:
             for observation in observations):
         raise RuntimeError(
             "a refactor verification stage lacked enforced execution policy")
-    if results[-1].get("approval", {}).get("status") != "REQUIRED":
-        raise RuntimeError("signing intent did not stop at human approval")
+    if [item.get("status") for item in signing_results] != [
+            "APPROVAL_REQUIRED", "DECISION_RECORDED", "SIGNED"]:
+        raise RuntimeError("authenticated signing continuation did not complete")
+    if signing_results[-1].get("claim") != "REFACTOR_CONTRACT_PRESERVED" or \
+            not signing_results[-1].get("request_satisfied") or \
+            signing_results[-1].get("verification", {}).get(
+                "claim_upgraded_by_signing") is not False:
+        raise RuntimeError("signing changed the verification claim or did not complete")
+    if signing_results[-1].get("approval", {}).get("private_key_exposed") is not False:
+        raise RuntimeError("signing response did not preserve the key boundary")
     semantic_result = [{
         "status": item.get("status"), "claim": item.get("claim"),
         "request_satisfied": item.get("request_satisfied"),
         "receipt": (item.get("evidence") or {}).get("publication_status"),
         "stages": len(item.get("verification_stages") or []),
     } for item in results]
+    semantic_result.extend({
+        "status": item.get("status"), "claim": item.get("claim"),
+        "request_satisfied": item.get("request_satisfied"),
+        "approval": (item.get("approval") or {}).get("status"),
+    } for item in signing_results)
     observation = _observation(
-        initialized, tools, schema, semantic_result, results[-1])
+        initialized, tools, schema, semantic_result, signing_results[-1])
     observation["variants"] = [
         "java-single-success", "java-single-failure-export",
         "java-surface-rejection-export", "java-multifile-success",
         "rust-success", "rust-failure-export",
         "c-success", "c-failure-export", "cpp-success", "cpp-failure-export",
-        "signing-approval-required",
+        "signing-request", "human-approval-observed", "protected-signing-complete",
     ]
     observation["semantic_results"] = semantic_result
     return observation

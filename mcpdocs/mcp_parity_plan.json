@@ -852,8 +852,8 @@
       "proposed_mcp_tool": "verify_refactor",
       "workflow_kind": "direct_or_task_with_approval",
       "requirements": "Single-file and multifile preservation; optional signing uses the human approval broker.",
-      "baseline_strict_mcp": "Unsigned Java/JML, Rust, C and C++ preservation is admitted; signing intent is rejected pending authenticated human approval.",
-      "implementation_status": "unsigned_profiles_admitted_signing_incomplete",
+      "baseline_strict_mcp": "Java/JML, Rust, C and C++ preservation is admitted; signing continues only after an artifact-bound authenticated human decision through the protected signer.",
+      "implementation_status": "shared_service_and_authenticated_signing_complete",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -921,9 +921,69 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "approval_coordinator_missing"
+          "implementation_status": "verified"
         }
       ],
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "java-single-success", "java-single-failure-export",
+          "java-surface-rejection-export", "java-multifile-success",
+          "rust-success", "rust-failure-export", "c-success",
+          "c-failure-export", "cpp-success", "cpp-failure-export",
+          "signing-request", "human-approval-observed",
+          "protected-signing-complete"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_cli_and_mcp_share_normalized_unsigned_request_and_result",
+            "variants": ["java-single-success"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_cli_parser_and_mcp_schema_cover_refactor_inputs",
+            "variants": ["java-single-success", "signing-request"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_contract_change_is_rejected_before_any_execution",
+            "variants": ["java-surface-rejection-export"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_native_services_preserve_claim_ceiling",
+            "variants": ["rust-success", "rust-failure-export", "c-success", "c-failure-export", "cpp-success", "cpp-failure-export"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_candidate_failure_preserves_successful_baseline_stage",
+            "variants": ["java-single-failure-export"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_multifile_java_helper_extraction_uses_joint_candidate_stage",
+            "variants": ["java-multifile-success"]
+          },
+          {
+            "kind": "approval_security",
+            "test": "tests/test_approval_service.py::test_approval_security_acceptance_matrix",
+            "variants": ["signing-request", "human-approval-observed", "protected-signing-complete"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_refactor_workflow_acceptance.py::test_real_mcp_transport_exercises_refactor_matrix",
+            "variants": [
+              "java-single-success", "java-single-failure-export",
+              "java-surface-rejection-export", "java-multifile-success",
+              "rust-success", "rust-failure-export", "c-success",
+              "c-failure-export", "cpp-success", "cpp-failure-export",
+              "signing-request", "human-approval-observed",
+              "protected-signing-complete"
+            ]
+          }
+        ]
+      },
       "baseline_source": "pipeline/refactor_gate.py"
     },
     {

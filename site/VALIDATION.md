@@ -5,9 +5,9 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `fe594b50441e6cd5e822c2d2c5f3a35a95fef7a456504386c27511bcd80c36de`
+- `index.html` SHA-256: `84e7b0b75894ca089a6b79b2fcf073715270bdf86247667b361d666abfe6dcc1`
 - `command_inventory.json` SHA-256: `0d1e571d414b26f292e642ad75390a5077ba6d8bc94659eb68c57e2af5db1906`
-- `mcp_capabilities.json` SHA-256: `f7c46db7bebf3911fb479acb1e85ca6a274d6dbdb6588eb5a3de8be825121b1c`
+- `mcp_capabilities.json` SHA-256: `af58c45c0111c2f5f4063cbf91c6ec44500ec1f1eb1857fea215a342e3bd2ce4`
 - Parsed HTML element IDs: 9
 - Same-page fragment links checked: 8
 - Missing same-page targets: none

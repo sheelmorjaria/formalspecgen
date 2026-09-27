@@ -2,9 +2,9 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 12,
+  "capability_count": 14,
   "cli_capability_count": 4,
-  "mcp_only_capability_count": 8,
+  "mcp_only_capability_count": 10,
   "capabilities": [
     {
       "name": "verify_code",
@@ -1250,6 +1250,102 @@
       ]
     },
     {
+      "name": "get_approval_request",
+      "mcp_tool": "get_approval_request",
+      "cli_command": null,
+      "description": "Read an artifact-bound human approval request or receipt.",
+      "isolation": "approval-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "request_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "request_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "read-refactor-signing-approval",
+          "modes": [
+            "status"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "protected-signer-v1"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "artifact-bound-approval-state",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "71b862b77743f0a128ed380569e9d6f63ccbb0a166c483b1280579a81057bfb7"
+        }
+      ]
+    },
+    {
+      "name": "complete_refactor_signing",
+      "mcp_tool": "complete_refactor_signing",
+      "cli_command": null,
+      "description": "Complete an already approved refactor-signing action.",
+      "isolation": "approval-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "request_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "request_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "complete-refactor-signing-approval",
+          "modes": [
+            "complete"
+          ],
+          "languages": [
+            "none"
+          ],
+          "backends": [
+            "protected-signer-v1"
+          ],
+          "effects": [
+            "protected_signing",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "detached-signature-and-immutable-action-receipt",
+          "required_effects": [
+            "protected_signing",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "91d3083fe2d5bc2836dd0a8e6bd72ea92d6d95b70d50ef30462d624989c94e7a"
+        }
+      ]
+    },
+    {
       "name": "verify_refactor",
       "mcp_tool": "verify_refactor",
       "cli_command": "verify-refactor",
@@ -1512,6 +1608,127 @@
             "workspace_write_new"
           ],
           "profile_sha256": "3e47299111f74bbff7e158a44d55c1a12051d68a2bcf1a47ea83672a7c8c12d6"
+        },
+        {
+          "name": "java-openjml-refactor-signing-request",
+          "modes": [
+            "preserve-signing"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "f26898f2303e6446e7033c1ed3da32ced493ea5156fe13a4dada684b83d20be2"
+        },
+        {
+          "name": "rust-prusti-refactor-signing-request",
+          "modes": [
+            "preserve-signing"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "d3f13a3af0166594a35e977c54570986d4bec4efb106fa26b694a132e650205c"
+        },
+        {
+          "name": "c-framac-refactor-signing-request",
+          "modes": [
+            "preserve-signing"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "7d2494131ff8bd2341fcc6741db508161cbaf97889efa40652e67075409285ef"
+        },
+        {
+          "name": "cpp-esbmc-refactor-signing-request",
+          "modes": [
+            "preserve-signing"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-unsigned-evidence-export-and-artifact-bound-approval-request",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "35dc07d240e6bb390664bb9fb6a2d8690ba0c29ce616028fccaae15da89bd249"
         }
       ]
     }

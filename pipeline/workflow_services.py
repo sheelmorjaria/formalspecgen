@@ -277,24 +277,6 @@ def run_refactor_verification(
     refactored = context.resolve_input(request.refactored)
     inputs, baseline_files, refactored_files = _refactor_inputs(
         baseline, refactored, context)
-    if request.signing_intent:
-        payload = {
-            "status": "APPROVAL_REQUIRED", "claim": "NO_PROOF",
-            "request_satisfied": False, "code": "human_signing_required",
-            "message": (
-                "detached signing requires an authenticated human approval "
-                "workflow; no signing key is accepted by this service"),
-            "approval": {
-                "status": "REQUIRED", "action": "sign-refactor-evidence",
-                "signing_authority_available": False,
-            },
-            "language": request.language,
-            "backend": request.effective_backend,
-            "input_manifest": inputs,
-            "verification_stages": [],
-        }
-        return RefactorServiceResult(payload, (), inputs)
-
     context.require("external_execution")
     stages: list[dict[str, Any]] = []
     native_executor = execute_native or execute_isolated_verification

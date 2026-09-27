@@ -48,7 +48,7 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports four CLI commands with at least one admitted profile: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, and unsigned <code>verify-refactor</code>. The refactor command remains incomplete until authenticated signing parity exists.</p>
+    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports four CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, and <code>verify-refactor</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
   </section>
@@ -91,7 +91,14 @@
   "result_export": "refactor/counter.json",
   "signing_intent": false
 }</code></pre>
-    <p>Unsigned Java/JML, Rust, C, and C++ profiles are admitted. Setting <code>signing_intent</code> to <code>true</code> returns <code>APPROVAL_REQUIRED</code>; MCP and the supervisor never receive a signing key. This useful unsigned profile does not make the complete CLI workflow parity claim.</p>
+    <p>Java/JML, Rust, C, and C++ profiles are admitted. For signing, set <code>signing_intent</code> to <code>true</code> and provide a fresh <code>result_export</code>. The server first completes unsigned verification and publication, then returns an artifact-bound <code>APPROVAL_REQUIRED</code> request.</p>
+    <pre><code>{
+  "baseline": "src/Counter.java",
+  "refactored": "candidate/Counter.java",
+  "result_export": "refactor/counter-to-sign.json",
+  "signing_intent": true
+}</code></pre>
+    <p>An authorized reviewer signs the exact approval decision outside MCP. The <code>complete_refactor_signing</code> tool can then invoke only the operator-configured protected signer; it returns a detached signature and receipt without exposing either private key. Signing records approval but does not strengthen the verification claim.</p>
   </section>
 
   <section id="documentation">

@@ -15,7 +15,7 @@ from scripts.generate_pages_companions import _expected
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "fe594b50441e6cd5e822c2d2c5f3a35a95fef7a456504386c27511bcd80c36de"
+GUIDE_SHA256 = "84e7b0b75894ca089a6b79b2fcf073715270bdf86247667b361d666abfe6dcc1"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -37,11 +37,13 @@ def test_current_guide_and_generated_companions_are_current():
     assert decoded["commands_with_admitted_profile"] == 4
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 12
+    assert strict["capability_count"] == 14
     assert strict["cli_capability_count"] == 4
-    assert strict["mcp_only_capability_count"] == 8
+    assert strict["mcp_only_capability_count"] == 10
     assert "verify_refactor" in {
         item["mcp_tool"] for item in strict["capabilities"]}
+    assert {"get_approval_request", "complete_refactor_signing"}.issubset({
+        item["mcp_tool"] for item in strict["capabilities"]})
 
 
 def test_historical_91c6790_guide_is_byte_preserved():

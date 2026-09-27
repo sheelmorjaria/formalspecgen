@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "ccf5b6ce752f051e7bbdf3d97d2f73d2c0169ae381986d67ab386e340eb6af22",
+  "plan_sha256": "cb4289610c224acdb71c171de0ec757ca98a054f2fededab10752f181ecb8fad",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -12372,6 +12372,123 @@
               "workspace_read",
               "workspace_write_new"
             ]
+          },
+          {
+            "name": "java-openjml-refactor-signing-request",
+            "modes": [
+              "preserve-signing"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-prusti-refactor-signing-request",
+            "modes": [
+              "preserve-signing"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "c-framac-refactor-signing-request",
+            "modes": [
+              "preserve-signing"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unsigned-evidence-export-and-artifact-bound-approval-request",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "cpp-esbmc-refactor-signing-request",
+            "modes": [
+              "preserve-signing"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-unsigned-evidence-export-and-artifact-bound-approval-request",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "service_state_write",
+              "workspace_read",
+              "workspace_write_new"
+            ]
           }
         ],
         "compatibility_aliases": []
@@ -12430,17 +12547,30 @@
           "signing_intent"
         ],
         "missing_mcp_fields": [],
-        "unverified_argument_mappings": [
-          "signing_intent"
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "c-failure-export",
+          "c-success",
+          "cpp-failure-export",
+          "cpp-success",
+          "human-approval-observed",
+          "java-multifile-success",
+          "java-single-failure-export",
+          "java-single-success",
+          "java-surface-rejection-export",
+          "protected-signing-complete",
+          "rust-failure-export",
+          "rust-success",
+          "signing-request"
         ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -12616,5 +12746,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "4305658553c5189125656e2c0630d4c5cf1f5b2501576c342a07e9ab6bc03b51"
+  "sha256": "2ef9e17ecf00dc1645d0b24a7210fdb91619cf7ca1fb54ba6e4a5859149a13dc"
 }

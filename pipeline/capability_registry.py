@@ -23,6 +23,7 @@ MCP_EFFECTS = frozenset({
     "service_state_read",
     "service_state_write",
     "remote_worker_dispatch",
+    "protected_signing",
 })
 MCP_OUTPUT_SCOPES = frozenset({
     "none", "designated-new-artifacts", "immutable-evidence-only",
@@ -109,7 +110,7 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
     )
     mcp_isolation = value.get("mcp_isolation", "unsupported")
     if mcp_isolation not in {
-            "a2a-coordination", "non-executing", "strict-java",
+            "a2a-coordination", "approval-coordination", "non-executing", "strict-java",
             "strict-execution", "unsupported"}:
         raise ValueError(f"unknown MCP isolation profile: {mcp_isolation}")
     mcp_profiles = tuple(
@@ -153,6 +154,15 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
                 set(profile.effects) & {"external_execution", "provider_access"}:
             raise ValueError(
                 "A2A coordination cannot acquire local execution or provider access")
+        if "protected_signing" in profile.effects and \
+                mcp_isolation != "approval-coordination":
+            raise ValueError(
+                "protected signing requires approval coordination isolation")
+        if mcp_isolation == "approval-coordination" and set(profile.effects) & {
+                "external_execution", "provider_access", "remote_worker_dispatch"}:
+            raise ValueError(
+                "approval coordination cannot acquire general execution, provider, "
+                "or worker-dispatch access")
         if "workspace_write_new" in profile.effects and \
                 profile.output_scope != "designated-new-artifacts":
             raise ValueError("MCP workspace writes require a designated output scope")
@@ -219,6 +229,8 @@ _MCP_TOOLS = (
     "get_agent_run",
     "resume_agent_run",
     "cancel_agent_run",
+    "get_approval_request",
+    "complete_refactor_signing",
 )
 
 _GENERIC_DATA = [{'name': 'verify_code',
@@ -638,6 +650,46 @@ _GENERIC_DATA = [{'name': 'verify_code',
                     'output_scope': 'none',
                     'evidence': 'append-only-agent-run-events'},),
   'milestone': None},
+ {'name': 'get_approval_request',
+  'description': 'Read an artifact-bound human approval request or receipt.',
+  'cli_command': None,
+  'mcp_tool': 'get_approval_request',
+  'arguments': (),
+  'epistemic_boundary': ('Approval state does not grant signing authority or '
+                         'strengthen a verification claim.'),
+  'trust_action': False,
+  'mcp_isolation': 'approval-coordination',
+  'mcp_profiles': ({'name': 'read-refactor-signing-approval',
+                    'modes': ('status',),
+                    'languages': ('none',),
+                    'backends': ('protected-signer-v1',),
+                    'effects': ('service_state_read',),
+                    'required_effects': ('service_state_read',),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'artifact-bound-approval-state'},),
+  'milestone': None},
+ {'name': 'complete_refactor_signing',
+  'description': 'Complete an already approved refactor-signing action.',
+  'cli_command': None,
+  'mcp_tool': 'complete_refactor_signing',
+  'arguments': (),
+  'epistemic_boundary': ('The protected signer revalidates the authenticated '
+                         'decision; MCP never receives key material.'),
+  'trust_action': False,
+  'mcp_isolation': 'approval-coordination',
+  'mcp_profiles': ({'name': 'complete-refactor-signing-approval',
+                    'modes': ('complete',),
+                    'languages': ('none',),
+                    'backends': ('protected-signer-v1',),
+                    'effects': ('service_state_read', 'service_state_write',
+                                'protected_signing'),
+                    'required_effects': ('service_state_read', 'service_state_write',
+                                         'protected_signing'),
+                    'providers': (),
+                    'output_scope': 'none',
+                    'evidence': 'detached-signature-and-immutable-action-receipt'},),
+  'milestone': None},
  {'name': 'assess_security',
   'description': 'assess security',
   'cli_command': 'assess-security',
@@ -769,7 +821,52 @@ _GENERIC_DATA = [{'name': 'verify_code',
                             'evidence_publication', 'workspace_write_new'),
        'providers': (), 'output_scope': 'designated-new-artifacts',
        'evidence': ('bounded-baseline-candidate-observations-terminal-manifest-'
-                    'and-export')}),
+                    'and-export')},
+      {'name': 'java-openjml-refactor-signing-request',
+       'modes': ('preserve-signing',), 'languages': ('java', 'jml'),
+       'backends': ('openjml',),
+       'effects': ('workspace_read', 'external_execution',
+                   'evidence_publication', 'workspace_write_new',
+                   'service_state_write'),
+       'required_effects': ('workspace_read', 'external_execution',
+                            'evidence_publication', 'workspace_write_new',
+                            'service_state_write'),
+       'providers': (), 'output_scope': 'designated-new-artifacts',
+       'evidence': 'unsigned-evidence-export-and-artifact-bound-approval-request'},
+      {'name': 'rust-prusti-refactor-signing-request',
+       'modes': ('preserve-signing',), 'languages': ('rust',),
+       'backends': ('prusti',),
+       'effects': ('workspace_read', 'external_execution',
+                   'evidence_publication', 'workspace_write_new',
+                   'service_state_write'),
+       'required_effects': ('workspace_read', 'external_execution',
+                            'evidence_publication', 'workspace_write_new',
+                            'service_state_write'),
+       'providers': (), 'output_scope': 'designated-new-artifacts',
+       'evidence': 'unsigned-evidence-export-and-artifact-bound-approval-request'},
+      {'name': 'c-framac-refactor-signing-request',
+       'modes': ('preserve-signing',), 'languages': ('c',),
+       'backends': ('frama-c',),
+       'effects': ('workspace_read', 'external_execution',
+                   'evidence_publication', 'workspace_write_new',
+                   'service_state_write'),
+       'required_effects': ('workspace_read', 'external_execution',
+                            'evidence_publication', 'workspace_write_new',
+                            'service_state_write'),
+       'providers': (), 'output_scope': 'designated-new-artifacts',
+       'evidence': 'unsigned-evidence-export-and-artifact-bound-approval-request'},
+      {'name': 'cpp-esbmc-refactor-signing-request',
+       'modes': ('preserve-signing',), 'languages': ('cpp',),
+       'backends': ('esbmc',),
+       'effects': ('workspace_read', 'external_execution',
+                   'evidence_publication', 'workspace_write_new',
+                   'service_state_write'),
+       'required_effects': ('workspace_read', 'external_execution',
+                            'evidence_publication', 'workspace_write_new',
+                            'service_state_write'),
+       'providers': (), 'output_scope': 'designated-new-artifacts',
+       'evidence': ('bounded-unsigned-evidence-export-and-artifact-bound-'
+                    'approval-request')}),
   'milestone': None},
  {'name': 'verify_bisimulation',
   'description': 'verify bisimulation',
@@ -1061,7 +1158,7 @@ def mcp_capabilities(*, strict_isolation: bool = False) -> tuple[CapabilitySpec,
         item
         for item in capabilities
         if item.mcp_isolation in {
-            "a2a-coordination", "non-executing", "strict-java",
+            "a2a-coordination", "approval-coordination", "non-executing", "strict-java",
             "strict-execution"}
         and item.mcp_profiles
     )

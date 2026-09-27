@@ -176,6 +176,7 @@ jobs:
           --require-complete inspect
           --require-complete document-code
           --require-complete verify
+          --require-complete verify-refactor
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -230,7 +231,7 @@ jobs:
           sudo add-apt-repository --yes ppa:esbmc/esbmc
           sudo apt-get update
           sudo apt-get install --yes bubblewrap build-essential default-jdk-headless \
-            esbmc rustc z3
+            esbmc gnupg rustc z3
           python -m pip install --upgrade pip -r requirements-dev.txt \
             -r requirements-mcp.txt -e .
       - name: Cache pinned OpenJML bundle
@@ -323,11 +324,16 @@ jobs:
           sudo mkdir "$sandbox_cgroup/runner"
           sudo chown -R "$(id -u):$(id -g)" "$sandbox_cgroup"
           echo "FORMALSPECGEN_CGROUP_ROOT=$sandbox_cgroup" >> "$GITHUB_ENV"
+      - name: Provision disposable approval and signing identities
+        run: >-
+          python scripts/provision_approval_acceptance.py
+          --root "$RUNNER_TEMP/formalspecgen-approval-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Run mandatory real sandbox acceptance
         env:
           FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_OPENJML_MCP_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+          FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
           # requires write access at their common ancestor; descendants can
@@ -337,6 +343,7 @@ jobs:
             tests/test_sandbox_acceptance.py \
             tests/test_mcp_openjml_acceptance.py \
             tests/test_refactor_workflow_acceptance.py \
+            tests/test_approval_signing_acceptance.py \
             tests/test_agentic_transport_acceptance.py
       - name: Produce provisioned MCP workflow acceptance evidence
         env:
@@ -347,6 +354,7 @@ jobs:
             --command inspect \
             --command document-code \
             --command verify \
+            --command verify-refactor \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

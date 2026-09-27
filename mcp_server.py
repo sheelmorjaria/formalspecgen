@@ -34,6 +34,7 @@ except ImportError:  # pragma: no cover - exercised by environments without the 
     FastMCP = None
 
 from pipeline import config
+from pipeline.approval_service import ApprovalError, ApprovalService
 from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger, sha256_text
 from pipeline.mcp_artifacts import (
     MCPArtifactError,
@@ -79,6 +80,28 @@ MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_REFACTOR_MAX_INPUT_BYTES = 4 * 1024 * 1024
 MCP_REFACTOR_MAX_INPUT_FILES = 256
 MCP_REFACTOR_MAX_RESULT_BYTES = 4 * 1024 * 1024
+
+
+def _configured_approval_service(*, require_signer: bool) -> ApprovalService:
+    """Build approval coordination only from operator-controlled configuration."""
+    from pipeline.trust import list_trusted_keys
+
+    root = _operator_controlled_path("FORMALSPECGEN_APPROVAL_ROOT")
+    verifier_home = _operator_controlled_path("FORMALSPECGEN_APPROVAL_GNUPGHOME")
+    registry = _operator_controlled_path(
+        "FORMALSPECGEN_APPROVAL_TRUST_REGISTRY", require_file=True)
+    reviewers = {
+        str(item.get("key_id", "")).strip()
+        for item in list_trusted_keys(registry) if item.get("key_id")
+    }
+    signer = (_operator_controlled_path(
+        "FORMALSPECGEN_APPROVAL_SIGNER", require_file=True)
+        if require_signer else None)
+    return ApprovalService(
+        root, verifier_home=verifier_home, authorized_reviewers=reviewers,
+        signer=signer,
+        signing_identity=os.environ.get("FORMALSPECGEN_SIGNING_IDENTITY", ""),
+        reviewer_identity=os.environ.get("FORMALSPECGEN_REVIEWER_IDENTITY", ""))
 
 
 def _operator_controlled_path(
@@ -830,21 +853,18 @@ def verify_refactor(
         baseline: str, refactored: str, result_export: str | None = None,
         signing_intent: bool = False) -> dict[str, Any]:
     """Prove preservation without granting an agent reviewer-signing authority."""
+    if signing_intent and not result_export:
+        return {
+            "status": "INVALID_REQUEST", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": "signing_requires_controlled_export",
+            "message": (
+                "signed refactor verification requires a controlled JSON export; "
+                "no backend or signer was invoked"),
+        }
     request = RefactorWorkflowRequest(
         baseline, refactored, result_export=result_export,
         signing_intent=signing_intent)
-    if request.signing_intent:
-        return bind_workflow_result({
-            "status": "APPROVAL_REQUIRED", "claim": "NO_PROOF",
-            "request_satisfied": False, "code": "human_signing_required",
-            "message": (
-                "MCP records signing intent but never accepts a key or signs on "
-                "the reviewer's behalf"),
-            "approval": {
-                "status": "REQUIRED", "action": "sign-refactor-evidence",
-                "signing_authority_available": False,
-            },
-        }, request, WorkflowInterface.MCP)
 
     effects = request.required_effects(WorkflowInterface.MCP)
     admission = authorize_mcp_invocation(
@@ -922,6 +942,7 @@ def verify_refactor(
         result["evidence"] = receipt
         result["durable_publication_supported"] = True
     try:
+        exported_artifact: Path | None = None
         if request.result_export is not None:
             export = Path(request.result_export)
             if export.is_absolute() or ".." in export.parts or \
@@ -942,8 +963,51 @@ def verify_refactor(
                 "status": "COMMITTED", "kind": "refactor-result-export",
                 "artifacts": artifacts,
             }
+            exported_artifact = Path(artifacts[request.result_export]["path"])
+
+        if request.signing_intent:
+            if result.get("evidence", {}).get("publication_status") != "COMMITTED":
+                raise ApprovalError(
+                    "APPROVAL_EVIDENCE_UNAVAILABLE",
+                    "signing requires committed immutable verification evidence")
+            if exported_artifact is None:
+                raise ApprovalError(
+                    "APPROVAL_ARTIFACT_UNAVAILABLE",
+                    "signing requires a committed controlled result export")
+            context.require("service_state_write")
+            approval = _configured_approval_service(
+                require_signer=False).create_request(
+                    artifact=exported_artifact,
+                    evidence_manifest=Path(result["evidence"]["manifest_path"]),
+                    admission_profile_sha256=str(
+                        admission.summary()["profile_sha256"]),
+                    claim=str(result.get("claim", "NO_PROOF")),
+                    verification_status=str(result.get("status", "FAIL")),
+                    ttl_seconds=int(os.environ.get(
+                        "FORMALSPECGEN_APPROVAL_TTL_SECONDS", "900")))
+            result.update({
+                "status": "APPROVAL_REQUIRED",
+                "request_satisfied": False,
+                "code": "authenticated_human_approval_required",
+                "message": (
+                    "unsigned evidence is complete; an authenticated human "
+                    "decision is required before the protected signer may run"),
+                "approval": approval["approval"],
+            })
         return bind_workflow_result(
             result, request, WorkflowInterface.MCP, context=context)
+    except ApprovalError as exc:
+        failed = {
+            **result, **exc.as_dict(),
+            "verification": {
+                "status": service.payload.get("status"),
+                "claim": service.payload.get("claim", "NO_PROOF"),
+                "request_satisfied": service.payload.get(
+                    "request_satisfied", False),
+            },
+        }
+        return bind_workflow_result(
+            failed, request, WorkflowInterface.MCP, context=context)
     except (OSError, ValueError, MCPPolicyViolation, MCPArtifactError) as exc:
         failed = {
             **result, "status": "RESULT_EXPORT_FAILED", "claim": "NO_PROOF",
@@ -1437,6 +1501,55 @@ def cancel_agent_run(run_id: str) -> dict[str, Any]:
         return _agent_response(record, admission)
     except Exception as exc:
         return _agent_error(exc)
+
+
+def get_approval_request(request_id: str) -> dict[str, Any]:
+    """Read approval state without acquiring protected signing authority."""
+    effects = ("service_state_read",)
+    admission = authorize_mcp_invocation(
+        "get_approval_request", mode="status", language="none",
+        backend="protected-signer-v1", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        require_mcp_effect(admission, "service_state_read")
+        result = _configured_approval_service(
+            require_signer=False).status(request_id)
+        result["mcp_admission"] = admission.summary()
+        return result
+    except ApprovalError as exc:
+        return {**exc.as_dict(), "mcp_admission": admission.summary()}
+    except (OSError, ValueError) as exc:
+        return {
+            "status": "APPROVAL_SERVICE_UNAVAILABLE", "claim": "NO_PROOF",
+            "request_satisfied": False, "message": str(exc),
+            "mcp_admission": admission.summary(),
+        }
+
+
+def complete_refactor_signing(request_id: str) -> dict[str, Any]:
+    """Execute an authenticated approval through the protected signer."""
+    effects = ("service_state_read", "service_state_write", "protected_signing")
+    admission = authorize_mcp_invocation(
+        "complete_refactor_signing", mode="complete", language="none",
+        backend="protected-signer-v1", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        for effect in effects:
+            require_mcp_effect(admission, effect)
+        result = _configured_approval_service(
+            require_signer=True).execute(request_id)
+        result["mcp_admission"] = admission.summary()
+        return result
+    except ApprovalError as exc:
+        return {**exc.as_dict(), "mcp_admission": admission.summary()}
+    except (OSError, ValueError) as exc:
+        return {
+            "status": "APPROVAL_SERVICE_UNAVAILABLE", "claim": "NO_PROOF",
+            "request_satisfied": False, "message": str(exc),
+            "mcp_admission": admission.summary(),
+        }
 
 
 def doctor_environment() -> dict[str, Any]:

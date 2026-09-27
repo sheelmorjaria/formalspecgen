@@ -134,6 +134,8 @@ def test_cli_parser_and_mcp_schema_cover_refactor_inputs():
         "baseline", "refactored", "result_export", "signing_intent"]
     if os.environ.get("FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE") != "1":
         pytest.skip("real stdio MCP acceptance is required only in provisioned CI")
+    if os.environ.get("FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE") != "1":
+        pytest.fail("refactor transport acceptance requires protected signing")
     from scripts.mcp_acceptance_adapters import collect_tool_schema
 
     schema = collect_tool_schema("verify_refactor")["input_schema"]
@@ -352,17 +354,54 @@ def test_publication_failure_downgrades_success_to_no_proof(tmp_path, monkeypatc
     assert result["result_export"]["status"] == "COMMITTED"
 
 
-def test_signing_intent_requires_human_approval_before_dispatch(tmp_path, monkeypatch):
+def test_signing_intent_without_controlled_export_is_rejected_before_dispatch(
+        tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with patch("pipeline.workflow_services.run_refactor_verification") as service:
         result = mcp_server.verify_refactor(
             "baseline/Account.java", "candidate/Account.java",
             signing_intent=True)
     service.assert_not_called()
-    assert result["status"] == "APPROVAL_REQUIRED"
+    assert result["status"] == "INVALID_REQUEST"
     assert result["claim"] == "NO_PROOF"
-    assert result["approval"]["signing_authority_available"] is False
-    assert "signing_key" not in result["workflow_result"]["request"]
+    assert result["code"] == "signing_requires_controlled_export"
+
+
+def test_signing_intent_verifies_and_creates_bound_approval_request(
+        tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    baseline, candidate = _pair(tmp_path, ".java", JAVA_BASE, JAVA_REFACTORED)
+    captured = {}
+
+    class Approval:
+        def create_request(self, **kwargs):
+            captured.update(kwargs)
+            assert kwargs["artifact"].is_file()
+            assert kwargs["evidence_manifest"].is_file()
+            return {
+                "approval": {
+                    "status": "PENDING", "request_id": "a" * 32,
+                    "private_key_exposed": False,
+                }
+            }
+
+    with patch("pipeline.workflow_services.verify_files_detailed",
+               side_effect=_java_success), \
+            patch("mcp_server._configured_approval_service",
+                  return_value=Approval()):
+        result = mcp_server.verify_refactor(
+            str(baseline.relative_to(tmp_path)),
+            str(candidate.relative_to(tmp_path)),
+            result_export="refactor/signed.json", signing_intent=True)
+
+    assert result["status"] == "APPROVAL_REQUIRED"
+    assert result["request_satisfied"] is False
+    assert result["claim"] == "REFACTOR_CONTRACT_PRESERVED"
+    assert result["approval"]["request_id"] == "a" * 32
+    assert result["approval"]["private_key_exposed"] is False
+    assert result["mcp_admission"]["profile"].endswith("signing-request")
+    assert captured["admission_profile_sha256"] == \
+        result["mcp_admission"]["profile_sha256"]
 
 
 def test_cli_and_mcp_share_normalized_unsigned_request_and_result(
@@ -396,6 +435,8 @@ def test_real_mcp_transport_exercises_refactor_matrix():
 
     observation = collect_transport_observation("verify-refactor")
     assert observation["transport"] == "mcp-stdio-subprocess"
-    assert observation["result_status"] == "APPROVAL_REQUIRED"
+    assert observation["result_status"] == "SIGNED"
     assert "verify_refactor" in observation["discovered_tools"]
-    assert len(observation["variants"]) == 11
+    assert {"get_approval_request", "complete_refactor_signing"}.issubset(
+        observation["discovered_tools"])
+    assert len(observation["variants"]) == 13

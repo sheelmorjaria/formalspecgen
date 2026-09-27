@@ -37,8 +37,9 @@ boundary will reject the operation even when the broader profile could have allo
 > Strict MCP exposes only explicitly admitted invocation profiles. Executing workflows require
 > approved isolation and evidence publication across all execution stages. Non-executing workflows
 > require bounded processing and explicitly constrained workspace and provider access. Unsupported
-> combinations fail before side effects. Human promotion, signing, and trust administration remain
-> outside agent authority.
+> combinations fail before side effects. Human approval, promotion, and trust administration remain
+> outside agent authority. An agent may request or retrieve an approved signing action, but cannot
+> create the human decision or access the signing key.
 
 ## Current admitted profiles
 
@@ -49,7 +50,7 @@ boundary will reject the operation even when the broader profile could have allo
 | `verify_code` | Yes | Admitted | `esc` / Rust / Prusti or Kani | Read immutable input; strict execution | None | Deductive Prusti or bounded Kani evidence with terminal manifest | Required for any later promotion or signing |
 | `verify_code` | Yes | Admitted | `esc` / C or C++ / Frama-C WP or ESBMC | Strict compiler/preflight and verifier stages | None | Deductive C or bounded C++ evidence with every execution stage | Required for any later promotion or signing |
 | `verify_code` | Yes | Admitted | `parse`, `check` / C or C++ / structured rejection | Read request metadata; no external execution | None | Immutable unsupported-mode result | None |
-| `verify_refactor` | Yes | Admitted, unsigned subset | `preserve` / Java or JML, Rust, C, or C++ / language verifier | Read immutable baseline and candidate snapshots; strict baseline/candidate execution; optional new JSON export | None | One immutable bundle binding both input manifests, semantic surfaces, proof-trust inventories, actual observations, claim limits, and admission | Signing intent returns `APPROVAL_REQUIRED`; authenticated signing parity is not yet implemented |
+| `verify_refactor` | Yes | Admitted | `preserve` or `preserve-signing` / Java or JML, Rust, C, or C++ / language verifier | Read immutable baseline and candidate snapshots; strict baseline/candidate execution; controlled result export for signing | None | One immutable bundle binding both inputs and observations; signing adds a separate detached signature and immutable action receipt | An authenticated reviewer decision is required before protected signing |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
 | `submit_work_item` | No coordinator CLI | Admitted | `submit` / approved workflow and A2A 1.0 worker | Read current revision; append service task state; dispatch to an approved worker | Worker endpoint only; no model/provider permission | Hash-chained worker-task events and unaccepted proposal references | Trusted acceptance and human merge review remain separate |
@@ -58,6 +59,7 @@ boundary will reject the operation even when the broader profile could have allo
 | `cancel_work_item` | No coordinator CLI | Admitted | remote task cancellation | Principal-scoped state read/write and approved worker dispatch | Approved worker endpoint | Hash-chained cancellation outcome; no proof claim | None |
 | `start_agent_run` / `resume_agent_run` | No supervisor CLI | Admitted | supervised `inspect` then `verify` / Java or JML / OpenJML | Exact source read; strict verification; protected service-state read/write | None | Child verification manifest plus no-replace goal review | Required for contract changes, applying source changes, signing, promotion, trust changes, or merge |
 | `get_agent_run` / `cancel_agent_run` | No supervisor CLI | Admitted | principal-scoped local state | Protected service-state read, plus state write and terminal-review publication for cancellation | None | Hash-chained run events and no-replace cancellation review; cancellation never becomes proof | None |
+| `get_approval_request` / `complete_refactor_signing` | No approval CLI | Admitted | status or completion / protected signer v1 | Protected approval-state read/write; completion may invoke only the fixed protected signer | None | Artifact-bound request, detached signature, and immutable action receipt | The decision must be signed out of band by an authorized reviewer |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -87,12 +89,15 @@ real stdio MCP server. The revision-bound parity report may count `verify` compl
 job also observes the expected bounded/deductive claim distinctions and validates publication.
 
 `verify_refactor` accepts `baseline`, a candidate file or collaborator directory as `refactored`,
-optional `result_export`, and `signing_intent`. The unsigned profiles preserve the existing
+optional `result_export`, and `signing_intent`. The preservation profiles preserve the existing
 contract, proof-trust, semantic-context, and collaborator checks, then verify both snapshots through
 strict execution. Negative results can be exported through the same no-replace publisher and cannot
-erase successful baseline observations. Signing intent never grants signing authority or exposes a
-key to MCP; it stops with `APPROVAL_REQUIRED`. Consequently this admitted subset remains an
-incomplete CLI workflow until an authenticated human signing coordinator has acceptance evidence.
+erase successful baseline observations. Signing intent requires a controlled export and creates an
+exact approval request only after evidence and export publication succeed. A reviewer records an
+authenticated decision outside MCP. `complete_refactor_signing` then asks an operator-fixed signer
+to revalidate the decision, artifact, evidence manifest, action, destination, identities, policy,
+and expiry before producing a detached signature and separate receipt. MCP receives neither the
+reviewer's secret key nor the protected signing key. Signing does not upgrade the verification claim.
 
 The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
 alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and
@@ -189,9 +194,10 @@ tests the proposal on the integrated revision.
 
 ## Permanent human boundary
 
-`promote_domain`, `sign_artifact`, and `manage_trust` are human trust actions. They cannot acquire
-an MCP invocation profile even if their implementation could run in a sandbox. An agent may prepare
-a review package, but it cannot accept, sign, or change reviewer trust policy.
+`promote_domain`, generic `sign_artifact`, and `manage_trust` are human trust actions. They cannot
+acquire an MCP invocation profile even if their implementation could run in a sandbox. An agent may
+prepare a review package or request completion of an already authenticated, exact signing action,
+but it cannot create the approval, select arbitrary signing inputs, or change reviewer trust policy.
 
 ## Deployment
 

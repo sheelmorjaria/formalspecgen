@@ -310,6 +310,11 @@ class RefactorWorkflowRequest:
         object.__setattr__(self, "refactored", refactored)
         object.__setattr__(self, "language", language)
         object.__setattr__(self, "effective_backend", effective)
+        object.__setattr__(
+            self, "mode", "preserve-signing" if self.signing_intent else "preserve")
+        if self.signing_intent and not self.result_export:
+            raise ValueError(
+                "signed refactor verification requires a controlled JSON export")
 
     def required_effects(self, interface: WorkflowInterface) -> tuple[str, ...]:
         effects = ["workspace_read", "external_execution"]
@@ -317,6 +322,8 @@ class RefactorWorkflowRequest:
             effects.append("evidence_publication")
         if self.result_export:
             effects.append("workspace_write_new")
+        if interface is WorkflowInterface.MCP and self.signing_intent:
+            effects.append("service_state_write")
         return _normalized_effects(tuple(effects))
 
     def as_dict(self) -> dict[str, Any]:

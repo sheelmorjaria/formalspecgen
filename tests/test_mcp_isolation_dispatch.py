@@ -91,11 +91,13 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
         "get_agent_run": "non-executing",
         "resume_agent_run": "strict-execution",
         "cancel_agent_run": "non-executing",
+        "get_approval_request": "approval-coordination",
+        "complete_refactor_signing": "approval-coordination",
         "verify_refactor": "strict-execution",
     }
     assert all(item.mcp_isolation in {
-        "a2a-coordination", "strict-java", "strict-execution",
-        "non-executing", "unsupported"
+        "a2a-coordination", "approval-coordination", "strict-java",
+        "strict-execution", "non-executing", "unsupported"
     } for item in mcp_capabilities())
 
 
@@ -118,4 +120,5 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
         "verify_code", "inspect_code", "document_code", "submit_work_item",
         "get_work_item", "get_work_artifacts", "cancel_work_item",
         "start_agent_run", "get_agent_run", "resume_agent_run",
-        "cancel_agent_run", "verify_refactor"]
+        "cancel_agent_run", "get_approval_request",
+        "complete_refactor_signing", "verify_refactor"]
