@@ -5,7 +5,7 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `886a5f6104461c70ed22bc8639c475ccca90931fa31eeae158c246cb77db5f47`
+- `index.html` SHA-256: `fe594b50441e6cd5e822c2d2c5f3a35a95fef7a456504386c27511bcd80c36de`
 - `command_inventory.json` SHA-256: `0d1e571d414b26f292e642ad75390a5077ba6d8bc94659eb68c57e2af5db1906`
 - `mcp_capabilities.json` SHA-256: `f7c46db7bebf3911fb479acb1e85ca6a274d6dbdb6588eb5a3de8be825121b1c`
 - Parsed HTML element IDs: 9
@@ -15,6 +15,7 @@ documentation validation, not formal verification or revision-bound acceptance e
 - Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,
   `VALIDATION.md`, and the archived `91c6790` guide
 - Unexpected relative assets: none
+- Handwritten Java verification payloads validated through the application request model
 
 ## Scope limits
 

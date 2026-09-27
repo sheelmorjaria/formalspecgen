@@ -111,11 +111,13 @@ class WorkflowContext:
     def for_cli(
             cls, required_effects: tuple[str, ...], *,
             workspace_root: Path | None = None,
-            output_root: Path | None = None) -> "WorkflowContext":
+            output_root: Path | None = None,
+            resource_budget: Mapping[str, int] | None = None) -> "WorkflowContext":
         effects = _normalized_effects(required_effects)
         return cls(
             WorkflowInterface.CLI, FixedEffectAuthority(effects),
-            (workspace_root or Path.cwd()), effects, output_root)
+            (workspace_root or Path.cwd()), effects, output_root,
+            resource_budget or {})
 
     @classmethod
     def for_mcp(

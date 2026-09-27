@@ -72,18 +72,19 @@
       <div class="card"><h3>C / ACSL</h3><p>Frama-C ESC through strict execution. Unsupported modes fail explicitly.</p></div>
       <div class="card"><h3>C++</h3><p>ESBMC with recorded bounds. A bounded result is never presented as unbounded proof.</p></div>
     </div>
-    <pre><code>{
+    <pre><code data-workflow-example="verify-java">{
   "source": "src/Counter.java",
   "mode": "esc",
-  "backend": "openjml",
   "result_export": "verification/counter.json"
 }</code></pre>
+    <p>Omit <code>backend</code> for Java/JML, C, and C++; the server derives those backends from the source. Use <code>backend</code> only to select <code>prusti</code> or <code>kani</code> for Rust.</p>
     <p>Exports are new artifacts under the configured MCP output root. Existing destinations are not replaced. Tool startup, sandbox, resource, or publication failures remain <code>NO_PROOF</code>.</p>
   </section>
 
   <section id="refactoring">
     <h2>Contract-preserving refactoring</h2>
     <p><code>verify_refactor</code> compares a reviewed baseline with a candidate file or collaborator directory, preserves contract/proof-trust/semantic-context checks, and verifies both sides using the strict executor. Its evidence bundle binds both snapshots and all actual execution observations.</p>
+    <p>The strict MCP profile captures at most 4 MiB across at most 256 source files. Capture consumes the aggregate byte budget while reading, before any verifier is invoked.</p>
     <pre><code>{
   "baseline": "src/Counter.java",
   "refactored": "candidate/Counter.java",

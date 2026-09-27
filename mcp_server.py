@@ -77,6 +77,7 @@ MCP_DOCUMENT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_INSPECT_MAX_INPUT_BYTES = 1 * 1024 * 1024
 MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_REFACTOR_MAX_INPUT_BYTES = 4 * 1024 * 1024
+MCP_REFACTOR_MAX_INPUT_FILES = 256
 MCP_REFACTOR_MAX_RESULT_BYTES = 4 * 1024 * 1024
 
 
@@ -859,7 +860,10 @@ def verify_refactor(
         admission, effects,
         output_root=(_designated_mcp_output_root()
                      if request.result_export is not None else None),
-        resource_budget={"max_input_bytes": MCP_REFACTOR_MAX_INPUT_BYTES})
+        resource_budget={
+            "max_input_bytes": MCP_REFACTOR_MAX_INPUT_BYTES,
+            "max_input_files": MCP_REFACTOR_MAX_INPUT_FILES,
+        })
     try:
         service = run_refactor_verification(request, context)
     except (OSError, ValueError, FileNotFoundError, MCPPolicyViolation) as exc:

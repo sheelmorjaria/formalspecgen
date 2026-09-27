@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -400,6 +401,8 @@ def _refactor_inputs(
         context: WorkflowContext) -> tuple[
             dict[str, Any], tuple[_CapturedRefactorSource, ...],
             tuple[_CapturedRefactorSource, ...]]:
+    byte_limit = _refactor_resource_limit(context, "max_input_bytes")
+    file_limit = _refactor_resource_limit(context, "max_input_files")
     if baseline.is_symlink() or refactored.is_symlink():
         raise ValueError("refactor inputs must not be symlinks")
     baseline_files = (baseline,)
@@ -407,13 +410,17 @@ def _refactor_inputs(
         request_language = _language_for_path(baseline)
         if request_language not in {"java", "jml"}:
             raise ValueError("multifile refactoring supports Java/JML only")
-        dependencies = tuple(sorted(
-            path for path in baseline.parent.glob("*.java")
-            if path != baseline and path.is_file()))
+        dependencies = _bounded_refactor_sources(
+            baseline.parent, suffixes={".java"}, excluded={baseline},
+            remaining=(None if file_limit is None else file_limit - 1),
+            label="baseline collaborator")
         baseline_files = (baseline, *dependencies)
-        refactored_files = tuple(sorted(
-            path for path in refactored.iterdir()
-            if path.is_file() and path.suffix.lower() in {".java", ".jml"}))
+        refactored_files = _bounded_refactor_sources(
+            refactored, suffixes={".java", ".jml"},
+            excluded=set(),
+            remaining=(None if file_limit is None
+                       else file_limit - len(baseline_files)),
+            label="refactored collaborator")
         if not refactored_files:
             raise ValueError("refactored directory contains no Java/JML sources")
     elif refactored.is_file():
@@ -421,23 +428,88 @@ def _refactor_inputs(
     else:
         raise FileNotFoundError(str(refactored))
     all_files = (*baseline_files, *refactored_files)
+    if file_limit is not None and len(all_files) > file_limit:
+        raise ValueError(
+            f"refactor inputs exceed the configured file limit of {file_limit}")
     if any(path.is_symlink() for path in all_files):
         raise ValueError("refactor source sets must not contain symlinks")
-    captured_baseline = tuple(
-        _CapturedRefactorSource(path, path.read_bytes()) for path in baseline_files)
-    captured_refactored = tuple(
-        _CapturedRefactorSource(path, path.read_bytes()) for path in refactored_files)
-    limit = context.resource_budget.get("max_input_bytes")
-    total = sum(
-        len(source.content)
-        for source in (*captured_baseline, *captured_refactored))
-    if limit is not None and total > limit:
-        raise ValueError(f"refactor inputs exceed the configured limit of {limit} bytes")
+    captured_baseline, remaining = _capture_refactor_sources(
+        baseline_files, remaining=byte_limit, configured_limit=byte_limit)
+    captured_refactored, _ = _capture_refactor_sources(
+        refactored_files, remaining=remaining, configured_limit=byte_limit)
+    total = sum(len(source.content) for source in (
+        *captured_baseline, *captured_refactored))
     return {
         "baseline": _source_records(captured_baseline, context.workspace_root),
         "refactored": _source_records(captured_refactored, context.workspace_root),
-        "total_bytes": total,
+        "total_bytes": total, "total_files": len(all_files),
     }, captured_baseline, captured_refactored
+
+
+def _refactor_resource_limit(
+        context: WorkflowContext, name: str) -> int | None:
+    value = context.resource_budget.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return value
+
+
+def _bounded_refactor_sources(
+        directory: Path, *, suffixes: set[str], excluded: set[Path],
+        remaining: int | None, label: str) -> tuple[Path, ...]:
+    """Enumerate only as many collaborator sources as the request may retain."""
+    if remaining is not None and remaining < 0:
+        raise ValueError(
+            f"refactor inputs exceed the configured file limit before {label} capture")
+    sources: list[Path] = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            path = Path(entry.path)
+            if path in excluded or path.suffix.lower() not in suffixes:
+                continue
+            if entry.is_symlink():
+                raise ValueError("refactor source sets must not contain symlinks")
+            if not entry.is_file(follow_symlinks=False):
+                continue
+            if remaining is not None and len(sources) >= remaining:
+                raise ValueError(
+                    "refactor inputs exceed the configured file limit while "
+                    f"reading {label}s")
+            sources.append(path)
+    return tuple(sorted(sources))
+
+
+def _capture_refactor_sources(
+        paths: tuple[Path, ...], *, remaining: int | None,
+        configured_limit: int | None) -> tuple[
+            tuple[_CapturedRefactorSource, ...], int | None]:
+    """Capture sources once without reading beyond the aggregate budget probe."""
+    captured: list[_CapturedRefactorSource] = []
+    for path in paths:
+        if remaining is None:
+            with path.open("rb") as handle:
+                content = handle.read()
+        else:
+            maximum = remaining + 1
+            chunks: list[bytes] = []
+            observed = 0
+            with path.open("rb") as handle:
+                while observed < maximum:
+                    chunk = handle.read(maximum - observed)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    observed += len(chunk)
+            content = b"".join(chunks)
+            if len(content) > remaining:
+                raise ValueError(
+                    "refactor inputs exceed the configured limit of "
+                    f"{configured_limit} bytes")
+            remaining -= len(content)
+        captured.append(_CapturedRefactorSource(path, content))
+    return tuple(captured), remaining
 
 
 def _source_records(

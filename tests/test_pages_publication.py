@@ -15,7 +15,7 @@ from scripts.generate_pages_companions import _expected
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "886a5f6104461c70ed22bc8639c475ccca90931fa31eeae158c246cb77db5f47"
+GUIDE_SHA256 = "fe594b50441e6cd5e822c2d2c5f3a35a95fef7a456504386c27511bcd80c36de"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 

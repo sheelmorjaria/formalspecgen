@@ -20,6 +20,7 @@ from pipeline.mcp_policy import (
     profile_definition_sha256,
 )
 from pipeline.parity_inventory import handler_input_schema, reconcile_parity_plan
+from pipeline.workflow_contracts import VerificationWorkflowRequest
 
 
 GUIDE_INVENTORY_SCHEMA = "formalspecgen-guide-command-inventory-v2"
@@ -32,6 +33,9 @@ class _GuideLinks(HTMLParser):
         self.ids: list[str] = []
         self.hrefs: list[str] = []
         self.sources: list[str] = []
+        self.examples: dict[str, str] = {}
+        self._example_name: str | None = None
+        self._example_parts: list[str] = []
 
     def handle_starttag(
             self, _tag: str,
@@ -43,6 +47,24 @@ class _GuideLinks(HTMLParser):
             self.hrefs.append(str(values["href"]))
         if values.get("src"):
             self.sources.append(str(values["src"]))
+        if values.get("data-workflow-example"):
+            if self._example_name is not None:
+                raise ValueError("nested workflow examples are not supported")
+            self._example_name = str(values["data-workflow-example"])
+            self._example_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._example_name is not None:
+            self._example_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "code" or self._example_name is None:
+            return
+        if self._example_name in self.examples:
+            raise ValueError(f"duplicate workflow example: {self._example_name}")
+        self.examples[self._example_name] = "".join(self._example_parts)
+        self._example_name = None
+        self._example_parts = []
 
 
 def _sha256(data: bytes) -> str:
@@ -151,6 +173,7 @@ def _guide_validation(
     if unexpected_local or missing_local:
         raise ValueError(
             f"guide local-link drift: unexpected={unexpected_local}, missing={missing_local}")
+    _validate_workflow_examples(parser.examples)
     return "\n".join([
         "# Published guide validation",
         "",
@@ -169,6 +192,7 @@ def _guide_validation(
         "- Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,",
         "  `VALIDATION.md`, and the archived `91c6790` guide",
         "- Unexpected relative assets: none",
+        "- Handwritten Java verification payloads validated through the application request model",
         "",
         "## Scope limits",
         "",
@@ -178,6 +202,18 @@ def _guide_validation(
         "- Completion claims must be checked against the linked revision-bound CI evidence.",
         "",
     ])
+
+
+def _validate_workflow_examples(examples: dict[str, str]) -> None:
+    if set(examples) != {"verify-java"}:
+        raise ValueError(
+            "guide workflow-example drift: expected only verify-java, found "
+            + ", ".join(sorted(examples)))
+    payload = json.loads(examples["verify-java"])
+    request = VerificationWorkflowRequest(**payload)
+    if request.language not in {"java", "jml"} or \
+            request.effective_backend != "openjml":
+        raise ValueError("verify-java example does not resolve to Java/OpenJML")
 
 
 def _expected(plan_path: Path, site: Path) -> tuple[bytes, bytes, str]:
