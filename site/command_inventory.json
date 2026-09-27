@@ -5,7 +5,7 @@
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 38,
   "argument_declaration_count": 205,
-  "commands_with_admitted_profile": 4,
+  "commands_with_admitted_profile": 5,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -110,7 +110,7 @@
       "cli_command": "apply-refactor",
       "mcp_tool": "apply_refactor",
       "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {

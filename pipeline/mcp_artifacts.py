@@ -8,9 +8,15 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path, PurePosixPath
-from typing import Mapping
+from typing import Mapping, Protocol
 
 from .mcp_policy import MCPAdmission, require_mcp_effect
+
+
+class EffectPermission(Protocol):
+    """Minimal authority accepted by the reusable artifact publisher."""
+
+    def permits(self, effect: str) -> bool: ...
 
 
 class MCPArtifactError(ValueError):
@@ -40,7 +46,8 @@ def read_bounded_text(
 
 def publish_new_artifacts(
         output_root: Path, artifacts: Mapping[str, str | bytes],
-        admission: MCPAdmission, *, max_total_bytes: int) -> dict[str, dict]:
+        admission: MCPAdmission | EffectPermission, *,
+        max_total_bytes: int) -> dict[str, dict]:
     """Publish new files with hard-link no-replace semantics.
 
     Existing artifacts and symlinked path components are rejected. Files are

@@ -20,7 +20,10 @@ from pipeline.mcp_policy import (
     profile_definition_sha256,
 )
 from pipeline.parity_inventory import handler_input_schema, reconcile_parity_plan
-from pipeline.workflow_contracts import VerificationWorkflowRequest
+from pipeline.workflow_contracts import (
+    ApplyRefactorWorkflowRequest,
+    VerificationWorkflowRequest,
+)
 
 
 GUIDE_INVENTORY_SCHEMA = "formalspecgen-guide-command-inventory-v2"
@@ -192,7 +195,7 @@ def _guide_validation(
         "- Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,",
         "  `VALIDATION.md`, and the archived `91c6790` guide",
         "- Unexpected relative assets: none",
-        "- Handwritten Java verification payloads validated through the application request model",
+        "- Handwritten Java verification and apply-refactor payloads validated through application request models",
         "",
         "## Scope limits",
         "",
@@ -205,15 +208,21 @@ def _guide_validation(
 
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
-    if set(examples) != {"verify-java"}:
+    if set(examples) != {"verify-java", "apply-refactor-java"}:
         raise ValueError(
-            "guide workflow-example drift: expected only verify-java, found "
+            "guide workflow-example drift: expected verify-java and apply-refactor-java, found "
             + ", ".join(sorted(examples)))
     payload = json.loads(examples["verify-java"])
     request = VerificationWorkflowRequest(**payload)
     if request.language not in {"java", "jml"} or \
             request.effective_backend != "openjml":
         raise ValueError("verify-java example does not resolve to Java/OpenJML")
+    refactor = ApplyRefactorWorkflowRequest(**json.loads(
+        examples["apply-refactor-java"]))
+    if refactor.language != "java" or refactor.effective_backend != "openjml" or \
+            refactor.pattern != "extract-method":
+        raise ValueError(
+            "apply-refactor-java example does not resolve to Java/OpenJML extract-method")
 
 
 def _expected(plan_path: Path, site: Path) -> tuple[bytes, bytes, str]:

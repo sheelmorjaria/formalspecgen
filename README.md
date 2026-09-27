@@ -81,6 +81,10 @@ request creates an exact `APPROVAL_REQUIRED` record after unsigned evidence and 
 publication. An authorized reviewer signs the decision outside MCP, after which the fixed protected
 signer may produce a detached signature and immutable receipt. Signing authority and private keys
 are never exposed through MCP, and signing never upgrades the verification claim.
+The strict catalogue also admits `apply_refactor` for bounded deterministic Java/JML, Rust, C, and
+C++ transformations. It stages candidates privately, reuses the preservation service, and publishes
+only new unreviewed candidate artifacts plus immutable evidence; it does not modify authoritative
+source files or claim general behavioral equivalence.
 Deployment and reviewer steps are documented in
 [Authenticated approval and protected signing](docs/APPROVAL_SIGNING.md).
 The server can also expose the operator-configured A2A proposal bridge

@@ -152,8 +152,12 @@ def test_cli_dispatches_rust_strategy(tmp_path, monkeypatch):
     args = argparse.Namespace(source="meter.rs", method="set_price",
                               pattern="strategy", out="meter_strategy.rs",
                               inspection=None, json=None)
-    with patch("pipeline.refactor_gate._polyglot_verification",
-               side_effect=[dict(_VERIFIED), dict(_VERIFIED)]):
+    from pipeline.isolated_verification import IsolatedVerificationResult
+    verified = IsolatedVerificationResult({
+        "status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
+        "exit_code": 0, "output": "proved"})
+    with patch("pipeline.workflow_services.execute_isolated_verification",
+               return_value=verified):
         code = command_apply_refactor(args, _UI())
     assert code == 0
     assert (tmp_path / "meter_strategy.rs").exists()

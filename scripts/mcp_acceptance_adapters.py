@@ -556,6 +556,88 @@ async def _verify_refactor_observation() -> dict:
     return observation
 
 
+async def _apply_refactor_observation() -> dict:
+    from pipeline.java_inspection import inspect_java_file
+
+    long_body = "\n".join(
+        f"    int unused{index} = {index};" for index in range(61))
+    fixtures = {
+        "java/LongCounter.java": (
+            "public class LongCounter {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() {\n" + long_body +
+            "\n    return 1;\n  }\n}\n"),
+        "rust/value.rs": (
+            "use prusti_contracts::*;\n"
+            "#[ensures(result == 1)]\n"
+            "pub fn value() -> i32 { 1 }\n"),
+        "c/add.c": (
+            "/*@ requires value >= 0 && value < 100; assigns \\nothing; "
+            "ensures \\result == value + 1; */\n"
+            "int add_one(int value) { return value + 1; }\n"),
+        "cpp/Counter.cpp": (
+            "#include <cassert>\nclass Counter { public:\n"
+            "  int count = 0;\n"
+            "  void add(int value) { assert(value >= 0); count += value; }\n"
+            "};\n"),
+    }
+    with tempfile.TemporaryDirectory(
+            prefix="formalspecgen-mcp-apply-refactor-") as directory:
+        workspace = Path(directory)
+        for name, source in fixtures.items():
+            path = workspace / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source, encoding="utf-8")
+        inspection = inspect_java_file(workspace / "java/LongCounter.java")
+        (workspace / "java/inspection.json").write_text(
+            json.dumps(inspection), encoding="utf-8")
+        calls = [
+            {"source": "java/LongCounter.java",
+             "inspection": "java/inspection.json", "pattern": "extract-method",
+             "method": "value", "out": "candidates/java/LongCounter.java",
+             "result_export": "results/java.json"},
+            {"source": "rust/value.rs", "pattern": "extract-method",
+             "method": "value", "out": "candidates/rust/value.rs",
+             "result_export": "results/rust.json"},
+            {"source": "c/add.c", "pattern": "extract-method", "method": "add_one",
+             "out": "candidates/c/add.c", "result_export": "results/c.json"},
+            {"source": "cpp/Counter.cpp", "pattern": "extract-method",
+             "method": "add", "out": "candidates/cpp/Counter.cpp",
+             "result_export": "results/cpp.json"},
+            {"source": "c/add.c", "pattern": "extract-method",
+             "method": "missing", "out": "candidates/c/missing.c",
+             "result_export": "results/rejected.json"},
+        ]
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "apply_refactor", calls, timeout_s=300)
+        expected = ["VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED", "FAIL"]
+        if [item.get("status") for item in results] != expected:
+            raise RuntimeError("apply_refactor transport variants did not complete")
+        for item in results[:4]:
+            if (item.get("candidate_publication") or {}).get("status") != "COMMITTED":
+                raise RuntimeError("apply_refactor candidate was not committed")
+            if (item.get("evidence") or {}).get("publication_status") != "COMMITTED":
+                raise RuntimeError("apply_refactor evidence was not committed")
+        if (results[-1].get("result_export") or {}).get("status") != "COMMITTED":
+            raise RuntimeError("negative apply_refactor result was not exported")
+    semantic_result = [{
+        "status": item.get("status"), "claim": item.get("claim"),
+        "request_satisfied": item.get("request_satisfied"),
+        "language": ((item.get("workflow_result") or {}).get("request") or {}).get(
+            "language"),
+        "receipt": ((item.get("evidence") or {}).get("publication_status")),
+        "candidate": ((item.get("candidate_publication") or {}).get("status")),
+    } for item in results]
+    observation = _observation(
+        initialized, tools, schema, semantic_result, results[-1])
+    observation["variants"] = [
+        "java-extract-method", "rust-extract-method", "c-extract-method",
+        "cpp-extract-method", "negative-transform-export",
+    ]
+    observation["semantic_results"] = semantic_result
+    return observation
+
+
 def _observation(
         initialized: object, tools: object, schema: dict,
         semantic_result: object, last_result: dict) -> dict:
@@ -576,6 +658,7 @@ _ADAPTERS = {
     "document-code": _document_observation,
     "verify": _verify_observation,
     "verify-refactor": _verify_refactor_observation,
+    "apply-refactor": _apply_refactor_observation,
 }
 
 

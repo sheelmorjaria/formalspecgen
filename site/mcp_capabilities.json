@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 14,
-  "cli_capability_count": 4,
+  "capability_count": 15,
+  "cli_capability_count": 5,
   "mcp_only_capability_count": 10,
   "capabilities": [
     {
@@ -1342,6 +1342,190 @@
             "service_state_write"
           ],
           "profile_sha256": "91d3083fe2d5bc2836dd0a8e6bd72ea92d6d95b70d50ef30462d624989c94e7a"
+        }
+      ]
+    },
+    {
+      "name": "apply_refactor",
+      "mcp_tool": "apply_refactor",
+      "cli_command": "apply-refactor",
+      "description": "Stage a deterministic refactor candidate, prove reviewed-contract preservation, and publish immutable evidence.",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "method",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "pattern",
+            "required": false,
+            "default": "extract-method",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "inspection",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "method",
+          "out",
+          "pattern",
+          "inspection",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-openjml-deterministic-refactor",
+          "modes": [
+            "decorator",
+            "extract-method",
+            "facade",
+            "factory-method",
+            "null-object",
+            "state",
+            "strategy"
+          ],
+          "languages": [
+            "java",
+            "jml"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "candidate-baseline-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "2f393737aa9eb6c6f700880d263aba1f6c1e71bc515fb69a06e58919277fee50"
+        },
+        {
+          "name": "rust-prusti-deterministic-refactor",
+          "modes": [
+            "extract-method",
+            "strategy"
+          ],
+          "languages": [
+            "rust"
+          ],
+          "backends": [
+            "prusti"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "candidate-baseline-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "62cc35c81307416b46a29767f1c088a7166fdcf2f7680b1d0f93a8ef52b45cb7"
+        },
+        {
+          "name": "c-framac-deterministic-refactor",
+          "modes": [
+            "extract-method"
+          ],
+          "languages": [
+            "c"
+          ],
+          "backends": [
+            "frama-c"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "candidate-baseline-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "331cc94b7073802217eb56fdd3514d5bd4300fd24cac6ee21dff306c453825a4"
+        },
+        {
+          "name": "cpp-esbmc-deterministic-refactor",
+          "modes": [
+            "extract-method"
+          ],
+          "languages": [
+            "cpp"
+          ],
+          "backends": [
+            "esbmc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-candidate-baseline-observations-and-terminal-manifest",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "7db0fd29531a7651cb03279ef43693a6b4c2a572d5a46b15bc4b6919ead35c11"
         }
       ]
     },

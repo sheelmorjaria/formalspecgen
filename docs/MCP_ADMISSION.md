@@ -51,6 +51,7 @@ boundary will reject the operation even when the broader profile could have allo
 | `verify_code` | Yes | Admitted | `esc` / C or C++ / Frama-C WP or ESBMC | Strict compiler/preflight and verifier stages | None | Deductive C or bounded C++ evidence with every execution stage | Required for any later promotion or signing |
 | `verify_code` | Yes | Admitted | `parse`, `check` / C or C++ / structured rejection | Read request metadata; no external execution | None | Immutable unsupported-mode result | None |
 | `verify_refactor` | Yes | Admitted | `preserve` or `preserve-signing` / Java or JML, Rust, C, or C++ / language verifier | Read immutable baseline and candidate snapshots; strict baseline/candidate execution; controlled result export for signing | None | One immutable bundle binding both inputs and observations; signing adds a separate detached signature and immutable action receipt | An authenticated reviewer decision is required before protected signing |
+| `apply_refactor` | Yes | Admitted | deterministic patterns / Java or JML, Rust, C, or C++ / language verifier | Capture bounded inputs; prepare privately staged candidates; strict preservation execution; create new candidate and optional JSON artifacts | None | Candidate manifest plus immutable baseline/candidate observations and terminal manifest | Candidate remains unreviewed; applying it to authoritative source requires separate approval |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
 | `submit_work_item` | No coordinator CLI | Admitted | `submit` / approved workflow and A2A 1.0 worker | Read current revision; append service task state; dispatch to an approved worker | Worker endpoint only; no model/provider permission | Hash-chained worker-task events and unaccepted proposal references | Trusted acceptance and human merge review remain separate |
@@ -59,7 +60,7 @@ boundary will reject the operation even when the broader profile could have allo
 | `cancel_work_item` | No coordinator CLI | Admitted | remote task cancellation | Principal-scoped state read/write and approved worker dispatch | Approved worker endpoint | Hash-chained cancellation outcome; no proof claim | None |
 | `start_agent_run` / `resume_agent_run` | No supervisor CLI | Admitted | supervised `inspect` then `verify` / Java or JML / OpenJML | Exact source read; strict verification; protected service-state read/write | None | Child verification manifest plus no-replace goal review | Required for contract changes, applying source changes, signing, promotion, trust changes, or merge |
 | `get_agent_run` / `cancel_agent_run` | No supervisor CLI | Admitted | principal-scoped local state | Protected service-state read, plus state write and terminal-review publication for cancellation | None | Hash-chained run events and no-replace cancellation review; cancellation never becomes proof | None |
-| `get_approval_request` / `complete_refactor_signing` | No approval CLI | Admitted | status or completion / protected signer v1 | Protected approval-state read/write; completion may invoke only the fixed protected signer | None | Artifact-bound request, detached signature, and immutable action receipt | The decision must be signed out of band by an authorized reviewer |
+| `get_approval_request` / `complete_refactor_signing` | No approval CLI | Admitted | status or completion / approval policy v2 protected signer | Protected approval-state read/write; completion may invoke only the fixed protected signer | None | Artifact-bound request, detached signature, and immutable action receipt | The decision must be signed out of band by an authorized reviewer |
 
 Admission is checked before input processing and again at concrete execution and evidence-publication
 boundaries. The strict catalogue is generated from these registry profiles, so an unsupported tool
@@ -98,6 +99,14 @@ authenticated decision outside MCP. `complete_refactor_signing` then asks an ope
 to revalidate the decision, artifact, evidence manifest, action, destination, identities, policy,
 and expiry before producing a detached signature and separate receipt. MCP receives neither the
 reviewer's secret key nor the protected signing key. Signing does not upgrade the verification claim.
+
+`apply_refactor` accepts `source`, required `method` and `out`, optional `pattern` and Java/JML
+`inspection`, and optional `result_export`. It captures bounded inputs before deterministic
+transformation, verifies private baseline and candidate snapshots through the preservation service,
+then publishes candidates only as new artifacts beneath the designated MCP output root. Java/JML
+admits the declared deterministic pattern catalogue, Rust admits extract-method and strategy, and C
+and C++ admit extract-method. Transformation rejection, verifier failure, sandbox failure, or
+publication failure remains `NO_PROOF`; no profile claims general behavioral equivalence.
 
 The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
 alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and

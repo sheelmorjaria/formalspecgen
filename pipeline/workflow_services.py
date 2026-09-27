@@ -19,6 +19,7 @@ from .isolated_verification import (
 from .verification_policy import decide_result, decide_verification
 from .verify import VerificationExecutionResult, verify_files_detailed
 from .workflow_contracts import (
+    ApplyRefactorWorkflowRequest,
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
@@ -44,6 +45,17 @@ class RefactorServiceResult:
     payload: dict[str, Any]
     stages: tuple[dict[str, Any], ...]
     inputs: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ApplyRefactorServiceResult:
+    """Prepared candidate plus the preservation evidence for that candidate."""
+
+    payload: dict[str, Any]
+    stages: tuple[dict[str, Any], ...]
+    inputs: dict[str, Any]
+    artifacts: dict[str, bytes]
+    multifile: bool
 
 
 @dataclass(frozen=True)
@@ -336,6 +348,206 @@ def run_refactor_verification(
         "approval": None,
     }
     return RefactorServiceResult(payload, tuple(stages), inputs)
+
+
+_MULTIFILE_APPLY_PATTERNS = {
+    "factory-method", "state", "decorator", "facade", "null-object", "strategy",
+}
+
+
+def run_apply_refactor(
+        request: ApplyRefactorWorkflowRequest, context: WorkflowContext, *,
+        execute_native: Callable[..., IsolatedVerificationResult] | None = None,
+        execute_java: Callable[[tuple[Path, ...], str], VerificationExecutionResult] | None =
+        None) -> ApplyRefactorServiceResult:
+    """Prepare a deterministic candidate and prove preservation before publication.
+
+    The source set is captured into private temporary storage before either the
+    transformer or verifier sees it.  The returned artifact bytes are therefore
+    the same bytes whose candidate digest and verification stages are reported;
+    transport adapters decide where those bytes may be published.
+    """
+    source = context.resolve_input(request.source)
+    inspection = (context.resolve_input(request.inspection)
+                  if request.inspection is not None else None)
+    context.require("external_execution")
+    captured = _capture_apply_inputs(source, inspection, request, context)
+    stages: tuple[dict[str, Any], ...] = ()
+    artifacts: dict[str, bytes] = {}
+    multifile = (request.language in {"java", "jml"} and
+                 request.pattern in _MULTIFILE_APPLY_PATTERNS)
+
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-apply-refactor-") as value:
+        root = Path(value)
+        baseline_root = root / "baseline"
+        baseline_root.mkdir()
+        baseline_source: Path | None = None
+        private_inspection: Path | None = None
+        for item in captured:
+            if item.path == inspection:
+                private_inspection = root / "inspection.json"
+                private_inspection.write_bytes(item.content)
+                continue
+            destination = baseline_root / item.path.name
+            destination.write_bytes(item.content)
+            if item.path == source:
+                baseline_source = destination
+        assert baseline_source is not None
+
+        transformed = _apply_deterministic_transform(
+            request, baseline_source, private_inspection)
+        transform_details = {
+            key: value for key, value in transformed.items()
+            if key not in {"source", "files"}
+        }
+        inputs = {
+            "transformation": _source_records(captured, context.workspace_root),
+        }
+        if transformed.get("status") != "TRANSFORMED":
+            payload = {
+                **transformed, "claim": "NO_PROOF", "request_satisfied": False,
+                "language": request.language, "backend": request.effective_backend,
+                "transformation": transform_details,
+                "verification_stages": [], "candidate_publication": "NOT_ATTEMPTED",
+            }
+            return ApplyRefactorServiceResult(
+                payload, stages, inputs, artifacts, multifile)
+
+        candidate_root = root / "candidate"
+        candidate_root.mkdir()
+        if multifile:
+            files = transformed.get("files")
+            if not isinstance(files, dict) or not files:
+                raise ValueError("multifile transformation produced no candidate files")
+            candidate_values = {str(name): str(content) for name, content in files.items()}
+            # The candidate directory is a complete private source set.  Keep
+            # unchanged baseline collaborators byte-identical unless the
+            # transformer deliberately emitted a replacement with that name.
+            for item in captured:
+                if item.path not in {source, inspection}:
+                    candidate_values.setdefault(
+                        item.path.name, item.content.decode("utf-8"))
+            for name, content in candidate_values.items():
+                safe_name = Path(str(name))
+                if safe_name.name != str(name) or safe_name.suffix.lower() not in {
+                        ".java", ".jml"}:
+                    raise ValueError("transformation produced an unsafe candidate filename")
+                encoded = str(content).encode("utf-8")
+                (candidate_root / safe_name.name).write_bytes(encoded)
+                artifacts[safe_name.name] = encoded
+            candidate_for_gate = candidate_root
+        else:
+            content = transformed.get("source")
+            if not isinstance(content, str):
+                raise ValueError("single-file transformation produced no candidate source")
+            encoded = content.encode("utf-8")
+            candidate_file = candidate_root / baseline_source.name
+            candidate_file.write_bytes(encoded)
+            artifacts[baseline_source.name] = encoded
+            candidate_for_gate = candidate_file
+
+        result_limit = _refactor_resource_limit(context, "max_result_bytes")
+        result_size = sum(len(value) for value in artifacts.values())
+        if result_limit is not None and result_size > result_limit:
+            raise ValueError(
+                f"refactor candidate exceeds the configured limit of {result_limit} bytes")
+
+        child = context.child(("workspace_read", "external_execution"))
+        verification_context = WorkflowContext(
+            child.interface, child.authority, root,
+            child.required_effects, resource_budget=dict(child.resource_budget))
+        verification_request = RefactorWorkflowRequest(
+            str(baseline_source), str(candidate_for_gate))
+        verification = run_refactor_verification(
+            verification_request, verification_context,
+            execute_native=execute_native, execute_java=execute_java)
+        stages = verification.stages
+        inputs["preservation"] = verification.inputs
+        success = bool(verification.payload.get("request_satisfied", False))
+        payload = {
+            **verification.payload,
+            "status": "VERIFIED" if success else "FAIL",
+            "claim": verification.payload.get("claim", "NO_PROOF") if success
+            else "NO_PROOF",
+            "request_satisfied": success,
+            "transformation": transform_details,
+            "candidate_manifest": [
+                {"path": name, "size": len(content),
+                 "sha256": hashlib.sha256(content).hexdigest()}
+                for name, content in sorted(artifacts.items())
+            ],
+            "candidate_publication": "PENDING",
+            "automated_refactor_applied": True,
+            "behavior_equivalence_proved": False,
+            "refactor_verified": False,
+        }
+        return ApplyRefactorServiceResult(
+            payload, stages, inputs, artifacts, multifile)
+
+
+def _capture_apply_inputs(
+        source: Path, inspection: Path | None,
+        request: ApplyRefactorWorkflowRequest,
+        context: WorkflowContext) -> tuple[_CapturedRefactorSource, ...]:
+    byte_limit = _refactor_resource_limit(context, "max_input_bytes")
+    file_limit = _refactor_resource_limit(context, "max_input_files")
+    paths: list[Path] = [source]
+    if request.language in {"java", "jml"} and \
+            request.pattern in _MULTIFILE_APPLY_PATTERNS:
+        collaborators = _bounded_refactor_sources(
+            source.parent, suffixes={".java", ".jml"}, excluded={source},
+            remaining=None if file_limit is None else file_limit - 1,
+            label="baseline collaborator")
+        paths.extend(collaborators)
+    if inspection is not None:
+        paths.append(inspection)
+    if file_limit is not None and len(paths) > file_limit:
+        raise ValueError(
+            f"refactor inputs exceed the configured file limit of {file_limit}")
+    if any(path.is_symlink() or not path.is_file() for path in paths):
+        raise ValueError("apply-refactor inputs must be regular non-symlink files")
+    captured, _ = _capture_refactor_sources(
+        tuple(paths), remaining=byte_limit, configured_limit=byte_limit)
+    return captured
+
+
+def _apply_deterministic_transform(
+        request: ApplyRefactorWorkflowRequest, source: Path,
+        inspection: Path | None) -> dict[str, Any]:
+    if request.language in {"java", "jml"}:
+        assert inspection is not None
+        from .deterministic_refactor import (
+            extract_decorator_from_inspection,
+            extract_facade_from_inspection,
+            extract_factory_from_inspection,
+            extract_method_from_inspection,
+            extract_null_object_from_inspection,
+            extract_state_from_inspection,
+        )
+        from .strategy_refactor import extract_strategy_from_inspection
+
+        functions = {
+            "extract-method": lambda: extract_method_from_inspection(
+                source, inspection, request.method),
+            "factory-method": lambda: extract_factory_from_inspection(
+                source, inspection, request.method),
+            "state": lambda: extract_state_from_inspection(
+                source, inspection, request.method),
+            "decorator": lambda: extract_decorator_from_inspection(source, inspection),
+            "facade": lambda: extract_facade_from_inspection(source, inspection),
+            "null-object": lambda: extract_null_object_from_inspection(
+                source, inspection),
+            "strategy": lambda: extract_strategy_from_inspection(
+                source, inspection, request.method),
+        }
+        return functions[request.pattern]()
+    with source.open("r", encoding="utf-8", newline="") as handle:
+        text = handle.read()
+    if request.language == "rust" and request.pattern == "strategy":
+        from .rust_strategy_refactor import extract_strategy_rust
+        return extract_strategy_rust(text, request.method)
+    from .polyglot_extract_method import extract_method_polyglot
+    return extract_method_polyglot(text, request.language, request.method)
 
 
 def _run_java_refactor_stage(

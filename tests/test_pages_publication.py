@@ -15,7 +15,7 @@ from scripts.generate_pages_companions import _expected
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "84e7b0b75894ca089a6b79b2fcf073715270bdf86247667b361d666abfe6dcc1"
+GUIDE_SHA256 = "5fd8a421f6acf1bac03f87a61545b6b0ca39325cba522570c3561402fc18b5ca"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -34,14 +34,15 @@ def test_current_guide_and_generated_companions_are_current():
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
     assert decoded["command_count"] == 38
     assert decoded["argument_declaration_count"] == 205
-    assert decoded["commands_with_admitted_profile"] == 4
+    assert decoded["commands_with_admitted_profile"] == 5
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 14
-    assert strict["cli_capability_count"] == 4
+    assert strict["capability_count"] == 15
+    assert strict["cli_capability_count"] == 5
     assert strict["mcp_only_capability_count"] == 10
-    assert "verify_refactor" in {
+    assert {"verify_refactor", "apply_refactor"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}
+    )
     assert {"get_approval_request", "complete_refactor_signing"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]})
 

@@ -48,7 +48,7 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports four CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, and <code>verify-refactor</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports five CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, and <code>apply-refactor</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
   </section>
@@ -99,6 +99,17 @@
   "signing_intent": true
 }</code></pre>
     <p>An authorized reviewer signs the exact approval decision outside MCP. The <code>complete_refactor_signing</code> tool can then invoke only the operator-configured protected signer; it returns a detached signature and receipt without exposing either private key. Signing records approval but does not strengthen the verification claim.</p>
+    <h3>Applying a deterministic refactor</h3>
+    <p><code>apply_refactor</code> captures the source and inspection inputs, prepares the candidate in private staging, and runs the same strict preservation service before publishing new candidate files. Java/JML supports the declared deterministic patterns; Rust supports extract-method and strategy; C and C++ support extract-method. Candidate artifacts remain unreviewed even when preservation succeeds.</p>
+    <pre><code data-workflow-example="apply-refactor-java">{
+  "source": "src/Counter.java",
+  "method": "increment",
+  "out": "candidates/Counter.java",
+  "pattern": "extract-method",
+  "inspection": "inspection/counter.json",
+  "result_export": "refactor/counter-applied.json"
+}</code></pre>
+    <p>All output paths are relative to the designated MCP output root and use no-replace publication. Transformation rejection, verifier failure, sandbox failure, or publication failure remains <code>NO_PROOF</code>; successful preservation does not establish general behavioral equivalence.</p>
   </section>
 
   <section id="documentation">

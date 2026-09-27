@@ -804,38 +804,61 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
-    suffix = Path(args.source).suffix.lower()
-    if suffix in {".rs", ".c", ".cpp", ".cc", ".cxx"}:
-        if suffix == ".rs" and args.pattern == "strategy":
-            from .rust_strategy_refactor import apply_strategy_rust
-
-            result = apply_strategy_rust(args.source, args.method, args.out)
-            _write_json(result, args.json, ui.console)
-            return 0 if result.get("status") == "VERIFIED" else 1
-        if args.pattern != "extract-method":
-            ui.console.print(
-                "[bold red]Polyglot refactoring currently supports "
-                "extract-method (and Rust strategy)[/bold red]"
-            )
-            return 2
-        from .polyglot_extract_method import apply_extract_method_polyglot
-
-        result = apply_extract_method_polyglot(args.source, args.method, args.out)
-        _write_json(result, args.json, ui.console)
-        return 0 if result.get("status") == "VERIFIED" else 1
-    if not getattr(args, "inspection", None):
-        ui.console.print(
-            "[bold red]Java refactoring requires hash-bound "
-            "--inspection evidence[/bold red]"
-        )
-        return 2
-    from .refactor_actions import apply_refactor
-
-    result = apply_refactor(
-        args.source, args.inspection, args.pattern, args.method, args.out
+    from .mcp_artifacts import MCPArtifactError, publish_new_artifacts
+    from .workflow_contracts import (
+        ApplyRefactorWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
     )
+    from .workflow_services import run_apply_refactor
+
+    try:
+        request = ApplyRefactorWorkflowRequest(
+            args.source, getattr(args, "inspection", None), args.pattern,
+            args.method, args.out, result_export=args.json)
+    except (OSError, ValueError) as exc:
+        ui.console.print(f"[bold red]{escape(str(exc))}[/bold red]")
+        return 2
+    try:
+        inputs = [Path(request.source)]
+        if request.inspection is not None:
+            inputs.append(Path(request.inspection))
+        common = Path(os.path.commonpath([str(path) for path in inputs]))
+        workspace_root = common if common.is_dir() else common.parent
+        context = WorkflowContext.for_cli(
+            request.required_effects(WorkflowInterface.CLI),
+            workspace_root=workspace_root,
+            resource_budget={"max_input_bytes": 4 * 1024 * 1024,
+                             "max_input_files": 256,
+                             "max_result_bytes": 4 * 1024 * 1024})
+        service = run_apply_refactor(request, context)
+        result = dict(service.payload)
+        if service.artifacts:
+            context.require("workspace_write_new")
+            destination = Path(request.out).expanduser().resolve()
+            if service.multifile:
+                output_root = destination
+                artifacts = service.artifacts
+            else:
+                output_root = destination.parent
+                artifacts = {destination.name: next(iter(service.artifacts.values()))}
+            published = publish_new_artifacts(
+                output_root, artifacts, context.authority,
+                max_total_bytes=4 * 1024 * 1024)
+            result["candidate_publication"] = {
+                "status": "COMMITTED", "artifacts": published,
+            }
+        result = bind_workflow_result(
+            result, request, WorkflowInterface.CLI, context=context)
+    except (OSError, ValueError, FileNotFoundError, MCPArtifactError) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "invalid_apply_refactor_request",
+            "message": str(exc),
+        }
     _write_json(result, args.json, ui.console)
-    return 0 if result.get("status") == "VERIFIED" else 1
+    return 0 if result.get("request_satisfied", False) else 1
 
 
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:

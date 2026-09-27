@@ -334,9 +334,78 @@ class RefactorWorkflowRequest:
         }
 
 
+@dataclass(frozen=True)
+class ApplyRefactorWorkflowRequest:
+    """One deterministic transformation followed by preservation checking."""
+
+    source: str
+    inspection: str | None
+    pattern: str
+    method: str
+    out: str
+    result_export: str | None = None
+    language: str = field(init=False)
+    mode: str = field(init=False)
+    effective_backend: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        source = str(Path(self.source).expanduser().resolve())
+        inspection = (str(Path(self.inspection).expanduser().resolve())
+                      if self.inspection else None)
+        pattern = self.pattern.strip().lower()
+        method = self.method.strip()
+        out = self.out.strip()
+        language = _source_language(source)
+        patterns = {
+            "java": {"extract-method", "factory-method", "state", "decorator",
+                     "facade", "null-object", "strategy"},
+            "jml": {"extract-method", "factory-method", "state", "decorator",
+                    "facade", "null-object", "strategy"},
+            "rust": {"extract-method", "strategy"},
+            "c": {"extract-method"},
+            "cpp": {"extract-method"},
+        }
+        if language not in patterns or pattern not in patterns[language]:
+            raise WorkflowContractError(
+                f"unsupported {language} refactor pattern: {pattern}")
+        if language in {"java", "jml"} and inspection is None:
+            raise WorkflowContractError(
+                "Java/JML refactoring requires hash-bound inspection evidence")
+        if not method or len(method) > 256:
+            raise WorkflowContractError("refactor method must be a bounded identifier")
+        if not out:
+            raise WorkflowContractError("refactor output is required")
+        effective = {
+            "java": "openjml", "jml": "openjml", "rust": "prusti",
+            "c": "frama-c", "cpp": "esbmc",
+        }[language]
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "inspection", inspection)
+        object.__setattr__(self, "pattern", pattern)
+        object.__setattr__(self, "method", method)
+        object.__setattr__(self, "out", out)
+        object.__setattr__(self, "language", language)
+        object.__setattr__(self, "mode", pattern)
+        object.__setattr__(self, "effective_backend", effective)
+
+    def required_effects(self, interface: WorkflowInterface) -> tuple[str, ...]:
+        effects = ["workspace_read", "workspace_write_new", "external_execution"]
+        if interface is WorkflowInterface.MCP:
+            effects.append("evidence_publication")
+        return _normalized_effects(tuple(effects))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": WORKFLOW_CONTRACT_SCHEMA,
+            "workflow": "apply-refactor",
+            **asdict(self),
+        }
+
+
 WorkflowRequest = (
     VerificationWorkflowRequest | InspectionWorkflowRequest |
-    DocumentationWorkflowRequest | RefactorWorkflowRequest
+    DocumentationWorkflowRequest | RefactorWorkflowRequest |
+    ApplyRefactorWorkflowRequest
 )
 
 
@@ -361,7 +430,7 @@ class WorkflowResultEnvelope:
             context: WorkflowContext | None = None) -> "WorkflowResultEnvelope":
         request_value = request.as_dict()
         is_verification = request_value["workflow"] in {
-            "verify", "verify-refactor"}
+            "verify", "verify-refactor", "apply-refactor"}
         return cls(
             workflow=str(request_value["workflow"]), interface=interface,
             request=request_value,

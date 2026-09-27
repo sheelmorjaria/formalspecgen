@@ -172,15 +172,17 @@ def test_mcp_refactor_tools_guarded(tmp_path, monkeypatch):
     source = _workspace(tmp_path, monkeypatch)
     inspection = Path("inspection.json")
     inspection.write_text('{"status": "INSPECTED"}', encoding="utf-8")
-    with patch("pipeline.refactor_actions.apply_refactor",
-               return_value={"status": "VERIFIED"}) as apply:
-        assert mcp_server.apply_refactor(str(source), str(inspection),
-                                         "extract-method", "inc",
-                                         "refactored/S.java")["status"] == "VERIFIED"
-        apply.assert_called_once()
-    escape = mcp_server.apply_refactor(str(source), str(inspection),
-                                       "extract-method", "inc", "../refactored")
-    assert escape["code"] == "path_outside_workspace"
+    rejected = mcp_server.apply_refactor(
+        str(source), "inc", "refactored/S.java",
+        pattern="extract-method", inspection=str(inspection))
+    assert rejected["status"] == "FAIL"
+    assert rejected["claim"] == "NO_PROOF"
+    assert rejected["mcp_admission"]["profile"] == \
+        "java-openjml-deterministic-refactor"
+    escape = mcp_server.apply_refactor(
+        str(source), "inc", "../refactored", pattern="extract-method",
+        inspection=str(inspection))
+    assert escape["code"] == "OUTPUT_SCOPE_VIOLATION"
 
     with patch("pipeline.refactor_gate.verify_contract_preserving_refactor",
                return_value={"status": "VERIFIED", "claim": "REFACTOR_CONTRACT_PRESERVED"}):

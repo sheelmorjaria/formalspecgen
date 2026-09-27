@@ -284,21 +284,22 @@ def test_cli_routes_polyglot_and_guards_java_inspection(tmp_path):
     verdict_path = tmp_path / "verdict.json"
 
     from unittest.mock import patch
-    ok = {"status": "VERIFIED", "claim": "REFACTOR_CONTRACT_PRESERVED",
-          "transformation": {"helper_name": "process_helper"}, "verification": {}}
-    with patch("pipeline.polyglot_extract_method.apply_extract_method_polyglot",
-               return_value=dict(ok)) as apply:
+    from pipeline.isolated_verification import IsolatedVerificationResult
+    verified = IsolatedVerificationResult({
+        "status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
+        "exit_code": 0, "output": "proved"})
+    with patch("pipeline.workflow_services.execute_isolated_verification",
+               return_value=verified):
         args = cli.build_parser().parse_args(
             ["apply-refactor", str(baseline), "--method", "process",
              "--pattern", "extract-method", "--out", str(tmp_path / "out.rs"),
              "--json", str(verdict_path)])
         code = cli.command_apply_refactor(args, _ui())
     assert code == 0
-    assert apply.call_args.args[1] == "process"
     assert json.loads(verdict_path.read_text(encoding="utf-8"))["claim"] == \
         "REFACTOR_CONTRACT_PRESERVED"
 
-    with patch("pipeline.polyglot_extract_method.apply_extract_method_polyglot",
+    with patch("pipeline.polyglot_extract_method.extract_method_polyglot",
                return_value={"status": "FAIL", "claim": "NO_PROOF"}):
         args = cli.build_parser().parse_args(
             ["apply-refactor", str(baseline), "--method", "process",

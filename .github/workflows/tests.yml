@@ -177,6 +177,7 @@ jobs:
           --require-complete document-code
           --require-complete verify
           --require-complete verify-refactor
+          --require-complete apply-refactor
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -343,6 +344,7 @@ jobs:
             tests/test_sandbox_acceptance.py \
             tests/test_mcp_openjml_acceptance.py \
             tests/test_refactor_workflow_acceptance.py \
+            tests/test_apply_refactor_workflow.py \
             tests/test_approval_signing_acceptance.py \
             tests/test_agentic_transport_acceptance.py
       - name: Produce provisioned MCP workflow acceptance evidence
@@ -355,6 +357,7 @@ jobs:
             --command document-code \
             --command verify \
             --command verify-refactor \
+            --command apply-refactor \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -138,7 +139,10 @@ def test_factory_action_writes_directory_and_invokes_multifile_gate(tmp_path):
     with patch("pipeline.refactor_gate.verify_multifile_contract_refactor",
                return_value=proof) as gate:
         assert cli.command_apply_refactor(args, ui) == 0
-    gate.assert_called_once_with(str(baseline), destination)
+    gate.assert_called_once()
+    assert gate.call_args.kwargs.get("runner") is not None
+    assert Path(gate.call_args.args[0]).name == baseline.name
+    assert Path(gate.call_args.args[1]).name == "refactored"
     assert (destination / "ProductFactory.java").exists()
     assert json.loads(verdict.read_text())["claim"] == \
         "MULTIFILE_REFACTOR_CONTRACT_PRESERVED"

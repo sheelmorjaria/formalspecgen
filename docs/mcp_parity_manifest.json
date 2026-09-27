@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "cb4289610c224acdb71c171de0ec757ca98a054f2fededab10752f181ecb8fad",
+  "plan_sha256": "568dd19ea8e85cb0a6f0e6364342eca3ab976ae27e2754a5090f34b54ff6db80",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4170,7 +4170,7 @@
     "mapped_commands": 38,
     "discovered_argument_declarations": 205,
     "mapped_argument_declarations": 205,
-    "commands_with_admitted_profile": 4,
+    "commands_with_admitted_profile": 5,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -4492,28 +4492,131 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "java-openjml-deterministic-refactor",
+            "modes": [
+              "decorator",
+              "extract-method",
+              "facade",
+              "factory-method",
+              "null-object",
+              "state",
+              "strategy"
+            ],
+            "languages": [
+              "java",
+              "jml"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "candidate-baseline-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "rust-prusti-deterministic-refactor",
+            "modes": [
+              "extract-method",
+              "strategy"
+            ],
+            "languages": [
+              "rust"
+            ],
+            "backends": [
+              "prusti"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "candidate-baseline-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "c-framac-deterministic-refactor",
+            "modes": [
+              "extract-method"
+            ],
+            "languages": [
+              "c"
+            ],
+            "backends": [
+              "frama-c"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "candidate-baseline-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "cpp-esbmc-deterministic-refactor",
+            "modes": [
+              "extract-method"
+            ],
+            "languages": [
+              "cpp"
+            ],
+            "backends": [
+              "esbmc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-candidate-baseline-observations-and-terminal-manifest",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
         "fields": [
           {
             "name": "source",
-            "required": true,
-            "default": null,
-            "annotation": "str",
-            "keyword_only": false
-          },
-          {
-            "name": "inspection",
-            "required": true,
-            "default": null,
-            "annotation": "str",
-            "keyword_only": false
-          },
-          {
-            "name": "pattern",
             "required": true,
             "default": null,
             "annotation": "str",
@@ -4532,14 +4635,36 @@
             "default": null,
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "pattern",
+            "required": false,
+            "default": "extract-method",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "inspection",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "source",
-          "inspection",
-          "pattern",
           "method",
-          "out"
+          "out",
+          "pattern",
+          "inspection",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -4558,29 +4683,38 @@
           "method",
           "out",
           "pattern",
+          "result_export",
           "source"
         ],
-        "missing_mcp_fields": [
-          "result_export"
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "bounded-input-capture",
+          "c-extract-method",
+          "candidate-verification-failure",
+          "cli-mcp-equivalence",
+          "cpp-extract-method",
+          "evidence-publication-failure",
+          "java-decorator",
+          "java-extract-method",
+          "java-facade",
+          "java-factory-method",
+          "java-null-object",
+          "java-state",
+          "java-strategy",
+          "negative-transform-export",
+          "publication-collision",
+          "rust-extract-method",
+          "rust-strategy"
         ],
-        "unverified_argument_mappings": [
-          "source",
-          "inspection",
-          "pattern",
-          "method",
-          "out",
-          "result_export"
-        ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -12746,5 +12880,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "2ef9e17ecf00dc1645d0b24a7210fdb91619cf7ca1fb54ba6e4a5859149a13dc"
+  "sha256": "e91cde306b67e5c108bf44c3222ee4504a6dec2a6737db2821e6f1ef96f06233"
 }

@@ -57,12 +57,14 @@ from pipeline.isolated_verification import (
 )
 from pipeline.verify import verify_detailed
 from pipeline.workflow_services import (
+    run_apply_refactor,
     run_documentation_preparation,
     run_java_inspection,
     run_refactor_verification,
     run_verification,
 )
 from pipeline.workflow_contracts import (
+    ApplyRefactorWorkflowRequest,
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
@@ -840,13 +842,162 @@ def system(plan_path: str, mode: str = "implement", out_dir: str = "runs/system"
     return _guarded(dispatch)
 
 
-def apply_refactor(source: str, inspection: str, pattern: str, method: str,
-                   out: str) -> dict[str, Any]:
-    """Apply one hash-bound refactor profile and immediately run its proof gate."""
-    from pipeline.refactor_actions import apply_refactor as run_apply
-    return _guarded(lambda: run_apply(
-        _workspace_path(source), _workspace_path(inspection), pattern, method,
-        _workspace_path(out, must_exist=False)))
+def apply_refactor(
+        source: str, method: str, out: str,
+        pattern: str = "extract-method", inspection: str | None = None,
+        result_export: str | None = None) -> dict[str, Any]:
+    """Stage a deterministic candidate and publish preservation evidence."""
+    try:
+        request = ApplyRefactorWorkflowRequest(
+            source, inspection, pattern, method, out,
+            result_export=result_export)
+    except (OSError, ValueError) as exc:
+        return {
+            "status": "INVALID_REQUEST", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "invalid_apply_refactor_request",
+            "message": str(exc),
+        }
+    effects = request.required_effects(WorkflowInterface.MCP)
+    admission = authorize_mcp_invocation(
+        "apply_refactor", mode=request.mode, language=request.language,
+        backend=request.effective_backend, effects=effects)
+    if not admission.admitted:
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    try:
+        output_root = _designated_mcp_output_root()
+        context = WorkflowContext.for_mcp(
+            admission, effects, output_root=output_root,
+            resource_budget={
+                "max_input_bytes": MCP_REFACTOR_MAX_INPUT_BYTES,
+                "max_input_files": MCP_REFACTOR_MAX_INPUT_FILES,
+                "max_result_bytes": MCP_REFACTOR_MAX_RESULT_BYTES,
+            })
+    except (OSError, ValueError, MCPPolicyViolation) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": getattr(exc, "code", "invalid_apply_refactor_policy"),
+            "message": str(exc), "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(result, request, WorkflowInterface.MCP)
+    try:
+        out_path = _controlled_refactor_output_path(request.out, multifile=None)
+        if request.result_export is not None:
+            export = Path(request.result_export)
+            if export.is_absolute() or ".." in export.parts or \
+                    export.suffix.lower() != ".json":
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "apply-refactor result export must be a relative JSON path")
+        service = run_apply_refactor(request, context)
+    except (OSError, ValueError, FileNotFoundError, MCPPolicyViolation,
+            MCPArtifactError) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": getattr(exc, "code", "invalid_apply_refactor_request"),
+            "message": str(exc), "mcp_admission": admission.summary(),
+        }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+
+    result = {
+        **service.payload, "mcp_admission": admission.summary(),
+        "strict_isolation_supported": True,
+    }
+    if service.artifacts:
+        if service.multifile:
+            candidate_artifacts = {
+                f"{out_path.as_posix().rstrip('/')}/{name}": content
+                for name, content in service.artifacts.items()
+            }
+        else:
+            candidate_artifacts = {
+                out_path.as_posix(): next(iter(service.artifacts.values()))}
+        try:
+            published = publish_new_artifacts(
+                output_root, candidate_artifacts, admission,
+                max_total_bytes=MCP_REFACTOR_MAX_RESULT_BYTES)
+            result["candidate_publication"] = {
+                "status": "COMMITTED", "kind": "unreviewed-refactor-candidate",
+                "artifacts": published,
+            }
+        except (OSError, ValueError, MCPPolicyViolation) as exc:
+            result.update({
+                "status": "CANDIDATE_PUBLICATION_FAILED", "claim": "NO_PROOF",
+                "request_satisfied": False,
+                "candidate_publication": {"status": "FAILED", "message": str(exc)},
+            })
+
+    semantic_bindings = {
+        key: result.get(key) for key in (
+            "contract_sha256", "method_surface_sha256", "semantic_surface",
+            "proof_trust", "refactored_manifest_sha256", "candidate_manifest")
+        if result.get(key) is not None
+    }
+    semantic_bindings["transformation"] = result.get("transformation", {})
+    semantic_bindings["sha256"] = canonical_digest(semantic_bindings)
+    claim_limits = {
+        "contract_surface_preserved": bool(
+            result.get("contract_surface_preserved", False)),
+        "behavior_equivalence_proved": False,
+        "bounded": request.language == "cpp",
+        "candidate_is_unreviewed": True,
+    }
+    try:
+        context.require("evidence_publication")
+        receipt = publish_multistage_evidence(
+            Path.cwd() / ".formalspecgen" / "mcp-evidence",
+            workflow="apply-refactor", status=str(result.get("status", "FAIL")),
+            claim=str(result.get("claim", "NO_PROOF")), request=request.as_dict(),
+            admission=admission.summary(), inputs=service.inputs,
+            stages=service.stages, semantic_bindings=semantic_bindings,
+            claim_limits=claim_limits)
+    except (OSError, RuntimeError, ValueError, MCPPolicyViolation) as exc:
+        result.update({
+            "status": "EVIDENCE_PUBLICATION_FAILED", "claim": "NO_PROOF",
+            "request_satisfied": False, "durable_publication_supported": False,
+            "evidence": {"publication_status": "FAILED", "message": str(exc)},
+        })
+    else:
+        result["evidence"] = receipt
+        result["durable_publication_supported"] = True
+
+    if request.result_export is not None:
+        try:
+            bound = bind_workflow_result(
+                result, request, WorkflowInterface.MCP, context=context)
+            exported = publish_new_artifacts(
+                output_root, {request.result_export: json.dumps(
+                    bound, indent=2, ensure_ascii=False, default=str) + "\n"},
+                admission, max_total_bytes=MCP_REFACTOR_MAX_RESULT_BYTES)
+            result["result_export"] = {
+                "status": "COMMITTED", "kind": "apply-refactor-result-export",
+                "artifacts": exported,
+            }
+        except (OSError, ValueError, MCPPolicyViolation) as exc:
+            result.update({
+                "status": "RESULT_EXPORT_FAILED", "claim": "NO_PROOF",
+                "request_satisfied": False,
+                "result_export": {"status": "FAILED", "message": str(exc)},
+            })
+    return bind_workflow_result(
+        result, request, WorkflowInterface.MCP, context=context)
+
+
+def _controlled_refactor_output_path(
+        value: str, *, multifile: bool | None) -> Path:
+    relative = Path(value)
+    if not value or relative.is_absolute() or ".." in relative.parts:
+        raise MCPArtifactError(
+            "OUTPUT_SCOPE_VIOLATION",
+            "apply-refactor output must be a nonempty relative path")
+    if multifile is False and not relative.suffix:
+        raise MCPArtifactError(
+            "OUTPUT_SCOPE_VIOLATION",
+            "single-file refactor output must name a file")
+    return relative
 
 
 def verify_refactor(

@@ -1949,8 +1949,8 @@
       "proposed_mcp_tool": "apply_refactor",
       "workflow_kind": "direct_or_task",
       "requirements": "Every supported pattern, inspected method, baseline hash, output path and proof gate.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "baseline_strict_mcp": "Deterministic Java/JML, Rust, C and C++ transformations are admitted with controlled new-artifact publication and preservation evidence.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -1967,7 +1967,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -1984,7 +1984,7 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -2010,7 +2010,7 @@
               "strategy"
             ]
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -2027,7 +2027,7 @@
             "default": null,
             "required": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -2044,7 +2044,7 @@
             "default": null,
             "required": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -2061,10 +2061,109 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/refactor_actions.py"
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "java-extract-method", "java-factory-method", "java-state",
+          "java-decorator", "java-facade", "java-null-object", "java-strategy",
+          "rust-extract-method", "rust-strategy", "c-extract-method",
+          "cpp-extract-method", "negative-transform-export",
+          "candidate-verification-failure", "publication-collision",
+          "evidence-publication-failure", "bounded-input-capture",
+          "cli-mcp-equivalence"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_apply_refactor_workflow.py::test_cli_and_mcp_requests_normalize_equivalently",
+            "variants": ["cli-mcp-equivalence"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_apply_refactor_workflow.py::test_request_schema_effects_and_admission_cover_all_cli_fields",
+            "variants": ["java-extract-method", "rust-extract-method", "c-extract-method", "cpp-extract-method"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_apply_refactor_workflow.py::test_mcp_publishes_candidate_evidence_and_negative_export_without_replace",
+            "variants": ["negative-transform-export", "publication-collision"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_apply_refactor_workflow.py::test_evidence_publication_failure_downgrades_verified_candidate",
+            "variants": ["evidence-publication-failure"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_apply_refactor_workflow.py::test_input_budget_is_enforced_before_transformation_or_execution",
+            "variants": ["bounded-input-capture"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_apply_refactor_workflow.py::test_cli_and_mcp_semantic_results_are_equivalent",
+            "variants": ["cli-mcp-equivalence", "c-extract-method"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_apply_refactor_workflow.py::test_native_language_results_preserve_backend_claim_ceiling",
+            "variants": ["rust-extract-method", "c-extract-method", "cpp-extract-method"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_apply_refactor_workflow.py::test_candidate_failure_retains_successful_baseline_stage",
+            "variants": ["candidate-verification-failure"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_deterministic_refactor.py::test_extract_method_is_deterministic_hash_bound_and_api_preserving",
+            "variants": ["java-extract-method"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_factory_refactor.py::test_factory_extraction_generates_three_parseable_hash_bound_files",
+            "variants": ["java-factory-method"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_state_refactor.py::test_state_profile_emits_parseable_handlers_and_primary",
+            "variants": ["java-state"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_decorator_refactor.py::test_decorator_profile_emits_wrapper_and_preserves_baseline",
+            "variants": ["java-decorator"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_facade_refactor.py::test_facade_profile_emits_public_surface_wrapper",
+            "variants": ["java-facade"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_null_object_refactor.py::test_null_object_refactor_generates_interface_null_impl_and_rewrites_primary",
+            "variants": ["java-null-object"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_strategy_refactor.py::test_strategy_extraction_emits_interface_implementations_and_delegating_primary",
+            "variants": ["java-strategy"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_rust_strategy_refactor.py::test_cli_dispatches_rust_strategy",
+            "variants": ["rust-strategy"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_apply_refactor_workflow.py::test_real_mcp_transport_exercises_apply_refactor_languages",
+            "variants": ["java-extract-method", "rust-extract-method", "c-extract-method", "cpp-extract-method", "negative-transform-export"]
+          }
+        ]
+      },
+      "baseline_source": "pipeline/workflow_services.py"
     },
     {
       "cli_command": "architecture",

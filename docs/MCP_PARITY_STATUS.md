@@ -7,7 +7,7 @@ Do not edit it by hand.
 
 - Commands mapped: 38 / 38
 - Argument declarations mapped: 205 / 205
-- Commands with at least one admitted invocation profile: 4 / 38
+- Commands with at least one admitted invocation profile: 5 / 38
 - Complete command workflows: 0 / 38
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -17,7 +17,7 @@ Do not edit it by hand.
 | CLI command | Target MCP tool | Workflow | Admission | Completion | Arguments |
 | --- | --- | --- | --- | --- | ---: |
 | `analyze-codebase` | `analyze_codebase` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
-| `apply-refactor` | `apply_refactor` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
+| `apply-refactor` | `apply_refactor` | `direct_or_task` | `admitted` | `incomplete` | 6 |
 | `architecture` | `architecture` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 5 |
 | `assess-security` | `assess_security` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `compose` | `compose` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |
