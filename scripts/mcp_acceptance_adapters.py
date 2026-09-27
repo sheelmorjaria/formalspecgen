@@ -569,16 +569,93 @@ async def _apply_refactor_observation() -> dict:
 
     long_body = "\n".join(
         f"    int unused{index} = {index};" for index in range(61))
+    facade_fields = "\n".join(f"  private int f{index};" for index in range(10))
+    facade_methods = "\n".join(
+        (("  //@ ensures \\result == x;\n" if index == 0 else "") +
+         f"  public int m{index}(int x) {{ return x; }}")
+        for index in range(15))
     fixtures = {
-        "java/LongCounter.java": (
+        "java/extract/LongCounter.java": (
             "public class LongCounter {\n"
             "  //@ ensures \\result == 1;\n"
             "  public int value() {\n" + long_body +
             "\n    return 1;\n  }\n}\n"),
-        "rust/value.rs": (
+        "jml/extract/LongSpec.jml": (
+            "public class LongSpec {\n"
+            "  //@ ensures \\result == 1;\n"
+            "  public int value() {\n" + long_body +
+            "\n    return 1;\n  }\n}\n"),
+        "java/factory/Creator.java": (
+            "public class Creator {\n"
+            "  //@ requires kind != null;\n"
+            "  //@ ensures \\result != null;\n"
+            "  public Product create(String kind) {\n"
+            "    if (kind.equals(\"alpha\")) return new Alpha();\n"
+            "    else return new Beta();\n  }\n}\n"),
+        "java/factory/Product.java": "public interface Product {}\n",
+        "java/factory/Alpha.java": "public class Alpha implements Product {}\n",
+        "java/factory/Beta.java": "public class Beta implements Product {}\n",
+        "java/state/Legacy.java": (
+            "public class Legacy {\n  private int state;\n"
+            "  //@ ensures true;\n"
+            "  public int run() {\n"
+            "    if (state == 0) { return 1; }\n"
+            "    if (state == 1) { return 2; }\n    return 0;\n  }\n"
+            "  public int other() {\n"
+            "    if (state == 0) { return 3; }\n"
+            "    if (state == 1) { return 4; }\n    return 0;\n  }\n}\n"),
+        "java/decorator/Example.java": (
+            "public class Example implements Service {\n"
+            "  private final Service delegate;\n"
+            "  public Example(Service delegate) { this.delegate = delegate; }\n"
+            "  //@ ensures true;\n"
+            "  public void run() { Logger.info(\"run\"); delegate.run(); }\n"
+            "  public void reset() { Metrics.increment(\"reset\"); delegate.reset(); }\n"
+            "}\n"),
+        "java/decorator/Service.java": (
+            "public interface Service { void run(); void reset(); }\n"),
+        "java/decorator/Logger.java": (
+            "public final class Logger { public static void info(String value) {} }\n"),
+        "java/decorator/Metrics.java": (
+            "public final class Metrics { public static void increment(String value) {} }\n"),
+        "java/facade/Legacy.java": (
+            "public class Legacy {\n" + facade_fields + "\n" +
+            facade_methods + "\n}\n"),
+        "java/null/OrderService.java": (
+            "public class OrderService {\n"
+            "  private /*@ nullable @*/ Logger logger;\n"
+            "  //@ requires logger != null;\n"
+            "  public OrderService(Logger logger) { this.logger = logger; }\n"
+            "  //@ ensures true;\n"
+            "  public void first() {\n"
+            "    //@ assume this.logger != null;\n"
+            "    if (logger != null) { logger.log(); }\n  }\n"
+            "  public void second() {\n"
+            "    //@ assume this.logger != null;\n"
+            "    if (logger != null) { logger.log(); }\n  }\n}\n"),
+        "java/null/Logger.java": "public interface Logger { void log(); }\n",
+        "java/strategy/PricingService.java": (
+            "public class PricingService {\n"
+            "  private /*@ spec_public @*/ int price;\n"
+            "  //@ requires customerType == 1 || customerType == 2;\n"
+            "  //@ ensures price >= 0;\n"
+            "  public void calculatePrice(int customerType) {\n"
+            "    if (customerType == 1) { price = 100; // Standard\n"
+            "    } else if (customerType == 2) { price = 80; // Premium\n"
+            "    }\n  }\n}\n"),
+        "rust/extract/value.rs": (
             "use prusti_contracts::*;\n"
             "#[ensures(result == 1)]\n"
             "pub fn value() -> i32 { 1 }\n"),
+        "rust/strategy/meter.rs": (
+            "use prusti_contracts::*;\n\n"
+            "pub struct Meter { pub price: i32 }\n\n"
+            "impl Meter {\n"
+            "  #[ensures(self.price >= 100)]\n"
+            "  pub fn set_price(&mut self, kind: i32) {\n"
+            "    match kind {\n      1 => self.price = 100,\n"
+            "      2 => self.price = 250,\n      _ => self.price = 100,\n"
+            "    }\n  }\n}\n"),
         "c/add.c": (
             "/*@ requires value >= 0 && value < 100; assigns \\nothing; "
             "ensures \\result == value + 1; */\n"
@@ -596,36 +673,99 @@ async def _apply_refactor_observation() -> dict:
             path = workspace / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source, encoding="utf-8")
-        inspection = inspect_java_file(workspace / "java/LongCounter.java")
-        (workspace / "java/inspection.json").write_text(
-            json.dumps(inspection), encoding="utf-8")
-        calls = [
-            {"source": "java/LongCounter.java",
-             "inspection": "java/inspection.json", "pattern": "extract-method",
-             "method": "value", "out": "candidates/java/LongCounter.java",
-             "result_export": "results/java.json"},
-            {"source": "rust/value.rs", "pattern": "extract-method",
-             "method": "value", "out": "candidates/rust/value.rs",
-             "result_export": "results/rust.json"},
+        java_calls = [
+            ("java/extract/LongCounter.java", "extract-method", "value",
+             "java-extract-method", "candidates/java-extract/LongCounter.java"),
+            ("jml/extract/LongSpec.jml", "extract-method", "value",
+             "jml-extract-method", "candidates/jml-extract/LongSpec.jml"),
+            ("java/factory/Creator.java", "factory-method", "create",
+             "java-factory-method", "candidates/java-factory"),
+            ("java/state/Legacy.java", "state", "run",
+             "java-state", "candidates/java-state"),
+            ("java/decorator/Example.java", "decorator", "run",
+             "java-decorator", "candidates/java-decorator"),
+            ("java/facade/Legacy.java", "facade", "m0",
+             "java-facade", "candidates/java-facade"),
+            ("java/null/OrderService.java", "null-object", "first",
+             "java-null-object", "candidates/java-null-object"),
+            ("java/strategy/PricingService.java", "strategy", "calculatePrice",
+             "java-strategy", "candidates/java-strategy"),
+        ]
+        calls = []
+        variants = []
+        expected_claims = []
+        for source, pattern, method, variant, out in java_calls:
+            inspection_path = str(Path(source).parent / "inspection.json")
+            (workspace / inspection_path).write_text(
+                json.dumps(inspect_java_file(workspace / source)), encoding="utf-8")
+            calls.append({
+                "source": source, "inspection": inspection_path,
+                "pattern": pattern, "method": method, "out": out,
+            })
+            variants.append(variant)
+            expected_claims.append(
+                "REFACTOR_CONTRACT_PRESERVED" if pattern == "extract-method"
+                else "MULTIFILE_REFACTOR_CONTRACT_PRESERVED")
+        calls.extend([
+            {"source": "rust/extract/value.rs", "pattern": "extract-method",
+             "method": "value", "out": "candidates/rust-extract/value.rs"},
+            {"source": "rust/strategy/meter.rs", "pattern": "strategy",
+             "method": "set_price", "out": "candidates/rust-strategy/meter.rs"},
             {"source": "c/add.c", "pattern": "extract-method", "method": "add_one",
-             "out": "candidates/c/add.c", "result_export": "results/c.json"},
+             "out": "candidates/c/add.c"},
             {"source": "cpp/Counter.cpp", "pattern": "extract-method",
-             "method": "add", "out": "candidates/cpp/Counter.cpp",
-             "result_export": "results/cpp.json"},
+             "method": "add", "out": "candidates/cpp/Counter.cpp"},
             {"source": "c/add.c", "pattern": "extract-method",
              "method": "missing", "out": "candidates/c/missing.c",
              "result_export": "results/rejected.json"},
-        ]
+        ])
+        variants.extend([
+            "rust-extract-method", "rust-strategy", "c-extract-method",
+            "cpp-extract-method", "negative-transform-export",
+        ])
+        expected_claims.extend([
+            "REFACTOR_CONTRACT_PRESERVED", "REFACTOR_CONTRACT_PRESERVED",
+            "REFACTOR_CONTRACT_PRESERVED", "BOUNDED_REFACTOR_CONTRACT_PRESERVED",
+        ])
         initialized, tools, schema, results = await _call_tool(
-            workspace, "apply_refactor", calls, timeout_s=300)
-        expected = ["VERIFIED", "VERIFIED", "VERIFIED", "VERIFIED", "FAIL"]
+            workspace, "apply_refactor", calls, timeout_s=600)
+        expected = ["VERIFIED"] * len(expected_claims) + ["FAIL"]
         if [item.get("status") for item in results] != expected:
             raise RuntimeError("apply_refactor transport variants did not complete")
-        for item in results[:4]:
+        for item, expected_claim in zip(results[:-1], expected_claims):
+            if item.get("request_satisfied") is not True or \
+                    item.get("claim") != expected_claim:
+                raise RuntimeError("apply_refactor returned an unexpected claim")
             if (item.get("candidate_publication") or {}).get("status") != "COMMITTED":
                 raise RuntimeError("apply_refactor candidate was not committed")
             if (item.get("evidence") or {}).get("publication_status") != "COMMITTED":
                 raise RuntimeError("apply_refactor evidence was not committed")
+            observations = [
+                observation
+                for stage in item.get("verification_stages") or []
+                for observation in stage.get("execution_stages") or []
+            ]
+            if not observations or any(
+                    value.get("policy_compliance") != "ENFORCED"
+                    for value in observations):
+                raise RuntimeError("apply_refactor execution was not strictly enforced")
+            manifest = {
+                value["path"]: value["sha256"]
+                for value in item.get("candidate_manifest") or []
+            }
+            published = (item.get("candidate_publication") or {}).get("artifacts") or {}
+            published_by_name = {
+                Path(metadata["path"]).name: metadata
+                for metadata in published.values()
+            }
+            if set(manifest) != set(published_by_name):
+                raise RuntimeError("published candidate set differs from verified manifest")
+            for name, digest in manifest.items():
+                metadata = published_by_name[name]
+                candidate = Path(metadata["path"])
+                if hashlib.sha256(candidate.read_bytes()).hexdigest() != digest or \
+                        metadata.get("sha256") != digest:
+                    raise RuntimeError("published candidate bytes differ from verification")
         if (results[-1].get("result_export") or {}).get("status") != "COMMITTED":
             raise RuntimeError("negative apply_refactor result was not exported")
     semantic_result = [{
@@ -635,13 +775,14 @@ async def _apply_refactor_observation() -> dict:
             "language"),
         "receipt": ((item.get("evidence") or {}).get("publication_status")),
         "candidate": _publication_status(item.get("candidate_publication")),
+        "observations_enforced": all(
+            observation.get("policy_compliance") == "ENFORCED"
+            for stage in item.get("verification_stages") or []
+            for observation in stage.get("execution_stages") or []),
     } for item in results]
     observation = _observation(
         initialized, tools, schema, semantic_result, results[-1])
-    observation["variants"] = [
-        "java-extract-method", "rust-extract-method", "c-extract-method",
-        "cpp-extract-method", "negative-transform-export",
-    ]
+    observation["variants"] = variants
     observation["semantic_results"] = semantic_result
     return observation
 

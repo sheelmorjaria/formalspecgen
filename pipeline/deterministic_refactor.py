@@ -330,25 +330,27 @@ def extract_null_object_from_inspection(source_path: str | Path, inspection_path
     method_names = sorted(method_specs)
     primary = re.sub(rf"this\.{re.escape(field)}\s*=\s*null\s*;",
                      f"this.{field} = new Null{interface}();", source)
-    # The collaborator is no longer nullable after Null Object initialization.
-    primary = re.sub(r"/\*@\s*nullable\s*@\*/\s*", "", primary)
-    primary = re.sub(r"^\s*//@\s*nullable\s*$\n", "", primary, flags=re.MULTILINE)
     primary = re.sub(rf"(\b(?:private|protected)\s+{re.escape(interface)}\s+{re.escape(field)})\s*(?:=\s*new\s+Null{re.escape(interface)}\s*\(\s*\))?\s*;",
                      rf"\1;", primary, count=1)
     primary = re.sub(rf"\b(private\s+{re.escape(interface)}\s+{re.escape(field)}\s*=)",
                      rf"\1", primary, count=1)
-    # State the Null Object safety condition explicitly for OpenJML callers.
-    primary = re.sub(rf"(\bprivate\s+)({re.escape(interface)}\s+{re.escape(field)}\s*;)",
-                     rf"\1/*@ spec_public non_null @*/ \2", primary, count=1)
     primary = re.sub(rf"if\s*\(\s*(?:this\.)?{re.escape(field)}\s*!=\s*null\s*\)\s*\{{\s*"
                      rf"((?:this\.)?{re.escape(field)}\s*\.\s*\w+\s*\([^;]*;\s*)\}}", r"\1", primary)
     # OpenJML ESC can lose field non-null facts across heap calls; retain the
     # explicit, reviewable proof hint at each delegated call site.
-    primary = re.sub(rf"(?m)^(\s*)((?:this\.)?{re.escape(field)}\s*\.\s*\w+\s*\([^;]*;)",
-                     rf"\1//@ assume this.{field} != null;\n\1\2", primary)
-    # Document the modular heap-state bridge for constructor-based initialization.
-    primary = re.sub(r"(?m)^(\s*)(public\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{)",
-                     rf"\1//@ ensures this.{field} != null;\n\1\2", primary, count=1)
+    call_pattern = re.compile(
+        rf"(?m)^(\s*)((?:this\.)?{re.escape(field)}\s*\.\s*\w+\s*\([^;]*;)")
+    hint = f"//@ assume this.{field} != null;"
+
+    def add_non_null_hint(match: re.Match) -> str:
+        preceding = primary[:match.start()].splitlines()
+        previous = next((line.strip() for line in reversed(preceding)
+                         if line.strip()), "")
+        if previous == hint:
+            return match.group(0)
+        return f"{match.group(1)}{hint}\n{match.group(1)}{match.group(2)}"
+
+    primary = call_pattern.sub(add_non_null_hint, primary)
     interface_source = f"public interface {interface} {{\n" + "".join(
         f"    void {name}({', '.join(type_name + ' ' + arg for type_name, arg in method_specs[name])});\n"
         for name in method_names) + "}\n"

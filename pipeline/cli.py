@@ -820,6 +820,8 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]{escape(str(exc))}[/bold red]")
         return 2
+    context = None
+    export_allowed = True
     try:
         inputs = [Path(request.source)]
         if request.inspection is not None:
@@ -832,6 +834,11 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
             resource_budget={"max_input_bytes": 4 * 1024 * 1024,
                              "max_input_files": 256,
                              "max_result_bytes": 4 * 1024 * 1024})
+        try:
+            _validate_apply_refactor_destinations(request)
+        except ValueError:
+            export_allowed = False
+            raise
         service = run_apply_refactor(request, context)
         result = dict(service.payload)
         if service.artifacts:
@@ -857,8 +864,52 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
             "request_satisfied": False, "code": "invalid_apply_refactor_request",
             "message": str(exc),
         }
-    _write_json(result, args.json, ui.console)
+    if args.json and export_allowed:
+        try:
+            if context is None:
+                raise ValueError("apply-refactor publication authority is unavailable")
+            destination = Path(args.json).expanduser().resolve()
+            encoded = json.dumps(
+                result, indent=2, ensure_ascii=False, default=str) + "\n"
+            publish_new_artifacts(
+                destination.parent, {destination.name: encoded}, context.authority,
+                max_total_bytes=4 * 1024 * 1024)
+            ui.console.print(f"Evidence written to [path]{args.json}[/path]")
+        except (OSError, ValueError, MCPArtifactError) as exc:
+            ui.console.print(
+                f"[bold red]Result publication failed:[/bold red] {escape(str(exc))}")
+            return 1
+    else:
+        _write_json(result, None, ui.console)
     return 0 if result.get("request_satisfied", False) else 1
+
+
+def _validate_apply_refactor_destinations(
+        request: "ApplyRefactorWorkflowRequest") -> None:
+    """Reject result destinations that could overwrite an input or candidate."""
+    if request.result_export is None:
+        return
+    export = Path(request.result_export).expanduser().resolve()
+    protected = {Path(request.source).expanduser().resolve()}
+    if request.inspection is not None:
+        protected.add(Path(request.inspection).expanduser().resolve())
+    if export in protected:
+        raise ValueError("apply-refactor result export aliases a protected input")
+
+    output = Path(request.out).expanduser().resolve()
+    multifile = (request.language in {"java", "jml"} and request.pattern in {
+        "factory-method", "state", "decorator", "facade", "null-object",
+        "strategy",
+    })
+    if (multifile and (export == output or output in export.parents)) or \
+            (not multifile and export == output):
+        raise ValueError("apply-refactor result export aliases a candidate destination")
+
+    # Every Java/JML sibling is captured as a collaborator for multifile
+    # preservation. Reject an existing collaborator alias before that capture.
+    if multifile and export.parent == Path(request.source).parent.resolve() and \
+            export.suffix.lower() in {".java", ".jml"}:
+        raise ValueError("apply-refactor result export aliases a collaborator input")
 
 
 def command_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:

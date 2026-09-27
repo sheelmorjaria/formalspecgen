@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -323,6 +324,76 @@ def test_cli_and_mcp_semantic_results_are_equivalent(tmp_path, monkeypatch):
     assert {key: cli_result.get(key) for key in keys} == {
         key: mcp_result.get(key) for key in keys}
     assert cli_result["transformation"] == mcp_result["transformation"]
+    candidate = tmp_path / "cli/add.c"
+    assert candidate.is_file()
+    assert cli_result["candidate_manifest"] == [{
+        "path": "add.c", "size": len(candidate.read_bytes()),
+        "sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
+    }]
+
+
+@pytest.mark.parametrize("alias", ["source", "candidate"])
+def test_cli_rejects_result_export_alias_before_workflow(
+        tmp_path, monkeypatch, alias):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "add.c"
+    source.write_text(C_SOURCE, encoding="utf-8")
+    candidate = tmp_path / "candidate.c"
+    export = source if alias == "source" else candidate
+    args = cli.build_parser().parse_args([
+        "apply-refactor", str(source), "--pattern", "extract-method",
+        "--method", "add", "--out", str(candidate), "--json", str(export),
+    ])
+    ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_a, **_k: None))
+    original = source.read_bytes()
+    with patch("pipeline.workflow_services.run_apply_refactor") as workflow:
+        assert cli.command_apply_refactor(args, ui) == 1
+    workflow.assert_not_called()
+    assert source.read_bytes() == original
+    assert not candidate.exists()
+
+
+@pytest.mark.parametrize("method", ["add", "missing"])
+def test_cli_existing_export_is_not_replaced_and_candidate_remains_intact(
+        tmp_path, monkeypatch, method):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "add.c"
+    source.write_text(C_SOURCE, encoding="utf-8")
+    candidate = tmp_path / "candidate.c"
+    export = tmp_path / "existing.json"
+    export.write_text("operator-owned\n", encoding="utf-8")
+    args = cli.build_parser().parse_args([
+        "apply-refactor", str(source), "--pattern", "extract-method",
+        "--method", method, "--out", str(candidate), "--json", str(export),
+    ])
+    ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_a, **_k: None))
+    with patch("pipeline.workflow_services.execute_isolated_verification",
+               side_effect=_verified):
+        assert cli.command_apply_refactor(args, ui) == 1
+    assert export.read_text(encoding="utf-8") == "operator-owned\n"
+    assert candidate.is_file() is (method == "add")
+    if candidate.exists():
+        assert b"add_helper" in candidate.read_bytes()
+
+
+def test_cli_multifile_export_cannot_enter_candidate_directory(
+        tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "Counter.java"
+    source.write_text("public class Counter {}\n", encoding="utf-8")
+    inspection = tmp_path / "inspection.json"
+    inspection.write_text("{}\n", encoding="utf-8")
+    out = tmp_path / "candidate"
+    args = cli.build_parser().parse_args([
+        "apply-refactor", str(source), "--inspection", str(inspection),
+        "--pattern", "strategy", "--method", "value", "--out", str(out),
+        "--json", str(out / "result.json"),
+    ])
+    ui = SimpleNamespace(console=SimpleNamespace(print=lambda *_a, **_k: None))
+    with patch("pipeline.workflow_services.run_apply_refactor") as workflow:
+        assert cli.command_apply_refactor(args, ui) == 1
+    workflow.assert_not_called()
+    assert not out.exists()
 
 
 def test_real_mcp_transport_exercises_apply_refactor_languages():
@@ -333,6 +404,8 @@ def test_real_mcp_transport_exercises_apply_refactor_languages():
     observation = collect_transport_observation("apply-refactor")
     assert "apply_refactor" in observation["discovered_tools"]
     assert set(observation["variants"]) == {
-        "java-extract-method", "rust-extract-method", "c-extract-method",
+        "java-extract-method", "jml-extract-method", "java-factory-method", "java-state",
+        "java-decorator", "java-facade", "java-null-object", "java-strategy",
+        "rust-extract-method", "rust-strategy", "c-extract-method",
         "cpp-extract-method", "negative-transform-export",
     }

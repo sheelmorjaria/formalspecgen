@@ -44,3 +44,29 @@ def test_null_object_refactor_preserves_collaborator_arguments(tmp_path):
     assert "void log(String input);" in result["files"]["Logger.java"]
     assert "void log(String input)" in result["files"]["NullLogger.java"]
     assert "this.logger.log(input);" in result["files"]["OrderService.java"]
+
+
+def test_null_object_refactor_does_not_duplicate_reviewed_non_null_hints(tmp_path):
+    source = tmp_path / "OrderService.java"
+    source.write_text("""public class OrderService {
+    private /*@ nullable @*/ Logger logger;
+    //@ requires logger != null;
+    public OrderService(Logger logger) { this.logger = logger; }
+    //@ ensures true;
+    public void first() {
+        //@ assume this.logger != null;
+        if (logger != null) { logger.log(); }
+    }
+    public void second() {
+        //@ assume this.logger != null;
+        if (logger != null) { logger.log(); }
+    }
+}
+""", encoding="utf-8")
+    evidence = tmp_path / "inspection.json"
+    evidence.write_text(json.dumps(inspect_java_file(source)), encoding="utf-8")
+    result = extract_null_object_from_inspection(source, evidence)
+    assert result["status"] == "TRANSFORMED"
+    primary = result["files"]["OrderService.java"]
+    assert primary.count("assume this.logger != null") == 2
+    assert "nullable" in primary

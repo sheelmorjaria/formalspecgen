@@ -2136,6 +2136,10 @@ formalspecgen apply-refactor baseline/lib.rs \
   --out refactored/lib.rs --json extract-verdict.json
 ```
 
+The candidate and optional JSON verdict are created without replacement. The verdict destination
+must be distinct from every input and candidate destination; an alias or existing destination
+fails without modifying the protected bytes.
+
 The splice runs the existing polyglot refactor gate immediately: every baseline public
 signature must survive verbatim (additions such as the helper are allowed), the
 normalized contract set must be unchanged, and BOTH revisions are re-proved by the native

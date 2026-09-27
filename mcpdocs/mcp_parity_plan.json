@@ -2067,7 +2067,7 @@
       "completion_contract": {
         "schema": "formalspecgen-workflow-completion-v1",
         "required_variants": [
-          "java-extract-method", "java-factory-method", "java-state",
+          "java-extract-method", "jml-extract-method", "java-factory-method", "java-state",
           "java-decorator", "java-facade", "java-null-object", "java-strategy",
           "rust-extract-method", "rust-strategy", "c-extract-method",
           "cpp-extract-method", "negative-transform-export",
@@ -2159,7 +2159,12 @@
           {
             "kind": "mcp_transport",
             "test": "tests/test_apply_refactor_workflow.py::test_real_mcp_transport_exercises_apply_refactor_languages",
-            "variants": ["java-extract-method", "rust-extract-method", "c-extract-method", "cpp-extract-method", "negative-transform-export"]
+            "variants": [
+              "java-extract-method", "jml-extract-method", "java-factory-method",
+              "java-state", "java-decorator", "java-facade", "java-null-object",
+              "java-strategy", "rust-extract-method", "rust-strategy",
+              "c-extract-method", "cpp-extract-method", "negative-transform-export"
+            ]
           }
         ]
       },
