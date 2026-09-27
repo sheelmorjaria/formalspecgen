@@ -369,10 +369,10 @@ async def _verify_refactor_observation() -> dict:
             "  int x = 1; assert(x == 1);\n} };\n"),
         "cpp/good.cpp": (
             "#include <cassert>\nclass Counter { public: void check() {\n"
-            "  assert(1 == 1);\n} };\n"),
+            "  int x = 1; x += 0; assert(x == 1);\n} };\n"),
         "cpp/bad.cpp": (
             "#include <cassert>\nclass Counter { public: void check() {\n"
-            "  assert(false);\n} };\n"),
+            "  int x = 1; x = 2; assert(x == 1);\n} };\n"),
     }
     calls = [
         {"baseline": "java/base/Account.java",
