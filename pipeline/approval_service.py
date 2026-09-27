@@ -22,11 +22,12 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 
-APPROVAL_POLICY_VERSION = "formalspecgen-approval-policy-v1"
+APPROVAL_POLICY_VERSION = "formalspecgen-approval-policy-v2"
 APPROVAL_REQUEST_SCHEMA = "formalspecgen-approval-request-v1"
 APPROVAL_DECISION_SCHEMA = "formalspecgen-approval-decision-v1"
 APPROVAL_RECEIPT_SCHEMA = "formalspecgen-approval-receipt-v1"
 _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
+_FULL_FINGERPRINT = re.compile(r"^[0-9A-F]{40}(?:[0-9A-F]{24})?$")
 
 
 class ApprovalError(ValueError):
@@ -106,14 +107,48 @@ def _load_json(path: Path, schema: str) -> dict[str, Any]:
 
 
 def _matches_identity(observed: str, expected: str) -> bool:
-    left, right = observed.upper(), expected.upper()
-    return left == right or left.endswith(right) or right.endswith(left)
+    """Compare complete OpenPGP fingerprints; short key IDs are not identities."""
+    left, right = observed.strip().upper(), expected.strip().upper()
+    return bool(
+        _FULL_FINGERPRINT.fullmatch(left)
+        and _FULL_FINGERPRINT.fullmatch(right)
+        and left == right)
+
+
+def _validsig_identity(output: str) -> dict[str, str]:
+    """Return the signing and primary fingerprints from GPG VALIDSIG status.
+
+    GnuPG emits the key that made the signature first and, for a signing
+    subkey, the primary-key fingerprint in the final field.  Older/fake status
+    fixtures may omit the latter; a primary-key signature is then represented
+    by the signing fingerprint for both fields.
+    """
+    for line in output.splitlines():
+        if not line.startswith("[GNUPG:] VALIDSIG "):
+            continue
+        fields = line.split()
+        if len(fields) < 3:
+            break
+        signing = fields[2].strip().upper()
+        if not _FULL_FINGERPRINT.fullmatch(signing):
+            break
+        primary = signing
+        if len(fields) >= 12:
+            candidate = fields[-1].strip().upper()
+            if _FULL_FINGERPRINT.fullmatch(candidate):
+                primary = candidate
+        return {
+            "signing_fingerprint": signing,
+            "primary_fingerprint": primary,
+        }
+    raise ApprovalError(
+        "APPROVAL_SIGNATURE_INVALID", "GPG did not report a valid signer")
 
 
 def _verify_detached_signature(
         artifact: Path, signature: Path, *, gpg_home: Path,
         authorized_keys: set[str], expected_identity: str | None,
-        runner: Callable[..., Any] = subprocess.run) -> str:
+        runner: Callable[..., Any] = subprocess.run) -> dict[str, str]:
     command = [
         "gpg", "--homedir", str(gpg_home), "--batch", "--status-fd", "1",
         "--verify", str(signature), str(artifact),
@@ -123,21 +158,16 @@ def _verify_detached_signature(
         raise ApprovalError(
             "APPROVAL_SIGNATURE_INVALID",
             f"detached signature verification failed for {artifact.name}")
-    valid = next((
-        line.split()[2] for line in (result.stdout or "").splitlines()
-        if line.startswith("[GNUPG:] VALIDSIG ") and len(line.split()) > 2
-    ), "")
-    if not valid:
-        raise ApprovalError(
-            "APPROVAL_SIGNATURE_INVALID", "GPG did not report a valid signer")
-    if not any(_matches_identity(valid, key) for key in authorized_keys):
+    identity = _validsig_identity(result.stdout or "")
+    primary = identity["primary_fingerprint"]
+    if not any(_matches_identity(primary, key) for key in authorized_keys):
         raise ApprovalError(
             "APPROVAL_REVIEWER_UNAUTHORIZED", "decision signer is not trusted")
-    if expected_identity and not _matches_identity(valid, expected_identity):
+    if expected_identity and not _matches_identity(primary, expected_identity):
         raise ApprovalError(
             "APPROVAL_REVIEWER_MISMATCH",
             "decision signer does not match the request-bound reviewer")
-    return valid
+    return identity
 
 
 class ApprovalService:
@@ -167,6 +197,13 @@ class ApprovalService:
             raise ApprovalError(
                 "APPROVAL_POLICY_UNAVAILABLE",
                 "signing and reviewer identities must be configured")
+        identities = (
+            *self.authorized_reviewers,
+            self.signing_identity.upper(), self.reviewer_identity.upper())
+        if any(not _FULL_FINGERPRINT.fullmatch(value) for value in identities):
+            raise ApprovalError(
+                "APPROVAL_POLICY_UNAVAILABLE",
+                "approval identities must be complete OpenPGP fingerprints")
         if not any(_matches_identity(
                 self.reviewer_identity, key) for key in self.authorized_reviewers):
             raise ApprovalError(
@@ -288,7 +325,9 @@ class ApprovalService:
                 request, request_sha256, decision, reviewer,
                 status="SIGNED", signature={
                     "path": str(signature), "sha256": signature_sha256,
-                    "size": signature_size, "signer_identity": signer,
+                    "size": signature_size,
+                    "signer_identity": signer["primary_fingerprint"],
+                    "signing_fingerprint": signer["signing_fingerprint"],
                 })
             if before_receipt is not None:
                 before_receipt()
@@ -370,7 +409,9 @@ class ApprovalService:
                 receipt.get("claim_upgraded_by_signing") is not False or \
                 not _matches_identity(
                     str(receipt.get("reviewer_identity", "")),
-                    str(request.get("reviewer_identity", ""))):
+                    str(request.get("reviewer_identity", ""))) or \
+                not _FULL_FINGERPRINT.fullmatch(
+                    str(receipt.get("reviewer_signing_fingerprint", ""))):
             raise ApprovalError(
                 "APPROVAL_STATE_INVALID", "approval receipt binding changed")
         self._validate_bound_file(
@@ -385,11 +426,15 @@ class ApprovalService:
                     "APPROVAL_STATE_INVALID", "signed receipt lacks signature binding")
             signature_path = Path(str(signature.get("path", "")))
             self._validate_bound_file(signature_path, signature, "signature")
-            _verify_detached_signature(
+            signer = _verify_detached_signature(
                 Path(request["artifact"]["path"]), signature_path,
                 gpg_home=self.verifier_home,
                 authorized_keys={request["signing_identity"]},
                 expected_identity=request["signing_identity"], runner=self.runner)
+            if signature.get("signer_identity") != signer["primary_fingerprint"] or \
+                    signature.get("signing_fingerprint") != signer["signing_fingerprint"]:
+                raise ApprovalError(
+                    "APPROVAL_STATE_INVALID", "signature identity binding changed")
         elif receipt.get("status") != "DENIED":
             raise ApprovalError(
                 "APPROVAL_STATE_INVALID", "unknown approval receipt outcome")
@@ -457,7 +502,7 @@ class ApprovalService:
 
     def _receipt(
             self, request: dict[str, Any], request_sha256: str,
-            decision: dict[str, Any], reviewer: str, *, status: str,
+            decision: dict[str, Any], reviewer: dict[str, str], *, status: str,
             signature: dict[str, Any] | None) -> dict[str, Any]:
         return {
             "schema": APPROVAL_RECEIPT_SCHEMA,
@@ -468,7 +513,8 @@ class ApprovalService:
             "action": request["action"],
             "status": status,
             "decision": decision["decision"],
-            "reviewer_identity": reviewer,
+            "reviewer_identity": reviewer["primary_fingerprint"],
+            "reviewer_signing_fingerprint": reviewer["signing_fingerprint"],
             "artifact": dict(request["artifact"]),
             "evidence_manifest": dict(request["evidence_manifest"]),
             "admission_profile_sha256": request["admission_profile_sha256"],

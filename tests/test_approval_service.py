@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from datetime import datetime, timedelta, timezone
@@ -15,6 +16,7 @@ import mcp_server
 from pipeline.approval_service import (
     ApprovalError,
     ApprovalService,
+    _verify_detached_signature,
     record_human_decision,
 )
 from pipeline.protected_signer import sign_approved_artifact
@@ -290,6 +292,102 @@ def test_protected_signer_revalidates_and_signs_exact_action(tmp_path, monkeypat
     assert result["request_id"] == request_id
     assert result["private_key_exposed"] is False
     assert output.read_bytes() == b"human-decision-signature"
+
+
+@pytest.mark.parametrize("mutation", ["in-place", "replace-path"])
+def test_protected_signer_signs_private_snapshot_after_late_mutation(
+        tmp_path, monkeypatch, mutation):
+    commands = FakeCommands()
+    service = _service(tmp_path, commands)
+    request, artifact, _ = _request(tmp_path, service)
+    approved = artifact.read_bytes()
+    approved_sha256 = hashlib.sha256(approved).hexdigest()
+    request_id = request["approval"]["request_id"]
+    _decide(tmp_path, request, commands)
+    signing_home = tmp_path / "signing-home"
+    signing_home.mkdir()
+    registry = tmp_path / "reviewers.json"
+    registry.write_text(json.dumps({
+        "keys": [{"key_id": REVIEWER}],
+    }), encoding="utf-8")
+    monkeypatch.setenv(
+        "FORMALSPECGEN_APPROVAL_GNUPGHOME", str(tmp_path / "public-keys"))
+    monkeypatch.setenv("FORMALSPECGEN_APPROVAL_TRUST_REGISTRY", str(registry))
+    monkeypatch.setenv("FORMALSPECGEN_SIGNER_GNUPGHOME", str(signing_home))
+    monkeypatch.setenv("FORMALSPECGEN_SIGNING_KEY", SIGNER)
+    root = tmp_path / "approvals" / request_id
+    output = root / "artifact.sig"
+
+    def mutate_before_gpg(command, **kwargs):
+        values = [str(item) for item in command]
+        if "--detach-sign" in values:
+            signed_input = Path(values[-1])
+            assert signed_input != artifact
+            assert signed_input.read_bytes() == approved
+            if mutation == "replace-path":
+                artifact.unlink()
+            artifact.write_bytes(b"replacement bytes\n")
+        return commands(command, **kwargs)
+
+    result = sign_approved_artifact(
+        request_path=root / "request.json",
+        decision_path=root / "decision.json",
+        approval_signature=root / "decision.json.sig",
+        artifact=artifact, output=output, runner=mutate_before_gpg)
+
+    assert result["status"] == "SIGNED"
+    assert result["signed_artifact_sha256"] == approved_sha256
+    assert artifact.read_bytes() != approved
+
+
+def test_primary_fingerprint_policy_accepts_eligible_signing_subkey(tmp_path):
+    primary = "C" * 40
+    subkey = "D" * 40
+
+    def runner(_command, **_kwargs):
+        status = (
+            f"[GNUPG:] VALIDSIG {subkey} 2026-01-01 0 0 4 0 22 8 00 "
+            f"{primary}\n")
+        return SimpleNamespace(returncode=0, stdout=status, stderr="")
+
+    identity = _verify_detached_signature(
+        tmp_path / "decision.json", tmp_path / "decision.json.sig",
+        gpg_home=tmp_path, authorized_keys={primary},
+        expected_identity=primary, runner=runner)
+
+    assert identity == {
+        "signing_fingerprint": subkey,
+        "primary_fingerprint": primary,
+    }
+
+
+def test_primary_fingerprint_policy_rejects_unrelated_valid_identity(tmp_path):
+    trusted = "C" * 40
+    unrelated = "E" * 40
+
+    def runner(_command, **_kwargs):
+        status = (
+            f"[GNUPG:] VALIDSIG {unrelated} 2026-01-01 0 0 4 0 22 8 00 "
+            f"{unrelated}\n")
+        return SimpleNamespace(returncode=0, stdout=status, stderr="")
+
+    with pytest.raises(ApprovalError) as error:
+        _verify_detached_signature(
+            tmp_path / "decision.json", tmp_path / "decision.json.sig",
+            gpg_home=tmp_path, authorized_keys={trusted},
+            expected_identity=trusted, runner=runner)
+    assert error.value.code == "APPROVAL_REVIEWER_UNAUTHORIZED"
+
+
+def test_approval_policy_rejects_short_key_ids(tmp_path):
+    verifier = tmp_path / "public-keys"
+    verifier.mkdir()
+    with pytest.raises(ApprovalError) as error:
+        ApprovalService(
+            tmp_path / "approvals", verifier_home=verifier,
+            authorized_reviewers={"DEADBEEF"}, signer=None,
+            signing_identity=SIGNER, reviewer_identity="DEADBEEF")
+    assert error.value.code == "APPROVAL_POLICY_UNAVAILABLE"
 
 
 def test_protected_signer_rejects_unapproved_destination(tmp_path, monkeypatch):

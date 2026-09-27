@@ -21,13 +21,17 @@ def _identity(home: Path, label: str, email: str) -> str:
     home.mkdir(mode=0o700)
     _run(
         "gpg", "--homedir", str(home), "--batch", "--passphrase", "",
-        "--quick-generate-key", f"{label} <{email}>", "ed25519", "sign", "1d")
+        "--quick-generate-key", f"{label} <{email}>", "ed25519", "cert", "1d")
     listing = _run(
         "gpg", "--homedir", str(home), "--batch", "--with-colons",
         "--list-secret-keys", stdout=subprocess.PIPE).stdout
-    return next(
+    primary = next(
         line.split(":")[9] for line in listing.splitlines()
         if line.startswith("fpr:"))
+    _run(
+        "gpg", "--homedir", str(home), "--batch", "--passphrase", "",
+        "--quick-add-key", primary, "ed25519", "sign", "1d")
+    return primary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         "FORMALSPECGEN_REVIEWER_IDENTITY": reviewer,
         "FORMALSPECGEN_ACCEPTANCE_REVIEWER_GNUPGHOME": reviewer_home,
         "FORMALSPECGEN_ACCEPTANCE_REVIEWER_KEY": reviewer,
+        "FORMALSPECGEN_ACCEPTANCE_SIGNER_GNUPGHOME": signer_home,
     }
     destination = args.github_env or (
         Path(os.environ["GITHUB_ENV"]) if os.environ.get("GITHUB_ENV") else None)
