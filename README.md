@@ -104,8 +104,11 @@ root; the read-only invocation receives no write authority. Documentation reads
 one bounded source and creates new unreviewed Markdown and V2-candidate artifacts beneath
 `.formalspecgen/mcp-output` (or the server-controlled `FORMALSPECGEN_MCP_OUTPUT_ROOT`) and never
 replaces an existing artifact. Provider-assisted documentation separately requires provider
-authority and an approved endpoint/model. The registry retains
-a 53-tool catalogue
+authority and an approved endpoint/model.
+Codebase analysis captures a bounded, symlink-free polyglot source snapshot and publishes only
+new, unreviewed architecture and domain candidates. Its source manifest and artifact digests are
+provenance records, not a proof of repository behavior.
+The registry retains a 53-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,

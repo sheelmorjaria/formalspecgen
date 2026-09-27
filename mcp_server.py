@@ -57,6 +57,7 @@ from pipeline.isolated_verification import (
 )
 from pipeline.verify import verify_detailed
 from pipeline.workflow_services import (
+    run_codebase_analysis,
     run_apply_refactor,
     run_documentation_preparation,
     run_java_inspection,
@@ -65,6 +66,7 @@ from pipeline.workflow_services import (
 )
 from pipeline.workflow_contracts import (
     ApplyRefactorWorkflowRequest,
+    CodebaseAnalysisWorkflowRequest,
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
@@ -82,6 +84,11 @@ MCP_INSPECT_MAX_RESULT_BYTES = 2 * 1024 * 1024
 MCP_REFACTOR_MAX_INPUT_BYTES = 4 * 1024 * 1024
 MCP_REFACTOR_MAX_INPUT_FILES = 256
 MCP_REFACTOR_MAX_RESULT_BYTES = 4 * 1024 * 1024
+MCP_ANALYSIS_MAX_INPUT_BYTES = 8 * 1024 * 1024
+MCP_ANALYSIS_MAX_INPUT_FILES = 512
+MCP_ANALYSIS_MAX_TRAVERSAL_ENTRIES = 4096
+MCP_ANALYSIS_MAX_TRAVERSAL_DEPTH = 32
+MCP_ANALYSIS_MAX_RESULT_BYTES = 8 * 1024 * 1024
 
 
 def _configured_approval_service(*, require_signer: bool) -> ApprovalService:
@@ -623,13 +630,132 @@ def inspect_code(
             result, request, WorkflowInterface.MCP, context=context)
 
 
-def analyze_codebase(target_dir: str, out_dir: str = "extracted",
-                     project_root: str = ".") -> dict[str, Any]:
-    """Extract unreviewed architecture and V2 domain candidates from a source tree."""
-    from pipeline.codebase_analysis import analyze_codebase as run_analysis
-    return _guarded(lambda: run_analysis(
-        _workspace_path(target_dir), _workspace_path(out_dir, must_exist=False),
-        _workspace_path(project_root, must_exist=False)))
+def analyze_codebase(
+        target_dir: str, out_dir: str = "extracted",
+        project_root: str = ".",
+        result_export: str | None = None) -> dict[str, Any]:
+    """Extract bounded, unreviewed architecture and domain candidates."""
+    try:
+        for label, value in (
+                ("out_dir", out_dir), ("project_root", project_root)):
+            relative = Path(value)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    f"analysis {label} must be a relative output path")
+        if result_export is not None:
+            export = Path(result_export)
+            if export.is_absolute() or ".." in export.parts or \
+                    export.suffix.lower() != ".json":
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "analysis result export must be a relative JSON path")
+        request = CodebaseAnalysisWorkflowRequest(
+            target_dir, out_dir, project_root, result_export=result_export)
+    except (OSError, ValueError, MCPArtifactError) as exc:
+        return {
+            "status": "INVALID_REQUEST", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": getattr(exc, "code", "invalid_request"),
+            "message": str(exc),
+        }
+    effects = request.required_effects(WorkflowInterface.MCP)
+    admission = authorize_mcp_invocation(
+        "analyze_codebase", mode=request.mode, language=request.language,
+        backend=request.effective_backend, effects=effects)
+    if not admission.admitted:
+        return bind_workflow_result(
+            admission.rejection(), request, WorkflowInterface.MCP)
+    output_root = _designated_mcp_output_root()
+    try:
+        context = WorkflowContext.for_mcp(
+            admission, effects, output_root=output_root,
+            resource_budget={
+                "max_input_bytes": MCP_ANALYSIS_MAX_INPUT_BYTES,
+                "max_input_files": MCP_ANALYSIS_MAX_INPUT_FILES,
+                "max_traversal_entries": MCP_ANALYSIS_MAX_TRAVERSAL_ENTRIES,
+                "max_traversal_depth": MCP_ANALYSIS_MAX_TRAVERSAL_DEPTH,
+                "max_result_bytes": MCP_ANALYSIS_MAX_RESULT_BYTES,
+            })
+        service = run_codebase_analysis(request, context)
+        result = {**service.payload, "mcp_admission": admission.summary()}
+        artifacts: dict[str, bytes] = {}
+        for name, content in service.extraction_artifacts.items():
+            artifacts[(Path(out_dir) / name).as_posix()] = content
+        candidate_prefix = Path(project_root) / "domains" / "candidates"
+        for name, content in service.candidate_artifacts.items():
+            path = (candidate_prefix / name).as_posix()
+            if path in artifacts:
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION", "analysis output destinations overlap")
+            artifacts[path] = content
+        normalized_export = (Path(result_export).as_posix()
+                             if result_export is not None else None)
+        if normalized_export is not None and normalized_export in artifacts:
+            raise MCPArtifactError(
+                "OUTPUT_SCOPE_VIOLATION",
+                "analysis result export aliases a generated artifact")
+        published = publish_new_artifacts(
+            output_root, artifacts, admission,
+            max_total_bytes=MCP_ANALYSIS_MAX_RESULT_BYTES)
+        result["publication"] = {
+            "status": "COMMITTED", "kind": "unreviewed-codebase-analysis",
+            "artifacts": published,
+        }
+        result = bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+        if result_export is not None:
+            exported = publish_new_artifacts(
+                output_root, {normalized_export: json.dumps(
+                    result, indent=2, ensure_ascii=False, default=str) + "\n"},
+                admission, max_total_bytes=MCP_ANALYSIS_MAX_RESULT_BYTES)
+            result["result_export"] = {
+                "status": "COMMITTED", "kind": "analysis-result-export",
+                "artifacts": exported,
+            }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=context)
+    except (OSError, ValueError, FileNotFoundError, MCPPolicyViolation,
+            MCPArtifactError) as exc:
+        message = str(exc)
+        code = getattr(exc, "code", None)
+        if code is None:
+            code = ("path_outside_workspace"
+                    if "inside the current workspace" in message
+                    else "input_unavailable"
+                    if isinstance(exc, FileNotFoundError)
+                    else "CODEBASE_ANALYSIS_FAILED")
+        prior = (dict(result)
+                 if "result" in locals() and isinstance(result, dict) else {})
+        result = {
+            **prior,
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": code, "message": message,
+            "mcp_admission": admission.summary(),
+        }
+        active_context = context if "context" in locals() else None
+        bound = bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=active_context)
+        if result_export is not None and active_context is not None and \
+                code != "OUTPUT_SCOPE_VIOLATION":
+            try:
+                normalized_export = Path(result_export).as_posix()
+                exported = publish_new_artifacts(
+                    output_root, {normalized_export: json.dumps(
+                        bound, indent=2, ensure_ascii=False,
+                        default=str) + "\n"},
+                    admission, max_total_bytes=MCP_ANALYSIS_MAX_RESULT_BYTES)
+                result["result_export"] = {
+                    "status": "COMMITTED", "kind": "analysis-result-export",
+                    "artifacts": exported,
+                }
+            except (OSError, ValueError, MCPPolicyViolation) as export_exc:
+                result["result_export"] = {
+                    "status": "FAILED", "message": str(export_exc),
+                }
+        return bind_workflow_result(
+            result, request, WorkflowInterface.MCP, context=active_context)
 
 
 def document_code(

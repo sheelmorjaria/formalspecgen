@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "280739e15eeedf20fdb5e3101d9edeb4ee4bf3dd4ecaef754c7dd11b2139f77a",
+  "plan_sha256": "c37e40b52597dd4ab3f09533806b597e53491a5caf72752c1b0d2af903e9969e",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4170,7 +4170,7 @@
     "mapped_commands": 38,
     "discovered_argument_declarations": 205,
     "mapped_argument_declarations": 205,
-    "commands_with_admitted_profile": 5,
+    "commands_with_admitted_profile": 6,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -4272,8 +4272,32 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-polyglot-codebase-analysis",
+            "modes": [
+              "analyze"
+            ],
+            "languages": [
+              "polyglot"
+            ],
+            "backends": [
+              "builtin-codebase-analysis"
+            ],
+            "effects": [
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "unreviewed-analysis-artifacts",
+            "required_effects": [
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -4298,12 +4322,20 @@
             "default": ".",
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "target_dir",
           "out_dir",
-          "project_root"
+          "project_root",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -4318,27 +4350,31 @@
         "observed_mcp_fields": [
           "out_dir",
           "project_root",
+          "result_export",
           "target_dir"
         ],
-        "missing_mcp_fields": [
-          "result_export"
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "bounded-input-capture",
+          "complete-argument-surface",
+          "denied-path",
+          "missing-input",
+          "negative-result-export",
+          "polyglot-success-export",
+          "publication-collision",
+          "request-equivalence",
+          "unreviewed-claim-limit",
+          "unsupported-input"
         ],
-        "unverified_argument_mappings": [
-          "target_dir",
-          "out_dir",
-          "project_root",
-          "result_export"
-        ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -12881,5 +12917,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "8c2753f0757f5a0b1f223221dc55e549f5d4c4a3aaa36ab551c2df772579a8d8"
+  "sha256": "ea5d5e551e8f9ee1b19d1f598e93c490d96349ac9279c3bd6204df3dc58ab1cc"
 }

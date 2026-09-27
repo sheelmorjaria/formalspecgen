@@ -282,6 +282,41 @@ class DocumentationWorkflowRequest:
 
 
 @dataclass(frozen=True)
+class CodebaseAnalysisWorkflowRequest:
+    """Bounded source-tree extraction into explicitly unreviewed artifacts."""
+
+    target_dir: str
+    out_dir: str = "extracted"
+    project_root: str = "."
+    result_export: str | None = None
+    language: str = field(default="polyglot", init=False)
+    mode: str = field(default="analyze", init=False)
+    effective_backend: str = field(
+        default="builtin-codebase-analysis", init=False)
+
+    def __post_init__(self) -> None:
+        target = str(Path(self.target_dir).expanduser().resolve())
+        out = str(Path(self.out_dir).expanduser().resolve())
+        project = str(Path(self.project_root).expanduser().resolve())
+        export = (str(Path(self.result_export).expanduser().resolve())
+                  if self.result_export else None)
+        object.__setattr__(self, "target_dir", target)
+        object.__setattr__(self, "out_dir", out)
+        object.__setattr__(self, "project_root", project)
+        object.__setattr__(self, "result_export", export)
+
+    def required_effects(self, _interface: WorkflowInterface) -> tuple[str, ...]:
+        return _normalized_effects(("workspace_read", "workspace_write_new"))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": WORKFLOW_CONTRACT_SCHEMA,
+            "workflow": "analyze-codebase",
+            **asdict(self),
+        }
+
+
+@dataclass(frozen=True)
 class RefactorWorkflowRequest:
     """One baseline/candidate preservation request shared by CLI and MCP.
 
@@ -404,7 +439,8 @@ class ApplyRefactorWorkflowRequest:
 
 WorkflowRequest = (
     VerificationWorkflowRequest | InspectionWorkflowRequest |
-    DocumentationWorkflowRequest | RefactorWorkflowRequest |
+    DocumentationWorkflowRequest | CodebaseAnalysisWorkflowRequest |
+    RefactorWorkflowRequest |
     ApplyRefactorWorkflowRequest
 )
 

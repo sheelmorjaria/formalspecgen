@@ -39,7 +39,7 @@
   <h1>FormalSpecGen</h1>
   <p class="lede">Goal-driven formal engineering with typed workflows, strict execution, immutable evidence, bounded worker coordination, and explicit human trust boundaries.</p>
   <nav aria-label="Guide sections">
-    <a href="#status">Status</a><a href="#catalogue">Strict catalogue</a><a href="#verification">Verification</a><a href="#refactoring">Refactoring</a><a href="#documentation">Documentation</a><a href="#coordination">Coordination</a><a href="#agent">Supervisor</a><a href="#evidence">Evidence</a>
+    <a href="#status">Status</a><a href="#catalogue">Strict catalogue</a><a href="#analysis">Analysis</a><a href="#verification">Verification</a><a href="#refactoring">Refactoring</a><a href="#documentation">Documentation</a><a href="#coordination">Coordination</a><a href="#agent">Supervisor</a><a href="#evidence">Evidence</a>
   </nav>
 </header>
 <main>
@@ -48,7 +48,7 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports five CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, and <code>apply-refactor</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports six CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, and <code>analyze-codebase</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
   </section>
@@ -61,6 +61,18 @@
       <tbody id="capability-rows"><tr><td colspan="4">Loading generated capability data…</td></tr></tbody>
     </table>
     <noscript><p>JavaScript is disabled. Open <a href="mcp_capabilities.json">the generated capability JSON</a> directly.</p></noscript>
+  </section>
+
+  <section id="analysis">
+    <h2>Bounded repository analysis</h2>
+    <p><code>analyze_codebase</code> captures Java, Rust, C, C++, header, and LLVM IR inputs under aggregate byte, file, traversal-entry, and depth limits. It rejects symlink traversal, runs the extractor against a private snapshot, and publishes architecture and domain candidates without replacement.</p>
+    <pre><code data-workflow-example="analyze-codebase">{
+  "target_dir": "src",
+  "out_dir": "analysis/current",
+  "project_root": "analysis-project",
+  "result_export": "results/analysis.json"
+}</code></pre>
+    <p>The result binds the captured source manifest to the published artifact digests. Every generated model remains unreviewed; repository analysis does not run code, invoke a provider, or prove source behavior.</p>
   </section>
 
   <section id="verification">

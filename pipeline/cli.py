@@ -1057,15 +1057,88 @@ def command_validate_architecture(args: argparse.Namespace, ui: TerminalUI) -> i
 
 
 def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .codebase_analysis import analyze_codebase
+    from .mcp_artifacts import MCPArtifactError, publish_new_artifacts
+    from .workflow_contracts import (
+        CodebaseAnalysisWorkflowRequest,
+        WorkflowContext,
+        WorkflowInterface,
+        bind_workflow_result,
+    )
+    from .workflow_services import run_codebase_analysis
 
-    result = analyze_codebase(args.target_dir, args.out_dir, args.project_root)
+    try:
+        request = CodebaseAnalysisWorkflowRequest(
+            args.target_dir, args.out_dir, args.project_root,
+            result_export=args.json)
+        context = WorkflowContext.for_cli(
+            request.required_effects(WorkflowInterface.CLI),
+            workspace_root=Path(request.target_dir),
+            resource_budget={
+                "max_input_bytes": 8 * 1024 * 1024,
+                "max_input_files": 512,
+                "max_traversal_entries": 4096,
+                "max_traversal_depth": 32,
+                "max_result_bytes": 8 * 1024 * 1024,
+            })
+        service = run_codebase_analysis(request, context)
+        result = dict(service.payload)
+        targets: dict[Path, bytes] = {}
+        for name, content in service.extraction_artifacts.items():
+            targets[Path(request.out_dir) / name] = content
+        candidate_root = Path(request.project_root) / "domains" / "candidates"
+        for name, content in service.candidate_artifacts.items():
+            targets[candidate_root / name] = content
+        if request.result_export is not None:
+            export = Path(request.result_export)
+            if export in targets or export == Path(request.target_dir) or \
+                    Path(request.target_dir) in export.parents:
+                raise ValueError(
+                    "analysis result export aliases an input or generated artifact")
+        if targets:
+            context.require("workspace_write_new")
+            parents = [path.parent.resolve() for path in targets]
+            publication_root = Path(os.path.commonpath([str(path) for path in parents]))
+            artifacts = {
+                path.resolve().relative_to(publication_root).as_posix(): content
+                for path, content in targets.items()
+            }
+            published = publish_new_artifacts(
+                publication_root, artifacts, context.authority,
+                max_total_bytes=8 * 1024 * 1024)
+            result["publication"] = {
+                "status": "COMMITTED", "kind": "unreviewed-codebase-analysis",
+                "artifacts": published,
+            }
+        result = bind_workflow_result(
+            result, request, WorkflowInterface.CLI, context=context)
+    except (OSError, ValueError, FileNotFoundError, MCPArtifactError) as exc:
+        result = {
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": getattr(exc, "code", "CODEBASE_ANALYSIS_FAILED"),
+            "message": str(exc),
+        }
     if args.json:
-        _write_json(result, args.json, ui.console)
+        try:
+            if "context" not in locals():
+                raise ValueError("analysis publication authority is unavailable")
+            destination = Path(args.json).expanduser().resolve()
+            encoded = json.dumps(
+                result, indent=2, ensure_ascii=False, default=str) + "\n"
+            publish_new_artifacts(
+                destination.parent, {destination.name: encoded}, context.authority,
+                max_total_bytes=8 * 1024 * 1024)
+            ui.console.print(f"Evidence written to [path]{args.json}[/path]")
+        except (OSError, ValueError, MCPArtifactError) as exc:
+            ui.console.print(
+                f"[bold red]Result publication failed:[/bold red] {escape(str(exc))}")
+            return 1
+    else:
+        _write_json(result, None, ui.console)
     ui.console.print(
         f"Status: {result['status']}\nComponents: {len(result.get('components', []))}"
     )
-    return 0 if result["status"] == "EXTRACTED" else 1
+    return 0 if result.get("request_satisfied", False) else 1
 
 
 def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:

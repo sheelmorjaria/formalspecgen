@@ -52,6 +52,7 @@ boundary will reject the operation even when the broader profile could have allo
 | `verify_code` | Yes | Admitted | `parse`, `check` / C or C++ / structured rejection | Read request metadata; no external execution | None | Immutable unsupported-mode result | None |
 | `verify_refactor` | Yes | Admitted | `preserve` or `preserve-signing` / Java or JML, Rust, C, or C++ / language verifier | Read immutable baseline and candidate snapshots; strict baseline/candidate execution; controlled result export for signing | None | One immutable bundle binding both inputs and observations; signing adds a separate detached signature and immutable action receipt | An authenticated reviewer decision is required before protected signing |
 | `apply_refactor` | Yes | Admitted | deterministic patterns / Java or JML, Rust, C, or C++ / language verifier | Capture bounded inputs; prepare privately staged candidates; strict preservation execution; create new candidate and optional JSON artifacts | None | Candidate manifest plus immutable baseline/candidate observations and terminal manifest | Candidate remains unreviewed; applying it to authoritative source requires separate approval |
+| `analyze_codebase` | Yes | Admitted | `analyze` / bounded polyglot source tree / built-in extractor | Capture bounded source files without following symlinks; create new architecture, domain-candidate, and optional JSON artifacts | None | Source manifest and published artifact digests; explicitly no proof receipt | Extracted models require human review before use or promotion |
 | `inspect_code` | Yes | Admitted | `inspect` / Java or JML / built-in inspector | Read one bounded workspace input; optionally create one new JSON export beneath the designated output root | None | Structured findings and optional unreviewed export; no proof receipt | Required before applying proposed changes |
 | `document_code` | Yes | Admitted | `deterministic` or `provider-assisted` / Java / built-in documentation | Read one bounded source; create new artifacts only beneath the designated output root | GLM, OpenAI, or Ollama through server-controlled endpoints and approved models | Unreviewed Markdown, V2 candidate, and optional JSON result; no proof receipt | Required before review, use, or promotion |
 | `submit_work_item` | No coordinator CLI | Admitted | `submit` / approved workflow and A2A 1.0 worker | Read current revision; append service task state; dispatch to an approved worker | Worker endpoint only; no model/provider permission | Hash-chained worker-task events and unaccepted proposal references | Trusted acceptance and human merge review remain separate |
@@ -108,6 +109,13 @@ admits the declared deterministic pattern catalogue, Rust admits extract-method 
 and C++ admit extract-method. Transformation rejection, verifier failure, sandbox failure, or
 publication failure remains `NO_PROOF`; no profile claims general behavioral equivalence.
 
+`analyze_codebase` accepts `target_dir`, `out_dir`, `project_root`, and optional
+`result_export`. It captures supported source files once under aggregate byte, file, traversal-entry,
+and depth limits, rejects symlink traversal, and runs extraction only against a private snapshot.
+Architecture JSON and unreviewed domain candidates are published without replacement beneath the
+designated MCP output root. It invokes no compiler, project hook, provider, or generated code. The
+returned source manifest and artifact digests establish provenance, not behavioral correctness.
+
 The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
 alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and
 append-only state live outside the agent workspace. Endpoint, Agent Card digest, principal,
@@ -127,9 +135,9 @@ The following legacy MCP handlers remain classified `unsupported`. Their CLI ava
 unchanged, but no command/mode/backend profile below is authorized for unattended MCP use:
 
 ```text
-validate_architecture  implement_code        analyze_codebase
+validate_architecture  implement_code
 assess_security        security_inspect      security_exploit
-remediate_code         correct_behavior      apply_refactor
+remediate_code         correct_behavior
 verify_bisimulation    optimize_algorithm
 discover_algorithms    validate_domain        compose
 reverify_composition   unified_system         draft_canonical_contract

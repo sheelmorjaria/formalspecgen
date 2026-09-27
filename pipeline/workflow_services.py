@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import tempfile
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from .verification_policy import decide_result, decide_verification
 from .verify import VerificationExecutionResult, verify_files_detailed
 from .workflow_contracts import (
     ApplyRefactorWorkflowRequest,
+    CodebaseAnalysisWorkflowRequest,
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
@@ -38,6 +40,15 @@ class VerificationServiceResult:
 class DocumentationServiceResult:
     payload: dict[str, Any]
     bundle: code_documentation.DocumentationBundle | None
+
+
+@dataclass(frozen=True)
+class CodebaseAnalysisServiceResult:
+    """Prepared analysis artifacts separated by their publication scope."""
+
+    payload: dict[str, Any]
+    extraction_artifacts: dict[str, bytes]
+    candidate_artifacts: dict[str, bytes]
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,206 @@ class _CapturedRefactorSource:
 
     path: Path
     content: bytes
+
+
+_ANALYSIS_SUFFIXES = frozenset({
+    ".java", ".rs", ".c", ".h", ".cpp", ".cc", ".cxx", ".ll",
+})
+
+
+def run_codebase_analysis(
+        request: CodebaseAnalysisWorkflowRequest,
+        context: WorkflowContext) -> CodebaseAnalysisServiceResult:
+    """Capture a bounded tree once and extract only inside private staging.
+
+    The legacy extractor remains the semantic implementation, but it receives
+    neither the live source tree nor caller-selected output paths.  Adapters
+    publish the returned bytes through their controlled publication policy.
+    """
+    from .codebase_analysis import analyze_codebase
+
+    root = context.resolve_input(request.target_dir)
+    if not root.is_dir():
+        return CodebaseAnalysisServiceResult({
+            "status": "FAIL", "claim": "NO_PROOF",
+            "request_satisfied": False, "code": "input_unavailable",
+            "message": f"not a source directory: {root}",
+        }, {}, {})
+
+    max_bytes = context.resource_budget.get("max_input_bytes")
+    max_files = context.resource_budget.get("max_input_files")
+    max_entries = context.resource_budget.get("max_traversal_entries")
+    max_depth = context.resource_budget.get("max_traversal_depth")
+    captured: list[tuple[Path, bytes]] = []
+    visited_entries = 0
+    total_bytes = 0
+
+    def walk(directory_fd: int, relative: Path, depth: int) -> None:
+        nonlocal visited_entries, total_bytes
+        if max_depth is not None and depth > max_depth:
+            raise ValueError(
+                f"INPUT_TRAVERSAL_LIMIT_EXCEEDED: depth exceeds {max_depth}")
+        try:
+            with os.scandir(directory_fd) as iterator:
+                entries = []
+                for entry in iterator:
+                    entries.append(entry)
+                    if max_entries is not None and \
+                            visited_entries + len(entries) > max_entries:
+                        raise ValueError(
+                            "INPUT_TRAVERSAL_LIMIT_EXCEEDED: source tree has too many entries")
+                entries.sort(key=lambda item: item.name)
+                visited_entries += len(entries)
+        except OSError as exc:
+            raise ValueError(f"input_unavailable: {exc}") from exc
+        for entry in entries:
+            child_relative = relative / entry.name
+            if entry.is_symlink():
+                raise ValueError(
+                    f"INPUT_SYMLINK_REJECTED: {child_relative.as_posix()}")
+            if entry.is_dir(follow_symlinks=False):
+                try:
+                    child_fd = os.open(
+                        entry.name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=directory_fd)
+                except OSError as exc:
+                    raise ValueError(f"input_unavailable: {exc}") from exc
+                try:
+                    walk(child_fd, child_relative, depth + 1)
+                finally:
+                    os.close(child_fd)
+                continue
+            if not entry.is_file(follow_symlinks=False) or \
+                    Path(entry.name).suffix.lower() not in _ANALYSIS_SUFFIXES:
+                continue
+            if max_files is not None and len(captured) >= max_files:
+                raise ValueError(
+                    f"INPUT_FILE_LIMIT_EXCEEDED: source set exceeds {max_files} files")
+            remaining = None if max_bytes is None else max_bytes - total_bytes
+            if remaining is not None and remaining < 0:
+                raise ValueError("INPUT_LIMIT_EXCEEDED: source set is oversized")
+            try:
+                descriptor = os.open(
+                    entry.name, os.O_RDONLY | os.O_NOFOLLOW,
+                    dir_fd=directory_fd)
+                with os.fdopen(descriptor, "rb") as handle:
+                    content = handle.read(-1 if remaining is None else remaining + 1)
+            except OSError as exc:
+                raise ValueError(f"input_unavailable: {exc}") from exc
+            if remaining is not None and len(content) > remaining:
+                raise ValueError(
+                    f"INPUT_LIMIT_EXCEEDED: sources exceed {max_bytes} bytes")
+            total_bytes += len(content)
+            captured.append((child_relative, content))
+
+    try:
+        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise ValueError(f"input_unavailable: {exc}") from exc
+    try:
+        walk(root_fd, Path(), 0)
+    finally:
+        os.close(root_fd)
+    manifest = [{
+        "path": relative.as_posix(), "size": len(content),
+        "sha256": hashlib.sha256(content).hexdigest(),
+    } for relative, content in captured]
+    manifest_digest = hashlib.sha256(json.dumps(
+        manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-analysis-") as directory:
+        private = Path(directory)
+        snapshot = private / "source"
+        extraction = private / "extracted"
+        project = private / "project"
+        snapshot.mkdir()
+        for relative, content in captured:
+            destination = snapshot / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+        legacy = analyze_codebase(snapshot, extraction, project)
+
+        extraction_artifacts = _capture_analysis_artifacts(
+            extraction, context, "analysis extraction")
+        result_limit = context.resource_budget.get("max_result_bytes")
+        extraction_size = sum(
+            len(content) for content in extraction_artifacts.values())
+        remaining_result = (None if result_limit is None
+                            else result_limit - extraction_size)
+        candidate_root = project / "domains" / "candidates"
+        candidate_artifacts = _capture_analysis_artifacts(
+            candidate_root, context, "analysis candidates",
+            max_bytes=remaining_result)
+
+        def public_domain(value: str) -> str:
+            path = Path(value)
+            try:
+                relative = path.relative_to(extraction)
+                return str(Path(request.out_dir) / relative)
+            except ValueError:
+                pass
+            try:
+                relative = path.relative_to(candidate_root)
+                return str(Path(request.project_root) / "domains" / "candidates" / relative)
+            except ValueError:
+                return value
+
+        warnings = []
+        for warning in legacy.get("warnings", []):
+            item = dict(warning)
+            if item.get("file"):
+                try:
+                    relative = Path(str(item["file"])).relative_to(snapshot)
+                except ValueError:
+                    pass
+                else:
+                    item["file"] = str(root / relative)
+            warnings.append(item)
+        payload = {
+            **legacy,
+            "claim": "UNREVIEWED_EXTRACTION_CANDIDATE",
+            "request_satisfied": legacy.get("status") == "EXTRACTED",
+            "architecture": str(Path(request.out_dir) / "extracted_architecture.json"),
+            "domains": [public_domain(value) for value in legacy.get("domains", [])],
+            "warnings": warnings,
+            "input_snapshot": {
+                "root": str(root), "file_count": len(captured),
+                "total_bytes": total_bytes, "files": manifest,
+                "manifest_sha256": manifest_digest,
+            },
+            "review_status": "unreviewed",
+            "limitations": [
+                "extracted models require human review",
+                "no source behavior or correctness proof is claimed",
+            ],
+        }
+    return CodebaseAnalysisServiceResult(
+        payload, extraction_artifacts, candidate_artifacts)
+
+
+def _capture_analysis_artifacts(
+        root: Path, context: WorkflowContext, label: str, *,
+        max_bytes: int | None = None) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
+    artifacts: dict[str, bytes] = {}
+    total = 0
+    limit = (context.resource_budget.get("max_result_bytes")
+             if max_bytes is None else max_bytes)
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"unsafe symlink in {label}")
+        if not path.is_file():
+            continue
+        remaining = None if limit is None else limit - total
+        with path.open("rb") as handle:
+            content = handle.read(-1 if remaining is None else remaining + 1)
+        if remaining is not None and len(content) > remaining:
+            raise ValueError(f"RESULT_LIMIT_EXCEEDED: {label} is oversized")
+        total += len(content)
+        artifacts[path.relative_to(root).as_posix()] = content
+    return artifacts
 
 
 def run_java_verification(

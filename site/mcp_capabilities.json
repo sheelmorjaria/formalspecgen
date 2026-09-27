@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 15,
-  "cli_capability_count": 5,
+  "capability_count": 16,
+  "cli_capability_count": 6,
   "mcp_only_capability_count": 10,
   "capabilities": [
     {
@@ -522,6 +522,78 @@
           "output_scope": "designated-new-artifacts",
           "evidence": "unreviewed-structured-inspection-export",
           "profile_sha256": "5071c6843022da15930187f8d8f55e571606d5b21aa701838ebad6b8126b3a4d"
+        }
+      ]
+    },
+    {
+      "name": "analyze_codebase",
+      "mcp_tool": "analyze_codebase",
+      "cli_command": "analyze-codebase",
+      "description": "Extract bounded, unreviewed architecture and domain candidates without external execution or provider access.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "target_dir",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "extracted",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "target_dir",
+          "out_dir",
+          "project_root",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-polyglot-codebase-analysis",
+          "modes": [
+            "analyze"
+          ],
+          "languages": [
+            "polyglot"
+          ],
+          "backends": [
+            "builtin-codebase-analysis"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unreviewed-analysis-artifacts",
+          "required_effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "50ac88c223331e0df9d9b054c290de608e9041133a97c8f4468e52ac9fc901b3"
         }
       ]
     },

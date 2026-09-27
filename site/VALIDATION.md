@@ -5,17 +5,17 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `5fd8a421f6acf1bac03f87a61545b6b0ca39325cba522570c3561402fc18b5ca`
-- `command_inventory.json` SHA-256: `763e8783b53882899e1c38c8b870437a0e9ed71c07f861fc5fcf0bb7084c78f4`
-- `mcp_capabilities.json` SHA-256: `c1503566f843a13c2bb110b1f332f9c5c8578f37ac2c4a03f48762e099e23f74`
-- Parsed HTML element IDs: 9
-- Same-page fragment links checked: 8
+- `index.html` SHA-256: `92e00343a11af07d9e09d81ebda2feed71f00625ee6dc5ad0a3a037df8832078`
+- `command_inventory.json` SHA-256: `a2200c1e281b39a155617a4a49d3ba4a7c00a531bd85db051789f664de9c343a`
+- `mcp_capabilities.json` SHA-256: `739a870bbf3bb30a0418c67eb2a62e6e1bd9060becbcac81c6132a0f9af32bc8`
+- Parsed HTML element IDs: 10
+- Same-page fragment links checked: 9
 - Missing same-page targets: none
 - Duplicate element IDs: none
 - Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,
   `VALIDATION.md`, and the archived `91c6790` guide
 - Unexpected relative assets: none
-- Handwritten Java verification and apply-refactor payloads validated through application request models
+- Handwritten Java verification, codebase-analysis, and apply-refactor payloads validated through application request models
 
 ## Scope limits
 

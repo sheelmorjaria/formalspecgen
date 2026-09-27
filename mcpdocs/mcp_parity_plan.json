@@ -4134,8 +4134,8 @@
       "proposed_mcp_tool": "analyze_codebase",
       "workflow_kind": "direct_or_task",
       "requirements": "Bounded tree extraction and unreviewed candidates; no project hooks or workspace plugin imports.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "baseline_strict_mcp": "Bounded polyglot extraction is admitted with controlled new-artifact publication and no execution or provider authority.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -4152,7 +4152,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4169,7 +4169,7 @@
             "default": "extracted",
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4186,7 +4186,7 @@
             "default": ".",
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -4203,10 +4203,66 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/codebase_analysis.py"
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "request-equivalence",
+          "complete-argument-surface",
+          "polyglot-success-export",
+          "unsupported-input",
+          "missing-input",
+          "denied-path",
+          "bounded-input-capture",
+          "publication-collision",
+          "negative-result-export",
+          "unreviewed-claim-limit"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_codebase_analysis_workflow.py::test_request_effects_admission_and_cli_arguments_cover_complete_surface",
+            "variants": ["request-equivalence", "complete-argument-surface"]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_codebase_analysis_workflow.py::test_shared_service_captures_polyglot_inputs_and_prepares_unreviewed_artifacts",
+            "variants": ["polyglot-success-export", "unreviewed-claim-limit"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_codebase_analysis_workflow.py::test_input_limits_stop_before_extractor_dispatch",
+            "variants": ["bounded-input-capture"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_codebase_analysis_workflow.py::test_symlinked_source_entry_is_rejected_before_extraction",
+            "variants": ["denied-path"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_codebase_analysis_workflow.py::test_mcp_enforces_roots_no_replace_and_hidden_effect_boundaries",
+            "variants": ["polyglot-success-export", "denied-path", "publication-collision", "negative-result-export"]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_codebase_analysis_workflow.py::test_cli_and_mcp_semantic_results_are_equivalent",
+            "variants": ["request-equivalence", "polyglot-success-export"]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_codebase_analysis_workflow.py::test_real_mcp_transport_discovers_and_calls_analysis_variants",
+            "variants": [
+              "polyglot-success-export", "unsupported-input", "missing-input",
+              "denied-path", "publication-collision", "negative-result-export",
+              "unreviewed-claim-limit"
+            ]
+          }
+        ]
+      },
+      "baseline_source": "pipeline/workflow_services.py"
     },
     {
       "cli_command": "document-code",

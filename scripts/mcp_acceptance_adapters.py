@@ -232,6 +232,94 @@ async def _document_observation() -> dict:
     return _observation(initialized, tools, schema, semantic_result, results[-1])
 
 
+async def _analyze_codebase_observation() -> dict:
+    fixtures = {
+        "mixed/Counter.java": (
+            "public class Counter { private int value; "
+            "public void inc() { if (value < 3) value = value + 1; } }\n"),
+        "mixed/Meter.c": "struct Meter { int value; };\n",
+        "mixed/Gauge.cpp": "class Gauge { int level; };\n",
+        "mixed/Sensor.rs": "struct Sensor { value: i32, }\n",
+        "unsupported/readme.py": "print('not an admitted source dialect')\n",
+    }
+    calls = [
+        {"target_dir": "mixed", "out_dir": "analysis/mixed",
+         "project_root": "projects/mixed",
+         "result_export": "results/mixed.json"},
+        {"target_dir": "unsupported", "out_dir": "analysis/unsupported",
+         "project_root": "projects/unsupported"},
+        {"target_dir": "missing", "out_dir": "analysis/missing",
+         "project_root": "projects/missing",
+         "result_export": "results/missing.json"},
+        {"target_dir": "../outside", "out_dir": "analysis/denied",
+         "project_root": "projects/denied",
+         "result_export": "results/denied.json"},
+        {"target_dir": "mixed", "out_dir": "analysis/mixed",
+         "project_root": "projects/mixed",
+         "result_export": "results/collision.json"},
+    ]
+    with tempfile.TemporaryDirectory(
+            prefix="formalspecgen-mcp-analysis-") as directory:
+        workspace = Path(directory)
+        for name, content in fixtures.items():
+            path = workspace / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "analyze_codebase", calls, timeout_s=120)
+        output_root = workspace / ".formalspecgen/mcp-output"
+        published = output_root / "analysis/mixed/extracted_architecture.json"
+        export = output_root / "results/mixed.json"
+        if not published.is_file() or not export.is_file():
+            raise RuntimeError("analysis artifacts or controlled export were not published")
+        negative_exports = [
+            output_root / name for name in (
+                "results/missing.json", "results/denied.json",
+                "results/collision.json")]
+        if any(not path.is_file() for path in negative_exports):
+            raise RuntimeError("negative analysis outcomes lacked controlled exports")
+        manifest = results[0].get("publication", {}).get("artifacts", {})
+        for metadata in manifest.values():
+            path = Path(str(metadata.get("path", "")))
+            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != \
+                    metadata.get("sha256"):
+                raise RuntimeError("analysis publication digest does not match its bytes")
+
+    expected = ["EXTRACTED", "EXTRACTED", "FAIL", "FAIL", "FAIL"]
+    if [item.get("status") for item in results] != expected:
+        raise RuntimeError("analyze_codebase transport outcomes changed")
+    if results[0].get("claim") != "UNREVIEWED_EXTRACTION_CANDIDATE" or \
+            results[0].get("request_satisfied") is not True:
+        raise RuntimeError("successful analysis overstated or lost its extraction claim")
+    if results[1].get("components") != [] or \
+            results[1].get("claim") != "UNREVIEWED_EXTRACTION_CANDIDATE":
+        raise RuntimeError("unsupported inputs were not handled as an empty proposal")
+    if results[2].get("code") not in {"input_unavailable", "CODEBASE_ANALYSIS_FAILED"}:
+        raise RuntimeError("missing analysis input returned an unexpected boundary")
+    if results[3].get("code") != "path_outside_workspace":
+        raise RuntimeError("analysis input escaped the workspace boundary")
+    if results[4].get("code") != "OUTPUT_ALREADY_EXISTS":
+        raise RuntimeError("analysis publication did not enforce no-replace behavior")
+    if any((results[index].get("result_export") or {}).get("status") != "COMMITTED"
+           for index in (2, 3, 4)):
+        raise RuntimeError("negative analysis result export was not committed")
+    semantic = [{
+        "status": item.get("status"), "claim": item.get("claim"),
+        "request_satisfied": item.get("request_satisfied"),
+        "input_manifest": (item.get("input_snapshot") or {}).get(
+            "manifest_sha256"),
+        "publication": (item.get("publication") or {}).get("status"),
+        "code": item.get("code"),
+    } for item in results]
+    observation = _observation(
+        initialized, tools, schema, semantic, results[-1])
+    observation["variants"] = [
+        "polyglot-success-export", "unsupported-input", "missing-input",
+        "denied-path", "publication-collision", "negative-result-export"]
+    observation["semantic_results"] = semantic
+    return observation
+
+
 async def _verify_observation() -> dict:
     fixtures = {
         "Proven.java": (
@@ -805,6 +893,7 @@ def _observation(
 _ADAPTERS = {
     "inspect": _inspect_observation,
     "document-code": _document_observation,
+    "analyze-codebase": _analyze_codebase_observation,
     "verify": _verify_observation,
     "verify-refactor": _verify_refactor_observation,
     "apply-refactor": _apply_refactor_observation,
