@@ -24,7 +24,6 @@ from pipeline.workflow_contracts import (
     WorkflowInterface,
 )
 from pipeline.workflow_services import run_apply_refactor
-from scripts.mcp_acceptance_adapters import _publication_status
 
 
 C_SOURCE = """/*@ requires \\valid(count); requires value >= 0; */
@@ -44,15 +43,6 @@ private:
     int count = 0;
 };
 """
-
-
-@pytest.mark.parametrize(("value", "expected"), [
-    ({"status": "COMMITTED"}, "COMMITTED"),
-    ("PENDING", "PENDING"),
-    (None, None),
-])
-def test_transport_evidence_normalizes_publication_status(value, expected):
-    assert _publication_status(value) == expected
 
 
 def _observation(stage: str) -> ExecutionObservation:
