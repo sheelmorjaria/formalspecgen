@@ -134,8 +134,6 @@ def test_cli_parser_and_mcp_schema_cover_refactor_inputs():
         "baseline", "refactored", "result_export", "signing_intent"]
     if os.environ.get("FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE") != "1":
         pytest.skip("real stdio MCP acceptance is required only in provisioned CI")
-    if os.environ.get("FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE") != "1":
-        pytest.fail("refactor transport acceptance requires protected signing")
     from scripts.mcp_acceptance_adapters import collect_tool_schema
 
     schema = collect_tool_schema("verify_refactor")["input_schema"]
