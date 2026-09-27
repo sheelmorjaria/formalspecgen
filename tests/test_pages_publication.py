@@ -67,6 +67,7 @@ def test_pages_workflow_publishes_only_the_site_directory():
     action_versions = {step.get("uses") for step in steps if step.get("uses")}
     assert action_versions == {
         "actions/checkout@v6",
+        "actions/setup-python@v5",
         "actions/configure-pages@v6",
         "actions/upload-pages-artifact@v5",
     }

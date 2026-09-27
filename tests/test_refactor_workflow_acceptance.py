@@ -26,10 +26,6 @@ from pipeline.workflow_contracts import (
     WorkflowInterface,
 )
 from pipeline.workflow_services import run_refactor_verification
-from scripts.mcp_acceptance_adapters import (
-    collect_tool_schema,
-    collect_transport_observation,
-)
 
 
 JAVA_BASE = """public class Account {
@@ -138,6 +134,8 @@ def test_cli_parser_and_mcp_schema_cover_refactor_inputs():
         "baseline", "refactored", "result_export", "signing_intent"]
     if os.environ.get("FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE") != "1":
         pytest.skip("real stdio MCP acceptance is required only in provisioned CI")
+    from scripts.mcp_acceptance_adapters import collect_tool_schema
+
     schema = collect_tool_schema("verify_refactor")["input_schema"]
     assert schema["required"] == ["baseline", "refactored"]
     assert set(schema["properties"]) == {
@@ -394,6 +392,8 @@ def test_cli_and_mcp_share_normalized_unsigned_request_and_result(
 def test_real_mcp_transport_exercises_refactor_matrix():
     if os.environ.get("FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE") != "1":
         pytest.skip("real stdio MCP acceptance is required only in provisioned CI")
+    from scripts.mcp_acceptance_adapters import collect_transport_observation
+
     observation = collect_transport_observation("verify-refactor")
     assert observation["transport"] == "mcp-stdio-subprocess"
     assert observation["result_status"] == "APPROVAL_REQUIRED"
