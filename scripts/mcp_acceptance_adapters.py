@@ -32,6 +32,14 @@ def _sha256(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _publication_status(value: object) -> str | None:
+    """Normalize publication fields from successful and rejected results."""
+    if isinstance(value, dict):
+        status = value.get("status")
+        return status if isinstance(status, str) else None
+    return value if isinstance(value, str) else None
+
+
 @contextmanager
 def _fixture_provider() -> Iterator[str]:
     class Handler(BaseHTTPRequestHandler):
@@ -626,7 +634,7 @@ async def _apply_refactor_observation() -> dict:
         "language": ((item.get("workflow_result") or {}).get("request") or {}).get(
             "language"),
         "receipt": ((item.get("evidence") or {}).get("publication_status")),
-        "candidate": ((item.get("candidate_publication") or {}).get("status")),
+        "candidate": _publication_status(item.get("candidate_publication")),
     } for item in results]
     observation = _observation(
         initialized, tools, schema, semantic_result, results[-1])
