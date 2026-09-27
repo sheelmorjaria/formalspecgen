@@ -240,6 +240,9 @@ async def _analyze_codebase_observation() -> dict:
         "mixed/Meter.c": "struct Meter { int value; };\n",
         "mixed/Gauge.cpp": "class Gauge { int level; };\n",
         "mixed/Sensor.rs": "struct Sensor { value: i32, }\n",
+        "mixed/Basket.java": (
+            "import java.util.List;\n"
+            "public class Basket { private List<Integer> items; }\n"),
         "unsupported/readme.py": "print('not an admitted source dialect')\n",
     }
     calls = [
@@ -265,9 +268,12 @@ async def _analyze_codebase_observation() -> dict:
             path = workspace / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
+        output_root = workspace / "controlled-analysis-output"
         initialized, tools, schema, results = await _call_tool(
-            workspace, "analyze_codebase", calls, timeout_s=120)
-        output_root = workspace / ".formalspecgen/mcp-output"
+            workspace, "analyze_codebase", calls,
+            environment={
+                "FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output_root),
+            }, timeout_s=120)
         published = output_root / "analysis/mixed/extracted_architecture.json"
         export = output_root / "results/mixed.json"
         if not published.is_file() or not export.is_file():
@@ -279,11 +285,35 @@ async def _analyze_codebase_observation() -> dict:
         if any(not path.is_file() for path in negative_exports):
             raise RuntimeError("negative analysis outcomes lacked controlled exports")
         manifest = results[0].get("publication", {}).get("artifacts", {})
+        manifest_by_path = {
+            Path(str(metadata.get("path", ""))): metadata
+            for metadata in manifest.values()
+        }
         for metadata in manifest.values():
             path = Path(str(metadata.get("path", "")))
             if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != \
                     metadata.get("sha256"):
                 raise RuntimeError("analysis publication digest does not match its bytes")
+        architecture = Path(str(results[0].get("architecture", "")))
+        domains = [Path(str(value)) for value in results[0].get("domains", [])]
+        if architecture != published or architecture not in manifest_by_path or \
+                not domains or any(path not in manifest_by_path for path in domains):
+            raise RuntimeError(
+                "analysis result references do not resolve through publication metadata")
+        exported = json.loads(export.read_text(encoding="utf-8"))
+        if exported.get("architecture") != str(architecture) or \
+                exported.get("domains") != [str(path) for path in domains]:
+            raise RuntimeError("analysis export retained non-published references")
+        architecture_payload = json.loads(
+            architecture.read_text(encoding="utf-8"))
+        embedded_warnings = architecture_payload.get("warnings", [])
+        if embedded_warnings != results[0].get("warnings") or \
+                not embedded_warnings:
+            raise RuntimeError("analysis embedded diagnostics diverged from its result")
+        if any("formalspecgen-analysis-" in str(item.get("file", ""))
+               or not Path(str(item.get("file", ""))).is_file()
+               for item in embedded_warnings):
+            raise RuntimeError("analysis diagnostics retained private snapshot paths")
 
     expected = ["EXTRACTED", "EXTRACTED", "FAIL", "FAIL", "FAIL"]
     if [item.get("status") for item in results] != expected:

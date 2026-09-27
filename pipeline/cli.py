@@ -1064,7 +1064,10 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
         WorkflowInterface,
         bind_workflow_result,
     )
-    from .workflow_services import run_codebase_analysis
+    from .workflow_services import (
+        bind_codebase_analysis_publication,
+        run_codebase_analysis,
+    )
 
     try:
         request = CodebaseAnalysisWorkflowRequest(
@@ -1083,11 +1086,16 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
         service = run_codebase_analysis(request, context)
         result = dict(service.payload)
         targets: dict[Path, bytes] = {}
+        artifact_targets: dict[tuple[str, str], Path] = {}
         for name, content in service.extraction_artifacts.items():
-            targets[Path(request.out_dir) / name] = content
+            target = Path(request.out_dir) / name
+            targets[target] = content
+            artifact_targets[("extraction", name)] = target
         candidate_root = Path(request.project_root) / "domains" / "candidates"
         for name, content in service.candidate_artifacts.items():
-            targets[candidate_root / name] = content
+            target = candidate_root / name
+            targets[target] = content
+            artifact_targets[("candidate", name)] = target
         if request.result_export is not None:
             export = Path(request.result_export)
             if export in targets or export == Path(request.target_dir) or \
@@ -1105,6 +1113,13 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
             published = publish_new_artifacts(
                 publication_root, artifacts, context.authority,
                 max_total_bytes=8 * 1024 * 1024)
+            artifact_keys = {
+                reference: target.resolve().relative_to(
+                    publication_root).as_posix()
+                for reference, target in artifact_targets.items()
+            }
+            result = bind_codebase_analysis_publication(
+                service, published, artifact_keys)
             result["publication"] = {
                 "status": "COMMITTED", "kind": "unreviewed-codebase-analysis",
                 "artifacts": published,

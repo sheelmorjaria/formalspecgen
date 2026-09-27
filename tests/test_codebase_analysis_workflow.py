@@ -25,6 +25,9 @@ from pipeline.workflow_services import run_codebase_analysis
 JAVA = (
     "public class Counter { private int value; "
     "public void inc() { if (value < 3) value = value + 1; } }\n")
+WARNING_JAVA = (
+    "import java.util.List;\n"
+    "public class Basket { private List<Integer> items; }\n")
 
 
 def _request(root: Path, **overrides: object) -> CodebaseAnalysisWorkflowRequest:
@@ -106,6 +109,26 @@ def test_shared_service_captures_polyglot_inputs_and_prepares_unreviewed_artifac
     assert architecture["review_status"] == "unreviewed"
 
 
+def test_shared_service_normalizes_embedded_diagnostics_before_hashing(tmp_path):
+    source = tmp_path / "src"
+    source.mkdir()
+    warning_source = source / "Basket.java"
+    warning_source.write_text(WARNING_JAVA, encoding="utf-8")
+    request = _request(tmp_path)
+    result = run_codebase_analysis(request, _context(request, tmp_path))
+    architecture = json.loads(
+        result.extraction_artifacts["extracted_architecture.json"])
+    assert result.payload["warnings"]
+    assert architecture["warnings"] == result.payload["warnings"]
+    assert {item["file"] for item in architecture["warnings"]} == {
+        str(warning_source)}
+    assert "formalspecgen-analysis-" not in json.dumps(architecture)
+    assert result.payload["architecture"] is None
+    assert result.payload["domains"] == []
+    assert result.architecture_artifact == (
+        "extraction", "extracted_architecture.json")
+
+
 @pytest.mark.parametrize(("budget", "value", "expected"), [
     ("max_input_bytes", 1, "INPUT_LIMIT_EXCEEDED"),
     ("max_input_files", 0, "INPUT_FILE_LIMIT_EXCEEDED"),
@@ -145,6 +168,7 @@ def test_mcp_enforces_roots_no_replace_and_hidden_effect_boundaries(
     source = tmp_path / "src"
     source.mkdir()
     (source / "Counter.java").write_text(JAVA, encoding="utf-8")
+    (source / "Basket.java").write_text(WARNING_JAVA, encoding="utf-8")
     with patch("subprocess.run") as process, \
             patch("pipeline.llm._chat_fn") as provider:
         result = mcp_server.analyze_codebase(
@@ -161,6 +185,22 @@ def test_mcp_enforces_roots_no_replace_and_hidden_effect_boundaries(
     assert (output / "analysis/extracted_architecture.json").is_file()
     assert (output / "project/domains/candidates/counter.v2.yaml").is_file()
     assert (output / "results/analysis.json").is_file()
+    architecture = Path(result["architecture"])
+    domains = [Path(value) for value in result["domains"]]
+    published_by_path = {
+        Path(metadata["path"]): metadata
+        for metadata in result["publication"]["artifacts"].values()
+    }
+    assert architecture == output / "analysis/extracted_architecture.json"
+    assert architecture in published_by_path
+    assert domains and all(path in published_by_path for path in domains)
+    embedded = json.loads(architecture.read_text(encoding="utf-8"))
+    assert embedded["warnings"] == result["warnings"]
+    assert "formalspecgen-analysis-" not in json.dumps(embedded)
+    exported = json.loads(
+        (output / "results/analysis.json").read_text(encoding="utf-8"))
+    assert exported["architecture"] == result["architecture"]
+    assert exported["domains"] == result["domains"]
     existing = output / "results/existing.json"
     existing.write_text("existing", encoding="utf-8")
     export_collision = mcp_server.analyze_codebase(
@@ -196,6 +236,11 @@ def test_cli_uses_shared_service_and_no_replace_publication(tmp_path, monkeypatc
     assert cli.main(arguments) == 0
     exported = json.loads((tmp_path / "results/analysis.json").read_text())
     assert exported["status"] == "EXTRACTED"
+    assert Path(exported["architecture"]) == \
+        tmp_path / "analysis/extracted_architecture.json"
+    assert Path(exported["architecture"]).is_file()
+    assert exported["domains"]
+    assert all(Path(value).is_file() for value in exported["domains"])
     assert exported["workflow_result"]["request"] == \
         CodebaseAnalysisWorkflowRequest(
             "src", "analysis", "project",
@@ -204,6 +249,24 @@ def test_cli_uses_shared_service_and_no_replace_publication(tmp_path, monkeypatc
     before = architecture.read_bytes()
     assert cli.main(arguments) == 1
     assert architecture.read_bytes() == before
+
+
+def test_mcp_references_follow_configured_output_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FORMALSPECGEN_MCP_OUTPUT_ROOT", "controlled-output")
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "Counter.java").write_text(JAVA, encoding="utf-8")
+    result = mcp_server.analyze_codebase(
+        "src", "analysis", "models", "results/analysis.json")
+    output = tmp_path / "controlled-output"
+    assert Path(result["architecture"]) == \
+        output / "analysis/extracted_architecture.json"
+    assert all(output in Path(value).parents for value in result["domains"])
+    exported = json.loads(
+        (output / "results/analysis.json").read_text(encoding="utf-8"))
+    assert exported["architecture"] == result["architecture"]
+    assert exported["domains"] == result["domains"]
 
 
 def test_cli_and_mcp_semantic_results_are_equivalent(tmp_path, monkeypatch):

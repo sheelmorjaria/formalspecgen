@@ -4218,6 +4218,9 @@
           "bounded-input-capture",
           "publication-collision",
           "negative-result-export",
+          "published-reference-integrity",
+          "configured-output-root",
+          "stable-diagnostic-references",
           "unreviewed-claim-limit"
         ],
         "acceptance_cases": [
@@ -4232,6 +4235,11 @@
             "variants": ["polyglot-success-export", "unreviewed-claim-limit"]
           },
           {
+            "kind": "result_equivalence",
+            "test": "tests/test_codebase_analysis_workflow.py::test_shared_service_normalizes_embedded_diagnostics_before_hashing",
+            "variants": ["stable-diagnostic-references"]
+          },
+          {
             "kind": "effect_enforcement",
             "test": "tests/test_codebase_analysis_workflow.py::test_input_limits_stop_before_extractor_dispatch",
             "variants": ["bounded-input-capture"]
@@ -4244,7 +4252,12 @@
           {
             "kind": "effect_enforcement",
             "test": "tests/test_codebase_analysis_workflow.py::test_mcp_enforces_roots_no_replace_and_hidden_effect_boundaries",
-            "variants": ["polyglot-success-export", "denied-path", "publication-collision", "negative-result-export"]
+            "variants": ["polyglot-success-export", "denied-path", "publication-collision", "negative-result-export", "published-reference-integrity", "stable-diagnostic-references"]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_codebase_analysis_workflow.py::test_mcp_references_follow_configured_output_root",
+            "variants": ["configured-output-root", "published-reference-integrity"]
           },
           {
             "kind": "result_equivalence",
@@ -4257,7 +4270,8 @@
             "variants": [
               "polyglot-success-export", "unsupported-input", "missing-input",
               "denied-path", "publication-collision", "negative-result-export",
-              "unreviewed-claim-limit"
+              "unreviewed-claim-limit", "published-reference-integrity",
+              "configured-output-root", "stable-diagnostic-references"
             ]
           }
         ]

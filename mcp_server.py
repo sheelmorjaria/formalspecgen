@@ -57,6 +57,7 @@ from pipeline.isolated_verification import (
 )
 from pipeline.verify import verify_detailed
 from pipeline.workflow_services import (
+    bind_codebase_analysis_publication,
     run_codebase_analysis,
     run_apply_refactor,
     run_documentation_preparation,
@@ -680,8 +681,11 @@ def analyze_codebase(
         service = run_codebase_analysis(request, context)
         result = {**service.payload, "mcp_admission": admission.summary()}
         artifacts: dict[str, bytes] = {}
+        artifact_keys: dict[tuple[str, str], str] = {}
         for name, content in service.extraction_artifacts.items():
-            artifacts[(Path(out_dir) / name).as_posix()] = content
+            key = (Path(out_dir) / name).as_posix()
+            artifacts[key] = content
+            artifact_keys[("extraction", name)] = key
         candidate_prefix = Path(project_root) / "domains" / "candidates"
         for name, content in service.candidate_artifacts.items():
             path = (candidate_prefix / name).as_posix()
@@ -689,6 +693,7 @@ def analyze_codebase(
                 raise MCPArtifactError(
                     "OUTPUT_SCOPE_VIOLATION", "analysis output destinations overlap")
             artifacts[path] = content
+            artifact_keys[("candidate", name)] = path
         normalized_export = (Path(result_export).as_posix()
                              if result_export is not None else None)
         if normalized_export is not None and normalized_export in artifacts:
@@ -698,6 +703,9 @@ def analyze_codebase(
         published = publish_new_artifacts(
             output_root, artifacts, admission,
             max_total_bytes=MCP_ANALYSIS_MAX_RESULT_BYTES)
+        result = bind_codebase_analysis_publication(
+            service, published, artifact_keys)
+        result["mcp_admission"] = admission.summary()
         result["publication"] = {
             "status": "COMMITTED", "kind": "unreviewed-codebase-analysis",
             "artifacts": published,

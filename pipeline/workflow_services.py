@@ -10,7 +10,7 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from . import code_documentation, java_inspection
 from .isolated_verification import (
@@ -49,6 +49,8 @@ class CodebaseAnalysisServiceResult:
     payload: dict[str, Any]
     extraction_artifacts: dict[str, bytes]
     candidate_artifacts: dict[str, bytes]
+    architecture_artifact: tuple[str, str] | None = None
+    domain_artifacts: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,42 @@ class _CapturedRefactorSource:
 _ANALYSIS_SUFFIXES = frozenset({
     ".java", ".rs", ".c", ".h", ".cpp", ".cc", ".cxx", ".ll",
 })
+_ANALYSIS_SOURCE_REFERENCE_KEYS = frozenset({
+    "file", "source", "source_file", "source_path",
+})
+
+
+def bind_codebase_analysis_publication(
+        service: CodebaseAnalysisServiceResult,
+        published: Mapping[str, Mapping[str, Any]],
+        artifact_keys: Mapping[tuple[str, str], str]) -> dict[str, Any]:
+    """Resolve logical analysis artifacts from an authoritative publication.
+
+    Preparation deliberately does not claim that a requested destination is a
+    published artifact.  Both interfaces call this only after the no-replace
+    publisher returns the actual path and digest for every prepared artifact.
+    """
+    result = dict(service.payload)
+
+    def published_path(reference: tuple[str, str]) -> str:
+        try:
+            key = artifact_keys[reference]
+            metadata = published[key]
+            path = metadata["path"]
+        except (KeyError, TypeError) as exc:
+            raise ValueError(
+                f"analysis publication omitted prepared artifact {reference!r}") from exc
+        if not isinstance(path, str) or not path:
+            raise ValueError(
+                f"analysis publication returned no path for {reference!r}")
+        return path
+
+    result["architecture"] = (
+        published_path(service.architecture_artifact)
+        if service.architecture_artifact is not None else None)
+    result["domains"] = [
+        published_path(reference) for reference in service.domain_artifacts]
+    return result
 
 
 def run_codebase_analysis(
@@ -195,11 +233,26 @@ def run_codebase_analysis(
             destination.write_bytes(content)
         legacy = analyze_codebase(snapshot, extraction, project)
 
+        # The extractor sees only the private snapshot. Normalize structured
+        # source references while the snapshot-to-input mapping is available,
+        # before the artifact bytes are hashed or published. This intentionally
+        # visits named source-reference fields instead of replacing arbitrary
+        # strings in generated documents.
+        legacy = _normalize_analysis_source_references(legacy, snapshot, root)
+
         extraction_artifacts = _capture_analysis_artifacts(
             extraction, context, "analysis extraction")
+        extraction_artifacts = {
+            name: _normalize_analysis_artifact(
+                name, content, snapshot=snapshot, input_root=root)
+            for name, content in extraction_artifacts.items()
+        }
         result_limit = context.resource_budget.get("max_result_bytes")
         extraction_size = sum(
             len(content) for content in extraction_artifacts.values())
+        if result_limit is not None and extraction_size > result_limit:
+            raise ValueError(
+                "RESULT_LIMIT_EXCEEDED: analysis extraction is oversized")
         remaining_result = (None if result_limit is None
                             else result_limit - extraction_size)
         candidate_root = project / "domains" / "candidates"
@@ -207,37 +260,39 @@ def run_codebase_analysis(
             candidate_root, context, "analysis candidates",
             max_bytes=remaining_result)
 
-        def public_domain(value: str) -> str:
+        def artifact_reference(value: str) -> tuple[str, str]:
             path = Path(value)
             try:
                 relative = path.relative_to(extraction)
-                return str(Path(request.out_dir) / relative)
+                return "extraction", relative.as_posix()
             except ValueError:
                 pass
             try:
                 relative = path.relative_to(candidate_root)
-                return str(Path(request.project_root) / "domains" / "candidates" / relative)
-            except ValueError:
-                return value
+                return "candidate", relative.as_posix()
+            except ValueError as exc:
+                raise ValueError(
+                    "analysis extractor returned an artifact outside private staging"
+                ) from exc
 
-        warnings = []
-        for warning in legacy.get("warnings", []):
-            item = dict(warning)
-            if item.get("file"):
-                try:
-                    relative = Path(str(item["file"])).relative_to(snapshot)
-                except ValueError:
-                    pass
-                else:
-                    item["file"] = str(root / relative)
-            warnings.append(item)
+        architecture_value = legacy.get("architecture")
+        architecture_artifact = (
+            artifact_reference(str(architecture_value))
+            if architecture_value is not None else None)
+        domain_artifacts = tuple(
+            artifact_reference(str(value)) for value in legacy.get("domains", []))
         payload = {
             **legacy,
             "claim": "UNREVIEWED_EXTRACTION_CANDIDATE",
             "request_satisfied": legacy.get("status") == "EXTRACTED",
-            "architecture": str(Path(request.out_dir) / "extracted_architecture.json"),
-            "domains": [public_domain(value) for value in legacy.get("domains", [])],
-            "warnings": warnings,
+            # Requested locations are not published references. Adapters
+            # replace these logical placeholders from publication metadata.
+            "architecture": None,
+            "domains": [],
+            "requested_destinations": {
+                "out_dir": str(request.out_dir),
+                "project_root": str(request.project_root),
+            },
             "input_snapshot": {
                 "root": str(root), "file_count": len(captured),
                 "total_bytes": total_bytes, "files": manifest,
@@ -250,7 +305,48 @@ def run_codebase_analysis(
             ],
         }
     return CodebaseAnalysisServiceResult(
-        payload, extraction_artifacts, candidate_artifacts)
+        payload, extraction_artifacts, candidate_artifacts,
+        architecture_artifact, domain_artifacts)
+
+
+def _normalize_analysis_source_references(
+        value: Any, snapshot: Path, input_root: Path, *,
+        field_name: str | None = None) -> Any:
+    """Map structured private-snapshot references to captured input paths."""
+    if isinstance(value, dict):
+        return {
+            key: _normalize_analysis_source_references(
+                item, snapshot, input_root, field_name=str(key))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _normalize_analysis_source_references(
+                item, snapshot, input_root, field_name=field_name)
+            for item in value
+        ]
+    if isinstance(value, str) and field_name in _ANALYSIS_SOURCE_REFERENCE_KEYS:
+        try:
+            relative = Path(value).relative_to(snapshot)
+        except ValueError:
+            return value
+        return str(input_root / relative)
+    return value
+
+
+def _normalize_analysis_artifact(
+        name: str, content: bytes, *, snapshot: Path, input_root: Path) -> bytes:
+    """Normalize structured source references before hashing artifact bytes."""
+    if Path(name).suffix.lower() != ".json":
+        return content
+    try:
+        structured = json.loads(content)
+    except (UnicodeError, json.JSONDecodeError):
+        return content
+    normalized = _normalize_analysis_source_references(
+        structured, snapshot, input_root)
+    return (json.dumps(normalized, indent=2, ensure_ascii=False) + "\n").encode(
+        "utf-8")
 
 
 def _capture_analysis_artifacts(
