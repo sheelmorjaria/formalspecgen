@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 41,
-  "argument_declaration_count": 217,
-  "commands_with_admitted_profile": 10,
+  "command_count": 42,
+  "argument_declaration_count": 220,
+  "commands_with_admitted_profile": 13,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -3827,7 +3827,7 @@
       "cli_command": "security-exploit",
       "mcp_tool": "security_exploit",
       "workflow_kind": "direct",
-      "admission_status": "adapter_present_not_admitted",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -3892,7 +3892,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "report",
+          "mcp_field": "report_path",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         },
@@ -4640,8 +4640,8 @@
     {
       "cli_command": "verify-bisimulation",
       "mcp_tool": "verify_bisimulation",
-      "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -5280,11 +5280,90 @@
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         }
       ]
+    },
+    {
+      "cli_command": "worker",
+      "mcp_tool": "get_work_artifacts",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured result on stdout only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only. CLI query envelope separates read success from the unchanged worker proposal and inconsistency state."
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "artifacts"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "tool_selection",
+          "requirement": "artifacts selects get_work_artifacts; no other operation is accepted."
+        },
+        {
+          "cli": {
+            "flags": [
+              "work_item_id"
+            ],
+            "dest": "work_item_id",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "principal-owned worker assignment identifier",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "work_item_id",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ]
     }
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "eeea9383f853005e70caba662d905a5912b658cd403b7db527f662c1ad61df07",
+    "inventory_sha256": "00d27734bfd9dfcc2218bc28db4ad1a4ba6da8021945a0dea04d5d835dacc444",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

@@ -10,8 +10,31 @@ and claim; the read itself is `NO_PROOF`. Missing, unauthorized or corrupt state
 fails. This slice supports only `show` and stdout JSON, never lifecycle mutations,
 new execution, signing, approval, or file exports.
 
+`formalspecgen worker artifacts WORK_ITEM_ID --json -` shares MCP
+`get_work_artifacts`' local, principal-owned reference query. Configure protected
+`FORMALSPECGEN_A2A_POLICY` and `FORMALSPECGEN_A2A_STATE_ROOT` paths outside the
+workspace and the deployment's `FORMALSPECGEN_A2A_PRINCIPAL`. The CLI's
+`worker_result` preserves task status, pending acceptance and inconsistency.
+Query success does not mean task success: no URI is fetched, no bytes validated,
+no task refreshed and no implementation accepted. See [worker coordination](docs/A2A_COORDINATION.md).
+
 FormalSpecGen is a terminal-first, human-in-the-loop tool for turning natural-language requirements
 into reviewed formal contracts, bounded architecture evidence, and deductively verified code.
+
+`verify-bisimulation BASELINE CANDIDATE MAPPING --json -` and MCP
+`verify_bisimulation(baseline, refactored, mapping, result_export=None)` now share
+bounded input capture and optional no-replace export. The mapping/class-name and
+lexical public-method checks remain **preflight only (`NO_PROOF`)**, not a proof
+of behavioral equivalence. Candidate directories include top-level `.java` files
+only. See [admission and limits](docs/MCP_ADMISSION.md#bounded-bisimulation-preflight).
+
+`security-exploit REPORT TARGET --out-dir review` and MCP `security_exploit`
+now share bounded, review-only template generation and no-replace publication.
+The default verdict is `review/poc-verdict.json`; `--json -` (MCP
+`result_export="-"`) suppresses that file. Results bind captured report/target
+digests and actual published paths, but always carry `NO_PROOF`: templates and
+findings are unreviewed, and nothing is compiled or executed. See
+[template admission](docs/MCP_ADMISSION.md#review-only-security-templates).
 
 The design thesis — the LLM proposes, deterministic compilers transform, formal tools judge, and
 humans control trusted assumptions — is written up with the full six-port production evidence in

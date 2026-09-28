@@ -95,10 +95,41 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory maps 41 CLI commands and 217 argument declarations. Ten commands have admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, <code>generate-traceability-matrix</code>, <code>evidence</code>, <code>capabilities</code>, and read-only <code>run show</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory maps 42 CLI commands and 220 argument declarations. Thirteen commands have admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, <code>generate-traceability-matrix</code>, <code>evidence</code>, <code>capabilities</code>, read-only <code>run show</code>, <code>worker artifacts</code>, <code>verify-bisimulation</code> preflight, and review-only <code>security-exploit</code> templates. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
-    <p>The previously accepted <a href="https://github.com/sheelmorjaria/formalspecgen/commit/790a7ac5b8b1933dd568cbed6b541a0ee5fc1be9">790a7ac revision</a> has <a href="https://github.com/sheelmorjaria/formalspecgen/actions/runs/36391085131">CI evidence for 9 of its 40 workflows</a>, including capability discovery. That acceptance does not cover the subsequent run-reader addition or other later changes.</p>
+    <p>The previously accepted <a href="https://github.com/sheelmorjaria/formalspecgen/commit/48fa9e48bdc904421bc07dbbd4cf678d64d6cba0">48fa9e4 revision</a> has <a href="https://github.com/sheelmorjaria/formalspecgen/actions/runs/36394785821">CI evidence for 10 of its 41 workflows</a>, including run inspection. That acceptance does not cover the subsequent worker-reference query, bounded preflight migration, or other later changes.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
+  </section>
+
+  <section id="security-templates">
+    <h2>Generate security review templates without running them</h2>
+    <pre><code data-cli-example="security-templates">formalspecgen security-exploit report.json Target.java --out-dir review</code></pre>
+    <p>The equivalent admitted <code>security_exploit</code> MCP call is:</p>
+    <pre><code data-workflow-example="security-templates">{"report_path": "report.json", "target": "Target.java", "out_dir": "review"}</code></pre>
+    <p>Both interfaces capture the report and target with a combined 4 MiB allowance, two regular files, at most 256 findings and 32 path components. Repeated lexical matching is bounded by target bytes multiplied by finding count (16 MiB). No compiler, scanner, provider, or generated template is executed.</p>
+    <p>Java supports the existing CWE-125, 89, 22, 502, 190, 476, 78, 798, 79, 326 and 732 review templates. Rust and C/C++ source/header forms support the existing CWE-125 bounds template only. Other findings remain listed as unsupported; they are not evidence of a clean target. Templates are generic starting points and may need editing before they even compile.</p>
+    <p><code>claim: NO_PROOF</code>, <code>exploit_proven: false</code>, <code>executed: false</code> and unreviewed status remain explicit. A captured report digest does not authenticate its findings or prove that they apply to the supplied target. Partial generation retains every unsupported finding.</p>
+    <p>The default verdict is <code>&lt;out_dir&gt;/poc-verdict.json</code>. CLI <code>--json PATH</code> or MCP <code>result_export</code> selects a different new destination; <code>"-"</code> suppresses the verdict file (CLI emits JSON stdout, MCP returns its structured result). MCP outputs use the configured output root. All files are no-replace, and returned paths/digests come from publication metadata. Negative outcomes can be exported; an export failure may leave validly published, still-unreviewed templates while the request remains unsuccessful. See the <a href="FORMALSPECGEN_USER_GUIDE.html#security-exploit">manual recipe</a>.</p>
+  </section>
+
+  <section id="bisimulation">
+    <h2>Mapping and public-surface preflight—not equivalence proof</h2>
+    <pre><code data-cli-example="bisimulation">formalspecgen verify-bisimulation Legacy.java candidate mapping.json --json -</code></pre>
+    <p>The admitted <code>verify_bisimulation</code> MCP tool uses the same bounded service:</p>
+    <pre><code data-workflow-example="bisimulation">{"baseline": "Legacy.java", "refactored": "candidate", "mapping": "mapping.json", "result_export": "preflight/result.json"}</code></pre>
+    <p>Capture includes a baseline, a nonempty state-to-class JSON mapping, and either one candidate file or the sorted top-level <code>.java</code> files in a candidate directory. Aggregate limits are 4 MiB, 256 files, 4,096 directory entries and 32 path components. Inputs are UTF-8 regular files; symlinks are rejected. Each captured input has its original path, role, byte count and digest recorded.</p>
+    <p><code>BISIMULATION_PREFLIGHT_READY</code> means only that mapped class names occur and the legacy lexical public-method signatures match. It is not Java parsing, type checking, contract preservation, behavioral equivalence, or heap-topology proof. The legacy <code>contract_surface_preserved</code> field records only that lexical comparison. Every outcome is <code>NO_PROOF</code>; no executable or provider runs.</p>
+    <p>CLI <code>--json -</code> renders a result envelope; a filename requests a no-replace export. MCP exports stay beneath the configured output root. Negative results can be exported, but unsafe destinations and missing write permission cannot. Publication failure leaves the request unsatisfied and preserves existing files. See the preserved <a href="FORMALSPECGEN_USER_GUIDE.html#verify-bisimulation">manual recipe</a>.</p>
+  </section>
+
+  <section id="worker-artifacts">
+    <h2>Read worker artifact references without retrieving them</h2>
+    <pre><code data-cli-example="worker-artifacts">formalspecgen worker artifacts work-001 --json -</code></pre>
+    <p>The equivalent MCP query is <code>get_work_artifacts</code>:</p>
+    <pre><code data-workflow-example="worker-artifacts">{"work_item_id": "work-001"}</code></pre>
+    <p>The operator configures <code>FORMALSPECGEN_A2A_POLICY</code>, <code>FORMALSPECGEN_A2A_STATE_ROOT</code>, and <code>FORMALSPECGEN_A2A_PRINCIPAL</code> outside request arguments. Policy and state must be protected absolute paths outside the workspace. Environment settings are not authentication; use the deployment's principal and OS protections.</p>
+    <p>Exit zero means the local query succeeded. The nested <code>worker_result</code> equals the MCP result apart from admission metadata and retains task status, references, recorded digests, pending acceptance and coordination diagnostics. An inconsistent task can be read successfully while its nested result remains unsatisfied. <code>NO_PROOF</code>, <code>implementation_accepted: false</code>, <code>artifact_retrieval_performed: false</code>, and <code>artifact_bytes_validated: false</code> remain explicit.</p>
+    <p>URIs are untrusted data, not instructions or read authority. No remote refresh, URI fetch, patch staging, verification, publication, or lifecycle mutation occurs. An empty reference list does not resolve dispatch uncertainty. Reading a stored digest does not validate artifact bytes. See the <a href="FORMALSPECGEN_USER_GUIDE.html#worker">CLI recipe</a>; trusted artifact retrieval and integration are separate work.</p>
   </section>
 
   <section id="run-reader">
@@ -254,7 +285,7 @@
 
   <section id="coordination">
     <h2>A2A worker coordination</h2>
-    <p>Four MCP-only tools submit, observe, retrieve, and cancel bounded worker tasks: <code>submit_work_item</code>, <code>get_work_item</code>, <code>get_work_artifacts</code>, and <code>cancel_work_item</code>.</p>
+    <p>Four MCP coordination tools submit, observe, read artifact references, and cancel bounded worker tasks: <code>submit_work_item</code>, <code>get_work_item</code>, <code>get_work_artifacts</code>, and <code>cancel_work_item</code>. The reference-only query also has the <code>worker artifacts</code> CLI interface described above.</p>
     <p>A worker result is a proposal. Task completion is not implementation acceptance, formal proof, or permission to merge. Protected paths, child authority attenuation, cancellation intent, terminal-state preservation, and uncertain dispatch remain controller-managed state.</p>
   </section>
 

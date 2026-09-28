@@ -54,12 +54,12 @@ def test_correct_behavior_command_success_and_failure(tmp_path):
 
 
 def test_verify_bisimulation_command_ready_and_not(tmp_path):
-    ready = {"status": "BISIMULATION_PREFLIGHT_READY", "claim": "NO_PROOF"}
-    not_ready = {"status": "MAPPING_INVALID", "claim": "NO_PROOF"}
-    with patch("pipeline.bisimulation.verify_bisimulation_inputs", return_value=ready):
+    ready = {"status": "BISIMULATION_PREFLIGHT_READY", "claim": "NO_PROOF", "request_satisfied": True}
+    not_ready = {"status": "MAPPING_INVALID", "claim": "NO_PROOF", "request_satisfied": False}
+    with patch("pipeline.bisimulation_workflow.run_bisimulation_workflow", return_value=ready):
         assert cli.main(["verify-bisimulation", "a.java", "b/", "m.json",
                          "--json", str(tmp_path / "v1.json")]) == 0
-    with patch("pipeline.bisimulation.verify_bisimulation_inputs", return_value=not_ready):
+    with patch("pipeline.bisimulation_workflow.run_bisimulation_workflow", return_value=not_ready):
         assert cli.main(["verify-bisimulation", "a.java", "b/", "m.json",
                          "--json", str(tmp_path / "v2.json")]) == 1
 

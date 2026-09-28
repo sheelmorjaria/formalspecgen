@@ -20,6 +20,7 @@ from pipeline.capability_registry import mcp_capabilities
 from pipeline.evidence_consumer import EvidenceWorkflowRequest
 from pipeline.capability_discovery import CapabilityDiscoveryRequest
 from pipeline.agentic.run_reader import RunReadRequest
+from pipeline.worker_queries import WorkerArtifactsRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -27,6 +28,8 @@ from pipeline.mcp_policy import (
 )
 from pipeline.parity_inventory import handler_input_schema, reconcile_parity_plan
 from pipeline.workflow_contracts import (
+    BisimulationWorkflowRequest,
+    SecurityTemplateWorkflowRequest,
     ApplyRefactorWorkflowRequest,
     CodebaseAnalysisWorkflowRequest,
     TraceabilityWorkflowRequest,
@@ -233,7 +236,10 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "bisimulation": "verify-bisimulation",
+        "security-templates": "security-exploit",
         "run-show": "run",
+        "worker-artifacts": "worker",
         "capabilities": "capabilities",
         "evidence-explain": "evidence",
         "evidence-diff": "evidence",
@@ -256,6 +262,18 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             raise ValueError(f"invalid CLI example: {name}") from exc
         if args.command != expected[name]:
             raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "security-templates":
+            request = SecurityTemplateWorkflowRequest(args.report, args.target, args.out_dir, args.json)
+            if request.effective_export != "review/poc-verdict.json":
+                raise ValueError("template example must use the default controlled verdict export")
+        if name == "bisimulation":
+            request = BisimulationWorkflowRequest(args.baseline, args.refactored, args.mapping)
+            if args.json != "-" or Path(request.mapping).name != "mapping.json":
+                raise ValueError("preflight example must read mapping.json and render JSON stdout")
+        if name == "worker-artifacts":
+            request = WorkerArtifactsRequest(args.work_item_id)
+            if request.work_item_id != "work-001" or args.operation != "artifacts" or args.json != "-":
+                raise ValueError("worker example must read work-001 artifact references on stdout")
         if name == "run-show":
             request = RunReadRequest(args.run_id)
             if request.run_id != "review-001" or args.operation != "show" or args.json != "-":
@@ -346,13 +364,22 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
+            "bisimulation", "security-templates",
+            "worker-artifacts", "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
-            "guide workflow-example drift: expected verify-java, analyze-codebase, "
-            "run-show, capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
+            "guide workflow-example drift: expected security-templates, bisimulation, verify-java, analyze-codebase, "
+            "worker-artifacts, run-show, capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
     if RunReadRequest(**json.loads(examples["run-show"])).run_id != "review-001":
         raise ValueError("run example must read review-001")
+    preflight = BisimulationWorkflowRequest(**json.loads(examples["bisimulation"]))
+    templates = SecurityTemplateWorkflowRequest(**json.loads(examples["security-templates"]))
+    if templates.effective_export != "review/poc-verdict.json":
+        raise ValueError("template example must use the default controlled verdict export")
+    if Path(preflight.mapping).name != "mapping.json" or preflight.result_export != "preflight/result.json":
+        raise ValueError("preflight example must bind mapping.json and controlled result export")
+    if WorkerArtifactsRequest(**json.loads(examples["worker-artifacts"])).work_item_id != "work-001":
+        raise ValueError("worker example must read work-001")
     capability_request = CapabilityDiscoveryRequest(**json.loads(examples["capabilities"]))
     if capability_request.name != "verify":
         raise ValueError("capabilities example must describe verify")

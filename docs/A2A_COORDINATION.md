@@ -5,6 +5,17 @@ A2A coordinates work and returns proposal artifacts; MCP remains the admitted
 tool interface. Worker completion never means that an implementation was
 accepted, formally verified, signed, or authorized for merge.
 
+The CLI also exposes `formalspecgen worker artifacts WORK_ITEM_ID --json -` through
+the same shared local query as `get_work_artifacts`. Only the `artifacts` operation
+is supported; no refresh, submission, cancellation or file export is implied.
+Use the operator-controlled policy, state root and principal configuration below.
+The CLI's outer status describes query success; `worker_result` preserves the
+MCP result without its admission metadata, including coordination inconsistency.
+All referenced URIs remain untrusted data. A recorded digest is not validated
+artifact content: `artifact_retrieval_performed` and `artifact_bytes_validated`
+are false, and `implementation_accepted` remains false. Retrieval, validation,
+isolated patch staging and integration acceptance require separate authorization.
+
 The strict MCP catalogue provides four coordination tools:
 
 | Tool | Effect |

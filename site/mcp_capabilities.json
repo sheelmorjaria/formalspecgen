@@ -2,9 +2,9 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 19,
-  "cli_capability_count": 10,
-  "mcp_only_capability_count": 9,
+  "capability_count": 21,
+  "cli_capability_count": 13,
+  "mcp_only_capability_count": 8,
   "capabilities": [
     {
       "name": "verify_code",
@@ -951,10 +951,10 @@
     {
       "name": "get_work_artifacts",
       "mcp_tool": "get_work_artifacts",
-      "cli_command": null,
+      "cli_command": "worker",
       "description": "Retrieve digest-bound artifact references for an authorized work item.",
       "isolation": "a2a-coordination",
-      "catalogue": "mcp-only",
+      "catalogue": "cli-and-mcp",
       "static_input_schema": {
         "fields": [
           {
@@ -1414,6 +1414,78 @@
             "service_state_write"
           ],
           "profile_sha256": "91d3083fe2d5bc2836dd0a8e6bd72ea92d6d95b70d50ef30462d624989c94e7a"
+        }
+      ]
+    },
+    {
+      "name": "security_exploit",
+      "mcp_tool": "security_exploit",
+      "cli_command": "security-exploit",
+      "description": "Bounded review-only source template generation; no exploit execution.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "report_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "target",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_dir",
+            "required": false,
+            "default": "security-pocs",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "report_path",
+          "target",
+          "out_dir",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-security-templates",
+          "modes": [
+            "templates"
+          ],
+          "languages": [
+            "text"
+          ],
+          "backends": [
+            "builtin-poc-templates"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-report-and-target-manifest",
+          "required_effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "f95928949c396a4d01933de722ed344daed69670fa802bd0123a6a2f89a6e7d1"
         }
       ]
     },
@@ -1985,6 +2057,77 @@
             "workspace_write_new"
           ],
           "profile_sha256": "35dc07d240e6bb390664bb9fb6a2d8690ba0c29ce616028fccaae15da89bd249"
+        }
+      ]
+    },
+    {
+      "name": "verify_bisimulation",
+      "mcp_tool": "verify_bisimulation",
+      "cli_command": "verify-bisimulation",
+      "description": "Bounded mapping and lexical public-method preflight, not an equivalence proof.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "baseline",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "refactored",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "mapping",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "baseline",
+          "refactored",
+          "mapping",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-bisimulation-preflight",
+          "modes": [
+            "preflight"
+          ],
+          "languages": [
+            "text"
+          ],
+          "backends": [
+            "builtin-mapping-preflight"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-source-and-mapping-manifest",
+          "required_effects": [
+            "workspace_read"
+          ],
+          "profile_sha256": "522d43053bc6bae53e02176809de9f4e5367b51c5d2f430d3c0d4de522091c34"
         }
       ]
     },

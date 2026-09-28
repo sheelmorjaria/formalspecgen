@@ -124,6 +124,8 @@ import pipeline.evidence_consumer
 import pipeline.capability_discovery
 import pipeline.agentic.run_reader
 import pipeline.operator_configuration
+import pipeline.worker_queries
+import pipeline.bisimulation_workflow
 import pipeline.lifecycle
 import formalspec_core
 root = Path(__import__('os').environ['PYTHONPATH']).resolve()
@@ -160,6 +162,9 @@ def snapshot():
     return {str(p.relative_to(Path.cwd())): p.read_bytes()
             for p in Path.cwd().rglob("*") if p.is_file()}
 
+Path("Legacy.java").write_text("class Legacy { public int go() { return 1; } }")
+Path("Modern.java").write_text("class Idle { public int go() { return 1; } }")
+Path("mapping.json").write_text('{"0":"Idle"}')
 before = snapshot()
 import tempfile
 from pipeline.agentic.contracts import AgentGoal
@@ -170,6 +175,17 @@ run_store.create(AgentGoal("read-001", "Synthetic run fixture", "a" * 40,
                           "Probe.java", "b" * 64), "installed-reader")
 os.environ["FORMALSPECGEN_AGENT_STATE_ROOT"] = run_directory.name
 os.environ["FORMALSPECGEN_AGENT_PRINCIPAL"] = "installed-reader"
+from pipeline.a2a_coordination import TaskStore
+worker_policy = run_store.root / "worker-policy.json"
+worker_policy.write_text(json.dumps({"schema": "formalspecgen-a2a-policy-v1", "authorities": [], "workers": []}))
+worker_store = TaskStore(run_store.root / "workers")
+worker_store.create({"work_item_id": "work-001", "principal_id": "installed-reader", "state": "completed",
+                     "request_sha256": "a" * 64, "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+                     "worker_result": {"patch_sha256": "b" * 64, "artifacts": [
+                         {"artifact_id": "patch", "sha256": "c" * 64, "uri": "https://invalid.example/patch"}]}})
+os.environ["FORMALSPECGEN_A2A_POLICY"] = str(worker_policy)
+os.environ["FORMALSPECGEN_A2A_STATE_ROOT"] = str(worker_store.root)
+os.environ["FORMALSPECGEN_A2A_PRINCIPAL"] = "installed-reader"
 def run_snapshot():
     return {str(p.relative_to(run_store.root)): p.read_bytes()
             for p in run_store.root.rglob("*") if p.is_file()}
@@ -181,6 +197,18 @@ read_envelope = json.loads(read_process.stdout)
 assert read_envelope["operation_satisfied"] and read_envelope["result"]["claim"] == "NO_PROOF"
 read_result = read_envelope["result"]["run_result"]
 assert read_result["status"] == "PLANNED" and not read_result["request_satisfied"]
+worker_process = subprocess.run([str(target / "bin/formalspecgen"), "worker", "artifacts", "work-001",
+    "--json", "-"], capture_output=True, text=True, timeout=30)
+assert worker_process.returncode == 0, worker_process.stderr
+worker_result = json.loads(worker_process.stdout)["result"]["worker_result"]
+assert worker_result["acceptance"]["status"] == "pending" and not worker_result["implementation_accepted"]
+assert not worker_result["artifact_bytes_validated"] and not worker_result["artifact_retrieval_performed"]
+preflight_process = subprocess.run([str(target / "bin/formalspecgen"), "verify-bisimulation",
+    "Legacy.java", "Modern.java", "mapping.json", "--json", "-"], capture_output=True, text=True, timeout=30)
+assert preflight_process.returncode == 0, preflight_process.stderr
+preflight_result = json.loads(preflight_process.stdout)["result"]
+assert preflight_result["request_satisfied"] and preflight_result["claim"] == "NO_PROOF"
+assert not preflight_result["behavior_equivalence_proved"]
 local = []
 for arguments, satisfied in cases:
     command = [str(target / "bin/formalspecgen"), "evidence",
@@ -243,6 +271,17 @@ async def transport():
             assert not run_response.isError
             assert {k: v for k, v in run_response.structuredContent.items()
                     if k != "mcp_admission"} == read_result
+            worker_response = await session.call_tool("get_work_artifacts", {"work_item_id": "work-001"})
+            assert not worker_response.isError
+            assert {k: v for k, v in worker_response.structuredContent.items()
+                    if k != "mcp_admission"} == worker_result
+            preflight_response = await session.call_tool("verify_bisimulation", {
+                "baseline": "Legacy.java", "refactored": "Modern.java", "mapping": "mapping.json"})
+            assert not preflight_response.isError
+            def semantic(value):
+                return {k: v for k, v in value.items() if k not in {"workflow_result", "mcp_admission"}}
+            assert semantic(preflight_response.structuredContent) == semantic(preflight_result)
+            assert preflight_response.structuredContent["workflow_result"]["request"] == preflight_result["workflow_result"]["request"]
 
 remote = sys.argv[1] == "mcp"
 if remote:
@@ -250,8 +289,8 @@ if remote:
 assert before == snapshot(), "Read-only inspection changed its workspace"
 assert run_before == run_snapshot(), "Run query changed durable state"
 run_directory.cleanup()
-print(json.dumps({"installed_root": str(target), "cli_calls": len(cases) + 2,
-                  "mcp_calls": len(cases) + 3 if remote else 0, "read_only": True}))
+print(json.dumps({"installed_root": str(target), "cli_calls": len(cases) + 4,
+                  "mcp_calls": len(cases) + 5 if remote else 0, "read_only": True}))
 '''
 
 
@@ -265,5 +304,60 @@ def test_installed_evidence_interfaces(installed_wheel, tmp_path, interface):
         env=environment, capture_output=True, text=True, timeout=120)
     assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
     result = json.loads(checked.stdout)
-    assert result == {"installed_root": str(target.resolve()), "cli_calls": 8,
-                      "mcp_calls": 9 if interface == "mcp" else 0, "read_only": True}
+    assert result == {"installed_root": str(target.resolve()), "cli_calls": 10,
+                      "mcp_calls": 11 if interface == "mcp" else 0, "read_only": True}
+
+
+@pytest.mark.parametrize("interface", ["cli", "mcp"])
+def test_installed_security_template_interfaces(installed_wheel, tmp_path, interface):
+    if interface == "mcp" and os.environ.get("FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE") != "1":
+        pytest.skip("requires installed MCP acceptance")
+    target, _, environment = installed_wheel
+    script = r'''
+import asyncio, hashlib, json, os, subprocess, sys
+from pathlib import Path
+import mcp_server
+import pipeline.security_template_workflow as workflow
+root = Path(os.environ["PYTHONPATH"]).resolve()
+assert Path(workflow.__file__).resolve().is_relative_to(root)
+assert Path(mcp_server.__file__).resolve().is_relative_to(root)
+Path("Target.java").write_text("class Target { public int get(int[] a, int i) { return a[i]; } }")
+Path("report.json").write_text('[{"cwe":"CWE-125"}]')
+before = {name: Path(name).read_bytes() for name in ("Target.java", "report.json")}
+process = subprocess.run([str(root / "bin/formalspecgen"), "security-exploit", "report.json",
+    "Target.java", "--json", "-"], capture_output=True, text=True, timeout=30)
+assert process.returncode == 0, process.stderr
+local = json.loads(process.stdout)["result"]
+def validate(result):
+    assert result["request_satisfied"] and result["claim"] == "NO_PROOF"
+    assert not result["executed"] and not result["exploit_proven"]
+    for entry in result["generated"]:
+        assert hashlib.sha256(Path(entry["file"]).read_bytes()).hexdigest() == entry["sha256"]
+        assert entry["file"] == result["publication"]["artifacts"][entry["publication_key"]]["path"]
+validate(local)
+async def transport():
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    parameters = StdioServerParameters(command=sys.executable, args=["-c",
+        "import mcp_server; mcp_server.create_server().run()"], cwd=str(Path.cwd()), env=dict(os.environ))
+    async with stdio_client(parameters) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            assert "security_exploit" in {tool.name for tool in (await session.list_tools()).tools}
+            response = await session.call_tool("security_exploit", {
+                "report_path":"report.json", "target":"Target.java", "result_export":"-"})
+            assert not response.isError
+            remote = response.structuredContent
+            validate(remote)
+            assert remote["workflow_result"]["request"] == local["workflow_result"]["request"]
+            assert remote["input_manifest"] == local["input_manifest"]
+            assert [e["sha256"] for e in remote["generated"]] == [e["sha256"] for e in local["generated"]]
+if sys.argv[1] == "mcp":
+    asyncio.run(asyncio.wait_for(transport(), timeout=45))
+assert before == {name: Path(name).read_bytes() for name in before}
+print("installed review-only templates passed")
+'''
+    checked = subprocess.run([sys.executable, "-c", script, interface], cwd=tmp_path,
+        env=environment, capture_output=True, text=True, timeout=120)
+    assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
+    assert "installed review-only templates passed" in checked.stdout

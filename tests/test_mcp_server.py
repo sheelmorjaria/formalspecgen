@@ -143,13 +143,13 @@ def test_mcp_security_tools_guarded(tmp_path, monkeypatch):
                return_value={"status": "NO_FINDINGS"}) as inspect_:
         assert mcp_server.security_inspect(str(source))["status"] == "NO_FINDINGS"
         inspect_.assert_called_once()
-    with patch("pipeline.security_poc.generate_pocs",
+    with patch("pipeline.security_template_workflow.run_security_template_workflow",
                return_value={"status": "POCS_GENERATED"}) as pocs:
         assert mcp_server.security_exploit("report.json", str(source),
                                           out_dir="pocs")["status"] == "POCS_GENERATED"
         pocs.assert_called_once()
     escape = mcp_server.security_exploit("report.json", str(source), out_dir="../pocs")
-    assert escape["code"] == "path_outside_workspace"
+    assert escape["code"] == "OUTPUT_SCOPE_VIOLATION"
 
 
 def test_mcp_remediation_and_correction_guarded(tmp_path, monkeypatch):
@@ -198,7 +198,7 @@ def test_mcp_refactor_tools_guarded(tmp_path, monkeypatch):
         assert mcp_server.verify_refactor(str(source), "refactored")["status"] == "VERIFIED"
 
     mapping = Path("mapping.json"); mapping.write_text("{}", encoding="utf-8")
-    with patch("pipeline.bisimulation.verify_bisimulation_inputs",
+    with patch("pipeline.bisimulation_workflow.run_bisimulation_workflow",
                return_value={"status": "BISIMULATION_PREFLIGHT_READY"}) as bisim:
         assert mcp_server.verify_bisimulation(str(source), "refactored", str(mapping))[
             "status"] == "BISIMULATION_PREFLIGHT_READY"

@@ -1,6 +1,10 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
-"""Strict TLC provenance and execution adapter for the isolated V2 lifecycle."""
+"""Legacy V2 CLI TLC adapter; not a strict sandbox/admitted MCP path.
+
+New shared execution migrations must use ``isolated_tlc.run_isolated_tlc``.
+These compatibility functions still serve the unadmitted V2 CLI workflow.
+"""
 from __future__ import annotations
 
 import re

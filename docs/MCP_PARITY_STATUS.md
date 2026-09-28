@@ -5,10 +5,10 @@ Do not edit it by hand.
 
 ## Inventory
 
-- Commands mapped: 41 / 41
-- Argument declarations mapped: 217 / 217
-- Commands with at least one admitted invocation profile: 10 / 41
-- Complete command workflows: 0 / 41
+- Commands mapped: 42 / 42
+- Argument declarations mapped: 220 / 220
+- Commands with at least one admitted invocation profile: 13 / 42
+- Complete command workflows: 0 / 42
 - Inventory drift: none
 - Full workflow parity: in progress
 
@@ -41,7 +41,7 @@ Do not edit it by hand.
 | `remediate` | `remediate_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `reverify` | `reverify_composition` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `run` | `get_agent_run` | `direct` | `admitted` | `incomplete` | 3 |
-| `security-exploit` | `security_exploit` | `direct` | `adapter_present_not_admitted` | `incomplete` | 4 |
+| `security-exploit` | `security_exploit` | `direct` | `admitted` | `incomplete` | 4 |
 | `security-inspect` | `security_inspect` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 2 |
 | `sign-artifact` | `sign_artifact` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 2 |
 | `system` | `system` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 9 |
@@ -49,7 +49,7 @@ Do not edit it by hand.
 | `validate-architecture` | `validate_architecture` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `validate-domain` | `validate_domain` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `verify` | `verify_code` | `direct_or_task` | `admitted` | `incomplete` | 4 |
-| `verify-bisimulation` | `verify_bisimulation` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
+| `verify-bisimulation` | `verify_bisimulation` | `direct` | `admitted` | `incomplete` | 4 |
 | `verify-distributed` | `verify_distributed` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `verify-hal` | `verify_hal` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 2 |
 | `verify-heap` | `verify_heap` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
@@ -57,6 +57,7 @@ Do not edit it by hand.
 | `verify-lockfree` | `verify_lockfree` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 2 |
 | `verify-refactor` | `verify_refactor` | `direct_or_task_with_approval` | `admitted` | `incomplete` | 4 |
 | `verify-unbounded` | `verify_unbounded` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
+| `worker` | `get_work_artifacts` | `direct` | `admitted` | `incomplete` | 3 |
 
 ## Drift
 

@@ -477,10 +477,65 @@ class ApplyRefactorWorkflowRequest:
         }
 
 
+@dataclass(frozen=True)
+class BisimulationWorkflowRequest:
+    baseline: str
+    refactored: str
+    mapping: str
+    result_export: str | None = None
+
+    def __post_init__(self):
+        for key in ("baseline", "refactored", "mapping"):
+            value = getattr(self, key)
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ValueError(f"{key} must be a nonempty path")
+            object.__setattr__(self, key, str(Path(value).expanduser().absolute()))
+        if self.result_export is not None and (not isinstance(self.result_export, str)
+                or not self.result_export or "\x00" in self.result_export):
+            raise ValueError("result_export must be a nonempty path")
+
+    def required_effects(self) -> tuple[str, ...]:
+        return ("workspace_read", "workspace_write_new") if self.result_export is not None else ("workspace_read",)
+
+    def as_dict(self) -> dict:
+        return {"schema": WORKFLOW_CONTRACT_SCHEMA, "workflow": "verify-bisimulation", **asdict(self)}
+
+
+@dataclass(frozen=True)
+class SecurityTemplateWorkflowRequest:
+    report_path: str
+    target: str
+    out_dir: str = "security-pocs"
+    result_export: str | None = None
+
+    def __post_init__(self):
+        for key in ("report_path", "target", "out_dir"):
+            value = getattr(self, key)
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ValueError(f"{key} must be a nonempty path")
+        for key in ("report_path", "target"):
+            object.__setattr__(self, key, str(Path(getattr(self, key)).expanduser().absolute()))
+        if self.result_export is not None and (not isinstance(self.result_export, str)
+                or not self.result_export or "\x00" in self.result_export):
+            raise ValueError("result_export must be a nonempty path")
+
+    @property
+    def effective_export(self) -> str | None:
+        if self.result_export == "-":
+            return None
+        return self.result_export if self.result_export is not None else str(Path(self.out_dir) / "poc-verdict.json")
+
+    def required_effects(self) -> tuple[str, ...]:
+        return ("workspace_read", "workspace_write_new")
+
+    def as_dict(self) -> dict:
+        return {"schema": WORKFLOW_CONTRACT_SCHEMA, "workflow": "security-exploit", **asdict(self)}
+
+
 WorkflowRequest = (
     VerificationWorkflowRequest | InspectionWorkflowRequest |
     DocumentationWorkflowRequest | CodebaseAnalysisWorkflowRequest |
-    TraceabilityWorkflowRequest |
+    TraceabilityWorkflowRequest | BisimulationWorkflowRequest | SecurityTemplateWorkflowRequest |
     RefactorWorkflowRequest |
     ApplyRefactorWorkflowRequest
 )

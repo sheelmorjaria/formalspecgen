@@ -23,7 +23,7 @@ def test_security_cli_commands_write_verdicts_and_return_status(tmp_path):
         args = SimpleNamespace(source=str(source), json=str(tmp_path / "vulns.json"))
         assert cli.command_security_inspect(args, ui) == 0
     report = tmp_path / "report.json"; report.write_text("[]")
-    with patch("pipeline.security_poc.generate_pocs", return_value={"status": "POCS_GENERATED", "generated": ["x"]}):
+    with patch("pipeline.security_template_workflow.run_security_template_workflow", return_value={"status": "POCS_GENERATED", "generated": ["x"], "request_satisfied": True}):
         args = SimpleNamespace(report=str(report), target=str(source), out_dir=str(tmp_path / "pocs"), json=None)
         assert cli.command_security_exploit(args, ui) == 0
     with patch("pipeline.remediation.remediate", return_value={"status": "REMEDIATION_VERIFIED", "claim": "REMEDIATION_VERIFIED"}):

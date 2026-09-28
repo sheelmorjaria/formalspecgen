@@ -1384,7 +1384,290 @@ async def _run_observation() -> dict:
     return observation
 
 
+async def _worker_observation() -> dict:
+    """Real transport over synthetic reference records; no remote worker or retrieval."""
+    from pipeline.a2a_coordination import TaskStore
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-worker-read-") as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        workspace.mkdir()
+        policy = root / "policy.json"
+        policy.write_text(json.dumps({"schema": "formalspecgen-a2a-policy-v1", "authorities": [], "workers": []}))
+        store = TaskStore(root / "state")
+        cases = []
+        states = ["queued", "working", "completed", "failed", "rejected", "cancelled",
+                  "dispatching", "dispatch_uncertain", "cancellation_pending", "inconsistent", "empty"]
+        references = [{"artifact_id": "patch", "sha256": "c" * 64,
+                       "uri": "https://invalid.example/worker/patch"}]
+        for state in states + ["foreign", "tampered"]:
+            store.create({"work_item_id": state, "principal_id": "other" if state == "foreign" else "ci-reader",
+                          "request_sha256": "a" * 64,
+                          "state": "completed" if state in {"inconsistent", "foreign", "tampered"} else
+                                   "dispatch_uncertain" if state == "empty" else state,
+                          "acceptance": {"status": "pending", "claim": "NO_PROOF"},
+                          "coordination_status": "inconsistent" if state == "inconsistent" else "consistent",
+                          "coordination_diagnostics": [{"code": "TERMINAL_STATE_CONFLICT"}] if state == "inconsistent" else [],
+                          "worker_result": None if state == "empty" else {"artifacts": references, "patch_sha256": "b" * 64}})
+            if state in states:
+                cases.append((state, None))
+        (store.tasks / "tampered" / "000001.json").write_text("{}")
+        cases += [("missing", "TASK_NOT_FOUND"), ("foreign", "TASK_NOT_FOUND"),
+                  ("tampered", "TASK_EVIDENCE_INVALID"), ("../escape", "INVALID_WORK_ITEM")]
+        environment = {"FORMALSPECGEN_A2A_POLICY": str(policy), "FORMALSPECGEN_A2A_STATE_ROOT": str(store.root),
+                       "FORMALSPECGEN_A2A_PRINCIPAL": "ci-reader", "FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"}
+        def snapshot():
+            return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in root.rglob("*") if p.is_file()}
+        before = snapshot()
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "get_work_artifacts", [{"work_item_id": name} for name, _ in cases], environment=environment)
+        if set(schema["properties"]) != {"work_item_id"} or schema.get("required") != ["work_item_id"]:
+            raise RuntimeError("unexpected worker artifacts schema")
+        comparisons = []
+        for (name, error), result in zip(cases, results):
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                [sys.executable, "-m", "pipeline.cli", "worker", "artifacts", name, "--json", "-"],
+                cwd=workspace, text=True, capture_output=True, timeout=30, check=False,
+                env={**os.environ, **environment, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            envelope = json.loads(process.stdout)
+            local = envelope["result"]
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if process.returncode != (1 if error else 0) or envelope["operation_satisfied"] != (error is None):
+                raise RuntimeError("worker reference query exit status is incorrect")
+            if local["claim"] != "NO_PROOF" or result["claim"] != "NO_PROOF":
+                raise RuntimeError("reference query raised a proof claim")
+            if error:
+                if result.get("code") != error or local.get("code") != error or result["request_satisfied"]:
+                    raise RuntimeError("worker query failure was not preserved")
+            elif (local["worker_result"] != expected or result["artifacts"] != ([] if name == "empty" else references)
+                    or result["status"] != ("COORDINATION_INCONSISTENT" if name == "inconsistent" else
+                                            "dispatch_uncertain" if name == "empty" else name)
+                    or result["request_satisfied"] != (name != "inconsistent")
+                    or result["acceptance"] != {"status": "pending", "claim": "NO_PROOF"}
+                    or result["implementation_accepted"] or result["artifact_retrieval_performed"]
+                    or result["artifact_bytes_validated"]
+                    or result["mcp_admission"]["granted_effects"] != ["service_state_read"]):
+                raise RuntimeError("worker references, uncertainty or read-only authority changed")
+            comparisons.append({"variant": name, "result_sha256": _sha256(expected)})
+        if snapshot() != before or list(workspace.iterdir()):
+            raise RuntimeError("worker query changed durable state or workspace")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons,
+                       variants=[name for name, _ in cases], state_unchanged=True, workspace_unchanged=True)
+    return observation
+
+
+async def _bisimulation_observation() -> dict:
+    """Exercise bounded lexical preflight, not a compiler or equivalence prover."""
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-bisimulation-") as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        workspace.mkdir()
+        output = workspace / "controlled-output"
+        output.mkdir()
+        baseline = workspace / "Legacy.java"
+        baseline.write_bytes(b"class Legacy { public int go(int x) { return x; } }\r\n")
+        (workspace / "Modern.java").write_text("class Idle { public int go(int x) { return x; } }")
+        candidate = workspace / "candidate"
+        candidate.mkdir()
+        (candidate / "Main.java").write_bytes((workspace / "Modern.java").read_bytes())
+        (candidate / "Helper.java").write_text("class Helper {}")
+        (workspace / "mapping.json").write_text('{"0": "Idle"}')
+        for name, content in {"empty.json": "{}", "duplicate.json": '{"0":"Idle","0":"Idle"}',
+                "malformed.json": "not JSON", "unresolved.json": '{"0":"Missing"}',
+                "Mismatch.java": "class Idle {}"}.items():
+            (workspace / name).write_text(content)
+        (workspace / "Bad.java").write_bytes(b"\xff")
+        (workspace / "Large.java").write_bytes(b" " * (4 * 1024 * 1024 + 1))
+        (workspace / "linked.java").symlink_to(workspace / "Modern.java")
+        (workspace / "empty-directory").mkdir()
+        (workspace / "collision.json").write_text("preserve")
+        (output / "collision.json").write_text("preserve")
+        before = {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                  for p in workspace.rglob("*") if p.is_file()}
+        cases = []
+        def case(variant, expected, **changes):
+            arguments = {"baseline": "Legacy.java", "refactored": "Modern.java", "mapping": "mapping.json"}
+            arguments.update(changes)
+            cases.append((variant, arguments, expected))
+        ready = "BISIMULATION_PREFLIGHT_READY"
+        invalid = "BISIMULATION_INPUT_INVALID"
+        case("single_file", ready)
+        case("single_export", ready, result_export="single.json")
+        case("directory", ready, refactored="candidate", result_export="directory.json")
+        for variant, change, expected in [
+            ("invalid_mapping", {"mapping": "empty.json"}, "BISIMULATION_MAPPING_INVALID"),
+            ("duplicate_mapping", {"mapping": "duplicate.json"}, invalid),
+            ("malformed_mapping", {"mapping": "malformed.json"}, invalid),
+            ("missing_mapping", {"mapping": "missing.json"}, invalid),
+            ("unresolved_state", {"mapping": "unresolved.json"}, "BISIMULATION_STATE_UNRESOLVED"),
+            ("surface_mismatch", {"refactored": "Mismatch.java"}, "BISIMULATION_SURFACE_MISMATCH"),
+            ("encoding", {"refactored": "Bad.java"}, invalid),
+            ("byte_limit", {"refactored": "Large.java"}, invalid),
+            ("symlink", {"refactored": "linked.java"}, invalid),
+            ("empty_directory", {"refactored": "empty-directory"}, invalid),
+        ]:
+            case(variant, expected, **change, result_export=variant + ".json")
+        case("collision", "RESULT_EXPORT_FAILED", result_export="collision.json")
+        # CLI may read explicitly selected external files; strict MCP may not.
+        case("denied_path", invalid, baseline="../outside.java", result_export="denied.json")
+        case("denied_export", invalid, result_export="../outside.json")
+        environment = {"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output), "FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"}
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "verify_bisimulation", [args for _, args, _ in cases], environment=environment)
+        if set(schema["properties"]) != {"baseline", "refactored", "mapping", "result_export"}:
+            raise RuntimeError("unexpected bisimulation request schema")
+        comparisons, validations = [], []
+        def semantic(value):
+            return {key: item for key, item in value.items()
+                    if key not in {"workflow_result", "mcp_admission", "result_export", "message"}}
+        for (variant, arguments, expected), result in zip(cases, results):
+            if (result["status"] != expected or result["request_satisfied"] != (expected == ready)
+                    or result["claim"] != "NO_PROOF" or result["behavior_equivalence_proved"]
+                    or result["heap_topology_equivalence_proved"]):
+                raise RuntimeError(f"incorrect preflight scope/outcome: {variant}: {result}")
+            if set(result["mcp_admission"]["granted_effects"]) - {"workspace_read", "workspace_write_new"}:
+                raise RuntimeError("preflight acquired execution or provider authority")
+            for entry in result.get("input_manifest", []):
+                content = Path(entry["path"]).read_bytes()
+                if entry["sha256"] != hashlib.sha256(content).hexdigest() or entry["size"] != len(content):
+                    raise RuntimeError("preflight input identity mismatch")
+            if result.get("input_manifest") and result["input_manifest_sha256"] != _sha256(result["input_manifest"]):
+                raise RuntimeError("preflight manifest digest mismatch")
+            for name, entry in result.get("result_export", {}).get("artifacts", {}).items():
+                content = Path(entry["path"]).read_bytes()
+                if entry["sha256"] != hashlib.sha256(content).hexdigest() or semantic(json.loads(content)) != semantic(result):
+                    raise RuntimeError("preflight export identity or semantics mismatch")
+                validations.append({"variant": variant, "artifact": name, "sha256": entry["sha256"]})
+            if variant.startswith("denied_"):
+                continue
+            command = [sys.executable, "-m", "pipeline.cli", "verify-bisimulation",
+                       arguments["baseline"], arguments["refactored"], arguments["mapping"],
+                       "--json", arguments.get("result_export", "-")]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                command, cwd=workspace, text=True, capture_output=True, timeout=30, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            decoded = json.JSONDecoder().raw_decode(process.stdout.lstrip())[0]
+            local = decoded["result"] if decoded.get("schema") == "formalspecgen-cli-result-v1" else decoded
+            if process.returncode != (0 if expected == ready else 1) or semantic(local) != semantic(result):
+                raise RuntimeError(f"CLI/MCP preflight differs: {variant}: {local}")
+            if local["workflow_result"]["request"] != result["workflow_result"]["request"]:
+                raise RuntimeError("CLI/MCP normalized preflight requests differ")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+        if any(hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest for path, digest in before.items()):
+            raise RuntimeError("preflight changed an input or existing destination")
+        if (output / "collision.json").read_text() != "preserve" or (root / "outside.json").exists():
+            raise RuntimeError("preflight publication escaped or replaced an artifact")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
+                       variants=[name for name, _, _ in cases], inputs_unchanged=True)
+    return observation
+
+
+async def _security_template_observation() -> dict:
+    """Real interfaces over synthetic findings; generated templates are never run."""
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-security-templates-") as directory:
+        workspace = Path(directory)
+        output = workspace / "controlled-output"
+        output.mkdir()
+        (workspace / "Target.java").write_text("public class Target { public int get(int[] a, int i) { return a[i]; } }")
+        cases = []
+        def case(name, status, **changes):
+            args = {"report_path": "report.json", "target": "Target.java", "out_dir": "pocs/" + name}
+            args.update(changes)
+            cases.append((name, args, status))
+        (workspace / "report.json").write_text('[{"cwe":"CWE-125"}]')
+        for cwe in ("125", "89", "22", "502", "190", "476", "78", "798", "79", "326", "732"):
+            report = f"finding-{cwe}.json"
+            (workspace / report).write_text(json.dumps({"findings": [{"cwe": "CWE-" + cwe}]}))
+            case("java-" + cwe, "POCS_GENERATED", report_path=report)
+        for suffix in ("rs", "c", "h", "cpp", "cc"):
+            (workspace / ("Target." + suffix)).write_text("/* Identity fixture; never compiled. */")
+            case(suffix, "POCS_GENERATED", target="Target." + suffix, result_export="results/" + suffix + ".json")
+        case("stdout", "POCS_GENERATED", result_export="-")
+        for name, body, status in [("unsupported", '[{"cwe":"CWE-999"}]', "NO_SUPPORTED_POC"),
+                ("empty", '[]', "NO_SUPPORTED_POC"), ("malformed", '{', "SECURITY_TEMPLATE_FAILED"),
+                ("duplicate", '{"findings":[],"findings":[]}', "SECURITY_TEMPLATE_FAILED")]:
+            (workspace / (name + ".json")).write_text(body)
+            case(name, status, report_path=name + ".json")
+        case("missing", "SECURITY_TEMPLATE_FAILED", report_path="missing.json")
+        case("denied", "SECURITY_TEMPLATE_FAILED", report_path="../outside.json")
+        case("denied-output", "SECURITY_TEMPLATE_FAILED", out_dir="../outside")
+        (workspace / "symlink.java").symlink_to(workspace / "Target.java")
+        case("symlink", "SECURITY_TEMPLATE_FAILED", target="symlink.java")
+        (workspace / "Large.java").write_bytes(b" " * (4 * 1024 * 1024 + 1))
+        case("byte-limit", "SECURITY_TEMPLATE_FAILED", target="Large.java")
+        (workspace / "unsupported.txt").write_text("not a supported language")
+        case("language", "SECURITY_TEMPLATE_FAILED", target="unsupported.txt")
+        for root in (workspace, output):
+            (root / "pocs/collision").mkdir(parents=True)
+            (root / "pocs/collision/OutOfBoundsPoC1.java").write_text("preserve template")
+            (root / "existing.json").write_text("preserve export")
+        case("collision", "SECURITY_TEMPLATE_FAILED")
+        case("export-collision", "RESULT_EXPORT_FAILED", result_export="existing.json")
+        before = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in workspace.rglob("*") if path.is_file()}
+        initialized, tools, schema, results = await _call_tool(workspace, "security_exploit",
+            [args for _, args, _ in cases], environment={"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output),
+                                                       "FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"})
+        if set(schema["properties"]) != {"report_path", "target", "out_dir", "result_export"}:
+            raise RuntimeError("unexpected template generator schema")
+        def semantic(value):
+            result = {key: item for key, item in value.items()
+                      if key not in {"workflow_result", "mcp_admission", "publication", "result_export", "message"}}
+            result["generated"] = [{key: item for key, item in entry.items() if key not in {"file", "publication_key"}}
+                                   for entry in value["generated"]]
+            return result
+        comparisons, validations = [], []
+        for (variant, args, expected), result in zip(cases, results):
+            if (result["status"] != expected or result["request_satisfied"] != (expected == "POCS_GENERATED")
+                    or result["claim"] != "NO_PROOF" or result["executed"] or result["exploit_proven"]):
+                raise RuntimeError(f"incorrect template outcome: {variant}: {result}")
+            for entry in result.get("input_manifest", []):
+                if hashlib.sha256(Path(entry["path"]).read_bytes()).hexdigest() != entry["sha256"]:
+                    raise RuntimeError("template input digest mismatch")
+            for publication in (result.get("publication", {}), result.get("result_export", {})):
+                for key, entry in publication.get("artifacts", {}).items():
+                    content = Path(entry["path"]).read_bytes()
+                    if hashlib.sha256(content).hexdigest() != entry["sha256"]:
+                        raise RuntimeError("template publication digest mismatch")
+                    validations.append({"variant": variant, "artifact": key, "sha256": entry["sha256"]})
+            for entry in result["generated"]:
+                if entry["file"] != result["publication"]["artifacts"][entry["publication_key"]]["path"]:
+                    raise RuntimeError("template reference is not its published path")
+            if result.get("result_export", {}).get("status") == "COMMITTED":
+                exported = next(iter(result["result_export"]["artifacts"].values()))
+                saved = json.loads(Path(exported["path"]).read_text())
+                if saved["generated"] != result["generated"] or semantic(saved) != semantic(result):
+                    raise RuntimeError("exported template references or outcome differ")
+            if variant in {"denied", "denied-output"}:
+                continue
+            command = [sys.executable, "-m", "pipeline.cli", "security-exploit", args["report_path"],
+                       args["target"], "--out-dir", args["out_dir"]]
+            if "result_export" in args:
+                command += ["--json", args["result_export"]]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command,
+                cwd=workspace, text=True, capture_output=True, timeout=30, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            decoded = json.JSONDecoder().raw_decode(process.stdout.lstrip())[0]
+            local = decoded["result"] if decoded.get("schema") == "formalspecgen-cli-result-v1" else decoded
+            if (process.returncode != (0 if expected == "POCS_GENERATED" else 1)
+                    or semantic(local) != semantic(result)
+                    or local["workflow_result"]["request"] != result["workflow_result"]["request"]):
+                raise RuntimeError(f"CLI/MCP template semantics differ: {variant}: {local}")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+        if any(hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest for path, digest in before.items()):
+            raise RuntimeError("template workflow replaced an input or existing output")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
+                       variants=[name for name, _, _ in cases], inputs_unchanged=True)
+    return observation
+
+
 _ADAPTERS = {
+    "security-exploit": _security_template_observation,
+    "verify-bisimulation": _bisimulation_observation,
+    "worker": _worker_observation,
     "run": _run_observation,
     "capabilities": _capabilities_observation,
     "evidence": _evidence_observation,

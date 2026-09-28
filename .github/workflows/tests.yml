@@ -76,6 +76,18 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
         run: python -m pytest --no-cov -q tests/test_run_reader.py::test_real_run_read_transport
+      - name: Read worker artifact references over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+        run: python -m pytest --no-cov -q tests/test_worker_queries.py::test_real_worker_artifact_transport
+      - name: Bounded mapping preflight over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+        run: python -m pytest --no-cov -q tests/test_bisimulation_workflow.py::test_real_bisimulation_transport
+      - name: Review-only security templates over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+        run: python -m pytest --no-cov -q tests/test_security_template_workflow.py::test_real_security_template_transport
       - name: Check pinned GitHub Pages publication
         run: python scripts/generate_pages_companions.py --check
       - name: Verify refactor-mode CLI contract
@@ -200,6 +212,9 @@ jobs:
           --require-complete evidence
           --require-complete capabilities
           --require-complete run
+          --require-complete worker
+          --require-complete verify-bisimulation
+          --require-complete security-exploit
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -231,6 +246,8 @@ jobs:
       RUSTC_BIN: /usr/bin/rustc
       PRUSTI_BIN: ${{ github.workspace }}/tools/prusti/prusti-rustc
       CC_BIN: /usr/bin/gcc
+      TLC_JAR: ${{ github.workspace }}/tools/tla2tools.jar
+      TLC_SHA256: "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
     steps:
       - uses: actions/checkout@v4
       - name: Configure runner-local verifier paths
@@ -257,6 +274,13 @@ jobs:
             esbmc gnupg rustc z3
           python -m pip install --upgrade pip -r requirements-dev.txt \
             -r requirements-mcp.txt -e .
+      - name: Download and verify pinned TLC jar
+        run: |
+          mkdir -p tools
+          curl --fail --location --retry 3 \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar \
+            --output "$TLC_JAR"
+          echo "$TLC_SHA256  $TLC_JAR" | sha256sum --check --strict
       - name: Cache pinned OpenJML bundle
         id: openjml-cache
         uses: actions/cache@v4
@@ -386,6 +410,9 @@ jobs:
             --command evidence \
             --command capabilities \
             --command run \
+            --command worker \
+            --command verify-bisimulation \
+            --command security-exploit \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

@@ -704,16 +704,23 @@ def command_security_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_security_exploit(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .security_poc import generate_pocs
-
-    result = generate_pocs(args.report, args.target, args.out_dir)
-    _write_json(
-        result, args.json or str(Path(args.out_dir) / "poc-verdict.json"), ui.console
-    )
+    from .security_template_workflow import SECURITY_TEMPLATE_BUDGET, run_security_template_workflow
+    from .workflow_contracts import SecurityTemplateWorkflowRequest, WorkflowContext
+    request = SecurityTemplateWorkflowRequest(args.report, args.target, args.out_dir, args.json)
+    source_root = Path(os.path.commonpath([Path(request.report_path).parent, Path(request.target).parent]))
+    destination = Path(request.out_dir).expanduser().absolute()
+    export = Path(request.effective_export).expanduser().absolute() if request.effective_export else None
+    output_root = Path(os.path.commonpath([destination.parent, export.parent])) if export else destination.parent
+    context = WorkflowContext.for_cli(request.required_effects(), workspace_root=source_root,
+        output_root=output_root, resource_budget=SECURITY_TEMPLATE_BUDGET)
+    result = run_security_template_workflow(request, context, output_root=output_root,
+        artifact_dir=str(destination.relative_to(output_root)),
+        export_key=str(export.relative_to(output_root)) if export else None)
+    _write_json(result, "-" if args.json == "-" else None, ui.console)
     ui.console.print(
         f"Status: {result['status']}\nGenerated PoCs: {len(result.get('generated', []))}"
     )
-    return 0 if result["status"] == "POCS_GENERATED" else 1
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_remediate(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -766,15 +773,23 @@ def command_correct_behavior(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_verify_bisimulation(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .bisimulation import verify_bisimulation_inputs
-
-    result = verify_bisimulation_inputs(args.baseline, args.refactored, args.mapping)
-    _write_json(result, args.json, ui.console)
+    from .bisimulation_workflow import BISIMULATION_BUDGET, BisimulationWorkflowRequest, run_bisimulation_workflow
+    from .workflow_contracts import WorkflowContext
+    request = BisimulationWorkflowRequest(args.baseline, args.refactored, args.mapping,
+                                         result_export_path(args.json))
+    root = Path(os.path.commonpath([Path(value).parent for value in
+                                  (request.baseline, request.refactored, request.mapping)]))
+    output = Path(request.result_export).expanduser().absolute() if request.result_export is not None else None
+    context = WorkflowContext.for_cli(request.required_effects(), workspace_root=root,
+        output_root=output.parent if output else None, resource_budget=BISIMULATION_BUDGET)
+    result = run_bisimulation_workflow(request, context,
+        output_root=output.parent if output else None, export_key=output.name if output else None)
+    _write_json(result, "-" if args.json == "-" else None, ui.console)
     ui.console.print(
         f"[{'green' if result['status'] == 'BISIMULATION_PREFLIGHT_READY' else 'red'}]"
         f"{result['status']}[/]"
     )
-    return 0 if result["status"] == "BISIMULATION_PREFLIGHT_READY" else 1
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -1197,6 +1212,23 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     if result.get("document"):
         ui.console.print(f"Document: {result['document']}")
     return 0 if result["status"] == "DOCUMENTED" else 1
+
+
+def command_worker(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .a2a_coordination import A2ACoordinationError
+    from .worker_queries import WorkerArtifactsRequest, read_worker_artifacts
+    from .workflow_contracts import WorkflowContext
+    try:
+        request = WorkerArtifactsRequest(args.work_item_id)
+        worker = read_worker_artifacts(request, WorkflowContext.for_cli(request.required_effects()))
+        result = {"status": "WORKER_ARTIFACTS_READ", "claim": "NO_PROOF", "request_satisfied": True,
+                  "workflow_request": request.as_dict(), "worker_result": worker}
+    except (A2ACoordinationError, ValueError, OSError) as exc:
+        result = {"status": "WORKER_ARTIFACTS_READ_FAILED", "claim": "NO_PROOF", "request_satisfied": False,
+                  "code": exc.code if isinstance(exc, A2ACoordinationError) else "invalid_request",
+                  "message": str(exc)}
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_run(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -2440,6 +2472,10 @@ def build_parser(
     )
     common.add_argument("--model")
 
+    worker = sub.add_parser("worker", help="read stored worker artifact references; never download or accept them")
+    worker.add_argument("operation", choices=["artifacts"])
+    worker.add_argument("work_item_id", help="principal-owned worker assignment identifier")
+    worker.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured result on stdout only")
     run = sub.add_parser("run", help="read an existing supervised run; never resume or retry it")
     run.add_argument("operation", choices=["show"])
     run.add_argument("run_id", help="principal-owned supervised run identifier")
@@ -3134,6 +3170,8 @@ def _dispatch(
         return command_capabilities(args, ui)
     if args.command == "run":
         return command_run(args, ui)
+    if args.command == "worker":
+        return command_worker(args, ui)
     if args.command == "evidence":
         return command_evidence(args, ui)
     plugin_handler = getattr(args, "_plugin_handler", None)

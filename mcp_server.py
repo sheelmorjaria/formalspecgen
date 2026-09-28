@@ -127,22 +127,8 @@ def _operator_controlled_path(variable: str, *, require_file: bool = False) -> P
 
 def _configured_a2a_coordinator(*, create_state: bool):
     """Build the coordinator exclusively from server-side configuration."""
-    from pipeline.a2a_coordination import (
-        A2ACoordinator,
-        CoordinationPolicy,
-        OfficialA2AWorkerClient,
-        TaskStore,
-    )
-
-    policy_path = _operator_controlled_path(
-        "FORMALSPECGEN_A2A_POLICY", require_file=True)
-    state_root = _operator_controlled_path("FORMALSPECGEN_A2A_STATE_ROOT")
-    return A2ACoordinator(
-        CoordinationPolicy.load(policy_path),
-        TaskStore(state_root, create=create_state),
-        OfficialA2AWorkerClient(),
-        project_root=Path.cwd(),
-    )
+    from pipeline.worker_queries import configured_worker_coordinator
+    return configured_worker_coordinator(create_state=create_state)
 
 
 def _a2a_principal() -> str:
@@ -922,12 +908,25 @@ def security_inspect(source: str) -> dict[str, Any]:
 
 
 def security_exploit(report_path: str, target: str,
-                     out_dir: str = "security-pocs") -> dict[str, Any]:
+                     out_dir: str = "security-pocs", result_export: str | None = None) -> dict[str, Any]:
     """Generate review-only PoC source templates from an inspection report."""
-    from pipeline.security_poc import generate_pocs as run_pocs
-    return _guarded(lambda: run_pocs(
-        _workspace_path(report_path), _workspace_path(target),
-        _workspace_path(out_dir, must_exist=False)))
+    from pipeline.security_template_workflow import SECURITY_TEMPLATE_BUDGET, run_security_template_workflow
+    from pipeline.workflow_contracts import SecurityTemplateWorkflowRequest
+    try:
+        request = SecurityTemplateWorkflowRequest(report_path, target, out_dir, result_export)
+        admission = authorize_mcp_invocation("security_exploit", mode="templates", language="text",
+            backend="builtin-poc-templates", effects=request.required_effects())
+        if not admission.admitted:
+            return admission.rejection()
+        root = _designated_mcp_output_root()
+        context = WorkflowContext.for_mcp(admission, request.required_effects(), output_root=root,
+            resource_budget=SECURITY_TEMPLATE_BUDGET)
+        return run_security_template_workflow(request, context, output_root=root,
+            artifact_dir=out_dir, export_key=request.effective_export)
+    except (OSError, ValueError, RuntimeError, MCPPolicyViolation) as exc:
+        return {"status": "SECURITY_TEMPLATE_FAILED", "claim": "NO_PROOF", "request_satisfied": False,
+            "code": getattr(exc, "code", "INVALID_INPUT"), "message": str(exc), "generated": [],
+            "exploit_proven": False, "executed": False, "review_status": "unreviewed"}
 
 
 def remediate_code(target: str, report: str, out_dir: str = "remediated",
@@ -1327,11 +1326,24 @@ def verify_refactor(
             failed, request, WorkflowInterface.MCP, context=context)
 
 
-def verify_bisimulation(baseline: str, refactored: str, mapping: str) -> dict[str, Any]:
+def verify_bisimulation(baseline: str, refactored: str, mapping: str,
+                       result_export: str | None = None) -> dict[str, Any]:
     """Validate a bisimulation preflight mapping without claiming equivalence."""
-    from pipeline.bisimulation import verify_bisimulation_inputs as run_bisimulation
-    return _guarded(lambda: run_bisimulation(
-        _workspace_path(baseline), _workspace_path(refactored), _workspace_path(mapping)))
+    from pipeline.bisimulation_workflow import BISIMULATION_BUDGET, BisimulationWorkflowRequest, run_bisimulation_workflow
+    try:
+        request = BisimulationWorkflowRequest(baseline, refactored, mapping, result_export)
+        admission = authorize_mcp_invocation("verify_bisimulation", mode="preflight", language="text",
+            backend="builtin-mapping-preflight", effects=request.required_effects())
+        if not admission.admitted:
+            return admission.rejection()
+        output_root = _designated_mcp_output_root() if result_export is not None else None
+        context = WorkflowContext.for_mcp(admission, request.required_effects(),
+            output_root=output_root, resource_budget=BISIMULATION_BUDGET)
+        return run_bisimulation_workflow(request, context, output_root=output_root, export_key=result_export)
+    except (OSError, ValueError, MCPPolicyViolation) as exc:
+        return {"status": "BISIMULATION_INPUT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": getattr(exc, "code", "INVALID_INPUT"), "message": str(exc),
+                "behavior_equivalence_proved": False, "heap_topology_equivalence_proved": False}
 
 
 def optimize_algorithm(source: str, out: str, strategy: str,
@@ -1675,6 +1687,7 @@ def get_work_item(
 
 def get_work_artifacts(work_item_id: str) -> dict[str, Any]:
     """Return digest-bound worker artifact references, never implicit files."""
+    from pipeline.worker_queries import WorkerArtifactsRequest, read_worker_artifacts
     admission = authorize_mcp_invocation(
         "get_work_artifacts", mode="artifacts", language="none",
         backend="a2a-1.0", effects=("service_state_read",))
@@ -1682,19 +1695,12 @@ def get_work_artifacts(work_item_id: str) -> dict[str, Any]:
         return admission.rejection()
     try:
         require_mcp_effect(admission, "service_state_read")
+        request = WorkerArtifactsRequest(work_item_id)
         coordinator = _configured_a2a_coordinator(create_state=False)
-        result = coordinator.artifacts(work_item_id, _a2a_principal())
-        inconsistent = result.get("coordination_status") == "inconsistent"
-        return {
-            **result,
-            "status": ("COORDINATION_INCONSISTENT" if inconsistent
-                       else result["status"]),
-            "claim": "NO_PROOF",
-            "request_satisfied": not inconsistent,
-            "coordination_inconsistent": inconsistent,
-            "implementation_accepted": False,
-            "mcp_admission": admission.summary(),
-        }
+        result = read_worker_artifacts(request,
+            WorkflowContext.for_mcp(admission, request.required_effects()),
+            coordinator=coordinator, principal=_a2a_principal())
+        return {**result, "mcp_admission": admission.summary()}
     except Exception as exc:
         return _coordination_error(exc)
 

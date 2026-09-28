@@ -7,6 +7,7 @@ when required, a missing isolation primitive is a test failure rather than a ski
 from __future__ import annotations
 
 import os
+import hashlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -17,6 +18,8 @@ from pipeline.execution import (
     ExecutionPolicy, ExecutionRequest, SourceSnapshot, StrictSandboxExecutor,
 )
 from pipeline.polyglot_runtime import collect_polyglot_runtime_evidence
+from pipeline.isolated_tlc import TlcModelRequest, run_isolated_tlc
+from pipeline.workflow_contracts import WorkflowContext
 
 
 REQUIRED = os.environ.get("FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE") == "1"
@@ -40,6 +43,49 @@ def executor():
         "acceptance process must start inside the delegated parent cgroup"
     return StrictSandboxExecutor(
         sandbox_binary=bwrap, prlimit_binary=prlimit, cgroup_root=root)
+
+
+@pytest.mark.parametrize("valid", [True, False])
+def test_tlc_captured_model_and_counterexample_in_real_sandbox(executor, tmp_path, valid):
+    from pipeline import config
+
+    jar = Path(config.TLC_JAR)
+    assert jar.is_file(), "pinned TLC jar is required by the acceptance profile"
+    tla = """---- MODULE Counter ----
+EXTENDS Naturals
+VARIABLE x
+Init == x = 0
+Next == x' = IF x = 0 THEN 1 ELSE 0
+TypeOK == x \\in 0..BOUND
+Spec == Init /\\ [][Next]_x
+====
+""".replace("BOUND", "1" if valid else "0")
+    cfg = "SPECIFICATION Spec\nINVARIANT TypeOK\n"
+    result = run_isolated_tlc(
+        TlcModelRequest("Counter", tla, cfg),
+        WorkflowContext.for_cli(("external_execution",), workspace_root=tmp_path),
+        executor=executor)
+    assert result["status"] == ("TLC_MODEL_CHECK_PASSED" if valid else "TLC_FAILED"), result
+    assert result["request_satisfied"] is valid
+    assert result["model_check_passed"] is valid
+    assert result["claim"] == "NO_PROOF"
+    assert result["version"]
+    observations = result["execution_observations"]
+    assert len(observations) == 2
+    for observation in observations:
+        assert observation["policy_compliance"] == "ENFORCED"
+        assert observation["snapshot_manifest_sha256"] == result["snapshot_manifest_sha256"]
+        assert list(observation["snapshot_files"]) == result["snapshot_manifest"]
+        assert str(jar) not in observation["command"]
+        assert "/input/tool/tla2tools.jar" in observation["command"]
+        assert not observation["timed_out"] and not observation["output_truncated"]
+    expected = {"Counter.tla": tla.encode(), "Counter.cfg": cfg.encode(),
+                "tool/tla2tools.jar": jar.read_bytes()}
+    assert {item["path"]: item["sha256"] for item in result["snapshot_manifest"]} == {
+        name: hashlib.sha256(data).hexdigest() for name, data in expected.items()}
+    if not valid:
+        assert observations[1]["exit_code"] != 0
+        assert "Invariant TypeOK is violated" in observations[1]["output"]
 
 
 @pytest.mark.parametrize(("language", "compiler", "code", "test_code"), [

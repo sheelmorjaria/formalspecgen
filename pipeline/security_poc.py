@@ -73,7 +73,25 @@ def inspect_security(source: str | Path) -> dict[str, Any]:
             "scope": "Pattern findings and formal counterexample labels only; no exploit execution."}
 
 
-def _poc_for(finding: dict[str, Any], target: Path, index: int) -> tuple[str, str] | None:
+def _template_method(source: str) -> str:
+    """Linear lexical hint, not a Java parser or a validated invocation."""
+    words = None
+    for match in re.finditer(r"[(){};]|\w+", source):
+        token = match.group()
+        if token in {"public", "protected"}:
+            words = []
+        elif token in {"(", ")", "{", "}", ";"}:
+            if token == "(" and words is not None and len(words) >= 2:
+                return words[-1]
+            words = None
+        elif words is not None:
+            # Only the count (capped at two) and last identifier are needed.
+            words = (words + [token])[-2:]
+    return "get"
+
+
+def _poc_for(finding: dict[str, Any], target: Path, index: int,
+             *, source_text: str | None = None) -> tuple[str, str] | None:
     cwe, kind = finding.get("cwe"), finding.get("type")
     if target.suffix.lower() == ".rs" and cwe == "CWE-125":
         return (f"out_of_bounds_poc_{index}",
@@ -86,11 +104,10 @@ def _poc_for(finding: dict[str, Any], target: Path, index: int) -> tuple[str, st
                 "int main(void) { int values[1] = {1}; size_t index = 1;\n"
                 "    /* Review-only harness: bounds violation is intentionally not executed. */\n"
                 "    assert(index >= sizeof(values) / sizeof(values[0])); return 0; }\n")
-    class_name = re.search(r"\bclass\s+(\w+)", target.read_text(encoding="utf-8"))
-    source = target.read_text(encoding="utf-8")
+    source = target.read_text(encoding="utf-8") if source_text is None else source_text
+    class_name = re.search(r"\bclass\s+(\w+)", source)
     subject = class_name.group(1) if class_name else target.stem
-    method_match = re.search(r"\b(?:public|protected)\s+[^(){};]+\s+(\w+)\s*\([^)]*\)", source)
-    method = method_match.group(1) if method_match else "get"
+    method = _template_method(source)
     if cwe == "CWE-125" or "INDEX" in str(finding.get("vc", "")).upper():
         name = f"OutOfBoundsPoC{index}"
         code = ("import static org.junit.jupiter.api.Assertions.assertThrows;\n"

@@ -1,5 +1,100 @@
 # Strict MCP admission guide
 
+## TLC execution infrastructure (not workflow admission)
+
+`pipeline.isolated_tlc.run_isolated_tlc` accepts a typed generated-model request
+and an explicit `external_execution` context. Operator-configured Java and TLC
+paths are not model-selectable fields. It captures the jar (32 MiB maximum) and
+the generated TLA/CFG pair (4 MiB aggregate maximum) into one snapshot, then
+runs help/provenance and model checking through `StrictSandboxExecutor` against
+those same bytes. Jar capture is bounded and rejects symlinks and nonregular
+files. The workspace is not mounted; only the snapshot and runtime are supplied.
+External model imports are not supported by this adapter.
+
+Both actual observations, all three input digests, the snapshot manifest,
+resolved invocation, version banner, requested/enforced resource policies and
+authority summary remain available on failure as well as success. Resource
+budgets can only lower adapter ceilings. The 120-second elapsed allowance and
+1 MiB output allowance are shared across both stages; the provenance stage has
+an additional 10-second ceiling. Per-stage ceilings are 2 GiB memory, 64 tasks,
+64 MiB per file, 128 MiB working storage and 64 MiB temporary storage. These are
+execution limits, not a provider or monetary consumption ledger.
+
+A successful help command may exit 0 or 1 with a recognizable TLC banner.
+Model checking requires enforced isolation, an untruncated normal zero exit and
+TLC's completed/no-error marker. Missing prerequisites, resource failures or
+inadequate output fail closed without an unrestricted runner fallback.
+`TLC_MODEL_CHECK_PASSED` / `model_check_passed=true` is deliberately still
+`claim=NO_PROOF`: this infrastructure result does not establish source/model
+correspondence, reviewed assumptions, specification adequacy or published
+evidence. Its `request_satisfied` refers only to this model-check request.
+
+Legacy domain and architecture callers are **not yet migrated or admitted**.
+Their source capture, static exploration, model correspondence, publication and
+interface acceptance remain separate work. No new CLI/MCP command or completion
+is counted for this adapter. The provisioned sandbox CI job requires real TLC
+success and invariant-failure cases using a digest-pinned jar; mocked unit tests
+are not backend acceptance evidence.
+
+## Review-only security templates
+
+CLI `security-exploit` and MCP `security_exploit(report_path, target,
+out_dir="security-pocs", result_export=None)` share a typed service requiring
+workspace reads and new-artifact writes. There is no scanner, compiler,
+provider, network, template execution, or approval authority.
+
+Capture is no-follow and bounded to 4 MiB across two regular UTF-8 inputs,
+32 path components and 256 findings. JSON lists and objects with a `findings`
+list are accepted; malformed entries, duplicate keys and non-finite values are
+rejected. Target bytes multiplied by finding count must fit a 16 MiB lexical
+matching allowance; matching uses captured text and a linear method-name hint.
+The output allowance is 8 MiB across templates and the optional result export.
+
+Java retains its existing template families. Native `.rs`, `.c`, `.h`, `.cpp`
+and `.cc` inputs support the existing CWE-125 bounds template only; other
+findings are explicitly unsupported, not Java code mislabeled as native code.
+All generated files remain unreviewed and unexecuted, with `claim=NO_PROOF` and
+`exploit_proven=false`. Findings are untrusted assertions and their relationship
+to the supplied target is not authenticated. Mixed supported/unsupported
+reports can produce templates while retaining the unsupported finding list.
+
+The default export is `<out_dir>/poc-verdict.json`. An explicit `result_export`
+selects another authorized new path; `"-"` suppresses file export, matching CLI
+JSON stdout. MCP roots remain operator-controlled. Publication metadata supplies
+the returned file paths and digests before verdict serialization. All writes
+are no-replace; aliases and unsafe paths fail closed, and publication failures
+leave the request unsatisfied. An export failure may leave already-published
+templates intact. No result constitutes exploit confirmation or acceptance.
+
+## Bounded bisimulation preflight
+
+CLI `verify-bisimulation` and MCP `verify_bisimulation(baseline, refactored,
+mapping, result_export=None)` share typed requests, bounded capture and optional
+no-replace publication. The profile permits workspace reads and separately
+requested new-artifact writes, never external execution or provider access.
+
+The combined baseline, mapping and candidate allowance is 4 MiB and 256 files.
+Paths are limited to 32 components under the authorized root, with no-follow
+descriptor opens and regular-file checks. A candidate directory is scanned
+incrementally up to 4,096 entries and includes only sorted top-level `.java`
+files. A single candidate is UTF-8 text. Duplicate JSON mapping keys are
+rejected. Matching consumes the captured bytes, not reopened source paths.
+Role/path/size/digest manifests identify every input and collaborator.
+
+`BISIMULATION_PREFLIGHT_READY` means only that mapping class names occur and
+legacy lexical public-method signatures match. This is not a Java parser or a
+contract/equivalence prover. The legacy `contract_surface_preserved` field
+reports lexical signature agreement only. Every outcome remains `NO_PROOF`,
+with behavioral and heap-topology equivalence explicitly false.
+
+CLI `--json -` is stdout; other filenames and MCP `result_export` use controlled
+no-replace publication. MCP resolves exports beneath its operator-configured
+workspace output root. Negative results may be exported when that destination
+is authorized; invalid/aliased destinations or denied write permission cannot
+be exported. Publication failure leaves the request unsatisfied without
+replacing any source, candidate or existing artifact. Admission is not
+revision-bound workflow completion.
+
 Strict MCP exposes invocation profiles, not whole commands. A profile is the combination of a
 command, mode, language, backend, provider policy, workspace effects, and evidence behavior that
 has completed admission testing. An unlisted combination fails before side effects with
@@ -131,8 +226,9 @@ capture limits are 8 MiB, 514 files, 4096 traversal entries, and depth 32;
 matching has a weighted operation budget and combined outputs have an 8 MiB
 limit. Neither providers nor subprocesses are authorized.
 
-The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
-alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and
+Submission, refresh and cancellation remain MCP-only coordination capabilities.
+The local `get_work_artifacts` query also maps to `worker artifacts`, included in
+the current generated CLI denominator; admission is not completion. Their policy and
 append-only state live outside the agent workspace. Endpoint, Agent Card digest, principal,
 credentials, path ceilings, workflow allowlists, and budgets are operator-controlled. See
 [A2A_COORDINATION.md](A2A_COORDINATION.md). The provisioned A2A job exercises both the official

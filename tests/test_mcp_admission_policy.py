@@ -148,7 +148,7 @@ def test_registry_rejects_incoherent_profile_permissions(
 def test_every_strict_capability_has_visible_invocation_profiles():
     strict = mcp_capabilities(strict_isolation=True)
     assert {item.name for item in strict} == {
-        "inspect_evidence", "describe_capabilities",
+        "inspect_evidence", "describe_capabilities", "verify_bisimulation", "security_exploit",
         "verify_code", "inspect_code", "document_code",
         "analyze_codebase", "generate_traceability_matrix",
         "submit_work_item", "get_work_item", "get_work_artifacts",
