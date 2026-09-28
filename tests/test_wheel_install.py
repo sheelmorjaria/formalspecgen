@@ -309,6 +309,121 @@ def test_installed_evidence_interfaces(installed_wheel, tmp_path, interface):
 
 
 @pytest.mark.parametrize("interface", ["cli", "mcp"])
+def test_installed_project_interfaces(installed_wheel, tmp_path, interface):
+    if interface == "mcp" and os.environ.get("FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE") != "1":
+        pytest.skip("requires installed MCP acceptance")
+    target, _, environment = installed_wheel
+    script = r'''
+import asyncio, hashlib, json, os, subprocess, sys
+from pathlib import Path
+root = Path(os.environ["PYTHONPATH"]).resolve()
+guard = """
+import sys
+from pathlib import Path
+import mcp_server
+import pipeline.project_planning
+import pipeline.cli
+root = Path(__import__('os').environ['PYTHONPATH']).resolve()
+for name, module in tuple(sys.modules.items()):
+    if name == 'mcp_server' or name.split('.')[0] in ('pipeline', 'formalspec_core'):
+        location = getattr(module, '__file__', None)
+        if location:
+            assert Path(location).resolve().is_relative_to(root), (name, location)
+"""
+exec(guard)
+Path("src").mkdir()
+Path("lib").mkdir()
+Path("src/S.java").write_text("class S {}\n")
+Path("lib/S.java").write_text("class S {} // dependency\n")
+document = {"schema": "formalspecgen-project-v1", "targets": [
+    {"name": "app", "sources": ["src/S.java"], "depends_on": ["base"], "workflows": [
+        {"capability": "verify_code", "profile": "java-openjml-verification"}]},
+    {"name": "base", "sources": ["lib/S.java"], "workflows": [
+        {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
+Path("project.json").write_text(json.dumps(document))
+document["targets"][0]["workflows"][0]["profile"] = "unavailable"
+Path("blocked.json").write_text(json.dumps(document))
+Path("invalid.json").write_text('{"schema":1,"schema":2}')
+Path("oversize.json").write_bytes(b" " * (4 * 1024**2 + 1))
+Path("linked.json").symlink_to("project.json")
+cases = [
+    ({"manifest": "project.json"}, "PROJECT_VALIDATED"),
+    ({"manifest": "project.json", "operation": "plan"}, "PROJECT_PLANNED"),
+    ({"manifest": "project.json", "operation": "plan", "target": "base"}, "PROJECT_PLANNED"),
+    ({"manifest": "blocked.json", "operation": "plan"}, "PROJECT_BLOCKED"),
+    ({"manifest": "invalid.json"}, "PROJECT_INVALID"),
+    ({"manifest": "missing.json"}, "PROJECT_INVALID"),
+    ({"manifest": "../outside.json"}, "PROJECT_INVALID"),
+    ({"manifest": "oversize.json"}, "PROJECT_INVALID"),
+    ({"manifest": "linked.json"}, "PROJECT_INVALID"),
+]
+def snapshot():
+    return {str(p): ("symlink", os.readlink(p)) if p.is_symlink() else
+            ("file", hashlib.sha256(p.read_bytes()).hexdigest()) if p.is_file() else ("directory",)
+            for p in Path.cwd().rglob("*")}
+before = snapshot()
+local = []
+bindings = 0
+for arguments, status in cases:
+    command = [str(root / "bin/formalspecgen"), "project", arguments.get("operation", "validate"),
+               arguments["manifest"], "--json", "-"]
+    if "target" in arguments:
+        command += ["--target", arguments["target"]]
+    process = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    satisfied = status in {"PROJECT_VALIDATED", "PROJECT_PLANNED"}
+    assert process.returncode == (0 if satisfied else 1), (arguments, process.stderr)
+    envelope = json.loads(process.stdout)
+    assert envelope["schema"] == "formalspecgen-cli-result-v1"
+    assert envelope["operation_satisfied"] is satisfied
+    result = envelope["result"]
+    assert result["status"] == status and result["request_satisfied"] is satisfied
+    assert result["claim"] == "NO_PROOF" and not result["invocation_authorized"]
+    assert result["readiness"] == result["assurance"] == result["contract_approval"] == "NOT_ASSESSED"
+    for item in result["inputs"]:
+        content = Path(item["path"]).read_bytes()
+        assert item["size"] == len(content) and item["sha256"] == hashlib.sha256(content).hexdigest()
+        bindings += 1
+    if "inputs_sha256" in result:
+        canonical = json.dumps(result["inputs"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        assert result["inputs_sha256"] == hashlib.sha256(canonical).hexdigest()
+    local.append(result)
+assert local[1]["targets"] == ["base", "app"] and len(local[1]["steps"]) == 2
+assert local[2]["targets"] == ["base"] and local[2]["unselected_targets"] == ["app"]
+assert any(f["blocking"] for f in local[3]["findings"])
+
+async def transport():
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    parameters = StdioServerParameters(command=sys.executable,
+        args=["-c", guard + "\nmcp_server.create_server().run()"], cwd=str(Path.cwd()), env=dict(os.environ))
+    async with stdio_client(parameters) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tool = next(t for t in (await session.list_tools()).tools if t.name == "inspect_project")
+            assert set(tool.inputSchema["properties"]) == {"manifest", "operation", "target"}
+            for (arguments, _), expected in zip(cases, local):
+                response = await session.call_tool("inspect_project", arguments)
+                assert not response.isError
+                actual = response.structuredContent
+                assert actual["mcp_admission"]["granted_effects"] == ["workspace_read"]
+                assert {k: v for k, v in actual.items() if k != "mcp_admission"} == expected
+
+remote = sys.argv[1] == "mcp"
+if remote:
+    asyncio.run(asyncio.wait_for(transport(), timeout=45))
+assert snapshot() == before, "Project inspection changed its workspace"
+print(json.dumps({"cli_calls": len(cases), "mcp_calls": len(cases) if remote else 0,
+                  "input_bindings": bindings, "installed_root": str(root), "read_only": True}))
+'''
+    checked = subprocess.run([sys.executable, "-c", script, interface], cwd=tmp_path,
+        env=environment, capture_output=True, text=True, timeout=120)
+    assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
+    assert json.loads(checked.stdout) == {
+        "cli_calls": 9, "mcp_calls": 9 if interface == "mcp" else 0,
+        "input_bindings": 12, "installed_root": str(target.resolve()), "read_only": True}
+
+
+@pytest.mark.parametrize("interface", ["cli", "mcp"])
 def test_installed_security_template_interfaces(installed_wheel, tmp_path, interface):
     if interface == "mcp" and os.environ.get("FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE") != "1":
         pytest.skip("requires installed MCP acceptance")

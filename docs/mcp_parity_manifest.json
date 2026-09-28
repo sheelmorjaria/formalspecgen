@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "4be5421d3fab7bf0faff5465c99915ed9df768282b7f50819845cae8da646d0d",
+  "plan_sha256": "a01dfc38ae65e08994a1f9b6a53101275283290707b20b817dacc3878dce0f7e",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -10034,6 +10034,9 @@
           "capture-once",
           "denied",
           "identities",
+          "installed-cli",
+          "installed-mcp",
+          "installed-wheel",
           "invalid",
           "limit",
           "malformed-json",
@@ -14486,5 +14489,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "b6c21f9d5348c6f6fc3ed3fd2d07430200fd7723b1e91f0b1874baa33f622768"
+  "sha256": "784988a404901f06c18a2ee21ae1a9f19132ba01897524c2efa9465c6a7f9752"
 }

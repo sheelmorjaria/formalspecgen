@@ -425,6 +425,7 @@ jobs:
       - name: Produce provisioned MCP workflow acceptance evidence
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+          FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE: "1"
         run: |
           echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/runner/cgroup.procs" >/dev/null
           exec python scripts/run_mcp_acceptance.py \

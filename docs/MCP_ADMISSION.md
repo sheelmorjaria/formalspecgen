@@ -26,7 +26,14 @@ do not grant authority, reserve budgets or change admission. The static plan
 is not executable: actual invocation arguments and effects still require their
 own validation and authorization. See the public manual for the JSON schema
 example. Completion requires revision-bound CLI/MCP transport evidence, not
-registration or local unit tests alone.
+registration or local unit tests alone. The completion contract also requires
+the installed-wheel project cases: the installed console entry point and real
+MCP server must agree outside the source checkout. These cases cover validation,
+planning, target selection, unavailable profiles, malformed/missing/out-of-scope
+manifests, input limits and symlink rejection; they check source digests and
+workspace immutability. Wheel build and installation use no package index or
+dependency downloads. Dependencies remain supplied by the provisioned test
+environment, so this is not fresh dependency-resolution or backend qualification.
 
 ## Semgrep execution infrastructure (not workflow admission)
 

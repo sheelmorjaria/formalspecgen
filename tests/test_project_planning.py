@@ -212,3 +212,22 @@ def test_real_project_transport():
     result = collect_transport_observation("project")
     assert result["workspace_unchanged"]
     assert len(result["cli_comparisons"]) == 8
+
+
+def test_completion_requires_installed_project_transport():
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    plan = json.loads((root / "mcpdocs/mcp_parity_plan.json").read_text())
+    project = next(item for item in plan["commands"] if item["cli_command"] == "project")
+    contract = project["completion_contract"]
+    variants = {"installed-wheel", "installed-cli", "installed-mcp"}
+    assert variants <= set(contract["required_variants"])
+    case = next(case for case in contract["acceptance_cases"] if case["test"] ==
+                "tests/test_wheel_install.py::test_installed_project_interfaces")
+    assert case["kind"] == "mcp_transport" and variants <= set(case["variants"])
+    workflow = yaml.safe_load((root / ".github/workflows/tests.yml").read_text())
+    step = next(step for step in workflow["jobs"]["sandbox-acceptance"]["steps"]
+                if step.get("name") == "Produce provisioned MCP workflow acceptance evidence")
+    assert step["env"]["FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE"] == "1"
+    assert "--command project" in step["run"]
