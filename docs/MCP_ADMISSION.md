@@ -1,5 +1,54 @@
 # Strict MCP admission guide
 
+## Semgrep execution infrastructure (not workflow admission)
+
+`pipeline.isolated_semgrep.run_isolated_semgrep` requires explicit workspace-read
+and external-execution authority. Its typed request names one Java/C/C++ source;
+the executable and local rules are operator configuration, not model-proposed
+registry names or URLs. Missing local rules fail without registry fallback.
+Source capture rejects out-of-workspace paths and symlinks. Rules must be a
+regular local file, opened without following a final symlink. Source and rules
+are captured once into one digest-bound snapshot before execution.
+
+The adapter permits at most two files and 4 MiB aggregate input, including at
+most 1 MiB of rules, with 32 source-path components. Execution ceilings are 60
+seconds, 2 GiB memory, 64 processes, 1 MiB output, 64 MiB per file, 128 MiB working
+storage and 64 MiB temporary storage. At most 4,096 findings are normalized.
+Context limits can lower these ceilings. Both inputs remain read-only inside
+`StrictSandboxExecutor`; the original project and user credentials are not
+mounted. No unrestricted execution fallback exists.
+A configured tool root that would expose the workspace or original source is
+rejected before execution; install the scanner in a separate runtime location.
+The runtime also receives the public `/etc/ssl/certs/ca-certificates.crt`
+bundle read-only: the pinned Semgrep initializes its TLS authenticator even with
+metrics and version checks disabled. Neither `/etc/ssl/private` nor the broader
+`/etc` tree is mounted, and network access remains denied.
+
+The invocation uses local `--config`, OSS scanning, disabled metrics/version
+checks, no Git-ignore lookup and no source-comment suppression. It never enables
+autofix, uploads, builds, providers or remote rule discovery. These flags follow
+the [Semgrep CLI reference](https://docs.semgrep.dev/cli-reference); isolation
+independently denies network access. Rule parsing and analysis happen inside
+the resource-controlled process, not in the controller.
+
+`SAST_CLEAN` means no finding from those rules on the captured source, not secure
+code. `SAST_FINDINGS` means the scan completed with reviewable findings. Both
+remain `NO_PROOF`. A zero exit alone is insufficient: structured output must
+identify the exact scanned snapshot path, contain no errors/skips and have valid
+finding locations. Findings are returned with captured relative source paths;
+raw tool output stays in the execution observation. Unknown CWE mappings remain
+explicit. Partial results retain findings but return `SAST_INCOMPLETE` and an
+unsatisfied request; invalid output and isolation failures are distinct failures.
+
+This service does not publish evidence or admit `assess-security` or
+`security-inspect`. Their formal checks, source sets, publication and CLI/MCP
+acceptance remain separate migrations. The provisioned sandbox suite adds real
+Java/C/C++ clean/finding cases, the packaged default rules and malformed-rule
+rejection with Semgrep 1.138.0
+in a dedicated venv; this is a pinned test toolchain, not a claim of full
+dependency-lock or current-version deployment qualification.
+CI retains the actual Semgrep execution observations as separate artifacts.
+
 ## TLC execution infrastructure (not workflow admission)
 
 `pipeline.isolated_tlc.run_isolated_tlc` accepts a typed generated-model request

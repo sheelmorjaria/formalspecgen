@@ -20,6 +20,7 @@ from pipeline.execution import (
 )
 from pipeline.polyglot_runtime import collect_polyglot_runtime_evidence
 from pipeline.isolated_tlc import TlcModelRequest, run_isolated_tlc
+from pipeline.isolated_semgrep import SemgrepScanRequest, run_isolated_semgrep
 from pipeline.workflow_contracts import WorkflowContext
 
 
@@ -94,6 +95,105 @@ Spec == Init /\\ [][Next]_x
     if not valid:
         assert observations[1]["exit_code"] != 0
         assert "Invariant TypeOK is violated" in observations[1]["output"]
+
+
+def _record_semgrep_result(name, result):
+    evidence_root = os.environ.get("FORMALSPECGEN_SEMGREP_ACCEPTANCE_DIR")
+    if evidence_root:
+        destination = Path(evidence_root)
+        destination.mkdir(parents=True, exist_ok=True)
+        with (destination / f"semgrep-{name}.json").open("x") as stream:
+            json.dump(result, stream, indent=2)
+
+
+def _assert_semgrep_snapshot(result, source, rules):
+    expected = {f"source/{source.name}": source.read_bytes(), "rules/rules.yml": rules.read_bytes()}
+    manifest = result["snapshot_manifest"]
+    assert {item["path"]: (item["size"], item["sha256"]) for item in manifest} == {
+        name: (len(content), hashlib.sha256(content).hexdigest()) for name, content in expected.items()}
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    assert hashlib.sha256(canonical).hexdigest() == result["snapshot_manifest_sha256"]
+    observation = result["execution_observations"][0]
+    assert observation["snapshot_manifest_sha256"] == result["snapshot_manifest_sha256"]
+    assert list(observation["snapshot_files"]) == manifest
+    assert observation["policy_compliance"] == "ENFORCED"
+    assert observation["enforced_policy"]["network"] == "denied"
+    assert not observation["timed_out"] and not observation["output_truncated"]
+
+
+@pytest.mark.parametrize("language,suffix", [("java", ".java"), ("c", ".c"), ("cpp", ".cpp")])
+@pytest.mark.parametrize("finding", [False, True])
+def test_semgrep_captured_local_rules_in_real_sandbox(executor, tmp_path, language, suffix, finding):
+    assert shutil.which(os.environ.get("SEMGREP_BIN", "semgrep")), "pinned Semgrep is required"
+    source = tmp_path / ("Scan" + suffix)
+    value = "42" if finding else "7"
+    source.write_text(("class Scan { int value = VALUE; }" if language == "java" else
+                       "int value = VALUE;").replace("VALUE", value))
+    rules = tmp_path / "approved-rules.yml"
+    rules.write_text(f"""rules:
+  - id: fixture-magic-number
+    languages: [{language}]
+    message: review magic number
+    severity: WARNING
+    pattern: '42'
+""")
+    result = run_isolated_semgrep(SemgrepScanRequest(source.name), WorkflowContext.for_cli(
+        ("workspace_read", "external_execution"), workspace_root=tmp_path),
+        rules_path=rules, executor=executor)
+    expected = "SAST_FINDINGS" if finding else "SAST_CLEAN"
+    _record_semgrep_result(f"{language}-{'findings' if finding else 'clean'}", result)
+    assert result["status"] == expected, (
+        result["status"], [item["output"] for item in result["execution_observations"]])
+    assert result["scan_complete"] and result["request_satisfied"]
+    assert result["claim"] == "NO_PROOF"
+    assert bool(result["findings"]) is finding
+    observation = result["execution_observations"][0]
+    assert observation["policy_compliance"] == "ENFORCED"
+    assert observation["snapshot_manifest_sha256"] == result["snapshot_manifest_sha256"]
+    assert str(source) not in observation["command"] and str(rules) not in observation["command"]
+    _assert_semgrep_snapshot(result, source, rules)
+    if finding:
+        assert result["findings"][0]["source"] == source.name
+        assert result["findings"][0]["unmapped_rule_id"]
+
+
+def test_semgrep_invalid_local_rules_cannot_be_clean(executor, tmp_path):
+    source, rules = tmp_path / "Scan.java", tmp_path / "rules.yml"
+    source.write_text("class Scan {}")
+    rules.write_text("rules: [invalid configuration]")
+    result = run_isolated_semgrep(SemgrepScanRequest(source.name), WorkflowContext.for_cli(
+        ("workspace_read", "external_execution"), workspace_root=tmp_path),
+        rules_path=rules, executor=executor)
+    _record_semgrep_result("invalid-rules", result)
+    _assert_semgrep_snapshot(result, source, rules)
+    assert result["execution_observations"]
+    assert result["execution_observations"][0]["policy_compliance"] == "ENFORCED"
+    assert not result["request_satisfied"] and not result["scan_complete"]
+    assert result["status"] in {"SAST_INCOMPLETE", "SAST_INVALID_OUTPUT"}
+    assert result["claim"] == "NO_PROOF"
+
+
+@pytest.mark.parametrize("suffix,content,cwe", [
+    (".java", 'import java.security.MessageDigest;\nclass Scan { Object f() throws Exception { '
+     'return MessageDigest.getInstance("MD5"); } }\n', "CWE-327"),
+    (".c", "#include <stdlib.h>\nvoid f(void *p) { free(p); free(p); }\n", "CWE-415"),
+    (".cpp", "#include <stdlib.h>\nvoid f(void *p) { free(p); free(p); }\n", "CWE-415"),
+])
+def test_semgrep_packaged_default_rules_in_real_sandbox(executor, tmp_path, suffix, content, cwe):
+    from pipeline import config
+    source = tmp_path / ("Scan" + suffix)
+    source.write_text(content)
+    result = run_isolated_semgrep(SemgrepScanRequest(source.name), WorkflowContext.for_cli(
+        ("workspace_read", "external_execution"), workspace_root=tmp_path), executor=executor)
+    _record_semgrep_result(f"default{suffix}", result)
+    _assert_semgrep_snapshot(result, source, config.resource_path(
+        "security", "java_custom.yml" if suffix == ".java" else "c_custom.yml"))
+    assert result["status"] == "SAST_FINDINGS", (
+        result["status"], [item["output"] for item in result["execution_observations"]])
+    assert result["request_satisfied"] and result["scan_complete"]
+    assert cwe in {finding["cwe"] for finding in result["findings"]}
+    assert result["claim"] == "NO_PROOF"
+    assert result["execution_observations"][0]["policy_compliance"] == "ENFORCED"
 
 
 @pytest.mark.parametrize(("language", "compiler", "code", "test_code"), [

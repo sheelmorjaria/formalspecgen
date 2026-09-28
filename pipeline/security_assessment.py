@@ -1,4 +1,8 @@
-"""Security assessment combining formal VC classification with optional Semgrep SAST."""
+"""Legacy security assessment; not an admitted strict MCP workflow.
+
+New isolated SAST callers use ``isolated_semgrep.run_isolated_semgrep``.
+The legacy CLI's formal and publication stages still need shared-service migration.
+"""
 from __future__ import annotations
 
 import json

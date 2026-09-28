@@ -256,6 +256,7 @@ jobs:
           echo "CARGO_HOME=$RUNNER_TEMP/formalspecgen-cargo" >> "$GITHUB_ENV"
           echo "KANI_BIN=$RUNNER_TEMP/kani/kani-${KANI_VERSION}/bin/kani-driver" >> "$GITHUB_ENV"
           echo "FRAMAC_BIN=$RUNNER_TEMP/frama-package/bin/frama-c" >> "$GITHUB_ENV"
+          echo "SEMGREP_BIN=$RUNNER_TEMP/formalspecgen-semgrep/bin/semgrep" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -271,9 +272,13 @@ jobs:
           sudo add-apt-repository --yes ppa:esbmc/esbmc
           sudo apt-get update
           sudo apt-get install --yes bubblewrap build-essential default-jdk-headless \
-            esbmc gnupg rustc z3
+            esbmc gnupg python3-venv rustc z3
           python -m pip install --upgrade pip -r requirements-dev.txt \
             -r requirements-mcp.txt -e .
+      - name: Install isolated Semgrep acceptance toolchain
+        run: |
+          /usr/bin/python3 -m venv "$RUNNER_TEMP/formalspecgen-semgrep"
+          "$RUNNER_TEMP/formalspecgen-semgrep/bin/python" -m pip install "semgrep==1.138.0"
       - name: Download and verify pinned TLC jar
         run: |
           mkdir -p tools
@@ -379,6 +384,7 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
           FORMALSPECGEN_TLC_ACCEPTANCE_DIR: ${{ runner.temp }}/tlc-acceptance
+          FORMALSPECGEN_SEMGREP_ACCEPTANCE_DIR: ${{ runner.temp }}/semgrep-acceptance
           FORMALSPECGEN_REQUIRE_OPENJML_MCP_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
@@ -401,6 +407,14 @@ jobs:
         with:
           name: tlc-execution-${{ github.sha }}
           path: ${{ runner.temp }}/tlc-acceptance/*.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload actual Semgrep execution observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-execution-${{ github.sha }}
+          path: ${{ runner.temp }}/semgrep-acceptance/*.json
           if-no-files-found: error
           retention-days: 1
       - name: Produce provisioned MCP workflow acceptance evidence
