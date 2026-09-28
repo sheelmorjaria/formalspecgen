@@ -104,7 +104,9 @@ def _source_files(source: str | Path) -> list[Path]:
 
 
 def _find_code_line(files: list[Path], fields: set[str],
-                    bounds: set[int]) -> tuple[str | None, int | None]:
+                    bounds: set[int], *,
+                    source_root: Path, consume=lambda _amount: None
+                    ) -> tuple[str | None, int | None]:
     """First line mentioning a mapped field (and its bound when known)."""
     for path in files:
         try:
@@ -112,16 +114,33 @@ def _find_code_line(files: list[Path], fields: set[str],
         except (OSError, UnicodeError):
             continue
         for number, line in enumerate(lines, 1):
+            consume(max(1, len(line)) * max(1, len(fields) + len(bounds)))
             if any(re.search(rf"\b{re.escape(field)}\b", line) for field in fields):
                 if not bounds or any(str(bound) in line for bound in bounds):
-                    return path.name, number
+                    if source_root.is_dir():
+                        try:
+                            source_name = path.relative_to(source_root).as_posix()
+                        except ValueError:
+                            source_name = path.name
+                    else:
+                        source_name = path.name
+                    return source_name, number
     return None, None
 
 
 def generate_traceability_matrix(domain: str | Path, source: str | Path,
-                                 requirements: str | Path) -> dict:
+                                 requirements: str | Path, *,
+                                 max_matching_steps: int | None = None) -> dict:
     """Rows linking each requirement to its invariant and source line."""
     from .domain_v2_promotion import ReviewedDomainSpecV2, load_candidate
+    remaining = max_matching_steps
+
+    def consume(amount: int) -> None:
+        nonlocal remaining
+        if remaining is not None:
+            remaining -= amount
+            if remaining < 0:
+                raise ValueError("MATCHING_LIMIT_EXCEEDED: deterministic matching budget exhausted")
     try:
         spec = load_candidate(domain)
     except Exception:
@@ -137,15 +156,18 @@ def generate_traceability_matrix(domain: str | Path, source: str | Path,
                                  _walk(_dumped(item.expression), {"integer"})},
                    "text": _expression_text(item.expression)}
                   for item in spec.tlc_invariants]
-    files = _source_files(source)
+    source_root = Path(source)
+    files = _source_files(source_root)
 
     rows = []
     for requirement in parse_requirements(requirements):
+        consume(max(1, len(requirement["text"])) * max(1, len(field_names)))
         mentioned = _field_mentions(requirement["text"], field_names)
         bounds = _bounds(requirement["text"])
         matched = None
         if mentioned:
             for invariant in invariants:
+                consume(max(1, len(invariant["fields"]) + len(invariant["constants"])))
                 if not (invariant["fields"] & mentioned):
                     continue
                 if bounds and not (invariant["constants"] & bounds):
@@ -155,7 +177,8 @@ def generate_traceability_matrix(domain: str | Path, source: str | Path,
         code_file = code_line = None
         if matched:
             code_file, code_line = _find_code_line(
-                files, matched["fields"] & mentioned, bounds)
+                files, matched["fields"] & mentioned, bounds,
+                source_root=source_root, consume=consume)
         rows.append({"req": requirement["id"], "text": requirement["text"],
                      "invariant": matched["text"] if matched else None,
                      "invariant_id": matched["id"] if matched else None,

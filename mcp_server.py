@@ -71,6 +71,7 @@ from pipeline.workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
+    TraceabilityWorkflowRequest,
     VerificationWorkflowRequest,
     WorkflowContext,
     WorkflowInterface,
@@ -90,6 +91,11 @@ MCP_ANALYSIS_MAX_INPUT_FILES = 512
 MCP_ANALYSIS_MAX_TRAVERSAL_ENTRIES = 4096
 MCP_ANALYSIS_MAX_TRAVERSAL_DEPTH = 32
 MCP_ANALYSIS_MAX_RESULT_BYTES = 8 * 1024 * 1024
+MCP_TRACEABILITY_MAX_INPUT_BYTES = 8 * 1024 * 1024
+MCP_TRACEABILITY_MAX_INPUT_FILES = 514
+MCP_TRACEABILITY_MAX_TRAVERSAL_ENTRIES = 4096
+MCP_TRACEABILITY_MAX_TRAVERSAL_DEPTH = 32
+MCP_TRACEABILITY_MAX_RESULT_BYTES = 8 * 1024 * 1024
 
 
 def _configured_approval_service(*, require_signer: bool) -> ApprovalService:
@@ -1400,21 +1406,53 @@ def prove_equivalence(baseline: str, refactored: str,
         _workspace_path(mapping)))
 
 
-def generate_traceability_matrix(domain: str, source: str,
-                                 requirements: str,
-                                 out: str = "traceability-matrix.md") -> dict[str, Any]:
-    """Map REQ-### requirements to V2 invariants and source lines."""
-    from pipeline.traceability import (
-        generate_traceability_matrix as run_matrix, write_matrix,
+def generate_traceability_matrix(
+        domain: str, source: str, requirements: str,
+        out: str = "traceability-matrix.md",
+        result_export: str | None = None) -> dict[str, Any]:
+    """Generate deterministic no-proof trace links and a controlled JSON sidecar."""
+    from pipeline.traceability_workflow import (
+        TRACEABILITY_BUDGET, run_traceability_workflow,
     )
-    def run() -> dict[str, Any]:
-        matrix = run_matrix(_workspace_path(domain),
-                            _workspace_path(source),
-                            _workspace_path(requirements))
-        path = write_matrix(matrix, _workspace_path(out, must_exist=False))
-        return {"status": "TRACEABILITY_GENERATED",
-                "matrix_file": str(path), **matrix}
-    return _guarded(run)
+    try:
+        output = Path(out)
+        export = (Path(result_export) if result_export is not None
+                  else output.with_suffix(".json"))
+        for path in (output, export):
+            if path.is_absolute() or ".." in path.parts or not path.name:
+                raise MCPArtifactError(
+                    "OUTPUT_SCOPE_VIOLATION",
+                    "traceability outputs must be relative artifact paths")
+        request = TraceabilityWorkflowRequest(
+            domain, source, requirements, out=out, result_export=result_export)
+        effects = request.required_effects(WorkflowInterface.MCP)
+        admission = authorize_mcp_invocation(
+            "generate_traceability_matrix", mode=request.mode,
+            language=request.language, backend=request.effective_backend,
+            effects=effects)
+        if not admission.admitted:
+            return bind_workflow_result(
+                admission.rejection(), request, WorkflowInterface.MCP)
+        output_root = _designated_mcp_output_root()
+        context = WorkflowContext.for_mcp(
+            admission, effects, output_root=output_root,
+            resource_budget={
+                **TRACEABILITY_BUDGET,
+                "max_input_bytes": MCP_TRACEABILITY_MAX_INPUT_BYTES,
+                "max_input_files": MCP_TRACEABILITY_MAX_INPUT_FILES,
+                "max_traversal_entries": MCP_TRACEABILITY_MAX_TRAVERSAL_ENTRIES,
+                "max_traversal_depth": MCP_TRACEABILITY_MAX_TRAVERSAL_DEPTH,
+                "max_result_bytes": MCP_TRACEABILITY_MAX_RESULT_BYTES,
+            })
+        return run_traceability_workflow(
+            request, context, output_root=output_root,
+            matrix_key=output.as_posix(), export_key=export.as_posix())
+    except (OSError, ValueError, MCPPolicyViolation) as exc:
+        return {
+            "status": "INVALID_REQUEST", "claim": "NO_PROOF",
+            "request_satisfied": False,
+            "code": getattr(exc, "code", "invalid_request"), "message": str(exc),
+        }
 
 
 def verify_unbounded(source: str, invariant: str | None = None,

@@ -1511,22 +1511,40 @@ def command_manage_trust(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_generate_traceability(args: argparse.Namespace, ui: TerminalUI) -> int:
-    """Map requirements to V2 invariants and source lines (certification aid)."""
-    from .traceability import generate_traceability_matrix, write_matrix
-
-    try:
-        matrix = generate_traceability_matrix(
-            args.domain, args.source, args.requirements
-        )
-        path = write_matrix(matrix, args.out, args.json_out)
-    except (OSError, ValueError) as exc:
-        ui.console.print(f"[red]Traceability generation failed:[/red] {exc}")
-        return 2
-    coverage = matrix["coverage"]
-    ui.console.print(
-        f"Traceability matrix written to [path]{path}[/path] "
-        f"({coverage['mapped']}/{coverage['total']} requirements mapped)"
+    """Map requirements to invariants with bounded shared publication."""
+    from .traceability_workflow import TRACEABILITY_BUDGET, run_traceability_workflow
+    from .workflow_contracts import (
+        TraceabilityWorkflowRequest, WorkflowContext, WorkflowInterface,
     )
+
+    request = TraceabilityWorkflowRequest(
+        args.domain, args.source, args.requirements,
+        out=args.out, result_export=args.json_out)
+    matrix_path = Path(request.out)
+    export_path = (Path(request.result_export) if request.result_export
+                   else matrix_path.with_suffix(".json"))
+    # Explicit CLI inputs may be anywhere the local user can access.
+    input_root = Path(os.path.commonpath([
+        str(Path(value).parent) for value in
+        (request.domain, request.source, request.requirements)]))
+    context = WorkflowContext.for_cli(
+        request.required_effects(WorkflowInterface.CLI),
+        workspace_root=input_root, resource_budget=TRACEABILITY_BUDGET)
+    output_root = Path(os.path.commonpath(
+        [str(matrix_path.parent), str(export_path.parent)]))
+    result = run_traceability_workflow(
+        request, context, output_root=output_root,
+        matrix_key=matrix_path.relative_to(output_root).as_posix(),
+        export_key=export_path.relative_to(output_root).as_posix())
+    if not result["request_satisfied"]:
+        ui.console.print(
+            f"[red]Traceability generation failed:[/red] "
+            f"{escape(result.get('message', 'unknown failure'))}")
+        return 2
+    coverage = result["coverage"]
+    ui.console.print(
+        f"Traceability matrix written to [path]{result['matrix_file']}[/path] "
+        f"({coverage['mapped']}/{coverage['total']} requirements mapped)")
     return 0
 
 

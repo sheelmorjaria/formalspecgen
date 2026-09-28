@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 16,
-  "cli_capability_count": 6,
+  "capability_count": 17,
+  "cli_capability_count": 7,
   "mcp_only_capability_count": 10,
   "capabilities": [
     {
@@ -1985,6 +1985,86 @@
             "workspace_write_new"
           ],
           "profile_sha256": "35dc07d240e6bb390664bb9fb6a2d8690ba0c29ce616028fccaae15da89bd249"
+        }
+      ]
+    },
+    {
+      "name": "generate_traceability_matrix",
+      "mcp_tool": "generate_traceability_matrix",
+      "cli_command": "generate-traceability-matrix",
+      "description": "Generate a bounded deterministic requirement, invariant, and source traceability matrix without claiming proof.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "domain",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "requirements",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out",
+            "required": false,
+            "default": "traceability-matrix.md",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "domain",
+          "source",
+          "requirements",
+          "out",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-deterministic-traceability",
+          "modes": [
+            "generate"
+          ],
+          "languages": [
+            "mixed"
+          ],
+          "backends": [
+            "builtin-traceability"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "no-proof-traceability-matrix",
+          "required_effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "6a8618620bc4ef9b529799931dc993122f7af8a4ba6d619a30edad5686aa4fd5"
         }
       ]
     }

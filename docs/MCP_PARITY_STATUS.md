@@ -7,7 +7,7 @@ Do not edit it by hand.
 
 - Commands mapped: 38 / 38
 - Argument declarations mapped: 205 / 205
-- Commands with at least one admitted invocation profile: 6 / 38
+- Commands with at least one admitted invocation profile: 7 / 38
 - Complete command workflows: 0 / 38
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -28,7 +28,7 @@ Do not edit it by hand.
 | `document-code` | `document_code` | `direct_or_task` | `admitted` | `incomplete` | 7 |
 | `domain` | `elicit_domain` | `resumable` | `adapter_missing` | `incomplete` | 8 |
 | `draft` | `draft_contract` | `resumable` | `compatibility_alias_present_target_missing` | `incomplete` | 12 |
-| `generate-traceability-matrix` | `generate_traceability_matrix` | `direct` | `adapter_present_not_admitted` | `incomplete` | 5 |
+| `generate-traceability-matrix` | `generate_traceability_matrix` | `direct` | `admitted` | `incomplete` | 5 |
 | `implement` | `implement_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 20 |
 | `inspect` | `inspect_code` | `direct` | `admitted` | `incomplete` | 2 |
 | `macro-dictionary` | `macro_dictionary` | `direct_or_task` | `compatibility_alias_present_target_missing` | `incomplete` | 6 |

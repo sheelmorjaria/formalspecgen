@@ -317,6 +317,46 @@ class CodebaseAnalysisWorkflowRequest:
 
 
 @dataclass(frozen=True)
+class TraceabilityWorkflowRequest:
+    """Deterministic requirement/invariant/source traceability request."""
+
+    domain: str
+    source: str
+    requirements: str
+    out: str = "traceability-matrix.md"
+    result_export: str | None = None
+    language: str = field(default="mixed", init=False)
+    mode: str = field(default="generate", init=False)
+    effective_backend: str = field(
+        default="builtin-traceability", init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "domain", str(Path(self.domain).expanduser().resolve()))
+        object.__setattr__(
+            self, "source", str(Path(self.source).expanduser().resolve()))
+        object.__setattr__(
+            self, "requirements",
+            str(Path(self.requirements).expanduser().resolve()))
+        object.__setattr__(
+            self, "out", str(Path(self.out).expanduser().absolute()))
+        object.__setattr__(
+            self, "result_export",
+            (str(Path(self.result_export).expanduser().absolute())
+             if self.result_export else None))
+
+    def required_effects(self, _interface: WorkflowInterface) -> tuple[str, ...]:
+        return _normalized_effects(("workspace_read", "workspace_write_new"))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": WORKFLOW_CONTRACT_SCHEMA,
+            "workflow": "generate-traceability-matrix",
+            **asdict(self),
+        }
+
+
+@dataclass(frozen=True)
 class RefactorWorkflowRequest:
     """One baseline/candidate preservation request shared by CLI and MCP.
 
@@ -440,6 +480,7 @@ class ApplyRefactorWorkflowRequest:
 WorkflowRequest = (
     VerificationWorkflowRequest | InspectionWorkflowRequest |
     DocumentationWorkflowRequest | CodebaseAnalysisWorkflowRequest |
+    TraceabilityWorkflowRequest |
     RefactorWorkflowRequest |
     ApplyRefactorWorkflowRequest
 )

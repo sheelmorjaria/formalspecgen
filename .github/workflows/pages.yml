@@ -41,6 +41,7 @@ jobs:
       - name: Validate current and archived guide assets
         run: |
           test -f site/index.html
+          test -f site/FORMALSPECGEN_USER_GUIDE.html
           test -f site/command_inventory.json
           test -f site/mcp_capabilities.json
           test -f site/VALIDATION.md

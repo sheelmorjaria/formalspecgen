@@ -6,16 +6,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import yaml
 
-from scripts.generate_pages_companions import _expected
+from scripts.generate_pages_companions import (
+    _expected, _GuideLinks, _manual_admission, _validate_cli_examples,
+    _validate_html_links,
+)
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "92e00343a11af07d9e09d81ebda2feed71f00625ee6dc5ad0a3a037df8832078"
+GUIDE_SHA256 = "09c6105bca06fba37891896d9ee47aa7ce7d72bb542303e9425010feadf02121"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -34,11 +39,11 @@ def test_current_guide_and_generated_companions_are_current():
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
     assert decoded["command_count"] == 38
     assert decoded["argument_declaration_count"] == 205
-    assert decoded["commands_with_admitted_profile"] == 6
+    assert decoded["commands_with_admitted_profile"] == 7
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 16
-    assert strict["cli_capability_count"] == 6
+    assert strict["capability_count"] == 17
+    assert strict["cli_capability_count"] == 7
     assert strict["mcp_only_capability_count"] == 10
     assert {"verify_refactor", "apply_refactor", "analyze_codebase"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}
@@ -53,6 +58,68 @@ def test_historical_91c6790_guide_is_byte_preserved():
         ARCHIVED_GUIDE_SHA256
     assert (archive / "command_inventory.json").is_file()
     assert (archive / "VALIDATION.md").is_file()
+
+
+def test_manual_preserves_all_command_recipes_and_current_availability():
+    manual = (SITE / "FORMALSPECGEN_USER_GUIDE.html").read_text()
+    archived = (SITE / "archive/91c6790/index.html").read_text()
+    inventory = json.loads((SITE / "command_inventory.json").read_text())
+    assert manual == _manual_admission(manual, inventory)
+    assert len(inventory["commands"]) == 38
+    for command in inventory["commands"]:
+        name = command["cli_command"]
+        def section(document):
+            start = document.index(f'<h2 id="{name}">')
+            end = document.index("</section>", start)
+            return document[start:end]
+        old_section, new_section = section(archived), section(manual)
+        # Preserve each command's invocations, option tables and examples.
+        for pattern in (r"<pre[\s\S]*?</pre>", r"<table[\s\S]*?</table>"):
+            assert re.findall(pattern, new_section) == re.findall(pattern, old_section)
+        assert f'data-cli-command="{name}"' in new_section
+        if command["admission_status"] == "admitted":
+            assert "Admitted profiles; not a completion claim" in new_section
+        else:
+            assert "strict MCP: Not admitted" in new_section
+    assert 'id="integration-notes"' in manual
+    assert "two specific profiles" not in manual
+    assert "default strict MCP catalogue</strong>" not in manual
+
+
+def test_integrated_pages_have_valid_navigation_and_cli_examples():
+    documents = {SITE / name: (SITE / name).read_text() for name in (
+        "index.html", "FORMALSPECGEN_USER_GUIDE.html")}
+    for path, text in documents.items():
+        _validate_html_links(path, text, documents)
+    parser = _GuideLinks()
+    parser.feed(documents[SITE / "index.html"])
+    _validate_cli_examples(parser.cli_examples)
+    assert len(parser.cli_examples) == 6
+    assert 'FORMALSPECGEN_USER_GUIDE.html#command-reference' in parser.hrefs
+    assert "scripted automation" in documents[SITE / "index.html"]
+    assert "Not yet a universal approval bridge" in documents[SITE / "index.html"]
+
+
+def test_broken_cross_page_link_fails_publication_validation():
+    path = SITE / "index.html"
+    text = path.read_text().replace(
+        "FORMALSPECGEN_USER_GUIDE.html#command-reference",
+        "FORMALSPECGEN_USER_GUIDE.html#missing-command-reference")
+    with pytest.raises(ValueError, match="missing fragment"):
+        _validate_html_links(path, text, {path: text})
+
+
+def test_invalid_cli_option_and_missing_command_labels_fail_validation():
+    parser = _GuideLinks()
+    parser.feed((SITE / "index.html").read_text())
+    parser.cli_examples["verify"] += " --invented-option"
+    with pytest.raises(ValueError, match="invalid CLI example"):
+        _validate_cli_examples(parser.cli_examples)
+    inventory = json.loads((SITE / "command_inventory.json").read_text())
+    manual = (SITE / "FORMALSPECGEN_USER_GUIDE.html").read_text()
+    manual = manual.replace('data-cli-command="verify"', 'data-cli-command="unknown"')
+    with pytest.raises(ValueError, match="unknown manual command"):
+        _manual_admission(manual, inventory)
 
 
 def test_pages_workflow_publishes_only_the_site_directory():
@@ -89,6 +156,7 @@ def test_pages_publication_has_only_deliberate_regular_files():
     }
     assert published == {
         "index.html",
+        "FORMALSPECGEN_USER_GUIDE.html",
         "command_inventory.json",
         "mcp_capabilities.json",
         "VALIDATION.md",

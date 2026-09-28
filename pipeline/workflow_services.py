@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,7 @@ from .workflow_contracts import (
     DocumentationWorkflowRequest,
     InspectionWorkflowRequest,
     RefactorWorkflowRequest,
+    TraceabilityWorkflowRequest,
     VerificationWorkflowRequest,
     WorkflowContext,
 )
@@ -51,6 +53,29 @@ class CodebaseAnalysisServiceResult:
     candidate_artifacts: dict[str, bytes]
     architecture_artifact: tuple[str, str] | None = None
     domain_artifacts: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class TraceabilityServiceResult:
+    """Prepared deterministic matrix awaiting controlled publication."""
+
+    payload: dict[str, Any]
+    markdown: bytes
+
+
+def bind_traceability_publication(
+        service: TraceabilityServiceResult,
+        published: Mapping[str, Mapping[str, Any]],
+        artifact_key: str) -> dict[str, Any]:
+    """Bind a prepared matrix to the path returned by its publisher."""
+    try:
+        path = published[artifact_key]["path"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(
+            "traceability publication omitted the prepared matrix") from exc
+    if not isinstance(path, str) or not path:
+        raise ValueError("traceability publication returned no matrix path")
+    return {**service.payload, "matrix_file": path}
 
 
 @dataclass(frozen=True)
@@ -84,6 +109,9 @@ _ANALYSIS_SUFFIXES = frozenset({
 })
 _ANALYSIS_SOURCE_REFERENCE_KEYS = frozenset({
     "file", "source", "source_file", "source_path",
+})
+_TRACEABILITY_SOURCE_SUFFIXES = frozenset({
+    ".java", ".rs", ".c", ".h", ".cc", ".cpp", ".cxx", ".py",
 })
 
 
@@ -371,6 +399,221 @@ def _capture_analysis_artifacts(
         total += len(content)
         artifacts[path.relative_to(root).as_posix()] = content
     return artifacts
+
+
+def run_traceability_generation(
+        request: TraceabilityWorkflowRequest,
+        context: WorkflowContext) -> TraceabilityServiceResult:
+    """Capture all inputs once and generate a no-proof matrix privately."""
+    from .traceability import generate_traceability_matrix, render_matrix_markdown
+
+    domain = context.resolve_input(request.domain)
+    source = context.resolve_input(request.source)
+    requirements = context.resolve_input(request.requirements)
+    if not domain.is_file():
+        raise ValueError("TRACEABILITY_INPUT_INVALID: domain must be a file")
+    if not requirements.is_file():
+        raise ValueError(
+            "TRACEABILITY_INPUT_INVALID: requirements must be a file")
+    if not (source.is_file() or source.is_dir()):
+        raise ValueError(
+            "TRACEABILITY_INPUT_INVALID: source must be a file or directory")
+    source_is_file = source.is_file()
+
+    def open_input(path: Path, flags: int) -> int:
+        """Open each component under the checked root without following links."""
+        relative = path.relative_to(context.workspace_root)
+        descriptor = os.open(
+            context.workspace_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for component in relative.parts[:-1]:
+                child = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            if not relative.parts:
+                return os.dup(descriptor)
+            return os.open(relative.name, flags | os.O_NOFOLLOW, dir_fd=descriptor)
+        finally:
+            os.close(descriptor)
+
+    max_bytes = context.resource_budget.get("max_input_bytes")
+    max_files = context.resource_budget.get("max_input_files")
+    max_entries = context.resource_budget.get("max_traversal_entries")
+    max_depth = context.resource_budget.get("max_traversal_depth")
+    captured: list[tuple[str, Path, bytes]] = []
+    total_bytes = 0
+    visited_entries = 0
+
+    def capture(
+            path: Path, role: str, relative: Path, *,
+            directory_fd: int | None = None) -> None:
+        nonlocal total_bytes
+        if max_files is not None and len(captured) >= max_files:
+            raise ValueError(
+                f"INPUT_FILE_LIMIT_EXCEEDED: traceability inputs exceed "
+                f"{max_files} files")
+        remaining = None if max_bytes is None else max_bytes - total_bytes
+        if remaining is not None and remaining < 0:
+            raise ValueError(
+                "INPUT_LIMIT_EXCEEDED: traceability inputs are oversized")
+        try:
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            descriptor = (os.open(path.name, flags, dir_fd=directory_fd)
+                          if directory_fd is not None else open_input(path, flags))
+            with os.fdopen(descriptor, "rb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    raise ValueError("TRACEABILITY_INPUT_INVALID: expected regular file")
+                content = handle.read(
+                    -1 if remaining is None else remaining + 1)
+        except OSError as exc:
+            raise ValueError(f"input_unavailable: {exc}") from exc
+        if remaining is not None and len(content) > remaining:
+            raise ValueError(
+                f"INPUT_LIMIT_EXCEEDED: traceability inputs exceed "
+                f"{max_bytes} bytes")
+        total_bytes += len(content)
+        content.decode("utf-8")  # No silent omission of unreadable source content.
+        captured.append((role, relative, content))
+
+    capture(domain, "domain", Path(domain.name))
+    capture(requirements, "requirements", Path(requirements.name))
+
+    if source_is_file:
+        capture(source, "source", Path(source.name))
+    else:
+        try:
+            root_fd = open_input(source, os.O_RDONLY | os.O_DIRECTORY)
+        except OSError as exc:
+            raise ValueError(f"input_unavailable: {exc}") from exc
+
+        def walk(directory_fd: int, relative: Path, depth: int) -> None:
+            nonlocal visited_entries
+            if max_depth is not None and depth > max_depth:
+                raise ValueError(
+                    f"INPUT_TRAVERSAL_LIMIT_EXCEEDED: depth exceeds {max_depth}")
+            try:
+                with os.scandir(directory_fd) as iterator:
+                    entries = []
+                    for entry in iterator:
+                        entries.append(entry)
+                        if max_entries is not None and \
+                                visited_entries + len(entries) > max_entries:
+                            raise ValueError(
+                                "INPUT_TRAVERSAL_LIMIT_EXCEEDED: source tree "
+                                "has too many entries")
+                    entries.sort(key=lambda item: item.name)
+                    visited_entries += len(entries)
+            except OSError as exc:
+                raise ValueError(f"input_unavailable: {exc}") from exc
+            for entry in entries:
+                child_relative = relative / entry.name
+                if entry.is_symlink():
+                    raise ValueError(
+                        f"INPUT_SYMLINK_REJECTED: {child_relative.as_posix()}")
+                if entry.is_dir(follow_symlinks=False):
+                    try:
+                        child_fd = os.open(
+                            entry.name,
+                            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=directory_fd)
+                    except OSError as exc:
+                        raise ValueError(f"input_unavailable: {exc}") from exc
+                    try:
+                        walk(child_fd, child_relative, depth + 1)
+                    finally:
+                        os.close(child_fd)
+                    continue
+                if not entry.is_file(follow_symlinks=False) or \
+                        Path(entry.name).suffix.lower() not in \
+                        _TRACEABILITY_SOURCE_SUFFIXES:
+                    continue
+                capture(
+                    Path(entry.name), "source", child_relative,
+                    directory_fd=directory_fd)
+
+        try:
+            walk(root_fd, Path(), 0)
+        finally:
+            os.close(root_fd)
+
+    manifest = [{
+        "role": role,
+        "path": relative.as_posix(),
+        "size": len(content),
+        "sha256": hashlib.sha256(content).hexdigest(),
+    } for role, relative, content in captured]
+    manifest_digest = hashlib.sha256(json.dumps(
+        manifest, sort_keys=True,
+        separators=(",", ":")).encode("utf-8")).hexdigest()
+
+    with tempfile.TemporaryDirectory(
+            prefix="formalspecgen-traceability-") as directory:
+        private = Path(directory)
+        staged_domain = private / "domain" / domain.name
+        staged_requirements = private / "requirements" / requirements.name
+        staged_source_root = private / "source"
+        staged_domain.parent.mkdir(parents=True)
+        staged_requirements.parent.mkdir(parents=True)
+        staged_source_root.mkdir(parents=True)
+        source_count = 0
+        staged_source: Path | None = None
+        for role, relative, content in captured:
+            if role == "domain":
+                destination = staged_domain
+            elif role == "requirements":
+                destination = staged_requirements
+            else:
+                destination = staged_source_root / relative
+                source_count += 1
+                if source_is_file:
+                    staged_source = destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+        if not source_is_file:
+            staged_source = staged_source_root
+        assert staged_source is not None
+        matrix = generate_traceability_matrix(
+            staged_domain, staged_source, staged_requirements,
+            max_matching_steps=context.resource_budget.get("max_matching_steps"))
+        if matrix.get("coverage", {}).get("total", 0) == 0:
+            raise ValueError(
+                "REQUIREMENTS_FORMAT_INVALID: no REQ-### requirements found")
+        source_digests = {
+            item["path"]: item["sha256"] for item in manifest
+            if item["role"] == "source"}
+        for row in matrix["rows"]:
+            row["source_sha256"] = source_digests.get(row.get("source"))
+        markdown = render_matrix_markdown(matrix).encode("utf-8")
+
+    max_result = context.resource_budget.get("max_result_bytes")
+    if max_result is not None and len(markdown) > max_result:
+        raise ValueError(
+            "RESULT_LIMIT_EXCEEDED: traceability matrix is oversized")
+    payload = {
+        "status": "TRACEABILITY_GENERATED",
+        "claim": "NO_PROOF",
+        "request_satisfied": True,
+        **matrix,
+        "matrix_file": None,
+        "input_snapshot": {
+            "file_count": len(captured),
+            "source_file_count": source_count,
+            "total_bytes": total_bytes,
+            "files": manifest,
+            "manifest_sha256": manifest_digest,
+            "domain": str(domain),
+            "source": str(source),
+            "requirements": str(requirements),
+        },
+        "limitations": [
+            "trace links use deterministic field and numeric-bound matching",
+            "mapped requirements are not proved by this workflow",
+            "unmapped requirements require manual review",
+        ],
+    }
+    return TraceabilityServiceResult(payload, markdown)
 
 
 def run_java_verification(

@@ -920,10 +920,105 @@ def _observation(
     }
 
 
+async def _traceability_observation() -> dict:
+    """Observe all arguments, both domain formats, and negative exports."""
+    try:
+        from scripts.generate_pages_companions import _GuideLinks
+    except ModuleNotFoundError:
+        # The acceptance runner is also invoked directly from scripts/.
+        from generate_pages_companions import _GuideLinks
+    root = Path(__file__).resolve().parents[1]
+    fixture = json.loads((root / "domains/v2/bounded_counter.json").read_text())
+    guide = _GuideLinks()
+    guide.feed((root / "site/index.html").read_text())
+    example = json.loads(guide.examples["traceability"])
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-traceability-acceptance-") as directory:
+        workspace = Path(directory)
+        (workspace / "domain.json").write_text(json.dumps(fixture))
+        fixture["review_status"] = "unreviewed"
+        fixture.pop("accepted_candidate_sha256")
+        fixture.pop("accepted_evidence_sha256")
+        import yaml
+        (workspace / "domain.yaml").write_text(yaml.safe_dump(fixture))
+        (workspace / "requirements.req").write_text(
+            "REQ-001: value must not exceed 5.\nREQ-002: latency must not exceed 10.\n")
+        for subdir, content in (("a", "int other = 0;\n"), ("b", "int value = 5;\n")):
+            folder = workspace / "src" / subdir
+            folder.mkdir(parents=True)
+            (folder / "Counter.java").write_text(content)
+        (workspace / "empty").mkdir()
+        (workspace / "bad.json").write_text("{}")
+        (workspace / "bad.req").write_text("no requirement identifiers")
+        base = {"domain": "domain.yaml", "source": "src", "requirements": "requirements.req"}
+        calls = [
+            example,
+            {**base, "domain": "domain.json", "source": "src/b/Counter.java",
+             "out": "single.txt", "result_export": "results/single.data"},
+            {**base, "source": "empty", "out": "empty.md"},
+            {**base, "domain": "absent.json", "out": "missing.md"},
+            {**base, "domain": "../outside.json", "out": "denied.md"},
+            {**base, "domain": "bad.json", "out": "bad-domain.md"},
+            {**base, "requirements": "bad.req", "out": "bad-req.md"},
+            {**base, "out": example["out"], "result_export": "collision.json"},
+            {**base, "out": "new.md", "result_export": "collision.json"},
+            {**base, "out": "../escape.md"},
+        ]
+        output = workspace / "configured-output"
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "generate_traceability_matrix", calls,
+            environment={"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output)}, timeout_s=120)
+        if [item.get("request_satisfied") for item in results] != [True]*3 + [False]*7:
+            raise RuntimeError(f"traceability transport outcomes changed: {results}")
+        if any(item.get("claim") != "NO_PROOF" for item in results):
+            raise RuntimeError("traceability matching acquired a proof claim")
+        for index, result in enumerate(results):
+            for stage in ("publication", "result_export"):
+                for metadata in result.get(stage, {}).get("artifacts", {}).values():
+                    path = Path(metadata["path"])
+                    if output not in path.parents or hashlib.sha256(path.read_bytes()).hexdigest() != metadata["sha256"]:
+                        raise RuntimeError("traceability publication identity mismatch")
+            if index < 3:
+                matrix = Path(result["matrix_file"])
+                if matrix != Path(next(iter(result["publication"]["artifacts"].values()))["path"]):
+                    raise RuntimeError("traceability returned an unpublished reference")
+                exported = json.loads(Path(next(iter(result["result_export"]["artifacts"].values()))["path"]).read_text())
+                if exported["rows"] != result["rows"] or exported["matrix_file"] != str(matrix):
+                    raise RuntimeError("traceability sidecar references differ")
+                manifest = result["input_snapshot"]["files"]
+                for row in result["rows"]:
+                    if row["source"]:
+                        metadata = next(item for item in manifest if item["role"] == "source" and item["path"] == row["source"])
+                        if row["source_sha256"] != metadata["sha256"]:
+                            raise RuntimeError("source reference lost its captured identity")
+                if result["rows"][1]["status"] != "UNMAPPED":
+                    raise RuntimeError("unmapped requirement disappeared")
+            elif index < 8 and result.get("result_export", {}).get("status") != "COMMITTED":
+                raise RuntimeError("negative traceability export missing")
+        if results[0]["rows"][0]["source"] != "b/Counter.java":
+            raise RuntimeError("duplicate source basenames are ambiguous")
+        if json.loads((output / "collision.json").read_text())["request_satisfied"]:
+            raise RuntimeError("existing negative export was replaced")
+        semantic = [{
+            "status": item["status"], "claim": item["claim"],
+            "request_satisfied": item["request_satisfied"],
+            "coverage": item.get("coverage"), "code": item.get("code"),
+            "input_manifest": item.get("input_snapshot", {}).get("manifest_sha256"),
+        } for item in results]
+    observation = _observation(initialized, tools, schema, semantic, results[-1])
+    observation["semantic_results"] = semantic
+    observation["variants"] = [
+        "candidate-domain", "reviewed-domain", "source-file", "source-directory",
+        "default-sidecar", "explicit-export", "unmapped-requirements",
+        "duplicate-filenames", "missing-input", "malformed-input", "denied-path",
+        "publication-collision", "negative-export", "configured-output-root"]
+    return observation
+
+
 _ADAPTERS = {
     "inspect": _inspect_observation,
     "document-code": _document_observation,
     "analyze-codebase": _analyze_codebase_observation,
+    "generate-traceability-matrix": _traceability_observation,
     "verify": _verify_observation,
     "verify-refactor": _verify_refactor_observation,
     "apply-refactor": _apply_refactor_observation,

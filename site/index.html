@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="FormalSpecGen user guide: admitted verification, documentation, coordination, and supervised-agent workflows.">
+  <meta name="description" content="FormalSpecGen user guide: direct CLI operation, scripted CI, manual engineering workflows, and permission-controlled MCP orchestration.">
   <title>FormalSpecGen — Current User Guide</title>
   <style>
     :root { color-scheme: light dark; --ink:#17212b; --paper:#f7f4ee; --panel:#fffdf8; --line:#c9c2b6; --accent:#215d54; --muted:#5f6968; --code:#ece7de; }
@@ -37,18 +37,62 @@
 <header>
   <div class="eyebrow">Current guide</div>
   <h1>FormalSpecGen</h1>
-  <p class="lede">Goal-driven formal engineering with typed workflows, strict execution, immutable evidence, bounded worker coordination, and explicit human trust boundaries.</p>
+  <p class="lede">Operate directly from the CLI, automate repeatable checks in CI, or use agent-assisted MCP. Choose the interface that fits the task; keep verification evidence and human authority explicit.</p>
   <nav aria-label="Guide sections">
-    <a href="#status">Status</a><a href="#catalogue">Strict catalogue</a><a href="#analysis">Analysis</a><a href="#verification">Verification</a><a href="#refactoring">Refactoring</a><a href="#documentation">Documentation</a><a href="#coordination">Coordination</a><a href="#agent">Supervisor</a><a href="#evidence">Evidence</a>
+    <a href="#interfaces">Choose an interface</a><a href="#cli">CLI / CI workflows</a><a href="FORMALSPECGEN_USER_GUIDE.html">Full operating manual</a><a href="#status">Status</a><a href="#catalogue">Strict catalogue</a><a href="#analysis">Analysis</a><a href="#traceability">Traceability</a><a href="#verification">Verification</a><a href="#refactoring">Refactoring</a><a href="#documentation">Documentation</a><a href="#coordination">Coordination</a><a href="#agent">Supervisor</a><a href="#approvals">Human approvals</a><a href="#evidence">Evidence</a>
   </nav>
 </header>
 <main>
+  <section id="interfaces">
+    <h2>Two first-class ways to work</h2>
+    <p>The CLI supports direct operation and scripted automation. MCP exposes the same admitted capabilities for structured client and agent orchestration. Agent-assisted MCP can reduce command-level effort by handling tool selection, argument preparation, and result chaining, while permissions, verification requirements, and human approvals remain enforced.</p>
+    <p>This does not mean every CLI workflow is already admitted through MCP, or that every legacy CLI command uses the strict service path. Consult the <a href="#catalogue">current catalogue</a> and the <a href="FORMALSPECGEN_USER_GUIDE.html#command-index">complete CLI reference</a>. Neither interface turns model agreement or a successful tool call into proof.</p>
+    <table>
+      <thead><tr><th>Use case</th><th>Recommended approach</th></tr></thead>
+      <tbody>
+        <tr><td>Investigating an unfamiliar component or coordinating several tools</td><td>Agent-assisted MCP, with explicit scope and approvals</td></tr>
+        <tr><td>Repeating known checks on every pull request or release</td><td>Scripted CLI/CI, with fixed acceptance rules</td></tr>
+        <tr><td>Debugging a specific invocation or reproducing a failure</td><td>Direct CLI</td></tr>
+        <tr><td>Sensitive promotion or signing</td><td>Either interface through the authenticated approval workflow where implemented; otherwise an explicitly authorized human-operated path. See <a href="#approvals">current approval support</a>.</td></tr>
+      </tbody>
+    </table>
+    <div class="grid">
+      <div class="card"><h3>Direct CLI and scripted automation</h3><p>Choose commands and arguments yourself, inspect diagnostics, and repeat approved checks without a model.</p><a href="#cli">Start a manual workflow</a> · <a href="FORMALSPECGEN_USER_GUIDE.html#command-reference">All CLI commands and options</a></div>
+      <div class="card"><h3>Structured MCP orchestration</h3><p>Use a client or agent to prepare calls and chain admitted results. The server still resolves effects, enforces scope, and preserves approval boundaries.</p><a href="#catalogue">Explore admitted tools</a> · <a href="#agent">Understand the bounded supervisor</a></div>
+    </div>
+  </section>
+
+  <section id="cli">
+    <h2>Direct CLI and CI workflows</h2>
+    <p>Run these examples from your application workspace using a trusted, provisioned FormalSpecGen installation. Source and domain files are inputs you supply; examples are not pre-certified results. Use a fresh output namespace for each run and never delete prior evidence just to make a retry succeed.</p>
+    <h3>Investigate and document</h3>
+    <pre><code data-cli-example="inspect">formalspecgen inspect src/Counter.java --json results/run-001/inspection.json</code></pre>
+    <pre><code data-cli-example="analyze">formalspecgen analyze-codebase src --out-dir analysis/run-001 --project-root models/run-001 --json results/run-001/analysis.json</code></pre>
+    <pre><code data-cli-example="document">formalspecgen document-code src/Counter.java --out docs/run-001/counter.md --project-root models/docs-run-001 --no-llm --json results/run-001/documentation.json</code></pre>
+    <p>These produce findings and unreviewed proposals, not proof. <code>--no-llm</code> makes documentation provider-free. The equivalent MCP examples below use the configured MCP output root; CLI destinations follow the local command's output policy.</p>
+    <h3>Check a candidate and its baseline</h3>
+    <pre><code data-cli-example="verify">formalspecgen verify src/Counter.java --mode esc --json results/run-001/verification.json</code></pre>
+    <pre><code data-cli-example="preserve">formalspecgen verify-refactor baseline/Counter.java candidate/Counter.java --json results/run-001/preservation.json</code></pre>
+    <p>For CI, prepare fresh output directories, pin the input revision and toolchain, and fail on unsuccessful commands. Also inspect the structured outcome, claim, bounds, source identity, and required receipts against fixed acceptance rules. Parsing or static checking is not a substitute for an ESC objective; preservation is not general behavioral equivalence.</p>
+    <h3>Trace requirements without inferring proof</h3>
+    <pre><code data-cli-example="traceability">formalspecgen generate-traceability-matrix domain.yaml src --reqs requirements.req --out reports/run-001/traceability.md --json results/run-001/traceability.json</code></pre>
+    <h3>Continue with the full operating manual</h3>
+    <ul>
+      <li><a href="FORMALSPECGEN_USER_GUIDE.html#3-install-and-configure-the-tool">Installation and environment setup</a> and <a href="FORMALSPECGEN_USER_GUIDE.html#4-first-run-inspect-prove-and-reject-a-bad-candidate">a first positive/negative verification run</a></li>
+      <li><a href="FORMALSPECGEN_USER_GUIDE.html#5-greenfield-requirements-to-implementation">Greenfield requirements and implementation</a> and <a href="FORMALSPECGEN_USER_GUIDE.html#6-greenfield-reviewed-v2-domain-to-source">reviewed domain-to-source workflows</a></li>
+      <li><a href="FORMALSPECGEN_USER_GUIDE.html#7-brownfield-understand-and-specify-an-existing-project">Brownfield analysis</a> and <a href="FORMALSPECGEN_USER_GUIDE.html#8-brownfield-refactor-and-optimize-without-changing-the-contract">preservation and optimization</a></li>
+      <li><a href="FORMALSPECGEN_USER_GUIDE.html#9-architecture-composition-and-system-workflows">Architecture and composition</a>, <a href="FORMALSPECGEN_USER_GUIDE.html#10-security-assessment-remediation-and-intentional-correction">security workflows</a>, and <a href="FORMALSPECGEN_USER_GUIDE.html#11-specialized-verification-workflows">specialist verification</a></li>
+      <li><a href="FORMALSPECGEN_USER_GUIDE.html#14-automate-safely-in-development-and-ci">CI acceptance rules</a>, <a href="FORMALSPECGEN_USER_GUIDE.html#15-use-the-interactive-shell">interactive CLI</a>, and <a href="FORMALSPECGEN_USER_GUIDE.html#16-troubleshooting-and-recovery">troubleshooting</a></li>
+    </ul>
+    <p>The manual preserves the detailed recipes and their pinned source references from <code>91c6790</code>, with updated interface guidance. Its examples are templates; current admission data and the integration notes take precedence over historical backend or publication descriptions. The original edition remains available unchanged in the archive.</p>
+  </section>
+
   <section id="status">
     <h2>What is available</h2>
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports six CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, and <code>analyze-codebase</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports seven CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, and <code>generate-traceability-matrix</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
   </section>
@@ -73,6 +117,19 @@
   "result_export": "results/analysis.json"
 }</code></pre>
     <p>The result binds the captured source manifest to the published artifact digests. Every generated model remains unreviewed; repository analysis does not run code, invoke a provider, or prove source behavior.</p>
+  </section>
+
+  <section id="traceability">
+    <h2>Requirements traceability</h2>
+    <p>Call <code>generate_traceability_matrix</code> to match REQ-numbered requirements to domain invariants and source lines. Candidate YAML/JSON and reviewed JSON domains are supported. Matching is deterministic field/bound matching, not proof that a requirement holds; unmapped requirements remain visible.</p>
+    <pre><code data-workflow-example="traceability">{
+  "domain": "domain.yaml",
+  "source": "src",
+  "requirements": "requirements.req",
+  "out": "reports/traceability.md"
+}</code></pre>
+    <p>The example also publishes <code>reports/traceability.json</code>. Use <code>result_export</code> to choose a different JSON path. Both destinations are relative to the configured MCP output root and never replace existing files. Follow the returned <code>matrix_file</code> and publication metadata; source references are relative to the captured source root, with their digests recorded. Negative outcomes can publish JSON too; an export failure leaves any committed Markdown intact but makes the request unsuccessful.</p>
+    <p>Capture is limited to 8 MiB across domain, requirements, and sources, 514 total files, 4096 traversal entries, and depth 32. Matching and combined report output are also bounded. No provider, compiler, or verifier is invoked.</p>
   </section>
 
   <section id="verification">
@@ -153,7 +210,14 @@
   <section id="agent">
     <h2>Supervised agent runs</h2>
     <p>The MCP-only supervisor tools are <code>start_agent_run</code>, <code>get_agent_run</code>, <code>resume_agent_run</code>, and <code>cancel_agent_run</code>. The model proposes typed actions; the trusted gateway authorizes effects and invokes admitted services.</p>
-    <div class="notice">Start with the supervised-engineer profile. The supervisor may inspect, verify, and coordinate within its recorded goal contract, but it cannot change trusted specifications, broaden its permissions, sign artifacts, or merge changes.</div>
+    <div class="notice">The implemented supervisor accepts a typed inspect-then-verify plan for an approved Java/JML snapshot. It cannot edit source, invoke providers, delegate workers, change trusted specifications, broaden permissions, sign artifacts, or merge changes. Separately admitted A2A tools do not automatically become supervisor actions.</div>
+  </section>
+
+  <section id="approvals">
+    <h2>Human authority in either interface</h2>
+    <p>Interface choice does not grant approval authority. Models may propose changes or request an approval; an authenticated human decision must authorize protected signing. A valid signature authenticates the approved artifact without strengthening its verification claim.</p>
+    <p><strong>Implemented protected continuation:</strong> MCP refactor signing publishes unsigned evidence, creates an exact approval request, and exposes status/completion tools. The reviewer records an authenticated decision outside MCP through <code>python -m pipeline.approval_service</code>; the protected signer keeps private keys outside the MCP process. Follow the <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/APPROVAL_SIGNING.md">approval-policy-v2 operator procedure</a>.</p>
+    <p><strong>Not yet a universal approval bridge:</strong> <code>promote-domain</code>, <code>sign-artifact</code>, <code>manage-trust</code>, and direct CLI <code>verify-refactor --signing-key</code> are human-operated interfaces, not automatic clients of that protected continuation. Do not give these local privileges or keys to an agent, or imply that all trust operations are MCP-admitted. Use the authenticated service where supported and require explicit human authorization for remaining local trust operations.</p>
   </section>
 
   <section id="evidence">

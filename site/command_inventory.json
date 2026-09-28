@@ -5,7 +5,7 @@
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 38,
   "argument_declaration_count": 205,
-  "commands_with_admitted_profile": 6,
+  "commands_with_admitted_profile": 7,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -2014,7 +2014,7 @@
       "cli_command": "generate-traceability-matrix",
       "mcp_tool": "generate_traceability_matrix",
       "workflow_kind": "direct",
-      "admission_status": "adapter_present_not_admitted",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -2079,7 +2079,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "reqs",
+          "mcp_field": "requirements",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         },

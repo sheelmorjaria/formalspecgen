@@ -179,6 +179,7 @@ jobs:
           --require-complete verify-refactor
           --require-complete apply-refactor
           --require-complete analyze-codebase
+          --require-complete generate-traceability-matrix
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -361,6 +362,7 @@ jobs:
             --command verify-refactor \
             --command apply-refactor \
             --command analyze-codebase \
+            --command generate-traceability-matrix \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

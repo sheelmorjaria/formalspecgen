@@ -83,6 +83,7 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
         "verify_code": "strict-execution",
         "inspect_code": "non-executing",
         "analyze_codebase": "non-executing",
+        "generate_traceability_matrix": "non-executing",
         "document_code": "non-executing",
         "submit_work_item": "a2a-coordination",
         "get_work_item": "a2a-coordination",
@@ -124,4 +125,5 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
         "get_work_item", "get_work_artifacts", "cancel_work_item",
         "start_agent_run", "get_agent_run", "resume_agent_run",
             "cancel_agent_run", "get_approval_request",
-            "complete_refactor_signing", "apply_refactor", "verify_refactor"]
+            "complete_refactor_signing", "apply_refactor", "verify_refactor",
+            "generate_traceability_matrix"]

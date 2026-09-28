@@ -8,9 +8,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import shlex
+from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import mcp_server
 from pipeline.capability_registry import mcp_capabilities
@@ -23,6 +26,7 @@ from pipeline.parity_inventory import handler_input_schema, reconcile_parity_pla
 from pipeline.workflow_contracts import (
     ApplyRefactorWorkflowRequest,
     CodebaseAnalysisWorkflowRequest,
+    TraceabilityWorkflowRequest,
     VerificationWorkflowRequest,
 )
 
@@ -38,6 +42,8 @@ class _GuideLinks(HTMLParser):
         self.hrefs: list[str] = []
         self.sources: list[str] = []
         self.examples: dict[str, str] = {}
+        self.cli_examples: dict[str, str] = {}
+        self._example_kind = "mcp"
         self._example_name: str | None = None
         self._example_parts: list[str] = []
 
@@ -51,10 +57,12 @@ class _GuideLinks(HTMLParser):
             self.hrefs.append(str(values["href"]))
         if values.get("src"):
             self.sources.append(str(values["src"]))
-        if values.get("data-workflow-example"):
+        if values.get("data-workflow-example") or values.get("data-cli-example"):
             if self._example_name is not None:
                 raise ValueError("nested workflow examples are not supported")
-            self._example_name = str(values["data-workflow-example"])
+            self._example_kind = "cli" if values.get("data-cli-example") else "mcp"
+            self._example_name = str(
+                values.get("data-cli-example") or values["data-workflow-example"])
             self._example_parts = []
 
     def handle_data(self, data: str) -> None:
@@ -64,9 +72,10 @@ class _GuideLinks(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag != "code" or self._example_name is None:
             return
-        if self._example_name in self.examples:
+        collection = self.cli_examples if self._example_kind == "cli" else self.examples
+        if self._example_name in collection:
             raise ValueError(f"duplicate workflow example: {self._example_name}")
-        self.examples[self._example_name] = "".join(self._example_parts)
+        collection[self._example_name] = "".join(self._example_parts)
         self._example_name = None
         self._example_parts = []
 
@@ -151,7 +160,7 @@ def _capabilities(handlers: dict[str, object]) -> dict:
 
 def _guide_validation(
         guide: Path, inventory_bytes: bytes, capabilities_bytes: bytes,
-        expected_local_files: set[str]) -> str:
+        expected_local_files: set[str], manual: str) -> str:
     guide_bytes = guide.read_bytes()
     parser = _GuideLinks()
     parser.feed(guide_bytes.decode("utf-8"))
@@ -178,6 +187,11 @@ def _guide_validation(
         raise ValueError(
             f"guide local-link drift: unexpected={unexpected_local}, missing={missing_local}")
     _validate_workflow_examples(parser.examples)
+    _validate_cli_examples(parser.cli_examples)
+    manual_path = guide.parent / "FORMALSPECGEN_USER_GUIDE.html"
+    documents = {guide: guide_bytes.decode("utf-8"), manual_path: manual}
+    manual_parser = _validate_html_links(manual_path, manual, documents)
+    _validate_html_links(guide, guide_bytes.decode("utf-8"), documents)
     return "\n".join([
         "# Published guide validation",
         "",
@@ -187,6 +201,7 @@ def _guide_validation(
         "## Checked publication inputs",
         "",
         f"- `index.html` SHA-256: `{_sha256(guide_bytes)}`",
+        f"- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `{_sha256(manual.encode('utf-8'))}`",
         f"- `command_inventory.json` SHA-256: `{_sha256(inventory_bytes)}`",
         f"- `mcp_capabilities.json` SHA-256: `{_sha256(capabilities_bytes)}`",
         f"- Parsed HTML element IDs: {len(parser.ids)}",
@@ -194,13 +209,17 @@ def _guide_validation(
         "- Missing same-page targets: none",
         "- Duplicate element IDs: none",
         "- Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,",
-        "  `VALIDATION.md`, and the archived `91c6790` guide",
+        "  `VALIDATION.md`, `FORMALSPECGEN_USER_GUIDE.html`, and the archived `91c6790` guide",
+        f"- Operating-manual IDs: {len(manual_parser.ids)}; local links and cross-page fragments checked",
+        "- All 38 command-reference and index admission labels generated from the live inventory",
         "- Unexpected relative assets: none",
-        "- Handwritten Java verification, codebase-analysis, and apply-refactor payloads validated through application request models",
+        "- Handwritten verification, analysis, refactoring, and traceability MCP payloads validated through application request models",
+        f"- Current landing-page CLI examples parsed against the real CLI: {len(parser.cli_examples)}",
         "",
         "## Scope limits",
         "",
         "- External URLs were retained but not fetched as part of publication validation.",
+        "- Detailed manual recipes and source references originate at 91c6790; their formal workflows were not rerun.",
         "- No compiler, verifier, generated program, provider, or MCP transport was run.",
         "- Static handler schemas do not replace runtime MCP discovery acceptance.",
         "- Completion claims must be checked against the linked revision-bound CI evidence.",
@@ -208,14 +227,96 @@ def _guide_validation(
     ])
 
 
+def _validate_cli_examples(examples: dict[str, str]) -> None:
+    from pipeline.cli import build_parser
+    expected = {
+        "inspect": "inspect", "analyze": "analyze-codebase",
+        "document": "document-code", "verify": "verify",
+        "preserve": "verify-refactor", "traceability": "generate-traceability-matrix",
+    }
+    if set(examples) != set(expected):
+        raise ValueError("guide CLI example set drift")
+    parser = build_parser()
+    for name, text in examples.items():
+        tokens = shlex.split(text)
+        if not tokens or tokens[0] != "formalspecgen":
+            raise ValueError(f"invalid CLI example: {name}")
+        try:
+            args = parser.parse_args(tokens[1:])
+        except SystemExit as exc:
+            raise ValueError(f"invalid CLI example: {name}") from exc
+        if args.command != expected[name]:
+            raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "document" and not args.no_llm:
+            raise ValueError("manual documentation example must remain provider-free")
+        if name == "verify" and args.mode != "esc":
+            raise ValueError("manual verification example must retain its ESC objective")
+
+
+def _validate_html_links(
+        path: Path, text: str, documents: dict[Path, str]) -> _GuideLinks:
+    """Validate same-page and cross-page anchors without fetching external URLs."""
+    parser = _GuideLinks()
+    parser.feed(text)
+    parser.close()
+    if len(set(parser.ids)) != len(parser.ids):
+        raise ValueError(f"duplicate HTML ids in {path.name}")
+    parsed = {path: parser}
+    for value in parser.hrefs + parser.sources:
+        link = urlparse(value)
+        if link.scheme or link.netloc:
+            continue
+        target = path.parent / unquote(link.path) if link.path else path
+        if target.is_dir():
+            target = target / "index.html"
+        if not target.is_file():
+            raise ValueError(f"missing local link in {path.name}: {value}")
+        if link.fragment:
+            linked = parsed.get(target)
+            if linked is None:
+                linked = _GuideLinks()
+                linked.feed(documents.get(target) or target.read_text(encoding="utf-8"))
+                parsed[target] = linked
+            if unquote(link.fragment) not in linked.ids:
+                raise ValueError(f"missing fragment in {path.name}: {value}")
+    return parser
+
+
+def _manual_admission(text: str, inventory: dict) -> str:
+    """Refresh only marked availability labels, preserving manual recipes."""
+    commands = {item["cli_command"]: item for item in inventory["commands"]}
+    for tag, attribute in (("p", "data-cli-command"), ("td", "data-cli-admission")):
+        pattern = rf'<{tag} {attribute}="([^"]+)">[\s\S]*?</{tag}>'
+        seen: list[str] = []
+        def replace(match: re.Match) -> str:
+            name = match[1]
+            seen.append(name)
+            item = commands.get(name)
+            if item is None:
+                raise ValueError(f"unknown manual command: {name}")
+            admitted = item["admission_status"] == "admitted"
+            label = "Admitted profiles; not a completion claim" if admitted else "Not admitted"
+            if tag == "p":
+                label = (
+                    "<strong>Interface availability.</strong> Operator CLI; strict MCP: "
+                    + label + '. See <a href="index.html#catalogue">current invocation scope</a>'
+                    + ' and <a href="index.html#approvals">human approval boundaries</a>.')
+            return f'<{tag} {attribute}="{escape(name, quote=True)}">{label}</{tag}>'
+        text = re.sub(pattern, replace, text)
+        if len(seen) != len(commands) or set(seen) != set(commands):
+            raise ValueError(f"manual command coverage drift: {attribute}")
+    return text
+
+
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "verify-java", "analyze-codebase", "apply-refactor-java"}:
+            "verify-java", "analyze-codebase", "apply-refactor-java", "traceability"}:
         raise ValueError(
             "guide workflow-example drift: expected verify-java, analyze-codebase, "
-            "and apply-refactor-java, found "
+            "apply-refactor-java, and traceability, found "
             + ", ".join(sorted(examples)))
     payload = json.loads(examples["verify-java"])
+    TraceabilityWorkflowRequest(**json.loads(examples["traceability"]))
     request = VerificationWorkflowRequest(**payload)
     if request.language not in {"java", "jml"} or \
             request.effective_backend != "openjml":
@@ -250,10 +351,13 @@ def _expected(plan_path: Path, site: Path) -> tuple[bytes, bytes, str]:
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     capabilities_bytes = (
         json.dumps(capabilities, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    manual = _manual_admission(
+        (site / "FORMALSPECGEN_USER_GUIDE.html").read_text(encoding="utf-8"), inventory)
     validation = _guide_validation(
         site / "index.html", inventory_bytes, capabilities_bytes,
         {"archive/91c6790/", "command_inventory.json",
-         "mcp_capabilities.json", "VALIDATION.md"})
+         "mcp_capabilities.json", "VALIDATION.md", "FORMALSPECGEN_USER_GUIDE.html"},
+        manual)
     return inventory_bytes, capabilities_bytes, validation
 
 
@@ -269,6 +373,9 @@ def main(argv: list[str] | None = None) -> int:
         args.site / "command_inventory.json": inventory,
         args.site / "mcp_capabilities.json": capabilities,
         args.site / "VALIDATION.md": validation.encode("utf-8"),
+        args.site / "FORMALSPECGEN_USER_GUIDE.html": _manual_admission(
+            (args.site / "FORMALSPECGEN_USER_GUIDE.html").read_text(encoding="utf-8"),
+            json.loads(inventory)).encode("utf-8"),
     }
     if args.check:
         stale = [str(path) for path, expected in outputs.items()

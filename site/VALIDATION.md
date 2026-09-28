@@ -5,21 +5,26 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `92e00343a11af07d9e09d81ebda2feed71f00625ee6dc5ad0a3a037df8832078`
-- `command_inventory.json` SHA-256: `a2200c1e281b39a155617a4a49d3ba4a7c00a531bd85db051789f664de9c343a`
-- `mcp_capabilities.json` SHA-256: `739a870bbf3bb30a0418c67eb2a62e6e1bd9060becbcac81c6132a0f9af32bc8`
-- Parsed HTML element IDs: 10
-- Same-page fragment links checked: 9
+- `index.html` SHA-256: `09c6105bca06fba37891896d9ee47aa7ce7d72bb542303e9425010feadf02121`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `a605e62054390251d99b4b5712b9b807b3b0a8a191a2ffb577db5106f96fbdb8`
+- `command_inventory.json` SHA-256: `7ed88bdb0a5507f63a2d8914a87f0a8cede00a4840b68d2f997f98d722a9b619`
+- `mcp_capabilities.json` SHA-256: `a3eb056522e96a4e610ab102c291ddec135ec4d18c92f9c3a17def462c028afc`
+- Parsed HTML element IDs: 14
+- Same-page fragment links checked: 18
 - Missing same-page targets: none
 - Duplicate element IDs: none
 - Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,
-  `VALIDATION.md`, and the archived `91c6790` guide
+  `VALIDATION.md`, `FORMALSPECGEN_USER_GUIDE.html`, and the archived `91c6790` guide
+- Operating-manual IDs: 200; local links and cross-page fragments checked
+- All 38 command-reference and index admission labels generated from the live inventory
 - Unexpected relative assets: none
-- Handwritten Java verification, codebase-analysis, and apply-refactor payloads validated through application request models
+- Handwritten verification, analysis, refactoring, and traceability MCP payloads validated through application request models
+- Current landing-page CLI examples parsed against the real CLI: 6
 
 ## Scope limits
 
 - External URLs were retained but not fetched as part of publication validation.
+- Detailed manual recipes and source references originate at 91c6790; their formal workflows were not rerun.
 - No compiler, verifier, generated program, provider, or MCP transport was run.
 - Static handler schemas do not replace runtime MCP discovery acceptance.
 - Completion claims must be checked against the linked revision-bound CI evidence.

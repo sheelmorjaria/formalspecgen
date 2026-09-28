@@ -10,6 +10,11 @@ humans control trusted assumptions — is written up with the full six-port prod
 ## Documentation
 
 [Read the hosted FormalSpecGen user guide](https://sheelmorjaria.github.io/formalspecgen/).
+
+The guide treats direct CLI operation, scripted CLI/CI, and agent-assisted MCP as
+first-class options. Its [full operating manual](site/FORMALSPECGEN_USER_GUIDE.html)
+preserves manual greenfield, brownfield, specialist, and command-reference recipes;
+the landing page supplies current interface, admission, and approval guidance.
 The hosted offline edition is pinned to revision `91c6790`; use the repository's generated
 [MCP parity status](docs/MCP_PARITY_STATUS.md) for the current migration state.
 
@@ -939,6 +944,15 @@ accepted. Unmapped requirements surface as UNMAPPED rows — never silently drop
 and the Markdown matrix plus JSON side-car record coverage
 (`{"mapped": 2, "total": 3}`). This is certification evidence plumbing with no proof
 claim of its own.
+
+The strict MCP equivalent is `generate_traceability_matrix(domain, source,
+requirements, out="traceability-matrix.md", result_export=None)`. Both interfaces
+capture and hash bounded inputs before matching. Directory-qualified source
+references distinguish duplicate filenames. Markdown and the default JSON
+sidecar (or explicit export) are published without replacement; MCP destinations
+are relative to its configured output root. Follow the returned `matrix_file`
+and publication metadata. A negative result may have a committed JSON export;
+publication does not establish verification or review.
 
 ### Assurance claim disclaimer
 

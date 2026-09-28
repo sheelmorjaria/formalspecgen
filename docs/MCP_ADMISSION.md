@@ -116,6 +116,21 @@ Architecture JSON and unreviewed domain candidates are published without replace
 designated MCP output root. It invokes no compiler, project hook, provider, or generated code. The
 returned source manifest and artifact digests establish provenance, not behavioral correctness.
 
+`generate_traceability_matrix` accepts `domain`, `source`, `requirements`,
+`out`, and optional `result_export`. Both interfaces use one shared bounded
+capture/matching/publication service. The default JSON sidecar uses the Markdown
+destination with a `.json` suffix; an explicit export changes that destination.
+All publications are no-replace. Negative outcomes can still publish JSON, but a
+failed export makes the overall request unsuccessful. Returned `matrix_file`
+comes from publication metadata; row sources are relative to the captured source
+root and bind to source digests. Requirements with no invariant match remain
+`UNMAPPED`; field/bound matching never proves a requirement.
+
+The profile grants only workspace reading and new-artifact writing. Aggregate
+capture limits are 8 MiB, 514 files, 4096 traversal entries, and depth 32;
+matching has a weighted operation budget and combined outputs have an 8 MiB
+limit. Neither providers nor subprocesses are authorized.
+
 The A2A coordinator profiles are additional MCP-only application capabilities, so they do not
 alter the 38-command CLI parity denominator or mark a CLI workflow complete. Their policy and
 append-only state live outside the agent workspace. Endpoint, Agent Card digest, principal,
@@ -142,7 +157,6 @@ verify_bisimulation    optimize_algorithm
 discover_algorithms    validate_domain        compose
 reverify_composition   unified_system         draft_canonical_contract
 architecture           system                 prove_equivalence
-generate_traceability_matrix
 verify_unbounded       verify_linearizability verify_distributed
 verify_heap            verify_hal             macro_translate
 verify_lockfree        verify_weak_memory     verify_wcet

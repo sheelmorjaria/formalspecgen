@@ -3531,8 +3531,8 @@
       "proposed_mcp_tool": "generate_traceability_matrix",
       "workflow_kind": "direct",
       "requirements": "Domain, source tree, requirements file, Markdown output and optional JSON export; no proof inferred from trace links.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "baseline_strict_mcp": "Bounded deterministic matching and controlled new-artifact publication; NO_PROOF.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -3549,7 +3549,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3566,13 +3566,13 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
             "--reqs"
           ],
-          "proposed_mcp_field": "reqs",
+          "proposed_mcp_field": "requirements",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
           "baseline_declaration": {
@@ -3583,7 +3583,7 @@
             "default": null,
             "required": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3600,7 +3600,7 @@
             "default": "traceability-matrix.md",
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3617,10 +3617,120 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/traceability.py"
+      "baseline_source": "pipeline/traceability_workflow.py",
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_variants": [
+          "request-equivalence",
+          "complete-argument-surface",
+          "duplicate-filenames",
+          "unmapped-requirements",
+          "input-identity",
+          "bounded-input-capture",
+          "bounded-matching",
+          "denied-effects",
+          "negative-export",
+          "malformed-input",
+          "publication-collision",
+          "no-replace-cli",
+          "semantic-equivalence",
+          "candidate-domain",
+          "reviewed-domain",
+          "source-file",
+          "source-directory",
+          "default-sidecar",
+          "explicit-export",
+          "missing-input",
+          "denied-path",
+          "configured-output-root"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_traceability_workflow.py::test_request_and_argument_equivalence",
+            "variants": [
+              "request-equivalence",
+              "complete-argument-surface"
+            ]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_traceability_workflow.py::test_capture_identity_duplicate_names_and_unmapped_rows",
+            "variants": [
+              "duplicate-filenames",
+              "unmapped-requirements",
+              "input-identity"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_traceability_workflow.py::test_capture_limits_precede_matching",
+            "variants": [
+              "bounded-input-capture"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_traceability_workflow.py::test_exact_aggregate_limit_and_matching_limit",
+            "variants": [
+              "bounded-matching"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_traceability_workflow.py::test_effect_denial",
+            "variants": [
+              "denied-effects"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_traceability_workflow.py::test_negative_outcomes_and_exports",
+            "variants": [
+              "negative-export",
+              "malformed-input",
+              "publication-collision"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_traceability_workflow.py::test_cli_export_cannot_replace_inputs_or_matrix",
+            "variants": [
+              "no-replace-cli"
+            ]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_traceability_workflow.py::test_cli_mcp_semantic_result_equivalence",
+            "variants": [
+              "semantic-equivalence"
+            ]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_traceability_workflow.py::test_real_mcp_transport_traceability",
+            "variants": [
+              "candidate-domain",
+              "reviewed-domain",
+              "source-file",
+              "source-directory",
+              "default-sidecar",
+              "explicit-export",
+              "unmapped-requirements",
+              "duplicate-filenames",
+              "missing-input",
+              "malformed-input",
+              "denied-path",
+              "publication-collision",
+              "negative-export",
+              "configured-output-root"
+            ]
+          }
+        ]
+      }
     },
     {
       "cli_command": "compose",

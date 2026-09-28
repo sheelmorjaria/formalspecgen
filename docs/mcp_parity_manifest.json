@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "16b706be5fb4080e9760aa1ed950ad74980ffe38af481d440995facca70253c0",
+  "plan_sha256": "2d0373fcf776490f2c70067adcfa6376834d111c8bcf88346fffd9e775f7b2d6",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4170,7 +4170,7 @@
     "mapped_commands": 38,
     "discovered_argument_declarations": 205,
     "mapped_argument_declarations": 205,
-    "commands_with_admitted_profile": 6,
+    "commands_with_admitted_profile": 7,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -7444,7 +7444,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "reqs",
+          "mcp_field": "requirements",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         },
@@ -7494,8 +7494,32 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-deterministic-traceability",
+            "modes": [
+              "generate"
+            ],
+            "languages": [
+              "mixed"
+            ],
+            "backends": [
+              "builtin-traceability"
+            ],
+            "effects": [
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "no-proof-traceability-matrix",
+            "required_effects": [
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -7527,13 +7551,21 @@
             "default": "traceability-matrix.md",
             "annotation": "str",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "domain",
           "source",
           "requirements",
-          "out"
+          "out",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -7542,7 +7574,7 @@
         "mapped_mcp_fields": [
           "domain",
           "out",
-          "reqs",
+          "requirements",
           "result_export",
           "source"
         ],
@@ -7550,29 +7582,43 @@
           "domain",
           "out",
           "requirements",
+          "result_export",
           "source"
         ],
-        "missing_mcp_fields": [
-          "reqs",
-          "result_export"
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "bounded-input-capture",
+          "bounded-matching",
+          "candidate-domain",
+          "complete-argument-surface",
+          "configured-output-root",
+          "default-sidecar",
+          "denied-effects",
+          "denied-path",
+          "duplicate-filenames",
+          "explicit-export",
+          "input-identity",
+          "malformed-input",
+          "missing-input",
+          "negative-export",
+          "no-replace-cli",
+          "publication-collision",
+          "request-equivalence",
+          "reviewed-domain",
+          "semantic-equivalence",
+          "source-directory",
+          "source-file",
+          "unmapped-requirements"
         ],
-        "unverified_argument_mappings": [
-          "domain",
-          "source",
-          "reqs",
-          "out",
-          "result_export"
-        ],
-        "required_variants": [],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -12920,5 +12966,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "78453a2f1ad99a8eb9675a27b61135f4dd9803ad45e5f0724bb61aec4fcc9d98"
+  "sha256": "40ef2484c661fc4ec79870dcb0aa8069b5c05ac156c7f510177f7bc9bf463956"
 }
