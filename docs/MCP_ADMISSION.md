@@ -138,7 +138,9 @@ credentials, path ceilings, workflow allowlists, and budgets are operator-contro
 [A2A_COORDINATION.md](A2A_COORDINATION.md). The provisioned A2A job exercises both the official
 A2A 1.0 client/server round trip and submission through the real MCP stdio server.
 
-The supervised goal tools are also MCP-only and do not alter the CLI parity denominator. Their
+Supervised start, resume and cancellation remain MCP-only. `get_agent_run` also
+maps to the read-only `run show` CLI command, which is included in the live parity
+denominator. It neither creates state nor resumes work. The supervised tools'
 operator-owned state is outside the workspace, while the exact approved source remains bound by Git
 revision and SHA-256. See [AGENTIC_SUPERVISOR.md](AGENTIC_SUPERVISOR.md). The initial profile accepts
 only a typed `inspect` then `verify` proposal; it cannot edit source or contracts, call a provider,

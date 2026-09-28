@@ -72,6 +72,10 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_CAPABILITY_TRANSPORT: "1"
         run: python -m pytest --no-cov -q tests/test_capability_discovery.py::test_real_mcp_capability_discovery
+      - name: Read supervised runs over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
+        run: python -m pytest --no-cov -q tests/test_run_reader.py::test_real_run_read_transport
       - name: Check pinned GitHub Pages publication
         run: python scripts/generate_pages_companions.py --check
       - name: Verify refactor-mode CLI contract
@@ -195,6 +199,7 @@ jobs:
           --require-complete generate-traceability-matrix
           --require-complete evidence
           --require-complete capabilities
+          --require-complete run
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -380,6 +385,7 @@ jobs:
             --command generate-traceability-matrix \
             --command evidence \
             --command capabilities \
+            --command run \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

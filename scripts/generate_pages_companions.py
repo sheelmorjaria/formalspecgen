@@ -19,6 +19,7 @@ import mcp_server
 from pipeline.capability_registry import mcp_capabilities
 from pipeline.evidence_consumer import EvidenceWorkflowRequest
 from pipeline.capability_discovery import CapabilityDiscoveryRequest
+from pipeline.agentic.run_reader import RunReadRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -232,6 +233,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "run-show": "run",
         "capabilities": "capabilities",
         "evidence-explain": "evidence",
         "evidence-diff": "evidence",
@@ -254,6 +256,10 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             raise ValueError(f"invalid CLI example: {name}") from exc
         if args.command != expected[name]:
             raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "run-show":
+            request = RunReadRequest(args.run_id)
+            if request.run_id != "review-001" or args.operation != "show" or args.json != "-":
+                raise ValueError("run example must read review-001 on stdout")
         if name == "capabilities":
             request = CapabilityDiscoveryRequest(args.name)
             if request.name != "verify" or args.json != "-":
@@ -340,11 +346,13 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
+            "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
             "guide workflow-example drift: expected verify-java, analyze-codebase, "
-            "capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
+            "run-show, capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
+    if RunReadRequest(**json.loads(examples["run-show"])).run_id != "review-001":
+        raise ValueError("run example must read review-001")
     capability_request = CapabilityDiscoveryRequest(**json.loads(examples["capabilities"]))
     if capability_request.name != "verify":
         raise ValueError("capabilities example must describe verify")

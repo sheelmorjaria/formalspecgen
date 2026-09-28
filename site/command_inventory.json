@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 40,
-  "argument_declaration_count": 214,
-  "commands_with_admitted_profile": 9,
+  "command_count": 41,
+  "argument_declaration_count": 217,
+  "commands_with_admitted_profile": 10,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -3745,6 +3745,85 @@
       ]
     },
     {
+      "cli_command": "run",
+      "mcp_tool": "get_agent_run",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured result on stdout only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only. CLI query envelope separates read success from the unchanged MCP run result."
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "show"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "tool_selection",
+          "requirement": "show selects get_agent_run; no other operation is accepted."
+        },
+        {
+          "cli": {
+            "flags": [
+              "run_id"
+            ],
+            "dest": "run_id",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "principal-owned supervised run identifier",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "run_id",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ]
+    },
+    {
       "cli_command": "security-exploit",
       "mcp_tool": "security_exploit",
       "workflow_kind": "direct",
@@ -5205,7 +5284,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "1d4ac429c1f627b396575b8100ea92f207339fdaf17a8d8361011a3759a61704",
+    "inventory_sha256": "eeea9383f853005e70caba662d905a5912b658cd403b7db527f662c1ad61df07",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

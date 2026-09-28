@@ -120,29 +120,9 @@ def _configured_approval_service(*, require_signer: bool) -> ApprovalService:
         reviewer_identity=os.environ.get("FORMALSPECGEN_REVIEWER_IDENTITY", ""))
 
 
-def _operator_controlled_path(
-        variable: str, *, require_file: bool = False) -> Path:
-    raw = os.environ.get(variable)
-    if not raw:
-        raise ValueError(f"{variable} is not configured")
-    supplied = Path(raw).expanduser()
-    if not supplied.is_absolute():
-        raise ValueError(f"{variable} must be an absolute operator-controlled path")
-    if supplied.is_symlink():
-        raise ValueError(f"{variable} must not be a symlink")
-    path = supplied.resolve()
-    workspace = Path.cwd().resolve()
-    if path == workspace or workspace in path.parents:
-        raise ValueError(f"{variable} must be outside the agent workspace")
-    if require_file:
-        if not path.is_file():
-            raise ValueError(f"{variable} must identify a regular file")
-        if path.stat().st_mode & 0o022:
-            raise ValueError(f"{variable} must not be group- or world-writable")
-    elif path.exists() and (not path.is_dir() or path.stat().st_mode & 0o022):
-        raise ValueError(
-            f"{variable} must be a protected directory when it already exists")
-    return path
+def _operator_controlled_path(variable: str, *, require_file: bool = False) -> Path:
+    from pipeline.operator_configuration import operator_controlled_path
+    return operator_controlled_path(variable, require_file=require_file)
 
 
 def _configured_a2a_coordinator(*, create_state: bool):
@@ -1813,6 +1793,7 @@ def start_agent_run(
 
 def get_agent_run(run_id: str) -> dict[str, Any]:
     """Read durable supervised-run state without executing or resuming it."""
+    from pipeline.agentic.run_reader import RunReadRequest, read_agent_run
     effects = ("service_state_read",)
     admission = authorize_mcp_invocation(
         "get_agent_run", mode="local", language="none",
@@ -1820,10 +1801,9 @@ def get_agent_run(run_id: str) -> dict[str, Any]:
     if not admission.admitted:
         return admission.rejection()
     try:
-        require_mcp_effect(admission, "service_state_read")
-        principal = _agent_principal()
-        supervisor = _configured_agent_supervisor(admission, create_state=False)
-        return _agent_response(supervisor.get(run_id, principal), admission)
+        request = RunReadRequest(run_id)
+        result = read_agent_run(request, WorkflowContext.for_mcp(admission, effects))
+        return {**result, "mcp_admission": admission.summary()}
     except Exception as exc:
         return _agent_error(exc)
 

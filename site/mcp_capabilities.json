@@ -3,8 +3,8 @@
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
   "capability_count": 19,
-  "cli_capability_count": 9,
-  "mcp_only_capability_count": 10,
+  "cli_capability_count": 10,
+  "mcp_only_capability_count": 9,
   "capabilities": [
     {
       "name": "verify_code",
@@ -1174,10 +1174,10 @@
     {
       "name": "get_agent_run",
       "mcp_tool": "get_agent_run",
-      "cli_command": null,
+      "cli_command": "run",
       "description": "Read a principal-owned supervised agent run without resuming it.",
       "isolation": "non-executing",
-      "catalogue": "mcp-only",
+      "catalogue": "cli-and-mcp",
       "static_input_schema": {
         "fields": [
           {

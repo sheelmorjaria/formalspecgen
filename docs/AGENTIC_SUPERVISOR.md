@@ -1,6 +1,7 @@
 # Supervised agentic workflow
 
-FormalSpecGen's first goal-level supervisor is an MCP-only application capability. It coordinates
+FormalSpecGen's first goal-level supervisor uses MCP for lifecycle operations, with
+read-only CLI access through `formalspecgen run show RUN_ID --json -`. It coordinates
 existing admitted workflows; it is not a shell agent, a source editor, an approval authority, or a
 second verifier.
 

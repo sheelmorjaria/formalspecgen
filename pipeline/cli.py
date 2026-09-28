@@ -1199,6 +1199,23 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "DOCUMENTED" else 1
 
 
+def command_run(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .agentic.contracts import AgentRunError
+    from .agentic.run_reader import RunReadRequest, read_agent_run
+    from .workflow_contracts import WorkflowContext
+    try:
+        request = RunReadRequest(args.run_id)
+        run = read_agent_run(request, WorkflowContext.for_cli(request.required_effects()))
+        result = {"status": "RUN_READ", "claim": "NO_PROOF", "request_satisfied": True,
+                  "workflow_request": request.as_dict(), "run_result": run}
+    except (AgentRunError, ValueError, OSError) as exc:
+        result = {"status": "RUN_READ_FAILED", "claim": "NO_PROOF", "request_satisfied": False,
+                  "code": exc.code if isinstance(exc, AgentRunError) else "invalid_request",
+                  "message": str(exc)}
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
+
+
 def command_capabilities(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .capability_discovery import CapabilityDiscoveryRequest, discover_capabilities
     from .workflow_contracts import WorkflowContext
@@ -2423,6 +2440,10 @@ def build_parser(
     )
     common.add_argument("--model")
 
+    run = sub.add_parser("run", help="read an existing supervised run; never resume or retry it")
+    run.add_argument("operation", choices=["show"])
+    run.add_argument("run_id", help="principal-owned supervised run identifier")
+    run.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured result on stdout only")
     discovery = sub.add_parser("capabilities", help="describe capability profiles without executing probes")
     discovery.add_argument("name", nargs="?", help="exact registry, CLI, or MCP identifier; omit to list all")
     discovery.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout only")
@@ -3111,6 +3132,8 @@ def _dispatch(
 ) -> int:
     if args.command == "capabilities":
         return command_capabilities(args, ui)
+    if args.command == "run":
+        return command_run(args, ui)
     if args.command == "evidence":
         return command_evidence(args, ui)
     plugin_handler = getattr(args, "_plugin_handler", None)

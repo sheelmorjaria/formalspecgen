@@ -5,10 +5,10 @@ Do not edit it by hand.
 
 ## Inventory
 
-- Commands mapped: 40 / 40
-- Argument declarations mapped: 214 / 214
-- Commands with at least one admitted invocation profile: 9 / 40
-- Complete command workflows: 0 / 40
+- Commands mapped: 41 / 41
+- Argument declarations mapped: 217 / 217
+- Commands with at least one admitted invocation profile: 10 / 41
+- Complete command workflows: 0 / 41
 - Inventory drift: none
 - Full workflow parity: in progress
 
@@ -40,6 +40,7 @@ Do not edit it by hand.
 | `prove-equivalence` | `prove_equivalence` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `remediate` | `remediate_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `reverify` | `reverify_composition` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
+| `run` | `get_agent_run` | `direct` | `admitted` | `incomplete` | 3 |
 | `security-exploit` | `security_exploit` | `direct` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `security-inspect` | `security_inspect` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 2 |
 | `sign-artifact` | `sign_artifact` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 2 |

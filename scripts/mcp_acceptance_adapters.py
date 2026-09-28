@@ -1316,7 +1316,76 @@ async def _capabilities_observation() -> dict:
     return observation
 
 
+async def _run_observation() -> dict:
+    """Read synthetic persisted states through real CLI and MCP, without dispatch."""
+    from pipeline.agentic.contracts import AgentGoal
+    from pipeline.agentic.state_store import AgentRunStore
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-run-read-") as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        workspace.mkdir()
+        store = AgentRunStore(root / "state")
+        states = ["planned", "running", "completed", "failed", "blocked", "cancelled", "cancellation_pending"]
+        cases = []
+        for state in states + ["foreign", "bad-review", "bad-event"]:
+            principal = "other" if state == "foreign" else "ci-reader"
+            store.create(AgentGoal(state, "Synthetic read fixture", "a" * 40, "Probe.java", "b" * 64), principal)
+            store.update(state, principal, lambda r, state=state: r.update(
+                state=state if state in states else "completed", claim="NO_PROOF",
+                request_satisfied=state == "completed", cancel_requested=state == "cancellation_pending",
+                active_action={"workflow": "verify"} if state in {"running", "cancellation_pending"} else None))
+            if state in states:
+                cases.append((state, None))
+        receipt = store.publish_review("bad-review", "ci-reader", {"claim": "NO_PROOF"})
+        store.update("bad-review", "ci-reader", lambda r: r.update(review=receipt))
+        Path(receipt["path"]).write_text("tampered")
+        (store.runs / "bad-event" / "000001.json").write_text("{}")
+        cases += [("missing", "RUN_NOT_FOUND"), ("../escape", "INVALID_GOAL"),
+                  ("foreign", "RUN_ACCESS_DENIED"), ("bad-review", "REVIEW_EVIDENCE_INVALID"),
+                  ("bad-event", "RUN_EVIDENCE_INVALID")]
+        environment = {"FORMALSPECGEN_AGENT_STATE_ROOT": str(store.root),
+                       "FORMALSPECGEN_AGENT_PRINCIPAL": "ci-reader",
+                       "FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"}
+        def snapshot():
+            return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in root.rglob("*") if p.is_file()}
+        before = snapshot()
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "get_agent_run", [{"run_id": name} for name, _ in cases], environment=environment)
+        if set(schema["properties"]) != {"run_id"} or schema.get("required") != ["run_id"]:
+            raise RuntimeError("unexpected run reader schema")
+        comparisons = []
+        for (name, error), result in zip(cases, results):
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                [sys.executable, "-m", "pipeline.cli", "run", "show", name, "--json", "-"],
+                cwd=workspace, text=True, capture_output=True, timeout=30, check=False,
+                env={**os.environ, **environment, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            envelope = json.loads(process.stdout)
+            local = envelope["result"]
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if process.returncode != (1 if error else 0) or envelope["operation_satisfied"] != (error is None):
+                raise RuntimeError("run read exit status differs from query success")
+            if local["claim"] != "NO_PROOF":
+                raise RuntimeError("reading must not mint a verification claim")
+            if error:
+                if result.get("code") != error or local.get("code") != error or result["request_satisfied"]:
+                    raise RuntimeError("run read failure was not preserved")
+            elif (local["run_result"] != expected or result["status"] != name.upper()
+                    or result["request_satisfied"] != (name == "completed")
+                    or "principal_id" in result["agent_run"]
+                    or result["mcp_admission"]["granted_effects"] != ["service_state_read"]):
+                raise RuntimeError("run outcome or read-only authority changed")
+            comparisons.append({"variant": name, "result_sha256": _sha256(expected)})
+        if snapshot() != before or list(workspace.iterdir()):
+            raise RuntimeError("run query changed durable state or workspace")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons,
+                       variants=[name for name, _ in cases], state_unchanged=True, workspace_unchanged=True)
+    return observation
+
+
 _ADAPTERS = {
+    "run": _run_observation,
     "capabilities": _capabilities_observation,
     "evidence": _evidence_observation,
     "inspect": _inspect_observation,

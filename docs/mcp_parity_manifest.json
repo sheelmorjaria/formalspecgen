@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "5840965be3f7a74555c03b06adb4f372a31deb9d69ad37190a8279e248acb227",
+  "plan_sha256": "31aa394640f6ca1d0e802528a581fbf5b8ca3cfe89e2da0e3ade35927582768c",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -86,6 +86,7 @@
         "prove-equivalence",
         "remediate",
         "reverify",
+        "run",
         "security-exploit",
         "security-inspect",
         "sign-artifact",
@@ -114,6 +115,73 @@
     },
     "plugins": [],
     "commands": [
+      {
+        "command": "run",
+        "origin": "builtin",
+        "plugin_id": null,
+        "handler_id": "pipeline.cli:dispatch:run",
+        "human_only": false,
+        "mcp_exposed_intent": false,
+        "help": "read an existing supervised run; never resume or retry it",
+        "description": null,
+        "arguments": [
+          {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "show"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "run_id"
+            ],
+            "dest": "run_id",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "principal-owned supervised run identifier",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured result on stdout only",
+            "hidden": false,
+            "metavar": null
+          }
+        ]
+      },
       {
         "command": "capabilities",
         "origin": "builtin",
@@ -4358,16 +4426,16 @@
         ]
       }
     ],
-    "command_count": 40,
-    "argument_declaration_count": 214,
-    "sha256": "1d4ac429c1f627b396575b8100ea92f207339fdaf17a8d8361011a3759a61704"
+    "command_count": 41,
+    "argument_declaration_count": 217,
+    "sha256": "eeea9383f853005e70caba662d905a5912b658cd403b7db527f662c1ad61df07"
   },
   "metrics": {
-    "discovered_commands": 40,
-    "mapped_commands": 40,
-    "discovered_argument_declarations": 214,
-    "mapped_argument_declarations": 214,
-    "commands_with_admitted_profile": 9,
+    "discovered_commands": 41,
+    "mapped_commands": 41,
+    "discovered_argument_declarations": 217,
+    "mapped_argument_declarations": 217,
+    "commands_with_admitted_profile": 10,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -10408,6 +10476,161 @@
       }
     },
     {
+      "cli_command": "run",
+      "target_mcp_tool": "get_agent_run",
+      "workflow_kind": "direct",
+      "requirements": "Read existing operator-configured, principal-owned supervisor state. CLI show only; no start, resume, cancel, worker dispatch, or approval.",
+      "origin": "builtin",
+      "plugin_id": null,
+      "arguments": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured result on stdout only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only. CLI query envelope separates read success from the unchanged MCP run result."
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "show"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "tool_selection",
+          "requirement": "show selects get_agent_run; no other operation is accepted."
+        },
+        {
+          "cli": {
+            "flags": [
+              "run_id"
+            ],
+            "dest": "run_id",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "principal-owned supervised run identifier",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "run_id",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ],
+      "adapter": {
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "read-supervised-agent-run",
+            "modes": [
+              "local"
+            ],
+            "languages": [
+              "none"
+            ],
+            "backends": [
+              "builtin-supervisor"
+            ],
+            "effects": [
+              "service_state_read"
+            ],
+            "providers": [],
+            "output_scope": "none",
+            "evidence": "append-only-agent-run-events",
+            "required_effects": [
+              "service_state_read"
+            ]
+          }
+        ],
+        "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "run_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "run_id"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "run_id"
+        ],
+        "observed_mcp_fields": [
+          "run_id"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "denied-effects",
+          "event-integrity",
+          "invalid",
+          "missing",
+          "operator-configuration",
+          "ownership",
+          "real-transport",
+          "review-integrity",
+          "show",
+          "states",
+          "stdout"
+        ],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "transport_observation": null,
+        "blockers": [
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
+        ]
+      }
+    },
+    {
       "cli_command": "security-exploit",
       "target_mcp_tool": "security_exploit",
       "workflow_kind": "direct",
@@ -13652,5 +13875,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "57c67e8c10def88dd286fe96b2bea718fac6e11a2f855af439e240f7205d571f"
+  "sha256": "3f329c01ef132075c1fa7d0eeb337323f41d2753c3df539411f47becdf012441"
 }

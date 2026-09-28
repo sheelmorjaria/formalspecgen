@@ -1,5 +1,15 @@
 # FormalSpecGen CLI
 
+`formalspecgen run show RUN_ID --json -` reads the same principal-owned state as
+MCP `get_agent_run`. Configure `FORMALSPECGEN_AGENT_STATE_ROOT` (a protected absolute
+directory outside the workspace) and `FORMALSPECGEN_AGENT_PRINCIPAL` through the
+operator-controlled deployment, not tool arguments. Environment configuration is
+not authentication; retain OS and principal boundaries. Exit zero means retrieval
+succeeded, not that the goal succeeded. `run_result` preserves the stored outcome
+and claim; the read itself is `NO_PROOF`. Missing, unauthorized or corrupt state
+fails. This slice supports only `show` and stdout JSON, never lifecycle mutations,
+new execution, signing, approval, or file exports.
+
 FormalSpecGen is a terminal-first, human-in-the-loop tool for turning natural-language requirements
 into reviewed formal contracts, bounded architecture evidence, and deductively verified code.
 
@@ -95,7 +105,7 @@ Deployment and reviewer steps are documented in
 The server can also expose the operator-configured A2A proposal bridge
 (`submit_work_item`, `get_work_item`, `get_work_artifacts`, and `cancel_work_item`); see the
 [A2A coordination guide](docs/A2A_COORDINATION.md). Worker completion never means acceptance,
-proof, signing, or merge authority. The MCP-only supervised goal layer
+proof, signing, or merge authority. The supervised goal layer (MCP lifecycle, read-only CLI queries)
 (`start_agent_run`, `get_agent_run`, `resume_agent_run`, and `cancel_agent_run`) can bind an approved
 Java/JML snapshot, accept only the typed `inspect` then `verify` plan, and publish a no-replace review
 that references the actual child evidence. It has no source-write, provider, delegation, approval,

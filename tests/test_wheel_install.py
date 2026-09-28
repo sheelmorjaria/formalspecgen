@@ -122,6 +122,8 @@ import pipeline.cli
 import pipeline.cli_output
 import pipeline.evidence_consumer
 import pipeline.capability_discovery
+import pipeline.agentic.run_reader
+import pipeline.operator_configuration
 import pipeline.lifecycle
 import formalspec_core
 root = Path(__import__('os').environ['PYTHONPATH']).resolve()
@@ -159,6 +161,26 @@ def snapshot():
             for p in Path.cwd().rglob("*") if p.is_file()}
 
 before = snapshot()
+import tempfile
+from pipeline.agentic.contracts import AgentGoal
+from pipeline.agentic.state_store import AgentRunStore
+run_directory = tempfile.TemporaryDirectory(prefix="installed-run-read-")
+run_store = AgentRunStore(Path(run_directory.name))
+run_store.create(AgentGoal("read-001", "Synthetic run fixture", "a" * 40,
+                          "Probe.java", "b" * 64), "installed-reader")
+os.environ["FORMALSPECGEN_AGENT_STATE_ROOT"] = run_directory.name
+os.environ["FORMALSPECGEN_AGENT_PRINCIPAL"] = "installed-reader"
+def run_snapshot():
+    return {str(p.relative_to(run_store.root)): p.read_bytes()
+            for p in run_store.root.rglob("*") if p.is_file()}
+run_before = run_snapshot()
+read_process = subprocess.run([str(target / "bin/formalspecgen"), "run", "show", "read-001",
+    "--json", "-"], capture_output=True, text=True, timeout=30)
+assert read_process.returncode == 0, read_process.stderr
+read_envelope = json.loads(read_process.stdout)
+assert read_envelope["operation_satisfied"] and read_envelope["result"]["claim"] == "NO_PROOF"
+read_result = read_envelope["result"]["run_result"]
+assert read_result["status"] == "PLANNED" and not read_result["request_satisfied"]
 local = []
 for arguments, satisfied in cases:
     command = [str(target / "bin/formalspecgen"), "evidence",
@@ -217,13 +239,19 @@ async def transport():
             assert not capability_response.isError
             assert {k: v for k, v in capability_response.structuredContent.items()
                     if k != "mcp_admission"} == capability_result
+            run_response = await session.call_tool("get_agent_run", {"run_id": "read-001"})
+            assert not run_response.isError
+            assert {k: v for k, v in run_response.structuredContent.items()
+                    if k != "mcp_admission"} == read_result
 
 remote = sys.argv[1] == "mcp"
 if remote:
     asyncio.run(asyncio.wait_for(transport(), timeout=45))
 assert before == snapshot(), "Read-only inspection changed its workspace"
-print(json.dumps({"installed_root": str(target), "cli_calls": len(cases) + 1,
-                  "mcp_calls": len(cases) + 2 if remote else 0, "read_only": True}))
+assert run_before == run_snapshot(), "Run query changed durable state"
+run_directory.cleanup()
+print(json.dumps({"installed_root": str(target), "cli_calls": len(cases) + 2,
+                  "mcp_calls": len(cases) + 3 if remote else 0, "read_only": True}))
 '''
 
 
@@ -237,5 +265,5 @@ def test_installed_evidence_interfaces(installed_wheel, tmp_path, interface):
         env=environment, capture_output=True, text=True, timeout=120)
     assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
     result = json.loads(checked.stdout)
-    assert result == {"installed_root": str(target.resolve()), "cli_calls": 7,
-                      "mcp_calls": 8 if interface == "mcp" else 0, "read_only": True}
+    assert result == {"installed_root": str(target.resolve()), "cli_calls": 8,
+                      "mcp_calls": 9 if interface == "mcp" else 0, "read_only": True}
