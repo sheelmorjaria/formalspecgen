@@ -304,3 +304,14 @@ def test_cleanup_failure_cannot_return_satisfied_success(setup, tmp_path, monkey
     assert result["status"] == "TLC_PREPARATION_OR_EXECUTION_FAILED"
     assert not result["request_satisfied"] and not result["model_check_passed"]
     assert len(result["execution_observations"]) == 2
+
+
+def test_tlc_ci_observation_directory_uses_step_runner_context():
+    import yaml
+
+    workflow = yaml.safe_load((Path(__file__).parents[1] / ".github/workflows/tests.yml").read_text())
+    job = workflow["jobs"]["sandbox-acceptance"]
+    # GitHub does not allow the runner context in a job-level env mapping.
+    assert all("runner." not in str(value) for value in job.get("env", {}).values())
+    step = next(item for item in job["steps"] if item.get("name") == "Run mandatory real sandbox acceptance")
+    assert step["env"]["FORMALSPECGEN_TLC_ACCEPTANCE_DIR"] == "${{ runner.temp }}/tlc-acceptance"
