@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "07eef610a9042a03dc349da83d8cb4ae2d89dd4d3b5fa715198ecf755641b97a",
+  "plan_sha256": "4be5421d3fab7bf0faff5465c99915ed9df768282b7f50819845cae8da646d0d",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -82,6 +82,7 @@
         "macro-dictionary",
         "manage-trust",
         "optimize-algorithm",
+        "project",
         "promote-domain",
         "prove-equivalence",
         "remediate",
@@ -116,6 +117,91 @@
     },
     "plugins": [],
     "commands": [
+      {
+        "command": "project",
+        "origin": "builtin",
+        "plugin_id": null,
+        "handler_id": "pipeline.cli:dispatch:project",
+        "human_only": false,
+        "mcp_exposed_intent": false,
+        "help": "validate or plan explicit project inputs without executing workflows",
+        "description": null,
+        "arguments": [
+          {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "plan"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "versioned JSON project manifest inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--target"
+            ],
+            "dest": "target",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "select one target and its declared dependencies",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          }
+        ]
+      },
       {
         "command": "worker",
         "origin": "builtin",
@@ -4494,16 +4580,16 @@
         ]
       }
     ],
-    "command_count": 42,
-    "argument_declaration_count": 220,
-    "sha256": "00d27734bfd9dfcc2218bc28db4ad1a4ba6da8021945a0dea04d5d835dacc444"
+    "command_count": 43,
+    "argument_declaration_count": 224,
+    "sha256": "6b3527876624c9bc11fd5f85ad7ad2e28e9e6c36f73c99595184a70ffbccaadc"
   },
   "metrics": {
-    "discovered_commands": 42,
-    "mapped_commands": 42,
-    "discovered_argument_declarations": 220,
-    "mapped_argument_declarations": 220,
-    "commands_with_admitted_profile": 13,
+    "discovered_commands": 43,
+    "mapped_commands": 43,
+    "discovered_argument_declarations": 224,
+    "mapped_argument_declarations": 224,
+    "commands_with_admitted_profile": 14,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -9769,6 +9855,210 @@
       }
     },
     {
+      "cli_command": "project",
+      "target_mcp_tool": "inspect_project",
+      "workflow_kind": "direct",
+      "requirements": "Bounded read-only JSON project validation and dependency planning. Explicit input identities and profile declarations only; no execution, approval, provider or publication authority.",
+      "origin": "builtin",
+      "plugin_id": null,
+      "arguments": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only; no filesystem export."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--target"
+            ],
+            "dest": "target",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "select one target and its declared dependencies",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "target",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "versioned JSON project manifest inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "plan"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ],
+      "adapter": {
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-project-planning",
+            "modes": [
+              "plan",
+              "validate"
+            ],
+            "languages": [
+              "metadata"
+            ],
+            "backends": [
+              "builtin-project"
+            ],
+            "effects": [
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "none",
+            "evidence": "read-only-project-plan",
+            "required_effects": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "manifest",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "validate",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "target",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "manifest",
+          "operation",
+          "target"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "manifest",
+          "operation",
+          "target"
+        ],
+        "observed_mcp_fields": [
+          "manifest",
+          "operation",
+          "target"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "blocked",
+          "capture-once",
+          "denied",
+          "identities",
+          "invalid",
+          "limit",
+          "malformed-json",
+          "missing",
+          "no-effects",
+          "permissions",
+          "plan",
+          "real-calls",
+          "real-discovery",
+          "selected",
+          "unsafe-inputs",
+          "validate"
+        ],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "transport_observation": null,
+        "blockers": [
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
+        ]
+      }
+    },
+    {
       "cli_command": "promote-domain",
       "target_mcp_tool": "promote_domain",
       "workflow_kind": "human_approval",
@@ -14196,5 +14486,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "a721e11e305fbe724c0e399fabe9656f64dcc49c9527dd05717ab837c345cc6a"
+  "sha256": "b6c21f9d5348c6f6fc3ed3fd2d07430200fd7723b1e91f0b1874baa33f622768"
 }

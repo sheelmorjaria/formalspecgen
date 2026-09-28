@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 42,
-  "argument_declaration_count": 220,
-  "commands_with_admitted_profile": 13,
+  "command_count": 43,
+  "argument_declaration_count": 224,
+  "commands_with_admitted_profile": 14,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -3262,6 +3262,108 @@
       ]
     },
     {
+      "cli_command": "project",
+      "mcp_tool": "inspect_project",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only; no filesystem export."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--target"
+            ],
+            "dest": "target",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "select one target and its declared dependencies",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "target",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "versioned JSON project manifest inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "plan"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ]
+    },
+    {
       "cli_command": "promote-domain",
       "mcp_tool": "promote_domain",
       "workflow_kind": "human_approval",
@@ -5363,7 +5465,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "00d27734bfd9dfcc2218bc28db4ad1a4ba6da8021945a0dea04d5d835dacc444",
+    "inventory_sha256": "6b3527876624c9bc11fd5f85ad7ad2e28e9e6c36f73c99595184a70ffbccaadc",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

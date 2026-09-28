@@ -21,6 +21,7 @@ from pipeline.evidence_consumer import EvidenceWorkflowRequest
 from pipeline.capability_discovery import CapabilityDiscoveryRequest
 from pipeline.agentic.run_reader import RunReadRequest
 from pipeline.worker_queries import WorkerArtifactsRequest
+from pipeline.project_planning import ProjectWorkflowRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -236,6 +237,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "project-plan": "project",
         "bisimulation": "verify-bisimulation",
         "security-templates": "security-exploit",
         "run-show": "run",
@@ -262,6 +264,10 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             raise ValueError(f"invalid CLI example: {name}") from exc
         if args.command != expected[name]:
             raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "project-plan":
+            request = ProjectWorkflowRequest(args.manifest, args.operation, args.target)
+            if request != ProjectWorkflowRequest("project.json", "plan", "app") or args.json != "-":
+                raise ValueError("project example must plan app from project.json on stdout")
         if name == "security-templates":
             request = SecurityTemplateWorkflowRequest(args.report, args.target, args.out_dir, args.json)
             if request.effective_export != "review/poc-verdict.json":
@@ -364,12 +370,15 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
+            "project-plan",
             "bisimulation", "security-templates",
             "worker-artifacts", "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
-            "guide workflow-example drift: expected security-templates, bisimulation, verify-java, analyze-codebase, "
+            "guide workflow-example drift: expected project-plan, security-templates, bisimulation, verify-java, analyze-codebase, "
             "worker-artifacts, run-show, capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
+    if ProjectWorkflowRequest(**json.loads(examples["project-plan"])) != ProjectWorkflowRequest("project.json", "plan", "app"):
+        raise ValueError("project example must plan app from project.json")
     if RunReadRequest(**json.loads(examples["run-show"])).run_id != "review-001":
         raise ValueError("run example must read review-001")
     preflight = BisimulationWorkflowRequest(**json.loads(examples["bisimulation"]))

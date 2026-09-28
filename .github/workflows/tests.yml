@@ -84,6 +84,10 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
         run: python -m pytest --no-cov -q tests/test_bisimulation_workflow.py::test_real_bisimulation_transport
+      - name: Static project planning over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_PROJECT_TRANSPORT: "1"
+        run: python -m pytest --no-cov -q tests/test_project_planning.py
       - name: Review-only security templates over real MCP stdio
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
@@ -215,6 +219,7 @@ jobs:
           --require-complete worker
           --require-complete verify-bisimulation
           --require-complete security-exploit
+          --require-complete project
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -436,6 +441,7 @@ jobs:
             --command worker \
             --command verify-bisimulation \
             --command security-exploit \
+            --command project \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

@@ -1,5 +1,33 @@
 # Strict MCP admission guide
 
+## Read-only project validation and static planning
+
+`project validate/plan MANIFEST [--target NAME] --json -` and MCP
+`inspect_project(manifest, operation="validate", target=null)` share
+`ProjectWorkflowRequest` and `inspect_project`. The admitted profile permits
+only workspace reading. It captures an explicit versioned JSON manifest and
+selected source/contract inputs, validates dependencies, and consults the
+installed registry for exact capability/profile names. No tool, provider,
+workspace plugin, build script, publication, or workflow dispatch occurs.
+
+Paths declared inside the manifest are relative to its directory and must stay
+inside the caller's workspace. Aggregate capture ceilings are 4 MiB, 128 files,
+32 path components, 64 targets and 128 workflow entries. Context budgets can
+only lower these ceilings. Unknown fields, duplicate keys, cycles, unsafe paths,
+symlinks and nonregular files fail closed. Selected targets include dependencies;
+unselected targets remain explicit. Digests bind the bytes actually captured,
+including the manifest; repeated paths are captured once.
+
+`PROJECT_VALIDATED` and `PROJECT_PLANNED` do not establish source-fragment
+support, tool readiness, contract approval or requested assurance. Unavailable
+profiles produce `PROJECT_BLOCKED`; absent contracts produce a warning, not an
+invented specification. Results remain `NO_PROOF`. Manifest policy declarations
+do not grant authority, reserve budgets or change admission. The static plan
+is not executable: actual invocation arguments and effects still require their
+own validation and authorization. See the public manual for the JSON schema
+example. Completion requires revision-bound CLI/MCP transport evidence, not
+registration or local unit tests alone.
+
 ## Semgrep execution infrastructure (not workflow admission)
 
 `pipeline.isolated_semgrep.run_isolated_semgrep` requires explicit workspace-read

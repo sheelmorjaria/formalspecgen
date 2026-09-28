@@ -529,6 +529,22 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
+def inspect_project(manifest: str, operation: str = "validate", target: str | None = None) -> dict[str, Any]:
+    """Bounded project declarations and input identities; never execute or authorize a plan."""
+    from pipeline.project_planning import ProjectWorkflowRequest, inspect_project as run
+    try:
+        request = ProjectWorkflowRequest(manifest, operation, target)
+    except ValueError as exc:
+        return {"status": "PROJECT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": "INVALID_REQUEST", "message": str(exc)}
+    admission = authorize_mcp_invocation("inspect_project", mode=operation, language="metadata",
+        backend="builtin-project", effects=request.required_effects())
+    if not admission.admitted:
+        return admission.rejection()
+    context = WorkflowContext.for_mcp(admission, request.required_effects())
+    return {**run(request, context), "mcp_admission": admission.summary()}
+
+
 def describe_capabilities(name: str | None = None) -> dict[str, Any]:
     """Static registry metadata; no probes, provider calls, or authority grants."""
     from pipeline.capability_discovery import CapabilityDiscoveryRequest, discover_capabilities

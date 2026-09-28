@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 21,
-  "cli_capability_count": 13,
+  "capability_count": 22,
+  "cli_capability_count": 14,
   "mcp_only_capability_count": 8,
   "capabilities": [
     {
@@ -2337,6 +2337,69 @@
           "output_scope": "none",
           "evidence": "none",
           "profile_sha256": "0ef9db03d50cc7d8dcf55c9ef184117ebb24592764c508ed6073c3e598c0e2e7"
+        }
+      ]
+    },
+    {
+      "name": "inspect_project",
+      "mcp_tool": "inspect_project",
+      "cli_command": "project",
+      "description": "Bounded static project validation and dependency planning; no workflow execution.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "manifest",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "validate",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "target",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "manifest",
+          "operation",
+          "target"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-project-planning",
+          "modes": [
+            "plan",
+            "validate"
+          ],
+          "languages": [
+            "metadata"
+          ],
+          "backends": [
+            "builtin-project"
+          ],
+          "effects": [
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "read-only-project-plan",
+          "required_effects": [
+            "workspace_read"
+          ],
+          "profile_sha256": "f1b04b826916f6d7886d09aaaef36faa3ac1bb78fa95163b657e18822d7f79cc"
         }
       ]
     }

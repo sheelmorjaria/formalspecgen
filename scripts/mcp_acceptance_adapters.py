@@ -1262,6 +1262,83 @@ async def _evidence_observation() -> dict:
     return observation
 
 
+async def _project_observation() -> dict:
+    """Real static project requests and CLI equivalence; no backend qualification."""
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-project-") as directory:
+        workspace = Path(directory)
+        (workspace / "src").mkdir()
+        (workspace / "lib").mkdir()
+        (workspace / "src/S.java").write_text("class S {}\n")
+        (workspace / "lib/S.java").write_text("class S {} // dependency\n")
+        document = {"schema": "formalspecgen-project-v1", "targets": [
+            {"name": "app", "sources": ["src/S.java"], "depends_on": ["base"], "workflows": [
+                {"capability": "verify_code", "profile": "java-openjml-verification"}]},
+            {"name": "base", "sources": ["lib/S.java"], "workflows": [
+                {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
+        (workspace / "project.json").write_text(json.dumps(document))
+        (workspace / "invalid.json").write_text('{"schema":1,"schema":2}')
+        document["targets"][0]["workflows"][0]["profile"] = "not-admitted"
+        (workspace / "blocked.json").write_text(json.dumps(document))
+        (workspace / "oversize.json").write_bytes(b" " * (4 * 1024**2 + 1))
+        cases = [
+            ("validate", {"manifest": "project.json"}, "PROJECT_VALIDATED"),
+            ("plan", {"manifest": "project.json", "operation": "plan"}, "PROJECT_PLANNED"),
+            ("selected", {"manifest": "project.json", "operation": "plan", "target": "base"}, "PROJECT_PLANNED"),
+            ("invalid", {"manifest": "invalid.json"}, "PROJECT_INVALID"),
+            ("missing", {"manifest": "missing.json"}, "PROJECT_INVALID"),
+            ("blocked", {"manifest": "blocked.json", "operation": "plan"}, "PROJECT_BLOCKED"),
+            ("denied", {"manifest": "../outside.json"}, "PROJECT_INVALID"),
+            ("limit", {"manifest": "oversize.json"}, "PROJECT_INVALID"),
+        ]
+        def identity():
+            return {p.relative_to(workspace).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in workspace.rglob("*") if p.is_file()}
+        before = identity()
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "inspect_project", [case[1] for case in cases],
+            environment={"FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"})
+        if set(schema["properties"]) != {"manifest", "operation", "target"}:
+            raise RuntimeError("unexpected project request schema")
+        comparisons, validated = [], []
+        for (variant, arguments, expected_status), result in zip(cases, results):
+            if result["status"] != expected_status or result["claim"] != "NO_PROOF" \
+                    or result["invocation_authorized"] or result["assurance"] != "NOT_ASSESSED" \
+                    or result["contract_approval"] != "NOT_ASSESSED" or result["readiness"] != "NOT_ASSESSED":
+                raise RuntimeError("project planning changed its status or claim boundary")
+            if result["mcp_admission"]["granted_effects"] != ["workspace_read"]:
+                raise RuntimeError("project planning received additional authority")
+            for item in result["inputs"]:
+                content = (workspace / item["path"]).read_bytes()
+                if item["sha256"] != hashlib.sha256(content).hexdigest() or item["size"] != len(content):
+                    raise RuntimeError("project input identity mismatch")
+                validated.append({"variant": variant, **item})
+            if "inputs_sha256" in result and result["inputs_sha256"] != _sha256(result["inputs"]):
+                raise RuntimeError("project input manifest identity mismatch")
+            if variant == "selected" and (result["targets"] != ["base"] or result["unselected_targets"] != ["app"]):
+                raise RuntimeError("project target selection changed")
+            if variant == "plan" and (result["targets"] != ["base", "app"] or len(result["steps"]) != 2):
+                raise RuntimeError("project dependencies were not ordered")
+            command = [sys.executable, "-m", "pipeline.cli", "project", arguments.get("operation", "validate"),
+                       arguments["manifest"], "--json", "-"]
+            if "target" in arguments:
+                command += ["--target", arguments["target"]]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                capture_output=True, text=True, timeout=30, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            envelope = json.loads(process.stdout)
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if envelope["result"] != expected or process.returncode != (0 if result["request_satisfied"] else 1) \
+                    or envelope["operation_satisfied"] != result["request_satisfied"]:
+                raise RuntimeError(f"CLI/MCP project results differ: {variant}")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(expected)})
+        if identity() != before:
+            raise RuntimeError("project planning wrote workspace content")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, validated_inputs=validated,
+                       workspace_unchanged=True, variants=[case[0] for case in cases])
+    return observation
+
+
 async def _capabilities_observation() -> dict:
     """Discover actual MCP schema and compare all static query outcomes to CLI."""
     cases = [("list", {}, None), ("explicit-null", {"name": None}, None)]
@@ -1670,6 +1747,7 @@ _ADAPTERS = {
     "worker": _worker_observation,
     "run": _run_observation,
     "capabilities": _capabilities_observation,
+    "project": _project_observation,
     "evidence": _evidence_observation,
     "inspect": _inspect_observation,
     "document-code": _document_observation,

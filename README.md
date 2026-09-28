@@ -1110,6 +1110,26 @@ traceability still writes its matrix and default JSON sidecar. Signed refactorin
 requires `--json PATH`, not stdout. Plugin-defined options retain their plugin
 semantics. MCP response schemas and verification claims are unchanged.
 
+### Validate and plan explicit project inputs
+
+```bash
+formalspecgen project validate project.json --json
+formalspecgen project plan project.json --target app --json -
+```
+
+MCP exposes the same read-only service as `inspect_project`, with `manifest`,
+`operation` and optional `target` fields. The versioned JSON manifest lists
+source files, contract inputs, dependencies and exact registry capability/profile
+names. See the [manifest example and limits](site/FORMALSPECGEN_USER_GUIDE.html#project).
+Inputs are captured under the workspace with aggregate byte/file limits; results
+bind their digests, order dependencies and report unavailable profiles. A selected
+target includes its declared dependencies; unselected targets remain visible.
+
+This is static planning, not an executable or authorized plan. No tool probes,
+builds, providers or publication occur. Listed contracts are not authenticated
+approvals, and declared budgets or output roots grant no authority. Results remain
+`NO_PROOF`; readiness, approval and assurance remain `NOT_ASSESSED`.
+
 ### Discover installed capability profiles without probes
 
 ```bash

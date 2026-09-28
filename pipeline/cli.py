@@ -1248,6 +1248,19 @@ def command_run(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["request_satisfied"] else 1
 
 
+def command_project(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .project_planning import ProjectWorkflowRequest, inspect_project
+    from .workflow_contracts import WorkflowContext
+    try:
+        request = ProjectWorkflowRequest(args.manifest, args.operation, args.target)
+        result = inspect_project(request, WorkflowContext.for_cli(request.required_effects()))
+    except ValueError as exc:
+        result = {"status": "PROJECT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                  "code": "INVALID_REQUEST", "message": str(exc)}
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
+
+
 def command_capabilities(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .capability_discovery import CapabilityDiscoveryRequest, discover_capabilities
     from .workflow_contracts import WorkflowContext
@@ -2472,6 +2485,11 @@ def build_parser(
     )
     common.add_argument("--model")
 
+    project = sub.add_parser("project", help="validate or plan explicit project inputs without executing workflows")
+    project.add_argument("operation", choices=["validate", "plan"])
+    project.add_argument("manifest", help="versioned JSON project manifest inside the current workspace")
+    project.add_argument("--target", help="select one target and its declared dependencies")
+    project.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout only; no export")
     worker = sub.add_parser("worker", help="read stored worker artifact references; never download or accept them")
     worker.add_argument("operation", choices=["artifacts"])
     worker.add_argument("work_item_id", help="principal-owned worker assignment identifier")
@@ -3166,6 +3184,8 @@ def dispatch(
 def _dispatch(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
+    if args.command == "project":
+        return command_project(args, ui)
     if args.command == "capabilities":
         return command_capabilities(args, ui)
     if args.command == "run":
