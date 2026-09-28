@@ -1199,6 +1199,20 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "DOCUMENTED" else 1
 
 
+def command_capabilities(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .capability_discovery import CapabilityDiscoveryRequest, discover_capabilities
+    from .workflow_contracts import WorkflowContext
+    try:
+        request = CapabilityDiscoveryRequest(args.name)
+    except ValueError as exc:
+        result = {"status": "CAPABILITY_NOT_RESOLVED", "claim": "NO_PROOF",
+                  "request_satisfied": False, "code": "INVALID_REQUEST", "message": str(exc)}
+    else:
+        result = discover_capabilities(request, WorkflowContext.for_cli(()))
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
+
+
 def command_evidence(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .evidence_consumer import EvidenceWorkflowRequest, inspect_evidence
     from .workflow_contracts import WorkflowContext
@@ -2409,6 +2423,9 @@ def build_parser(
     )
     common.add_argument("--model")
 
+    discovery = sub.add_parser("capabilities", help="describe capability profiles without executing probes")
+    discovery.add_argument("name", nargs="?", help="exact registry, CLI, or MCP identifier; omit to list all")
+    discovery.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout only")
     evidence = sub.add_parser(
         "evidence", help="validate, explain or compare ledger records without asserting proof or trust")
     evidence.add_argument("operation", choices=["validate", "explain", "diff"])
@@ -3063,6 +3080,7 @@ def build_parser(
                 "Workflow artifacts are still produced where requested."
             )
     evidence.epilog = "Read-only: --json or --json - writes only to stdout. No signature, applicability or assurance-policy validation."
+    discovery.epilog = "Metadata only: no readiness probes or authority grants. --json or --json - writes only to stdout."
     existing = tuple(sub.choices)
     for plugin in plugins:
         registered = register_plugin(sub, existing, plugin)
@@ -3091,6 +3109,8 @@ def dispatch(
 def _dispatch(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
+    if args.command == "capabilities":
+        return command_capabilities(args, ui)
     if args.command == "evidence":
         return command_evidence(args, ui)
     plugin_handler = getattr(args, "_plugin_handler", None)

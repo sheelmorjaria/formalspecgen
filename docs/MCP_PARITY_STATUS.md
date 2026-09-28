@@ -5,10 +5,10 @@ Do not edit it by hand.
 
 ## Inventory
 
-- Commands mapped: 39 / 39
-- Argument declarations mapped: 212 / 212
-- Commands with at least one admitted invocation profile: 8 / 39
-- Complete command workflows: 0 / 39
+- Commands mapped: 40 / 40
+- Argument declarations mapped: 214 / 214
+- Commands with at least one admitted invocation profile: 9 / 40
+- Complete command workflows: 0 / 40
 - Inventory drift: none
 - Full workflow parity: in progress
 
@@ -20,6 +20,7 @@ Do not edit it by hand.
 | `apply-refactor` | `apply_refactor` | `direct_or_task` | `admitted` | `incomplete` | 6 |
 | `architecture` | `architecture` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 5 |
 | `assess-security` | `assess_security` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
+| `capabilities` | `describe_capabilities` | `direct` | `admitted` | `incomplete` | 2 |
 | `compose` | `compose` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |
 | `correct-behavior` | `correct_behavior` | `direct_or_task_with_approval` | `adapter_present_not_admitted` | `incomplete` | 12 |
 | `design-system` | `design_system` | `resumable` | `adapter_missing` | `incomplete` | 8 |

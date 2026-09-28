@@ -64,10 +64,14 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_EVIDENCE_TRANSPORT: "1"
         run: python -m pytest --no-cov -q tests/test_evidence_consumer.py::test_real_mcp_evidence_discovery_and_calls
-      - name: Qualify installed CLI and MCP evidence interfaces
+      - name: Qualify installed CLI and MCP operator interfaces
         env:
           FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE: "1"
         run: python -m pytest --no-cov -q tests/test_wheel_install.py
+      - name: Exercise static capability discovery over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_CAPABILITY_TRANSPORT: "1"
+        run: python -m pytest --no-cov -q tests/test_capability_discovery.py::test_real_mcp_capability_discovery
       - name: Check pinned GitHub Pages publication
         run: python scripts/generate_pages_companions.py --check
       - name: Verify refactor-mode CLI contract
@@ -190,6 +194,7 @@ jobs:
           --require-complete analyze-codebase
           --require-complete generate-traceability-matrix
           --require-complete evidence
+          --require-complete capabilities
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -374,6 +379,7 @@ jobs:
             --command analyze-codebase \
             --command generate-traceability-matrix \
             --command evidence \
+            --command capabilities \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

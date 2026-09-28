@@ -183,6 +183,7 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
 
 
 _MCP_TOOLS = (
+    "describe_capabilities",
     "inspect_evidence",
     "verify_code",
     "validate_architecture",
@@ -1214,6 +1215,16 @@ _GENERIC_DATA.append({
                       "languages": ("evidence",), "backends": ("builtin-ledger",),
                       "effects": ("workspace_read",), "required_effects": ("workspace_read",),
                       "output_scope": "none", "evidence": "read-only-integrity-report"},),
+})
+
+_GENERIC_DATA.append({
+    "name": "describe_capabilities", "description": "Describe built-in capability profiles without probes or authority grants.",
+    "cli_command": "capabilities", "mcp_tool": "describe_capabilities",
+    "epistemic_boundary": "Discovery is not readiness, authorization, verification, or workflow completion.",
+    "mcp_isolation": "non-executing",
+    "mcp_profiles": ({"name": "static-capability-discovery", "modes": ("describe",),
+                      "languages": ("metadata",), "backends": ("builtin-registry",),
+                      "effects": (), "output_scope": "none", "evidence": "none"},),
 })
 
 CAPABILITIES: tuple[CapabilitySpec, ...] = tuple(

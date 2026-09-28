@@ -563,6 +563,23 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
+def describe_capabilities(name: str | None = None) -> dict[str, Any]:
+    """Static registry metadata; no probes, provider calls, or authority grants."""
+    from pipeline.capability_discovery import CapabilityDiscoveryRequest, discover_capabilities
+    try:
+        request = CapabilityDiscoveryRequest(name)
+    except ValueError as exc:
+        return {"status": "CAPABILITY_NOT_RESOLVED", "claim": "NO_PROOF",
+                "request_satisfied": False, "code": "INVALID_REQUEST", "message": str(exc)}
+    admission = authorize_mcp_invocation(
+        "describe_capabilities", mode="describe", language="metadata", backend="builtin-registry",
+        effects=request.required_effects())
+    if not admission.admitted:
+        return admission.rejection()
+    result = discover_capabilities(request, WorkflowContext.for_mcp(admission, request.required_effects()))
+    return {**result, "mcp_admission": admission.summary()}
+
+
 def inspect_evidence(manifest: str, operation: str = "validate",
                      expected_sha256: str | None = None,
                      comparison_manifest: str | None = None,

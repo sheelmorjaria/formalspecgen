@@ -121,6 +121,7 @@ import mcp_server
 import pipeline.cli
 import pipeline.cli_output
 import pipeline.evidence_consumer
+import pipeline.capability_discovery
 import pipeline.lifecycle
 import formalspec_core
 root = Path(__import__('os').environ['PYTHONPATH']).resolve()
@@ -179,6 +180,14 @@ assert local[1]["explanation"]["recorded_claim"] == "NO_PROOF"
 assert local[3]["code"] == "MANIFEST_DIGEST_MISMATCH"
 assert local[4]["status"] == "EVIDENCE_INVALID"
 
+capability_process = subprocess.run([str(target / "bin/formalspecgen"), "capabilities", "verify",
+    "--json", "-"], capture_output=True, text=True, timeout=30)
+assert capability_process.returncode == 0, capability_process.stderr
+capability_result = json.loads(capability_process.stdout)["result"]
+assert capability_result["request_satisfied"] and capability_result["claim"] == "NO_PROOF"
+assert capability_result["capabilities"][0]["name"] == "verify_code"
+assert capability_result["readiness"] == "NOT_ASSESSED" and not capability_result["invocation_authorized"]
+
 async def transport():
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
@@ -204,13 +213,17 @@ async def transport():
             assert not denied.isError
             assert denied.structuredContent["code"] == "PATH_OUTSIDE_WORKSPACE"
             assert not denied.structuredContent["request_satisfied"]
+            capability_response = await session.call_tool("describe_capabilities", {"name": "verify"})
+            assert not capability_response.isError
+            assert {k: v for k, v in capability_response.structuredContent.items()
+                    if k != "mcp_admission"} == capability_result
 
 remote = sys.argv[1] == "mcp"
 if remote:
     asyncio.run(asyncio.wait_for(transport(), timeout=45))
 assert before == snapshot(), "Read-only inspection changed its workspace"
-print(json.dumps({"installed_root": str(target), "cli_calls": len(cases),
-                  "mcp_calls": len(cases) + 1 if remote else 0, "read_only": True}))
+print(json.dumps({"installed_root": str(target), "cli_calls": len(cases) + 1,
+                  "mcp_calls": len(cases) + 2 if remote else 0, "read_only": True}))
 '''
 
 
@@ -224,5 +237,5 @@ def test_installed_evidence_interfaces(installed_wheel, tmp_path, interface):
         env=environment, capture_output=True, text=True, timeout=120)
     assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
     result = json.loads(checked.stdout)
-    assert result == {"installed_root": str(target.resolve()), "cli_calls": 6,
-                      "mcp_calls": 7 if interface == "mcp" else 0, "read_only": True}
+    assert result == {"installed_root": str(target.resolve()), "cli_calls": 7,
+                      "mcp_calls": 8 if interface == "mcp" else 0, "read_only": True}

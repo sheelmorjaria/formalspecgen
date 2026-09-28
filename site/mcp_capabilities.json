@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 18,
-  "cli_capability_count": 8,
+  "capability_count": 19,
+  "cli_capability_count": 9,
   "mcp_only_capability_count": 10,
   "capabilities": [
     {
@@ -2153,6 +2153,47 @@
             "workspace_read"
           ],
           "profile_sha256": "3c633825a4ced64c8c815229b7a8f578c39c12f54684ebae2071581b7c33da77"
+        }
+      ]
+    },
+    {
+      "name": "describe_capabilities",
+      "mcp_tool": "describe_capabilities",
+      "cli_command": "capabilities",
+      "description": "Describe built-in capability profiles without probes or authority grants.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "name",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "name"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "static-capability-discovery",
+          "modes": [
+            "describe"
+          ],
+          "languages": [
+            "metadata"
+          ],
+          "backends": [
+            "builtin-registry"
+          ],
+          "effects": [],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "none",
+          "profile_sha256": "0ef9db03d50cc7d8dcf55c9ef184117ebb24592764c508ed6073c3e598c0e2e7"
         }
       ]
     }

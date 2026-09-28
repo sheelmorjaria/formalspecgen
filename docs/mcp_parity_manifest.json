@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "edd3a85a9c70c684b83e46bf13161f066247a5e3b02aff8c5602c5044db69917",
+  "plan_sha256": "5840965be3f7a74555c03b06adb4f372a31deb9d69ad37190a8279e248acb227",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -66,6 +66,7 @@
         "apply-refactor",
         "architecture",
         "assess-security",
+        "capabilities",
         "compose",
         "correct-behavior",
         "design-system",
@@ -113,6 +114,54 @@
     },
     "plugins": [],
     "commands": [
+      {
+        "command": "capabilities",
+        "origin": "builtin",
+        "plugin_id": null,
+        "handler_id": "pipeline.cli:dispatch:capabilities",
+        "human_only": false,
+        "mcp_exposed_intent": false,
+        "help": "describe capability profiles without executing probes",
+        "description": null,
+        "arguments": [
+          {
+            "flags": [
+              "name"
+            ],
+            "dest": "name",
+            "positional": true,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": "?",
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "exact registry, CLI, or MCP identifier; omit to list all",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only",
+            "hidden": false,
+            "metavar": null
+          }
+        ]
+      },
       {
         "command": "evidence",
         "origin": "builtin",
@@ -4309,16 +4358,16 @@
         ]
       }
     ],
-    "command_count": 39,
-    "argument_declaration_count": 212,
-    "sha256": "75f4296ce5014fa81ee4e7b75d5a7c47edf41b1b1a28565a839051a397ac350c"
+    "command_count": 40,
+    "argument_declaration_count": 214,
+    "sha256": "1d4ac429c1f627b396575b8100ea92f207339fdaf17a8d8361011a3759a61704"
   },
   "metrics": {
-    "discovered_commands": 39,
-    "mapped_commands": 39,
-    "discovered_argument_declarations": 212,
-    "mapped_argument_declarations": 212,
-    "commands_with_admitted_profile": 8,
+    "discovered_commands": 40,
+    "mapped_commands": 40,
+    "discovered_argument_declarations": 214,
+    "mapped_argument_declarations": 214,
+    "commands_with_admitted_profile": 9,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -5236,6 +5285,148 @@
           "mapped_inputs_missing_from_mcp_schema",
           "argument_mappings_not_verified",
           "completion_contract_missing"
+        ]
+      }
+    },
+    {
+      "cli_command": "capabilities",
+      "target_mcp_tool": "describe_capabilities",
+      "workflow_kind": "direct",
+      "requirements": "Data-only installed built-in registry discovery. No readiness probes, workspace plugins, authority grants, or completion claims.",
+      "origin": "builtin",
+      "plugin_id": null,
+      "arguments": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout presentation only, no file publication."
+        },
+        {
+          "cli": {
+            "flags": [
+              "name"
+            ],
+            "dest": "name",
+            "positional": true,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": "?",
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "exact registry, CLI, or MCP identifier; omit to list all",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "name",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ],
+      "adapter": {
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "static-capability-discovery",
+            "modes": [
+              "describe"
+            ],
+            "languages": [
+              "metadata"
+            ],
+            "backends": [
+              "builtin-registry"
+            ],
+            "effects": [],
+            "providers": [],
+            "output_scope": "none",
+            "evidence": "none"
+          }
+        ],
+        "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "name",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "name"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "name"
+        ],
+        "observed_mcp_fields": [
+          "name"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "all-registry-identifiers",
+          "ambiguous",
+          "cli-mcp-transport",
+          "denied-dispatch",
+          "explicit-null",
+          "invalid-name",
+          "invalid-output",
+          "list",
+          "mcp-only",
+          "name",
+          "named",
+          "no-effects",
+          "no-plugins",
+          "no-publication",
+          "option-like-name",
+          "profile-definitions",
+          "real-calls",
+          "real-discovery",
+          "registry-identity",
+          "registry-only",
+          "scope",
+          "self",
+          "stdout",
+          "strict-catalogue",
+          "trust-only",
+          "unadmitted",
+          "unknown"
+        ],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "transport_observation": null,
+        "blockers": [
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -13461,5 +13652,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "0c969563f6535168321993a5f17b3f078a3a0be737c0fa50f12eeb775ce38e70"
+  "sha256": "57c67e8c10def88dd286fe96b2bea718fac6e11a2f855af439e240f7205d571f"
 }

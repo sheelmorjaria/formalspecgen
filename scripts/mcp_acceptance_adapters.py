@@ -1262,7 +1262,62 @@ async def _evidence_observation() -> dict:
     return observation
 
 
+async def _capabilities_observation() -> dict:
+    """Discover actual MCP schema and compare all static query outcomes to CLI."""
+    cases = [("list", {}, None), ("explicit-null", {"name": None}, None)]
+    cases += [(name, {"name": name}, None) for name in (
+        "verify", "verify_code", "sign-artifact", "implement", "start_agent_run", "capabilities")]
+    cases += [("unknown", {"name": "not-a-command"}, "UNKNOWN_CAPABILITY"),
+              ("option-like-name", {"name": "--"}, "UNKNOWN_CAPABILITY")]
+    cases += [("registry-only", {"name": name}, "UNKNOWN_CAPABILITY") for name in (
+        "domain", "draft", "design-system", "macro-dictionary")]
+    cases += [("invalid-name", {"name": name}, "INVALID_REQUEST") for name in ("../file", "", "a" * 129)]
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-capabilities-") as directory:
+        workspace = Path(directory)
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "describe_capabilities", [case[1] for case in cases],
+            environment={"FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"})
+        if set(schema["properties"]) != {"name"}:
+            raise RuntimeError("unexpected capability discovery schema")
+        declared_tools = {entry["mcp_tool"] for entry in results[0]["capabilities"]
+                          if entry["strict_mcp_exposed"]}
+        if declared_tools != {tool.name for tool in tools.tools}:
+            raise RuntimeError("declared strict catalogue does not match MCP discovery")
+        if results[0] != results[1]:
+            raise RuntimeError("explicit null must resolve like an omitted name")
+        comparisons = []
+        for (variant, arguments, expected_code), result in zip(cases, results):
+            satisfied = expected_code is None
+            if result["request_satisfied"] != satisfied or result["code"] != expected_code:
+                raise RuntimeError("unexpected capability lookup outcome")
+            if satisfied and (result["readiness"] != "NOT_ASSESSED"
+                    or result["workflow_completion"] != "NOT_ASSESSED" or result["invocation_authorized"]):
+                raise RuntimeError("capability discovery overstated its scope")
+            command = [sys.executable, "-m", "pipeline.cli", "capabilities", "--json", "-"]
+            if arguments.get("name") is not None:
+                command += ["--", arguments["name"]]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                command, cwd=workspace, text=True, capture_output=True, timeout=30, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            envelope = json.loads(process.stdout)
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if envelope["result"] != expected or process.returncode != (0 if satisfied else 1) \
+                    or envelope.get("schema") != "formalspecgen-cli-result-v1" \
+                    or envelope.get("exit_code") != process.returncode \
+                    or envelope.get("operation_satisfied") is not satisfied \
+                    or result["claim"] != "NO_PROOF":
+                raise RuntimeError("CLI/MCP capability discovery differs")
+            comparisons.append({"variant": variant, "request": arguments, "result_sha256": _sha256(expected)})
+        if list(workspace.iterdir()):
+            raise RuntimeError("capability discovery wrote workspace artifacts")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, workspace_unchanged=True,
+                       variants=sorted({case[0] for case in cases}), strict_catalogue_matches_discovery=True)
+    return observation
+
+
 _ADAPTERS = {
+    "capabilities": _capabilities_observation,
     "evidence": _evidence_observation,
     "inspect": _inspect_observation,
     "document-code": _document_observation,

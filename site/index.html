@@ -95,9 +95,19 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory maps 39 CLI commands and 212 argument declarations, including the new read-only <code>evidence</code> command. Eight commands have admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, <code>generate-traceability-matrix</code>, and <code>evidence</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory maps 40 CLI commands and 214 argument declarations. Nine commands have admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, <code>generate-traceability-matrix</code>, <code>evidence</code>, and <code>capabilities</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
+    <p>The previously accepted <a href="https://github.com/sheelmorjaria/formalspecgen/commit/737844588b2f92aef05a1ce6c48574378cd321a8">7378445 revision</a> has <a href="https://github.com/sheelmorjaria/formalspecgen/actions/runs/36370760501">CI evidence for 8 of its 39 workflows</a>, including evidence inspection. That acceptance does not cover the subsequent capability-discovery addition or other later changes.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
+  </section>
+
+  <section id="capability-discovery">
+    <h2>Discover capability profiles without running probes</h2>
+    <pre><code data-cli-example="capabilities">formalspecgen capabilities verify --json -</code></pre>
+    <p>The equivalent MCP tool is <code>describe_capabilities</code>:</p>
+    <pre><code data-workflow-example="capabilities">{"name": "verify"}</code></pre>
+    <p>Omit the name to list the installed built-in registry. Exact registry, CLI and MCP identifiers are accepted; unknown or ambiguous identifiers fail. The report includes declared modes, languages, backends, effect ceilings, providers and claim boundaries, bound to a registry digest.</p>
+    <p>This is static metadata, not live readiness or a permission grant. No workspace configuration/plugins, tools or providers are consulted. Completion and readiness remain <code>NOT_ASSESSED</code>; the claim is <code>NO_PROOF</code>. Profiles may include explicit rejection paths and do not guarantee support for a particular source. Use the <a href="command_inventory.json">generated CLI inventory</a> for parser coverage and <a href="FORMALSPECGEN_USER_GUIDE.html#capabilities">the operating recipe</a> for direct use.</p>
   </section>
 
   <section id="catalogue">

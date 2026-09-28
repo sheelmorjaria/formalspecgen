@@ -20,7 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "d18a1984f03160e82b5326a7b20450861fed1d5c74f601ae03a692d3bc150961"
+GUIDE_SHA256 = "8a477b11f1540cfcf42574ff14d1c94be9e38c4199cd8dc0c75a219e927ee38c"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -37,13 +37,13 @@ def test_current_guide_and_generated_companions_are_current():
 
     decoded = json.loads(inventory)
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
-    assert decoded["command_count"] == 39
-    assert decoded["argument_declaration_count"] == 212
-    assert decoded["commands_with_admitted_profile"] == 8
+    assert decoded["command_count"] == 40
+    assert decoded["argument_declaration_count"] == 214
+    assert decoded["commands_with_admitted_profile"] == 9
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 18
-    assert strict["cli_capability_count"] == 8
+    assert strict["capability_count"] == 19
+    assert strict["cli_capability_count"] == 9
     assert strict["mcp_only_capability_count"] == 10
     assert {"verify_refactor", "apply_refactor", "analyze_codebase"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}
@@ -65,12 +65,12 @@ def test_manual_preserves_all_command_recipes_and_current_availability():
     archived = (SITE / "archive/91c6790/index.html").read_text()
     inventory = json.loads((SITE / "command_inventory.json").read_text())
     assert manual == _manual_admission(manual, inventory)
-    assert len(inventory["commands"]) == 39
+    assert len(inventory["commands"]) == 40
     for command in inventory["commands"]:
         name = command["cli_command"]
-        if name == "evidence":
-            assert '<h2 id="evidence">' in manual
-            assert 'data-cli-command="evidence"' in manual
+        if name in {"evidence", "capabilities"}:
+            assert f'<h2 id="{name}">' in manual
+            assert f'data-cli-command="{name}"' in manual
             continue
         def section(document):
             start = document.index(f'<h2 id="{name}">')
@@ -98,7 +98,7 @@ def test_integrated_pages_have_valid_navigation_and_cli_examples():
     parser = _GuideLinks()
     parser.feed(documents[SITE / "index.html"])
     _validate_cli_examples(parser.cli_examples)
-    assert len(parser.cli_examples) == 10
+    assert len(parser.cli_examples) == 11
     assert 'FORMALSPECGEN_USER_GUIDE.html#command-reference' in parser.hrefs
     assert "scripted automation" in documents[SITE / "index.html"]
     assert "Not yet a universal approval bridge" in documents[SITE / "index.html"]

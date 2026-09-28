@@ -1077,6 +1077,32 @@ traceability still writes its matrix and default JSON sidecar. Signed refactorin
 requires `--json PATH`, not stdout. Plugin-defined options retain their plugin
 semantics. MCP response schemas and verification claims are unchanged.
 
+### Discover installed capability profiles without probes
+
+```bash
+formalspecgen capabilities --json
+formalspecgen capabilities verify --json -
+```
+
+MCP clients call `describe_capabilities` with `{"name": "verify"}` (omit `name` to
+list the registry). Both interfaces call one data-only service. Exact registry,
+CLI, and MCP identifiers resolve to the same entry; unknown or ambiguous names
+fail explicitly. The result includes a registry digest, application/policy
+versions, declared profiles, effect ceilings, provider allowlists, publication
+scope, and the registry's stated claim boundary. JSON output is stdout-only.
+
+This describes the installed built-in registry, not all CLI parser declarations
+or deployment plugins. It does not load workspace configuration or plugins,
+contact providers, run readiness probes, or grant authority. Profile availability
+is not a guarantee of source support or a successful check. Readiness and
+workflow completion remain `NOT_ASSESSED`, and the report carries `NO_PROOF`.
+
+For example, `domain`, `draft`, `design-system`, and `macro-dictionary` are
+existing CLI commands without exact entries in this registry. An
+`UNKNOWN_CAPABILITY` response means the identifier is absent from the registry,
+not that the CLI command does not exist. Use CLI `--help` or the generated
+command inventory for complete parser coverage.
+
 ### Inspect existing evidence without rerunning tools
 
 ```bash
@@ -2453,7 +2479,7 @@ FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1 \
 ```
 
 This gate verifies application imports come from the installed wheel, compares
-CLI/MCP evidence results, checks tampered and missing inputs, and confirms that
+CLI/MCP evidence and capability results, checks tampered and missing inputs, and confirms that
 inspection leaves the workspace unchanged. The ledgers are synthetic, not proof
 evidence. Third-party dependencies come from the provisioned test environment;
 this is not a hermetic dependency installation, formal-backend qualification, or

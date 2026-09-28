@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 39,
-  "argument_declaration_count": 212,
-  "commands_with_admitted_profile": 8,
+  "command_count": 40,
+  "argument_declaration_count": 214,
+  "commands_with_admitted_profile": 9,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -449,6 +449,61 @@
           "mcp_field": "source",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
+        }
+      ]
+    },
+    {
+      "cli_command": "capabilities",
+      "mcp_tool": "describe_capabilities",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout presentation only, no file publication."
+        },
+        {
+          "cli": {
+            "flags": [
+              "name"
+            ],
+            "dest": "name",
+            "positional": true,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": "?",
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "exact registry, CLI, or MCP identifier; omit to list all",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "name",
+          "disposition": "direct",
+          "requirement": null
         }
       ]
     },
@@ -5150,7 +5205,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "75f4296ce5014fa81ee4e7b75d5a7c47edf41b1b1a28565a839051a397ac350c",
+    "inventory_sha256": "1d4ac429c1f627b396575b8100ea92f207339fdaf17a8d8361011a3759a61704",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

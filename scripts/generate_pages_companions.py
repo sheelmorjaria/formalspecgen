@@ -18,6 +18,7 @@ from urllib.parse import unquote, urlparse
 import mcp_server
 from pipeline.capability_registry import mcp_capabilities
 from pipeline.evidence_consumer import EvidenceWorkflowRequest
+from pipeline.capability_discovery import CapabilityDiscoveryRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -231,6 +232,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "capabilities": "capabilities",
         "evidence-explain": "evidence",
         "evidence-diff": "evidence",
         "evidence-source": "evidence",
@@ -252,6 +254,10 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             raise ValueError(f"invalid CLI example: {name}") from exc
         if args.command != expected[name]:
             raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "capabilities":
+            request = CapabilityDiscoveryRequest(args.name)
+            if request.name != "verify" or args.json != "-":
+                raise ValueError("capabilities example must describe verify on stdout")
         if name == "inspect-stdout" and args.json != "-":
             raise ValueError("stdout inspection example must use --json -")
         if name == "evidence-explain":
@@ -305,6 +311,10 @@ def _validate_html_links(
 def _manual_admission(text: str, inventory: dict) -> str:
     """Refresh only marked availability labels, preserving manual recipes."""
     commands = {item["cli_command"]: item for item in inventory["commands"]}
+    for label, count in (("CLI commands", inventory["command_count"]),
+                         ("argument declarations", inventory["argument_declaration_count"])):
+        text = re.sub(r'(<span class="chip">)\d+ ' + label + r'(</span>)',
+                      lambda match: match[1] + str(count) + " " + label + match[2], text)
     for tag, attribute in (("p", "data-cli-command"), ("td", "data-cli-admission")):
         pattern = rf'<{tag} {attribute}="([^"]+)">[\s\S]*?</{tag}>'
         seen: list[str] = []
@@ -330,11 +340,14 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
+            "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
             "guide workflow-example drift: expected verify-java, analyze-codebase, "
-            "apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
+            "capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
+    capability_request = CapabilityDiscoveryRequest(**json.loads(examples["capabilities"]))
+    if capability_request.name != "verify":
+        raise ValueError("capabilities example must describe verify")
     payload = json.loads(examples["verify-java"])
     evidence = EvidenceWorkflowRequest(**json.loads(examples["evidence-explain"]))
     if evidence.operation != "explain":
