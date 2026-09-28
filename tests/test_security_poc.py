@@ -8,7 +8,7 @@ def test_security_inspect_maps_formal_findings(tmp_path):
     source = tmp_path / "Service.java"
     source.write_text("class Service {}", encoding="utf-8")
     with patch("pipeline.security_poc.run_semgrep", return_value={"status": "CLEAN", "findings": []}), \
-         patch("pipeline.security_poc.verify", return_value=(1, "Service.java:2: PossiblyNegativeIndex")):
+         patch("pipeline.security_poc.verify", return_value=(6, "Service.java:2: PossiblyNegativeIndex")):
         result = inspect_security(source)
     assert result["status"] == "VULNERABILITIES_FOUND"
     assert result["findings"][0]["cwe"] == "CWE-125"

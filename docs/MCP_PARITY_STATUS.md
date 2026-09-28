@@ -5,10 +5,10 @@ Do not edit it by hand.
 
 ## Inventory
 
-- Commands mapped: 38 / 38
-- Argument declarations mapped: 205 / 205
-- Commands with at least one admitted invocation profile: 7 / 38
-- Complete command workflows: 0 / 38
+- Commands mapped: 39 / 39
+- Argument declarations mapped: 212 / 212
+- Commands with at least one admitted invocation profile: 8 / 39
+- Complete command workflows: 0 / 39
 - Inventory drift: none
 - Full workflow parity: in progress
 
@@ -28,6 +28,7 @@ Do not edit it by hand.
 | `document-code` | `document_code` | `direct_or_task` | `admitted` | `incomplete` | 7 |
 | `domain` | `elicit_domain` | `resumable` | `adapter_missing` | `incomplete` | 8 |
 | `draft` | `draft_contract` | `resumable` | `compatibility_alias_present_target_missing` | `incomplete` | 12 |
+| `evidence` | `inspect_evidence` | `direct` | `admitted` | `incomplete` | 7 |
 | `generate-traceability-matrix` | `generate_traceability_matrix` | `direct` | `admitted` | `incomplete` | 5 |
 | `implement` | `implement_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 20 |
 | `inspect` | `inspect_code` | `direct` | `admitted` | `incomplete` | 2 |

@@ -1014,7 +1014,256 @@ async def _traceability_observation() -> dict:
     return observation
 
 
+async def _evidence_observation() -> dict:
+    """Exercise read-only evidence consumption, not formal verification.
+
+    The ledgers are synthetic fixtures. Record actual transport/CLI results and
+    compare captured identities with fixture bytes before discarding the workspace.
+    """
+    from pipeline.evidence_consumer import EVIDENCE_BUDGET
+    from pipeline.lifecycle import EvidenceClaim, PipelineState, RunLedger
+
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-evidence-acceptance-") as directory:
+        workspace = Path(directory)
+
+        def ledger(name: str, *, rejected: bool = False, padding: int = 0,
+                   stages: int = 1) -> Path:
+            run = RunLedger(workspace / name)
+            for index in range(stages):
+                run.record(PipelineState.PROOF, "REJECTED" if rejected else "VERIFIED",
+                           claim=EvidenceClaim.NO_PROOF if rejected else EvidenceClaim.DEDUCTIVE_PROOF,
+                           evidence={"fixture": "synthetic; no verifier executed",
+                                     "padding": "x" * padding if index == 0 else ""})
+            return run.commit({"final_status": "REJECTED" if rejected else "VERIFIED",
+                               "claim": "NO_PROOF" if rejected else "DEDUCTIVE_PROOF",
+                               "claim_limits": {"synthetic_fixture": True}})
+
+        good = ledger("valid")
+        digest = hashlib.sha256(good.read_bytes()).hexdigest()
+        comparison = ledger("comparison", rejected=True, stages=2)
+        comparison_digest = hashlib.sha256(comparison.read_bytes()).hexdigest()
+        large_left = ledger("large-left", padding=4 * 1024 * 1024)
+        large_right = ledger("large-right", padding=4 * 1024 * 1024)
+        many_left = ledger("many-left", stages=127)
+        many_right = ledger("many-right", stages=127)
+        tampered = ledger("tampered")
+        (tampered.parent / "run.json").write_text("tampered", encoding="utf-8")
+        missing = ledger("missing-artifact")
+        (missing.parent / "run.json").unlink()
+        linked = ledger("linked-artifact")
+        (linked.parent / "run.json").unlink()
+        (linked.parent / "run.json").symlink_to(good.parent / "run.json")
+        (workspace / "linked.json").symlink_to(good)
+        malformed = workspace / "malformed.json"
+        malformed.write_text("not json", encoding="utf-8")
+        oversized = workspace / "oversized.json"
+        oversized.write_bytes(b" " * (EVIDENCE_BUDGET["max_input_bytes"] + 1))
+        too_many = workspace / "too-many.json"
+        manifest = json.loads(good.read_bytes())
+        manifest["artifacts"] = manifest["artifacts"][:1] * EVIDENCE_BUDGET["max_input_files"]
+        too_many.write_text(json.dumps(manifest), encoding="utf-8")
+        traversal = workspace / "traversal.json"
+        manifest["artifacts"] = [{"path": "../outside.json", "size": 0, "sha256": "0" * 64}]
+        traversal.write_text(json.dumps(manifest), encoding="utf-8")
+        source = workspace / "Counter.java"
+        source.write_bytes(b"class Counter {}\r\n")
+        changed_source = workspace / "Changed.java"
+        changed_source.write_text("class Changed {}", encoding="utf-8")
+        source_link = workspace / "source-link.java"
+        source_link.symlink_to(source)
+
+        def source_ledger(name: str, *, conflict: bool = False, extra_stages: int = 0) -> Path:
+            from pipeline.workflow_contracts import VerificationWorkflowRequest
+            request = VerificationWorkflowRequest(str(source)).as_dict()
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            stages = [{"snapshot_files": [{"path": source.name, "sha256": digest, "size": source.stat().st_size}],
+                       "fixture": "synthetic; no verifier executed"}]
+            run = RunLedger(workspace / name)
+            run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF,
+                details={"workflow_request": request}, evidence={"source_path": str(source),
+                "source_sha256": digest, "execution_stages": stages})
+            for _ in range(extra_stages):
+                run.record(PipelineState.CHEAP_GATES, "FAIL", claim=EvidenceClaim.NO_PROOF)
+            return run.commit({"final_status": "FAIL", "claim": "NO_PROOF", "workflow_request": request,
+                "source_sha256": "0" * 64 if conflict else digest, "execution_stages": stages,
+                "claim_policy_version": "verification-policy-v1"})
+
+        bound = source_ledger("source-bound")
+        conflicting = source_ledger("source-conflicting", conflict=True)
+        full = source_ledger("source-full", extra_stages=253)
+
+        cases = [
+            ("validate", {"manifest": str(good)}, "EVIDENCE_VALID", None),
+            ("explain", {"manifest": str(good), "operation": "explain", "expected_sha256": digest}, "EVIDENCE_VALID", None),
+            ("digest-match", {"manifest": str(good), "expected_sha256": digest}, "EVIDENCE_VALID", None),
+            ("digest-mismatch", {"manifest": str(good), "expected_sha256": "0" * 64}, "EVIDENCE_INVALID", "MANIFEST_DIGEST_MISMATCH"),
+            ("tampered", {"manifest": str(tampered)}, "EVIDENCE_INVALID", None),
+            ("missing-artifact", {"manifest": str(missing)}, "EVIDENCE_INCOMPLETE", "INVALID_INPUT"),
+            ("missing-manifest", {"manifest": str(workspace / "absent.json")}, "EVIDENCE_INCOMPLETE", "INVALID_INPUT"),
+            ("malformed", {"manifest": str(malformed)}, "EVIDENCE_INVALID", "INVALID_INPUT"),
+            ("denied-path", {"manifest": "../outside.json"}, "EVIDENCE_INVALID", "PATH_OUTSIDE_WORKSPACE"),
+            ("symlink-manifest", {"manifest": str(workspace / "linked.json")}, "EVIDENCE_INVALID", "INVALID_INPUT"),
+            ("symlink-artifact", {"manifest": str(linked)}, "EVIDENCE_INVALID", "INVALID_INPUT"),
+            ("byte-limit", {"manifest": str(oversized)}, "EVIDENCE_INVALID", "INPUT_LIMIT_EXCEEDED"),
+            ("file-limit", {"manifest": str(too_many)}, "EVIDENCE_INVALID", "INPUT_LIMIT_EXCEEDED"),
+            ("inventory-path", {"manifest": str(traversal)}, "EVIDENCE_INVALID", "INVALID_INVENTORY"),
+            ("invalid-operation", {"manifest": str(good), "operation": "sign"}, "EVIDENCE_INVALID", "INVALID_REQUEST"),
+            ("invalid-digest", {"manifest": str(good), "expected_sha256": "invalid"}, "EVIDENCE_INVALID", "INVALID_REQUEST"),
+            ("diff-changed", {"manifest": str(good), "operation": "diff", "expected_sha256": digest,
+                "comparison_manifest": str(comparison), "comparison_expected_sha256": comparison_digest}, "EVIDENCE_COMPARED", None),
+            ("diff-identical", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(good)}, "EVIDENCE_COMPARED", None),
+            ("diff-reverse", {"manifest": str(comparison), "operation": "diff", "comparison_manifest": str(good)}, "EVIDENCE_COMPARED", None),
+            ("diff-digest-mismatch", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(comparison),
+                "comparison_expected_sha256": "0" * 64}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-tampered", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(tampered)}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-missing", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(workspace / "absent.json")}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-denied", {"manifest": str(good), "operation": "diff", "comparison_manifest": "../outside.json"}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-baseline-invalid", {"manifest": str(tampered), "operation": "diff", "comparison_manifest": str(good)}, "EVIDENCE_COMPARISON_REJECTED", "BASELINE_EVIDENCE_REJECTED"),
+            ("diff-aggregate-bytes", {"manifest": str(large_left), "operation": "diff", "comparison_manifest": str(large_right)}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-aggregate-files", {"manifest": str(many_left), "operation": "diff", "comparison_manifest": str(many_right)}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
+            ("diff-invalid-options", {"manifest": str(good), "operation": "diff"}, "EVIDENCE_INVALID", "INVALID_REQUEST"),
+            ("source-match", {"manifest": str(bound), "source": str(source)}, "EVIDENCE_SOURCE_MATCH", None),
+            ("source-explain", {"manifest": str(bound), "source": str(source), "operation": "explain"}, "EVIDENCE_SOURCE_MATCH", None),
+            ("source-changed", {"manifest": str(bound), "source": str(changed_source)}, "EVIDENCE_SOURCE_CHANGED", None),
+            ("source-unsupported", {"manifest": str(good), "source": str(source)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "UNSUPPORTED_SOURCE_BINDING"),
+            ("source-conflict", {"manifest": str(conflicting), "source": str(source)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INCONSISTENT_SOURCE_BINDING"),
+            ("source-missing", {"manifest": str(bound), "source": str(workspace / "absent.java")}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INVALID_INPUT"),
+            ("source-denied", {"manifest": str(bound), "source": "../outside.java"}, "EVIDENCE_SOURCE_CHECK_REJECTED", "PATH_OUTSIDE_WORKSPACE"),
+            ("source-link", {"manifest": str(bound), "source": str(source_link)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INVALID_INPUT"),
+            ("source-byte-limit", {"manifest": str(bound), "source": str(oversized)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INPUT_LIMIT_EXCEEDED"),
+            ("source-file-limit", {"manifest": str(full), "source": str(source)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INPUT_LIMIT_EXCEEDED"),
+            ("source-invalid-options", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(good), "source": str(source)}, "EVIDENCE_INVALID", "INVALID_REQUEST"),
+            ("source-invalid-receipt", {"manifest": str(tampered), "source": str(source)}, "EVIDENCE_INVALID", None),
+        ]
+
+        def workspace_identity() -> dict:
+            return {str(path.relative_to(workspace)): (
+                {"link": os.readlink(path)} if path.is_symlink() else
+                {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+                for path in workspace.rglob("*") if path.is_symlink() or path.is_file()}
+
+        before = workspace_identity()
+        initialized, tools, schema, results = await _call_tool(
+            workspace, "inspect_evidence", [case[1] for case in cases])
+        if set(schema["properties"]) != {"manifest", "operation", "expected_sha256", "comparison_manifest",
+                                         "comparison_expected_sha256", "source"} or schema["required"] != ["manifest"]:
+            raise RuntimeError("evidence discovery schema changed")
+        comparisons = []
+        validated = []
+        validated_sources = []
+        for (variant, arguments, status, code), result in zip(cases, results):
+            if result.get("status") != status or result.get("claim") != "NO_PROOF" or \
+                    result.get("request_satisfied") is not (status in {"EVIDENCE_VALID", "EVIDENCE_COMPARED", "EVIDENCE_SOURCE_MATCH"}):
+                raise RuntimeError(f"unexpected evidence outcome: {variant}: {result}")
+            if code and result.get("code") != code:
+                raise RuntimeError(f"evidence rejection changed: {variant}")
+            if code != "INVALID_REQUEST":
+                dimensions = ("authenticity", "assurance") if "source" in arguments else ("authenticity", "applicability", "assurance")
+                if any(result.get(dimension, {}).get("status") != "NOT_ASSESSED" for dimension in dimensions):
+                    raise RuntimeError("integrity inspection strengthened an unassessed claim")
+                if result["mcp_admission"]["granted_effects"] != ["workspace_read"]:
+                    raise RuntimeError("evidence inspection gained non-read authority")
+            if status == "EVIDENCE_VALID":
+                if result["manifest_sha256"] != digest or result["integrity"]["status"] != "VALID":
+                    raise RuntimeError("manifest identity or integrity mismatch")
+                if result["request"]["manifest"] != str(good):
+                    raise RuntimeError("evidence result refers to a different manifest")
+                inventory = json.loads(good.read_bytes())["artifacts"]
+                if result["captured_inputs"] != inventory:
+                    raise RuntimeError("captured evidence inventory differs from fixture")
+                for artifact in inventory:
+                    content = (good.parent / artifact["path"]).read_bytes()
+                    if len(content) != artifact["size"] or hashlib.sha256(content).hexdigest() != artifact["sha256"]:
+                        raise RuntimeError("captured artifact differs from actual bytes")
+                validated.append({"variant": variant, "manifest_sha256": digest,
+                                  "artifacts": inventory})
+            if variant == "explain" and result["explanation"]["recorded_claim"] != "DEDUCTIVE_PROOF":
+                raise RuntimeError("explanation lost the recorded (not independently proved) claim")
+            if variant == "tampered" and result["integrity"]["status"] != "INVALID":
+                raise RuntimeError("tampering was not detected")
+            if status == "EVIDENCE_COMPARED":
+                for side, path in (("baseline", arguments["manifest"]), ("comparison", arguments["comparison_manifest"])):
+                    actual_manifest = Path(path).read_bytes()
+                    inventory = json.loads(actual_manifest)["artifacts"]
+                    captured = result[side]
+                    if not captured["request_satisfied"] or captured["manifest_sha256"] != hashlib.sha256(actual_manifest).hexdigest() \
+                            or captured["captured_inputs"] != inventory:
+                        raise RuntimeError("diff snapshot identity mismatch")
+                    for artifact in inventory:
+                        content = (Path(path).parent / artifact["path"]).read_bytes()
+                        if len(content) != artifact["size"] or hashlib.sha256(content).hexdigest() != artifact["sha256"]:
+                            raise RuntimeError("diff captured artifact differs from actual bytes")
+                    validated.append({"variant": variant, "side": side,
+                                      "manifest_sha256": captured["manifest_sha256"], "artifacts": inventory})
+                changes = result["differences"]
+                if variant == "diff-identical" and (not changes["manifest_bytes_equal"] or changes["recorded_terminal_changes"]):
+                    raise RuntimeError("identical evidence acquired differences")
+                if variant in {"diff-changed", "diff-reverse"}:
+                    field = "artifacts_added" if variant == "diff-changed" else "artifacts_removed"
+                    if [item["path"] for item in changes[field]] != ["002-proof.json"] or \
+                            {item["field"] for item in changes["recorded_terminal_changes"]} != {"claim", "final_status"}:
+                        raise RuntimeError("diff omitted recorded claim or inventory changes")
+            if status == "EVIDENCE_COMPARISON_REJECTED":
+                if "differences" in result or (variant != "diff-baseline-invalid" and not result["baseline"]["request_satisfied"]):
+                    raise RuntimeError("rejected diff erased baseline or claimed a comparison")
+                if variant in {"diff-aggregate-bytes", "diff-aggregate-files"} and result["comparison"].get("code") != "INPUT_LIMIT_EXCEEDED":
+                    raise RuntimeError("diff did not enforce its aggregate budget")
+            if status in {"EVIDENCE_SOURCE_MATCH", "EVIDENCE_SOURCE_CHANGED"}:
+                content = Path(arguments["source"]).read_bytes()
+                actual = result["source_binding"]["captured"]
+                if actual["sha256"] != hashlib.sha256(content).hexdigest() or actual["size"] != len(content):
+                    raise RuntimeError("source capture digest disagrees with actual bytes")
+                if result["manifest_sha256"] != hashlib.sha256(bound.read_bytes()).hexdigest() or not result["integrity"]["valid"]:
+                    raise RuntimeError("source check lost the captured receipt identity")
+                applicability = result["applicability"]
+                if applicability["full_applicability_established"] is not False or applicability["status"] != (
+                        "SOURCE_MATCH_ONLY" if status == "EVIDENCE_SOURCE_MATCH" else "SOURCE_CHANGED"):
+                    raise RuntimeError("source match was promoted to full applicability")
+                if result["recorded_terminal"]["final_status"] != "FAIL":
+                    raise RuntimeError("source match changed the recorded failed verification")
+                validated_sources.append({"variant": variant, **actual})
+            if status == "EVIDENCE_SOURCE_CHECK_REJECTED" and not result["integrity"].get("valid"):
+                raise RuntimeError("source rejection erased valid receipt integrity")
+
+            # CLI has explicit local path authority, unlike workspace-scoped MCP.
+            # Compare common path semantics, not the intentionally MCP-only denial.
+            if variant in {"denied-path", "invalid-operation", "diff-denied", "source-denied"}:
+                continue
+            command = [sys.executable, "-m", "pipeline.cli", "evidence",
+                       arguments.get("operation", "validate"), arguments["manifest"]]
+            if "expected_sha256" in arguments:
+                command += ["--expected-sha256", arguments["expected_sha256"]]
+            if "comparison_manifest" in arguments:
+                command += ["--comparison-manifest", arguments["comparison_manifest"]]
+            if "comparison_expected_sha256" in arguments:
+                command += ["--comparison-expected-sha256", arguments["comparison_expected_sha256"]]
+            if "source" in arguments:
+                command += ["--source", arguments["source"]]
+            command += ["--json"] if variant == "explain" else ["--json", "-"]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                command, cwd=workspace, text=True, capture_output=True, timeout=30, check=False))
+            envelope = json.loads(process.stdout)
+            expected = {key: value for key, value in result.items() if key != "mcp_admission"}
+            if envelope.get("schema") != "formalspecgen-cli-result-v1" or envelope.get("result") != expected \
+                    or process.returncode != (0 if result["request_satisfied"] else 1) \
+                    or envelope.get("exit_code") != process.returncode \
+                    or envelope.get("operation_satisfied") != result["request_satisfied"]:
+                raise RuntimeError(f"CLI/MCP evidence semantics differ: {variant}")
+            comparisons.append({"variant": variant, "exit_code": process.returncode,
+                                "result_sha256": _sha256(expected)})
+        if workspace_identity() != before:
+            raise RuntimeError("read-only evidence workflow modified its workspace")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(variants=[case[0] for case in cases], semantic_results=results,
+                       cli_comparisons=comparisons, validated_inputs=validated,
+                       validated_sources=validated_sources,
+                       fixture_scope="Synthetic RunLedger fixtures; no formal backend or signing executed.",
+                       workspace_unchanged=True)
+    return observation
+
+
 _ADAPTERS = {
+    "evidence": _evidence_observation,
     "inspect": _inspect_observation,
     "document-code": _document_observation,
     "analyze-codebase": _analyze_codebase_observation,

@@ -19,7 +19,7 @@ def test_security_cli_commands_write_verdicts_and_return_status(tmp_path):
     with patch("pipeline.security_assessment.assess_security", return_value={"status": "VERIFIED_SECURE", "claim": "SECURITY"}):
         args = SimpleNamespace(source=str(source), no_sast=True, json=str(tmp_path / "security.json"))
         assert cli.command_assess_security(args, ui) == 0
-    with patch("pipeline.security_poc.inspect_security", return_value={"status": "INSPECTED", "findings": []}):
+    with patch("pipeline.security_poc.inspect_security", return_value={"status": "NO_FINDINGS", "findings": [], "request_satisfied": True}):
         args = SimpleNamespace(source=str(source), json=str(tmp_path / "vulns.json"))
         assert cli.command_security_inspect(args, ui) == 0
     report = tmp_path / "report.json"; report.write_text("[]")
@@ -52,6 +52,7 @@ def test_design_system_cli_success_failure_and_exception(tmp_path):
     with patch("pipeline.cli.design_system", return_value=result):
         assert cli.command_design_system(args, ui) == 0
     assert json.loads(out.read_text())["name"] == "Checkout"
+    args.json = str(tmp_path / "failed-evidence.json")
     with patch("pipeline.cli.design_system", return_value={"status": "STALLED", "message": "retry"}):
         assert cli.command_design_system(args, ui) == 1
     with patch("pipeline.cli.design_system", side_effect=RuntimeError("provider down")):

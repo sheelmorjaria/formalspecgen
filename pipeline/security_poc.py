@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .security_assessment import map_formal_failure_to_cwe, map_formal_vcs, run_semgrep
-from .verify import verify
+from .verify import classify, has_dropped_vc, verify
 
 
 def _source_files(source: str | Path) -> list[Path]:
@@ -28,26 +28,46 @@ def inspect_security(source: str | Path) -> dict[str, Any]:
     files = _source_files(source)
     if not files:
         return {"status": "FAIL", "claim": "NO_PROOF", "code": "input_unavailable",
-                "message": str(source), "findings": []}
+                "message": str(source), "findings": [], "request_satisfied": False}
     findings: list[dict[str, Any]] = []
     files_checked = []
+    incomplete = False
     for path in files:
         semgrep = run_semgrep(path) if path.suffix.lower() == ".java" else {"findings": [], "status": "SKIPPED"}
         for item in semgrep.get("findings", []):
             findings.append({**item, "file": str(path), "type": "SAST_PATTERN"})
         exit_code, output = verify(path, mode="esc")
-        files_checked.append({"file": str(path), "exit_code": exit_code})
         verifier = {".java": "openjml", ".rs": "prusti", ".c": "framac",
                     ".h": "framac", ".cpp": "esbmc", ".cc": "esbmc"}.get(path.suffix.lower(), "")
         formal_findings = map_formal_vcs(output) if verifier == "openjml" else [
             {**map_formal_failure_to_cwe(verifier, output), "source": verifier,
              "vc": "native_failure", "description": "Native prover failure"}
         ] if exit_code != 0 else []
+        # Unclassified failures and infrastructure errors are not vulnerabilities.
+        # This legacy adapter cannot establish completion from a nonzero exit alone.
+        formal_findings = [item for item in formal_findings if item.get("cwe") != "UNKNOWN"]
+        formal_complete = (
+            exit_code == 0 or (exit_code == 6 and bool(formal_findings))
+        ) and not has_dropped_vc(output)
+        if exit_code not in {0, 1, 6}:
+            formal_findings = []
+        sast_complete = (
+            semgrep.get("status") in {"CLEAN", "FINDINGS", "SKIPPED"}
+            and semgrep.get("exit_code", 0) in {0, 1}
+        )
+        incomplete = incomplete or not (formal_complete and sast_complete)
+        files_checked.append({
+            "file": str(path), "exit_code": exit_code,
+            "formal_status": classify(exit_code), "formal_completed": formal_complete,
+            "formal_output": output[-4000:], "sast": semgrep,
+        })
         for item in formal_findings:
             findings.append({**item, "file": str(path), "line": _line_for(item["vc"], output),
                              "type": "FORMAL_VC"})
-    return {"status": "VULNERABILITIES_FOUND" if findings else "NO_FINDINGS",
-            "claim": "SECURITY_INSPECTION_COMPLETE", "source": str(source),
+    return {"status": "SECURITY_INSPECTION_INCOMPLETE" if incomplete else
+            ("VULNERABILITIES_FOUND" if findings else "NO_FINDINGS"),
+            "claim": "NO_PROOF" if incomplete else "SECURITY_INSPECTION_COMPLETE",
+            "request_satisfied": not incomplete, "source": str(source),
             "files_checked": files_checked, "findings": findings,
             "exploitability_proved": False,
             "scope": "Pattern findings and formal counterexample labels only; no exploit execution."}

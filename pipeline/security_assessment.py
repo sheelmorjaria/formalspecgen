@@ -87,12 +87,19 @@ def run_semgrep(source: str | Path, *, timeout: int = 60,
     except subprocess.TimeoutExpired:
         return {"status": "TIMEOUT", "tool": "semgrep", "message": "semgrep timed out"}
     try:
-        data = json.loads(process.stdout or "{}")
+        data = json.loads(process.stdout)
     except json.JSONDecodeError:
         return {"status": "INVALID_OUTPUT", "tool": "semgrep",
                 "message": (process.stderr or process.stdout)[-2000:]}
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        return {"status": "INVALID_OUTPUT", "tool": "semgrep",
+                "message": "expected an object with a results array"}
     findings = []
     for result in data.get("results", []):
+        if not isinstance(result, dict) or not isinstance(result.get("extra", {}), dict) \
+                or not isinstance(result.get("start", {}), dict):
+            return {"status": "INVALID_OUTPUT", "tool": "semgrep",
+                    "message": "malformed finding", "findings": findings}
         extra = result.get("extra", {})
         rule_id = result.get("check_id", "")
         entry = cwe_registry.by_rule_id(rule_id)
@@ -102,7 +109,10 @@ def run_semgrep(source: str | Path, *, timeout: int = 60,
                          "message": extra.get("message", ""),
                          "cwe": entry.cwe_id if entry else None,
                          "unmapped_rule_id": entry is None})
-    return {"status": "CLEAN" if not findings else "FINDINGS", "tool": "semgrep",
+    failed = (process.returncode not in {0, 1} or bool(data.get("errors"))
+              or (process.returncode == 1 and not findings))
+    return {"status": "ERROR" if failed else ("CLEAN" if not findings else "FINDINGS"),
+            "tool": "semgrep", "errors": data.get("errors", []),
             "findings": findings, "exit_code": process.returncode}
 
 
@@ -123,7 +133,7 @@ def assess_security(source: str | Path, *, run_sast: bool = True) -> dict[str, A
         status = "VERIFIED_SECURE"
     elif formal_verified and not blockers and sast["status"] == "SKIPPED":
         status = "FORMALLY_VERIFIED_SAST_SKIPPED"
-    elif formal_verified and not blockers and sast["status"] in {"TOOL_MISSING", "TIMEOUT", "INVALID_OUTPUT"}:
+    elif formal_verified and not blockers and sast["status"] in {"TOOL_MISSING", "TIMEOUT", "INVALID_OUTPUT", "ERROR"}:
         status = "SECURITY_ASSESSMENT_INCOMPLETE"
     else:
         status = "SECURITY_VIOLATION"

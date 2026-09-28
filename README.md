@@ -1012,7 +1012,7 @@ Run without arguments:
 formalspecgen
 ```
 
-Enter a natural-language requirement directly or use a slash command:
+Use a registered command; natural-language drafting requires an explicit `draft` command:
 
 ```text
 > A counter starts at zero, accepts positive increments, and never exceeds 1000.
@@ -1028,14 +1028,114 @@ Enter a natural-language requirement directly or use a slash command:
 ```
 
 Commands may also be entered as `implement Counter.java ...` or pasted in full as
-`formalspecgen implement Counter.java ...`. The REPL recognizes all three forms; other text is
-treated as a natural-language drafting request.
+`formalspecgen implement Counter.java ...`. Routing, `/help`, and completion use the
+same parser as the CLI, including explicitly registered plugins. Unknown commands,
+bare prose, and malformed quoting are rejected without starting a workflow.
+Use `/draft "Design a counter"` explicitly for natural-language drafting, which may
+contact the configured provider.
+
+`security-inspect` returns nonzero for unavailable inputs or incomplete checks,
+including scanner failures and unclassified verifier errors. Completed inspections
+can return findings with exit zero: this is an operation outcome, not a clean-security
+or proof claim. The result retains per-file scanner status and formal diagnostics;
+skipped SAST remains visible. Findings-threshold policy is not implemented yet.
 
 Prompt history and non-secret clarification state are stored in `.formalspecgen/`. Required answers
 are checkpointed after every response, so an interrupted terminal session can resume without asking
 the same questions again. `/reset` explicitly clears the current session.
 
 ## Script and CI commands
+
+For built-in commands that expose `--json`, use `--json -` for exactly one
+versioned JSON response on stdout. Progress, provider/tool messages, and human
+diagnostics go to stderr. `doctor` and the read-only `evidence` command also
+accept bare `--json` as shorthand. `evidence` supports stdout only, not file export.
+
+```bash
+formalspecgen inspect src/Counter.java --json -
+```
+
+The stdout response uses schema `formalspecgen-cli-result-v1` with `command`,
+`exit_code`, `operation_satisfied`, `result`, and `error`. `result` contains the
+actual command payload, including its original claims and limitations. A successful
+operation is not necessarily a proof. If dispatch fails before producing a result,
+`result` is null and `error` explains the failure; no tool outcome is invented.
+Argument-parser errors still use argparse's stderr and exit status 2.
+Compatibility note: scripts consuming `doctor --json` stdout must now read
+fields such as `result.claim` and `result.capabilities` from this envelope.
+
+`--json PATH` keeps the existing result payload shape for evidence/signing
+compatibility, but publishes without replacement; use a fresh path for each run.
+The shared legacy JSON writer limits exports to 8 MiB; migrated workflows retain
+their own publication budgets. A publication failure makes the CLI unsuccessful
+and may leave separately published workflow artifacts intact. This change does
+not migrate other legacy artifact writers or make every workflow admitted.
+
+Stdout presentation does not request a filesystem export or create a file named
+`-`. It does not suppress separately requested workflow artifacts: for example,
+traceability still writes its matrix and default JSON sidecar. Signed refactoring
+requires `--json PATH`, not stdout. Plugin-defined options retain their plugin
+semantics. MCP response schemas and verification claims are unchanged.
+
+### Inspect existing evidence without rerunning tools
+
+```bash
+formalspecgen evidence validate run/evidence/manifest.json --json
+formalspecgen evidence explain run/evidence/manifest.json --json -
+formalspecgen evidence validate run/evidence/manifest.json --source src/Counter.java --json -
+formalspecgen evidence diff baseline/evidence/manifest.json \
+  --comparison-manifest candidate/evidence/manifest.json --json -
+```
+
+The equivalent MCP tool is `inspect_evidence(manifest, operation="validate",
+expected_sha256=None, comparison_manifest=None, comparison_expected_sha256=None, source=None)`.
+All operations capture at most 8 MiB / 256 files
+(including the manifest), reject symlinks and nonregular inputs, and reuse the
+RunLedger v1 artifact/hash-chain validator. Optional `--expected-sha256` binds
+the captured manifest to a caller-supplied digest, not an authenticated identity.
+No backend, provider, artifact publication, or source replay occurs.
+
+`diff` requires `--comparison-manifest`; `--comparison-expected-sha256` optionally
+pins that second manifest. These two options are rejected for other operations.
+Both ledgers share the aggregate capture budget (including both manifests).
+Comparison reports added, removed, modified and unchanged inventory entries,
+plus changes to recorded terminal fields. It compares recorded data and bytes,
+not program semantics or behavioral equivalence. An invalid second input keeps
+the baseline's captured result but returns an unsuccessful comparison without a diff.
+
+Optionally pass `--source` to `validate` or `explain` to compare current primary-source
+bytes with a recognized `verification-policy-v1` receipt. The terminal record,
+proof-stage binding and primary snapshot identities must agree. The source shares
+the receipt's byte/file budget and is captured once under the same read boundaries.
+Recorded paths never grant read authority: only your explicit `--source` is opened.
+Refactor/multisource receipts and missing or ambiguous primary bindings are rejected
+for this check. `--source` is rejected with `diff`.
+
+Results separate integrity from authenticity, applicability and assurance.
+Without `--source`, all three are `NOT_ASSESSED`. With it, applicability reports
+`SOURCE_MATCH_ONLY`, `SOURCE_CHANGED`, or `NOT_ESTABLISHED`. Even a match leaves
+`full_applicability_established` false: dependencies, toolchain, assumptions,
+admission policy and source context were not checked. Source matching can succeed
+for a receipt whose recorded verification failed; it never changes that outcome.
+Authenticity and assurance remain `NOT_ASSESSED`. Explanation reports recorded claims and
+limitations without endorsing them; its own claim is always `NO_PROOF`.
+This read-only command allows stdout JSON only, not file export. It is a new
+39th CLI command with an admitted MCP profile, not another completed workflow.
+
+The completion plan exercises real MCP discovery and 39 calls, compares 35
+matching CLI invocations, and validates captured digests using synthetic ledgers.
+It covers tampering, missing/malformed inputs, path and link rejection, input
+limits, and read-only behavior. These fixtures do not execute a formal backend
+or authenticate the recorded claims. Run the transport check locally with:
+
+```bash
+FORMALSPECGEN_REQUIRE_EVIDENCE_TRANSPORT=1 python -m pytest --no-cov -q \
+  tests/test_evidence_consumer.py::test_real_mcp_evidence_discovery_and_calls
+```
+
+The CI acceptance runner collects the declared cases and observed results for
+the exact revision. Only a clean, trusted CI record can satisfy the completion
+gate; a local pass or a plan declaration alone cannot.
 
 ### Draft a checked contract
 
@@ -2343,8 +2443,31 @@ python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
 ```
 
-The deterministic suite currently reports 99.02% combined statement/branch coverage across
-1,400+ tests and enforces a minimum of 99%. Real-toolchain and optional live-Ollama checks remain in
+Installed-package checks build and install the wheel without network resolution,
+then run its console entry point from an empty working directory. To include
+actual MCP discovery and calls, provision `requirements-mcp.txt` and run:
+
+```bash
+FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1 \
+  python3 -m pytest --no-cov -q tests/test_wheel_install.py
+```
+
+This gate verifies application imports come from the installed wheel, compares
+CLI/MCP evidence results, checks tampered and missing inputs, and confirms that
+inspection leaves the workspace unchanged. The ledgers are synthetic, not proof
+evidence. Third-party dependencies come from the provisioned test environment;
+this is not a hermetic dependency installation, formal-backend qualification, or
+production signing/isolation deployment certification. CI requires this gate
+separately from revision-bound workflow completion.
+
+Coverage is revision- and environment-dependent; use the test run's report rather
+than a fixed percentage in this guide. `pytest.ini` requests branch coverage and
+sets a 97.5% local threshold. The Python CI regression selection explicitly uses
+`--cov-fail-under=90`, with exclusions listed in `.github/workflows/tests.yml`.
+Provisioned backend acceptance is reported separately; a passing regression
+selection does not establish that every excluded suite ran. Neither threshold
+represents workflow-completion evidence.
+Real-toolchain and optional live-Ollama checks remain in
 `tests_e2e/` — including the chained-CLI platform tests
 (`inspect → apply-refactor → verify-refactor`, `security-inspect → correct-behavior → verify`,
 `analyze-codebase → document-code`) — and can be run with:

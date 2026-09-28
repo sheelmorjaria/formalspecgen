@@ -368,7 +368,7 @@ def test_map_formal_vcs_appends_descriptive_loop_and_null_findings():
 def test_semgrep_falls_back_to_public_registry_config(tmp_path):
     # 83: configured config missing -> "p/java".
     source = tmp_path / "X.java"; source.write_text("class X {}", encoding="utf-8")
-    process = type("P", (), {"stdout": "{}", "stderr": "", "returncode": 0})()
+    process = type("P", (), {"stdout": '{"results": []}', "stderr": "", "returncode": 0})()
     with patch("pipeline.security_assessment.subprocess.run", return_value=process) as run:
         result = run_semgrep(source, config=tmp_path / "nope.yml")
     assert result["status"] == "CLEAN"

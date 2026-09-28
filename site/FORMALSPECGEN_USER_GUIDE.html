@@ -34,7 +34,7 @@ admission and evidence together</a><a href="#a5-handle-rejections-without-wideni
 rejections without widening authority</a><a href="#a6-admit-future-workflows-deliberately" data-nav="a6-admit-future-workflows-deliberately">A6. Admit future
 workflows deliberately</a><a href="#a7-upgrade-a-pilot-from-the-earlier-guide" data-nav="a7-upgrade-a-pilot-from-the-earlier-guide">A7. Upgrade a pilot
 from the earlier guide</a></details><details open class="nav-group"><summary>Command reference</summary><a href="#command-index" data-nav="command-index">Command index</a><a href="#analyze-codebase" data-nav="analyze-codebase">analyze-codebase</a><a href="#apply-refactor" data-nav="apply-refactor">apply-refactor</a><a href="#architecture" data-nav="architecture">architecture</a><a href="#assess-security" data-nav="assess-security">assess-security</a><a href="#compose" data-nav="compose">compose</a><a href="#correct-behavior" data-nav="correct-behavior">correct-behavior</a><a href="#design-system" data-nav="design-system">design-system</a><a href="#discover-algorithms" data-nav="discover-algorithms">discover-algorithms</a><a href="#doctor" data-nav="doctor">doctor</a><a href="#document-code" data-nav="document-code">document-code</a><a href="#domain" data-nav="domain">domain</a><a href="#draft" data-nav="draft">draft</a><a href="#generate-traceability-matrix" data-nav="generate-traceability-matrix">generate-traceability-matrix</a><a href="#implement" data-nav="implement">implement</a><a href="#inspect" data-nav="inspect">inspect</a><a href="#macro-dictionary" data-nav="macro-dictionary">macro-dictionary</a><a href="#manage-trust" data-nav="manage-trust">manage-trust</a><a href="#optimize-algorithm" data-nav="optimize-algorithm">optimize-algorithm</a><a href="#promote-domain" data-nav="promote-domain">promote-domain</a><a href="#prove-equivalence" data-nav="prove-equivalence">prove-equivalence</a><a href="#remediate" data-nav="remediate">remediate</a><a href="#reverify" data-nav="reverify">reverify</a><a href="#security-exploit" data-nav="security-exploit">security-exploit</a><a href="#security-inspect" data-nav="security-inspect">security-inspect</a><a href="#sign-artifact" data-nav="sign-artifact">sign-artifact</a><a href="#system" data-nav="system">system</a><a href="#unified-system" data-nav="unified-system">unified-system</a><a href="#validate-architecture" data-nav="validate-architecture">validate-architecture</a><a href="#validate-domain" data-nav="validate-domain">validate-domain</a><a href="#verify" data-nav="verify">verify</a><a href="#verify-bisimulation" data-nav="verify-bisimulation">verify-bisimulation</a><a href="#verify-distributed" data-nav="verify-distributed">verify-distributed</a><a href="#verify-hal" data-nav="verify-hal">verify-hal</a><a href="#verify-heap" data-nav="verify-heap">verify-heap</a><a href="#verify-linearizability" data-nav="verify-linearizability">verify-linearizability</a><a href="#verify-lockfree" data-nav="verify-lockfree">verify-lockfree</a><a href="#verify-refactor" data-nav="verify-refactor">verify-refactor</a><a href="#verify-unbounded" data-nav="verify-unbounded">verify-unbounded</a><a href="#source-notes" data-nav="source-notes">Source notes</a></details><details open class="nav-group"><summary>Edition history</summary><a href="#edition-11--91c6790--24-september-2026" data-nav="edition-11--91c6790--24-september-2026">Edition 1.1 — 91c6790 — 24 September 2026</a><a href="#edition-10--0487f24--24-september-2026" data-nav="edition-10--0487f24--24-september-2026">Edition 1.0 — 0487f24 — 24 September 2026</a></details></nav><a class="home-link" href="#top">Back to cover ↑</a><small>Offline edition. All styles and navigation are included in this file. Sources open externally; examples and helpers are in the documentation pack.</small></aside>
-<main class="main" id="main-content"><header class="hero" id="top"><div class="eyebrow">Direct CLI / scripted CI / admitted MCP</div><h1>From requirements<br>to reviewed evidence.</h1><p class="lead">A practical user guide to FormalSpecGen for new systems, existing codebases, and supervised agent-assisted verification.</p><div class="chips"><span class="chip">38 CLI commands</span><span class="chip">205 argument declarations</span><span class="chip">Live admission reference</span></div><div class="hero-actions"><a href="index.html#interfaces">Choose CLI / CI or MCP</a><a href="#5-greenfield-requirements-to-implementation">Start greenfield</a><a href="#7-brownfield-understand-and-specify-an-existing-project">Start brownfield</a><a href="#command-reference">Browse all commands</a><a href="#admission-guide">MCP permissions</a></div><div class="meta">Detailed recipes originate at <strong>91c6790</strong>; interface guidance and availability labels are updated from the working registry. Formal example runs are not pre-certified.</div></header><div class="toolbar"><span>Read workflows first; use the reference for exact flags and defaults.</span><button type="button" onclick="window.print()">Print / save PDF</button></div><article id="user-guide-article"><h1 id="user-guide">Operating guide</h1>
+<main class="main" id="main-content"><header class="hero" id="top"><div class="eyebrow">Direct CLI / scripted CI / admitted MCP</div><h1>From requirements<br>to reviewed evidence.</h1><p class="lead">A practical user guide to FormalSpecGen for new systems, existing codebases, and supervised agent-assisted verification.</p><div class="chips"><span class="chip">39 CLI commands</span><span class="chip">212 argument declarations</span><span class="chip">Live admission reference</span></div><div class="hero-actions"><a href="index.html#interfaces">Choose CLI / CI or MCP</a><a href="#5-greenfield-requirements-to-implementation">Start greenfield</a><a href="#7-brownfield-understand-and-specify-an-existing-project">Start brownfield</a><a href="#command-reference">Browse all commands</a><a href="#admission-guide">MCP permissions</a></div><div class="meta">Detailed recipes originate at <strong>91c6790</strong>; interface guidance and availability labels are updated from the working registry. Formal example runs are not pre-certified.</div></header><div class="toolbar"><span>Read workflows first; use the reference for exact flags and defaults.</span><button type="button" onclick="window.print()">Print / save PDF</button></div><article id="user-guide-article"><h1 id="user-guide">Operating guide</h1>
 <p><strong>Greenfield development · Brownfield adoption · Verification ·
 Review · Evidence</strong></p>
 <div id="integration-notes">
@@ -42,6 +42,7 @@ Review · Evidence</strong></p>
 <p>Use the <a href="index.html#interfaces">interface decision table</a>, <a href="index.html#cli">current CLI/CI quick starts</a>, and <a href="index.html#catalogue">current MCP catalogue</a> alongside this full manual. All 38 command recipes remain available here; CLI availability does not confer MCP admission.</p>
 <p><strong>Version scope:</strong> detailed recipes, source citations, and teaching fixtures below originate at <code>91c6790</code>. They are retained for manual operation, not relabeled as newly executed acceptance. Current interface guidance and generated command availability supersede that edition's two-tool pilot. Backend implementation notes and source-register links remain pinned historical references; check installed <code>--help</code> and the <a href="command_inventory.json">generated live inventory</a>. The <a href="archive/91c6790/">unchanged original edition</a> remains separately available.</p>
 <p><strong>Publication update:</strong> migrated workflows use bounded shared services and controlled no-replace publication. Give analysis, documentation, refactoring, and traceability fresh output namespaces. An export failure may leave an earlier artifact intact while making the request unsuccessful. Follow returned publication paths and digests; do not delete evidence to force retries.</p>
+<p><strong>Machine-output update:</strong> built-in commands with <code>--json</code> accept <code>--json -</code> for one <code>formalspecgen-cli-result-v1</code> response on stdout; diagnostics go to stderr. The response has <code>command</code>, <code>exit_code</code>, <code>operation_satisfied</code>, the unchanged command payload in <code>result</code>, and <code>error</code>. No result means null, not an invented proof. Parser errors still use stderr and exit 2. File exports retain their existing result shape but now refuse replacement, including negative exports. The shared legacy writer has an 8 MiB export limit; migrated workflows keep their own budgets. This does not change other legacy artifact writers. Stdout does not suppress requested artifacts; traceability still publishes its matrix and default sidecar. Signing needs a real file destination. <code>doctor</code> and <code>evidence</code> accept bare <code>--json</code>; the read-only <code>evidence</code> command supports stdout only, not file export; plugin option semantics are unchanged.</p>
 <p><strong>Approval update:</strong> protected refactor signing has an authenticated continuation. Standalone promotion, trust administration, local signing, and CLI <code>--signing-key</code> remain explicitly human-operated; their presence does not imply an authenticated MCP coordinator exists for each operation. See <a href="index.html#approvals">current approval support</a> before using older signing recipes.</p>
 <p><strong>Examples are templates, not proof receipts.</strong> Supply the referenced project inputs, qualify the toolchain, and evaluate actual outcomes and claim limits. Only the new landing-page CLI examples are parser-checked; preserving a historical recipe does not certify its execution on this revision.</p>
 </div>
@@ -1304,23 +1305,19 @@ is not a guaranteed history or secret purge. <a class="cite" href="#s01">S01</a>
 </table></div>
 <p>The shell recognizes slash commands, plain recognized commands, and
 pasted <code>formalspecgen ...</code> forms. It supports backslash
-continuation. At this revision it recognizes <strong>28</strong> CLI
-command names:</p>
-<pre class="text"><code>doctor draft implement verify verify-refactor discover-algorithms
-inspect apply-refactor architecture design-system domain validate-domain
-promote-domain sign-artifact manage-trust verify-heap verify-hal
-verify-distributed macro-dictionary verify-lockfree verify-linearizability
-verify-unbounded prove-equivalence generate-traceability-matrix compose
-reverify system document-code</code></pre>
-<p><strong>Important:</strong> unrecognized input is treated as
-natural-language drafting. The full CLI has more commands than this REPL
-dispatch set. Use an ordinary shell for <code>optimize-algorithm</code>,
-<code>assess-security</code>, <code>security-inspect</code>,
-<code>security-exploit</code>, <code>remediate</code>,
-<code>correct-behavior</code>, <code>verify-bisimulation</code>,
-<code>validate-architecture</code>, <code>unified-system</code>, and
-<code>analyze-codebase</code>. Do not assume that an unrecognized slash
-command will fail as a CLI command. <a class="cite" href="#s01">S01</a></p>
+continuation. Current routing, help, and completion are derived from the
+same parser as the CLI, including explicitly registered plugins. Use
+<code>/help</code> for the live command list.</p>
+<p><strong>Current behavior:</strong> unknown commands, bare prose, and
+malformed quoting are rejected without starting a workflow. Draft explicitly
+with <code>/draft "Design a counter"</code>; drafting may contact the configured
+provider. This supersedes the historical 28-command fallback described by
+the <a href="archive/91c6790/">archived edition</a>.</p>
+<p><code>security-inspect</code> now exits unsuccessfully for unavailable inputs
+or incomplete tool checks, retaining per-file diagnostics and any findings.
+A completed inspection can report findings and exit zero; this is not a proof
+or a clean-security assertion. Skipped SAST remains visible. Configurable
+findings thresholds are not yet implemented.</p>
 <p>For deterministic automation, use explicit CLI commands rather than
 the session-driven shell. Promotion and trust changes remain deliberate
 human actions even when entered interactively.</p>
@@ -1737,8 +1734,9 @@ command plugins are not auto-loaded by <code>main()</code>.</p>
 <p>Use the operating guide first for installation, review boundaries,
 greenfield and brownfield workflows. Every command also accepts
 <code>-h</code> / <code>--help</code>. Top-level <code>--version</code>
-reports the package version. Run reference examples from an ordinary
-shell unless the entry says the command is recognized in the REPL.
+reports the package version. Current REPL routing supports every registered
+command. REPL labels in the preserved recipe tables describe the historical
+<code>91c6790</code> baseline, not current routing.
 <a class="cite" href="#s01">S01</a></p>
 <p><strong>Notation.</strong> UPPERCASE placeholders stand for your
 paths or values. Bracketed <code>[options]</code> means the options in
@@ -1756,7 +1754,7 @@ every backend they reach is migrated to the strict sandbox. Consult the <a href=
 <tr class="header">
 <th>Command</th>
 <th>Workflow family</th>
-<th>REPL recognized</th>
+<th>REPL at 91c6790 (historical)</th>
 <th>Strict MCP</th>
 </tr>
 </thead>
@@ -1767,6 +1765,7 @@ every backend they reach is migrated to the strict sandbox. Consult the <a href=
 <td>No; use shell</td>
 <td data-cli-admission="analyze-codebase">Admitted profiles; not a completion claim</td>
 </tr>
+<tr><td><a href="#evidence"><code>evidence</code></a></td><td>Evidence inspection</td><td>New; current REPL supported</td><td data-cli-admission="evidence">Admitted profiles; not a completion claim</td></tr>
 <tr class="even">
 <td><a href="#apply-refactor"><code>apply-refactor</code></a></td>
 <td>Brownfield</td>
@@ -3043,6 +3042,19 @@ translation are successful operations but not source refinement. Review
 proposed macro meanings; --no-verify cannot establish model proof.</p>
 <p><strong>Source:</strong> <a href="https://github.com/sheelmorjaria/formalspecgen/blob/91c6790/pipeline/macro_semantics.py" rel="noopener noreferrer" target="_blank"><code>pipeline/macro_semantics.py</code></a>;
 CLI syntax: <a class="cite" href="#s01">S01</a>.</p>
+</section><section class="doc-section" data-section-title="evidence"><h2 id="evidence">evidence</h2>
+<p>New read-only workflow, added after the historical 38-command recipe baseline.</p>
+<p data-cli-command="evidence"><strong>Interface availability.</strong> Operator CLI; strict MCP: Admitted profiles; not a completion claim. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>
+<pre><code>formalspecgen evidence validate RUN/evidence/manifest.json --json
+formalspecgen evidence explain RUN/evidence/manifest.json --expected-sha256 DIGEST --json -
+formalspecgen evidence diff BASELINE/evidence/manifest.json --comparison-manifest CANDIDATE/evidence/manifest.json --json -</code></pre>
+<p>Operations are <code>validate</code>, <code>explain</code> and <code>diff</code>; the manifest is required. Optional <code>--expected-sha256</code> binds the captured manifest to a caller-supplied lowercase digest. <code>diff</code> requires <code>--comparison-manifest</code> and optionally accepts <code>--comparison-expected-sha256</code>; these comparison options are rejected for other operations. <code>--json</code> accepts only stdout, never a file. MCP exposes <code>inspect_evidence(manifest, operation, expected_sha256, comparison_manifest, comparison_expected_sha256)</code> with the same semantics. The default operation there is validate.</p>
+<p>Comparison shares one aggregate input allowance across both ledgers. It reports added, removed, modified and unchanged artifacts plus recorded terminal-field changes. This is data comparison, not behavioral or semantic equivalence. Failed second-input validation retains the baseline observation without claiming a successful diff.</p>
+<p><code>--source PATH</code> optionally checks primary-source bytes for recognized verification receipts, using the same aggregate capture budget. It is supported only with validate/explain. MCP takes the equivalent <code>source</code> argument. Terminal, proof-stage and primary snapshot identities must agree; multisource refactor receipts are not supported. Recorded paths confer no read authority.</p>
+<pre><code>formalspecgen evidence validate RUN/evidence/manifest.json --source src/Counter.java --json -</code></pre>
+<p>Source checking reports <code>SOURCE_MATCH_ONLY</code>, <code>SOURCE_CHANGED</code>, or <code>NOT_ESTABLISHED</code>. Full applicability is never established by this check: dependencies, toolchains, assumptions, admission policy and source context are unchecked. Authenticity and assurance remain unassessed. The recorded verification outcome is unchanged even when matching succeeds.</p>
+<p>Validation checks a bounded snapshot of RunLedger v1 artifact bytes, sizes, run identity and hash chain. It does not execute tools, contact providers, follow external references, or write artifacts. Limits are 8 MiB and 256 files including the manifest, with path depth 32. Symlinks and nonregular evidence files are rejected.</p>
+<p>Integrity is not authenticity, current-source applicability, or proof assurance. Without explicit source checking, those three dimensions remain <code>NOT_ASSESSED</code>. Explanations label terminal claims as recorded assertions; the service always returns <code>NO_PROOF</code>. An absent file is incomplete evidence, a digest mismatch is a distinct rejection, and altered artifacts fail integrity. This admitted subset has no revision-bound completion claim yet.</p>
 </section><section class="doc-section" data-section-title="manage-trust"><h2 id="manage-trust">manage-trust</h2>
 <p>Maintain the authorized reviewer-key registry.</p>
 <p data-cli-command="manage-trust"><strong>Interface availability.</strong> Operator CLI; strict MCP: Not admitted. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>

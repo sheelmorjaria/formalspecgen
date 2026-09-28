@@ -177,7 +177,8 @@ class RunLedger:
         return destination, hashlib.sha256(encoded).hexdigest(), len(encoded)
 
     @staticmethod
-    def _validate_artifacts(root: Path, artifacts: list[dict[str, Any]]) -> str:
+    def _validate_artifacts(root: Path, artifacts: list[dict[str, Any]],
+                            read_artifact: Callable[[str], bytes] | None = None) -> str:
         if not isinstance(artifacts, list) or not artifacts:
             return "evidence manifest has no artifact inventory"
         seen = set()
@@ -193,7 +194,8 @@ class RunLedger:
             seen.add(relative.name)
             path = root / relative
             try:
-                content = path.read_bytes()
+                content = (read_artifact(artifact["path"]) if read_artifact
+                           else path.read_bytes())
             except OSError as exc:
                 return f"evidence artifact unavailable: {exc}"
             if not isinstance(artifact["size"], int) or artifact["size"] < 0 or \
@@ -215,21 +217,32 @@ class RunLedger:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             return {"status": "INVALID", "valid": False, "message": str(exc)}
+        return cls.validate_captured(
+            manifest, lambda name: (evidence_dir / name).read_bytes())
+
+    @classmethod
+    def validate_captured(cls, manifest: Any,
+                          read_artifact: Callable[[str], bytes]) -> dict[str, Any]:
+        """Reuse ledger integrity rules on caller-captured, immutable bytes.
+
+        The reader is invoked only after validating each inventory path. It
+        must return the same bytes on every call; external consumers supply a
+        bounded in-memory mapping rather than reopening workspace files.
+        """
         if not isinstance(manifest, dict) or \
                 manifest.get("schema") != "formalspecgen-evidence-manifest-v1" or \
                 not isinstance(manifest.get("run_id"), str) or \
                 not isinstance(manifest.get("terminal"), dict):
             return {"status": "INVALID", "valid": False,
                     "message": "terminal evidence manifest schema is invalid"}
-        error = cls._validate_artifacts(evidence_dir, manifest.get("artifacts", []))
+        error = cls._validate_artifacts(Path("."), manifest.get("artifacts", []), read_artifact)
         if error:
             return {"status": "INVALID", "valid": False, "message": error}
         previous = None
         for index, artifact in enumerate(manifest["artifacts"]):
             try:
-                payload = json.loads(
-                    (evidence_dir / artifact["path"]).read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
+                payload = json.loads(read_artifact(artifact["path"]))
+            except (OSError, ValueError) as exc:
                 return {"status": "INVALID", "valid": False, "message": str(exc)}
             if not isinstance(payload, dict):
                 return {"status": "INVALID", "valid": False,

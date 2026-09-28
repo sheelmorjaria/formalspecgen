@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "2d0373fcf776490f2c70067adcfa6376834d111c8bcf88346fffd9e775f7b2d6",
+  "plan_sha256": "edd3a85a9c70c684b83e46bf13161f066247a5e3b02aff8c5602c5044db69917",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -62,27 +62,38 @@
     ],
     "repl": {
       "command_routes": [
+        "analyze-codebase",
         "apply-refactor",
         "architecture",
+        "assess-security",
         "compose",
+        "correct-behavior",
         "design-system",
         "discover-algorithms",
         "doctor",
         "document-code",
         "domain",
         "draft",
+        "evidence",
         "generate-traceability-matrix",
         "implement",
         "inspect",
         "macro-dictionary",
         "manage-trust",
+        "optimize-algorithm",
         "promote-domain",
         "prove-equivalence",
+        "remediate",
         "reverify",
+        "security-exploit",
+        "security-inspect",
         "sign-artifact",
         "system",
+        "unified-system",
+        "validate-architecture",
         "validate-domain",
         "verify",
+        "verify-bisimulation",
         "verify-distributed",
         "verify-hal",
         "verify-heap",
@@ -98,10 +109,147 @@
         "/quit",
         "/exit"
       ],
-      "free_text_route": "draft"
+      "free_text_route": null
     },
     "plugins": [],
     "commands": [
+      {
+        "command": "evidence",
+        "origin": "builtin",
+        "plugin_id": null,
+        "handler_id": "pipeline.cli:dispatch:evidence",
+        "human_only": false,
+        "mcp_exposed_intent": false,
+        "help": "validate, explain or compare ledger records without asserting proof or trust",
+        "description": null,
+        "arguments": [
+          {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "explain",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "RunLedger terminal manifest JSON",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--expected-sha256"
+            ],
+            "dest": "expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional caller-supplied manifest digest",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--comparison-manifest"
+            ],
+            "dest": "comparison_manifest",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "second manifest, required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--comparison-expected-sha256"
+            ],
+            "dest": "comparison_expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional second manifest digest, only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--source"
+            ],
+            "dest": "source",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "check primary-source bytes for a supported verification receipt; not full proof applicability",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; this command never exports files",
+            "hidden": false,
+            "metavar": null
+          }
+        ]
+      },
       {
         "command": "doctor",
         "origin": "builtin",
@@ -1031,7 +1179,7 @@
             "const": null,
             "type": null,
             "action": "store",
-            "help": null,
+            "help": "hashmap, two_pointer, or binary_search; nested_loop is retained for compatibility but always rejected",
             "hidden": false,
             "metavar": null
           },
@@ -1751,7 +1899,7 @@
         "human_only": false,
         "mcp_exposed_intent": false,
         "help": "validate a scoped state mapping without claiming equivalence",
-        "description": null,
+        "description": "Mapping/API preflight only (NO_PROOF); does not prove behavioral or heap equivalence.",
         "arguments": [
           {
             "flags": [
@@ -4161,16 +4309,16 @@
         ]
       }
     ],
-    "command_count": 38,
-    "argument_declaration_count": 205,
-    "sha256": "d79da98997aaa03720dedcf6a8208e2de861c235f35e48ec18b56c23e3ded257"
+    "command_count": 39,
+    "argument_declaration_count": 212,
+    "sha256": "75f4296ce5014fa81ee4e7b75d5a7c47edf41b1b1a28565a839051a397ac350c"
   },
   "metrics": {
-    "discovered_commands": 38,
-    "mapped_commands": 38,
-    "discovered_argument_declarations": 205,
-    "mapped_argument_declarations": 205,
-    "commands_with_admitted_profile": 7,
+    "discovered_commands": 39,
+    "mapped_commands": 39,
+    "discovered_argument_declarations": 212,
+    "mapped_argument_declarations": 212,
+    "commands_with_admitted_profile": 8,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -7375,6 +7523,353 @@
       }
     },
     {
+      "cli_command": "evidence",
+      "target_mcp_tool": "inspect_evidence",
+      "workflow_kind": "direct",
+      "requirements": "Bounded read-only ledger validation, explanation, comparison and optional primary-source byte matching; authenticity, full applicability and assurance are not established.",
+      "origin": "builtin",
+      "plugin_id": null,
+      "arguments": [
+        {
+          "cli": {
+            "flags": [
+              "--comparison-expected-sha256"
+            ],
+            "dest": "comparison_expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional second manifest digest, only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "comparison_expected_sha256",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--comparison-manifest"
+            ],
+            "dest": "comparison_manifest",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "second manifest, required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "comparison_manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--expected-sha256"
+            ],
+            "dest": "expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional caller-supplied manifest digest",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "expected_sha256",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; this command never exports files",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Read-only stdout rendering; MCP returns the same structured result. File export is not supported."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--source"
+            ],
+            "dest": "source",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "check primary-source bytes for a supported verification receipt; not full proof applicability",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "source",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "RunLedger terminal manifest JSON",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "explain",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ],
+      "adapter": {
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-evidence-reader",
+            "modes": [
+              "diff",
+              "explain",
+              "validate"
+            ],
+            "languages": [
+              "evidence"
+            ],
+            "backends": [
+              "builtin-ledger"
+            ],
+            "effects": [
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "none",
+            "evidence": "read-only-integrity-report",
+            "required_effects": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "manifest",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "validate",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "expected_sha256",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "comparison_manifest",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "comparison_expected_sha256",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "source",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "manifest",
+          "operation",
+          "expected_sha256",
+          "comparison_manifest",
+          "comparison_expected_sha256",
+          "source"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "comparison_expected_sha256",
+          "comparison_manifest",
+          "expected_sha256",
+          "manifest",
+          "operation",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "comparison_expected_sha256",
+          "comparison_manifest",
+          "expected_sha256",
+          "manifest",
+          "operation",
+          "source"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "bounded-overflow-probe",
+          "byte-limit",
+          "capture-once",
+          "complete-argument-surface",
+          "denied-effects",
+          "denied-path",
+          "diff-aggregate-bytes",
+          "diff-aggregate-files",
+          "diff-baseline-invalid",
+          "diff-capture-once",
+          "diff-changed",
+          "diff-denied",
+          "diff-digest-mismatch",
+          "diff-exact-budget",
+          "diff-identical",
+          "diff-invalid-options",
+          "diff-json-types",
+          "diff-link",
+          "diff-missing",
+          "diff-negative-equivalence",
+          "diff-request-equivalence",
+          "diff-reverse",
+          "diff-tampered",
+          "digest-match",
+          "digest-mismatch",
+          "exact-byte-limit",
+          "explain",
+          "file-limit",
+          "invalid-digest",
+          "invalid-operation",
+          "inventory-path",
+          "malformed",
+          "missing-artifact",
+          "missing-manifest",
+          "nonregular-input",
+          "path-depth-limit",
+          "read-only",
+          "request-equivalence",
+          "semantic-equivalence",
+          "source-binding-consistency",
+          "source-boundaries",
+          "source-byte-limit",
+          "source-capture-once",
+          "source-changed",
+          "source-conflict",
+          "source-denied",
+          "source-exact-budget",
+          "source-explain",
+          "source-file-limit",
+          "source-invalid-options",
+          "source-invalid-receipt",
+          "source-link",
+          "source-match",
+          "source-missing",
+          "source-request-equivalence",
+          "source-unsupported",
+          "stdout-only",
+          "symlink-artifact",
+          "symlink-manifest",
+          "tampered",
+          "validate"
+        ],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "transport_observation": null,
+        "blockers": [
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
+        ]
+      }
+    },
+    {
       "cli_command": "generate-traceability-matrix",
       "target_mcp_tool": "generate_traceability_matrix",
       "workflow_kind": "direct",
@@ -8822,7 +9317,7 @@
             "const": null,
             "type": null,
             "action": "store",
-            "help": null,
+            "help": "hashmap, two_pointer, or binary_search; nested_loop is retained for compatibility but always rejected",
             "hidden": false,
             "metavar": null
           },
@@ -12966,5 +13461,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "40ef2484c661fc4ec79870dcb0aa8069b5c05ac156c7f510177f7bc9bf463956"
+  "sha256": "0c969563f6535168321993a5f17b3f078a3a0be737c0fa50f12eeb775ce38e70"
 }

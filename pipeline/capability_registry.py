@@ -183,6 +183,7 @@ def _capability(value: dict[str, Any]) -> CapabilitySpec:
 
 
 _MCP_TOOLS = (
+    "inspect_evidence",
     "verify_code",
     "validate_architecture",
     "implement_code",
@@ -1203,6 +1204,17 @@ _GENERIC_DATA = [{'name': 'verify_code',
                 'completed_claims': ('BOUNDED_ARCHITECTURE_EVIDENCE',
                                      'SOURCE_MODEL_REFINEMENT',
                                      'HARDWARE_MEMORY_BOUND_PROVED')}}]
+
+_GENERIC_DATA.append({
+    "name": "inspect_evidence", "description": "Bounded read-only ledger integrity validation, explanation, comparison and optional primary-source byte matching.",
+    "cli_command": "evidence", "mcp_tool": "inspect_evidence", "arguments": (),
+    "epistemic_boundary": "Integrity is not authenticity, current applicability, or proof assurance.",
+    "mcp_isolation": "non-executing",
+    "mcp_profiles": ({"name": "bounded-evidence-reader", "modes": ("validate", "explain", "diff"),
+                      "languages": ("evidence",), "backends": ("builtin-ledger",),
+                      "effects": ("workspace_read",), "required_effects": ("workspace_read",),
+                      "output_scope": "none", "evidence": "read-only-integrity-report"},),
+})
 
 CAPABILITIES: tuple[CapabilitySpec, ...] = tuple(
     _capability(item) for item in _GENERIC_DATA

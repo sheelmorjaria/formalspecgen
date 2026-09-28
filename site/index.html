@@ -65,6 +65,8 @@
   <section id="cli">
     <h2>Direct CLI and CI workflows</h2>
     <p>Run these examples from your application workspace using a trusted, provisioned FormalSpecGen installation. Source and domain files are inputs you supply; examples are not pre-certified results. Use a fresh output namespace for each run and never delete prior evidence just to make a retry succeed.</p>
+    <p>Built-in commands with <code>--json</code> accept <code>--json -</code> for one <code>formalspecgen-cli-result-v1</code> response on stdout, with diagnostics on stderr. Read the actual payload under <code>result</code>; <code>operation_satisfied</code> is not a proof claim. Early dispatch failures can return a null result and an error; argument-parser errors retain stderr/exit-2 behavior. <code>--json PATH</code> preserves the existing payload format and never replaces an existing result file. Other requested workflow artifacts are still produced. Signed refactoring requires a file destination.</p>
+    <pre><code data-cli-example="inspect-stdout">formalspecgen inspect src/Counter.java --json -</code></pre>
     <h3>Investigate and document</h3>
     <pre><code data-cli-example="inspect">formalspecgen inspect src/Counter.java --json results/run-001/inspection.json</code></pre>
     <pre><code data-cli-example="analyze">formalspecgen analyze-codebase src --out-dir analysis/run-001 --project-root models/run-001 --json results/run-001/analysis.json</code></pre>
@@ -77,6 +79,7 @@
     <h3>Trace requirements without inferring proof</h3>
     <pre><code data-cli-example="traceability">formalspecgen generate-traceability-matrix domain.yaml src --reqs requirements.req --out reports/run-001/traceability.md --json results/run-001/traceability.json</code></pre>
     <h3>Continue with the full operating manual</h3>
+    <p><a href="FORMALSPECGEN_USER_GUIDE.html#evidence">Read-only evidence inspection</a> is available through <code>evidence validate</code>, <code>evidence explain</code>, and MCP <code>inspect_evidence</code>. It checks bounded RunLedger integrity and an optional caller-supplied manifest digest. Authenticity, current-source applicability, and assurance remain explicitly not assessed. This adds one command beyond the historical 38-command baseline; it is admitted, not yet revision-bound complete.</p>
     <ul>
       <li><a href="FORMALSPECGEN_USER_GUIDE.html#3-install-and-configure-the-tool">Installation and environment setup</a> and <a href="FORMALSPECGEN_USER_GUIDE.html#4-first-run-inspect-prove-and-reject-a-bad-candidate">a first positive/negative verification run</a></li>
       <li><a href="FORMALSPECGEN_USER_GUIDE.html#5-greenfield-requirements-to-implementation">Greenfield requirements and implementation</a> and <a href="FORMALSPECGEN_USER_GUIDE.html#6-greenfield-reviewed-v2-domain-to-source">reviewed domain-to-source workflows</a></li>
@@ -92,7 +95,7 @@
     <div class="notice">
       <strong>Admission is not completion.</strong> The generated registry tells you which invocation profiles the server will admit. A workflow is complete only when revision-bound CI acceptance demonstrates argument, permission, semantic, and real MCP transport parity.
     </div>
-    <p>The live inventory currently maps all 38 CLI commands and 205 argument declarations. The generated baseline reports seven CLI commands with admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, and <code>generate-traceability-matrix</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
+    <p>The live inventory maps 39 CLI commands and 212 argument declarations, including the new read-only <code>evidence</code> command. Eight commands have admitted profiles: <code>inspect</code>, <code>document-code</code>, <code>verify</code>, <code>verify-refactor</code>, <code>apply-refactor</code>, <code>analyze-codebase</code>, <code>generate-traceability-matrix</code>, and <code>evidence</code>. Revision-bound CI—not this static page—determines which complete-workflow claims passed for a particular commit.</p>
     <p>Use the <a href="command_inventory.json">generated CLI inventory</a> and <a href="mcp_capabilities.json">generated strict capability reference</a> for the exact static catalogue. The <a href="https://github.com/sheelmorjaria/formalspecgen/blob/main/docs/MCP_PARITY_STATUS.md">repository parity report</a> is the human-readable baseline.</p>
     <p class="muted">The prior Pages manual is retained as the <a href="archive/91c6790/">91c6790 historical edition</a>. It describes the earlier two-tool Java-only pilot and is not current operational guidance.</p>
   </section>
@@ -130,6 +133,34 @@
 }</code></pre>
     <p>The example also publishes <code>reports/traceability.json</code>. Use <code>result_export</code> to choose a different JSON path. Both destinations are relative to the configured MCP output root and never replace existing files. Follow the returned <code>matrix_file</code> and publication metadata; source references are relative to the captured source root, with their digests recorded. Negative outcomes can publish JSON too; an export failure leaves any committed Markdown intact but makes the request unsuccessful.</p>
     <p>Capture is limited to 8 MiB across domain, requirements, and sources, 514 total files, 4096 traversal entries, and depth 32. Matching and combined report output are also bounded. No provider, compiler, or verifier is invoked.</p>
+  </section>
+
+  <section id="evidence-inspection">
+    <h2>Inspect existing evidence</h2>
+    <p>Use CLI or MCP to inspect a RunLedger v1 manifest without rerunning verification or changing artifacts. The manifest and its inventory are captured under aggregate 8 MiB / 256-file limits. Integrity is separate from authenticity, current-source applicability, and assurance; those three remain <code>NOT_ASSESSED</code>. An optional expected digest is caller-supplied, not human authentication.</p>
+    <pre><code data-cli-example="evidence-explain">formalspecgen evidence explain run/evidence/manifest.json --json -</code></pre>
+    <p>The equivalent <code>inspect_evidence</code> MCP payload is:</p>
+    <pre><code data-workflow-example="evidence-explain">{
+  "manifest": "run/evidence/manifest.json",
+  "operation": "explain"
+}</code></pre>
+    <p>The result reports recorded claims without endorsing them; its own claim is always <code>NO_PROOF</code>. This command has no file-export option. CI acceptance uses synthetic ledgers and actual CLI/MCP calls, not backend proof execution. Completion remains conditional on trusted, revision-bound acceptance.</p>
+    <p>Compare two captured ledgers with <code>diff</code>. The 8 MiB / 256-file allowance applies to both inputs together. It reports inventory-byte and recorded-terminal changes, not semantic equivalence or proof applicability. If either input fails validation, no comparison is claimed; a successfully validated baseline remains visible.</p>
+    <pre><code data-cli-example="evidence-diff">formalspecgen evidence diff baseline/evidence/manifest.json --comparison-manifest candidate/evidence/manifest.json --json -</code></pre>
+    <pre><code data-workflow-example="evidence-diff">{
+  "manifest": "baseline/evidence/manifest.json",
+  "operation": "diff",
+  "comparison_manifest": "candidate/evidence/manifest.json"
+}</code></pre>
+    <p>Optional <code>expected_sha256</code> and <code>comparison_expected_sha256</code> pin the two manifest byte digests independently; neither authenticates an author. Comparison inputs are rejected for non-diff operations.</p>
+    <p>Optional primary-source checking is available for <code>validate</code> and <code>explain</code>, not <code>diff</code>. It accepts recognized verification receipts whose terminal, proof-stage and primary snapshot identities agree. Other schemas, including multisource refactor receipts, fail explicitly. Only the caller's explicit source path is read, never a path merely named inside the receipt.</p>
+    <pre><code data-cli-example="evidence-source">formalspecgen evidence validate run/evidence/manifest.json --source src/Counter.java --json -</code></pre>
+    <pre><code data-workflow-example="evidence-source">{
+  "manifest": "run/evidence/manifest.json",
+  "operation": "validate",
+  "source": "src/Counter.java"
+}</code></pre>
+    <p>The source shares the aggregate 8 MiB / 256-file capture allowance. A match reports <code>SOURCE_MATCH_ONLY</code>, not full applicability: dependencies, toolchain, assumptions, admission policy and source context are unchecked. Changed bytes report <code>SOURCE_CHANGED</code>; failed checking retains receipt integrity but leaves applicability unestablished. Authenticity and assurance remain unassessed. Matching bytes cannot turn a recorded verification failure into success.</p>
   </section>
 
   <section id="verification">

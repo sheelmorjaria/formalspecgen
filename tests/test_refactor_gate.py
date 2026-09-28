@@ -119,6 +119,7 @@ def test_public_method_surface_and_cli_route(tmp_path):
                return_value={"status": "VERIFIED", "claim": "REFACTOR_CONTRACT_PRESERVED"}):
         assert cli.dispatch(args, ui, None, {}) == 0
     assert "REFACTOR_CONTRACT_PRESERVED" in output.read_text(encoding="utf-8")
+    args.json = str(tmp_path / "failed-verdict.json")
     with patch("pipeline.refactor_gate.verify_contract_preserving_refactor",
                return_value={"status": "FAIL", "claim": "NO_PROOF"}):
         assert cli.command_verify_refactor(args, ui) == 1

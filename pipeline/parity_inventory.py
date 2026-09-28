@@ -24,7 +24,7 @@ from .capability_registry import CAPABILITIES
 from .cli import (
     CLI_COMMAND_PLUGIN_ABI,
     CommandPlugin,
-    _REPL_COMMANDS,
+    repl_commands,
     build_parser,
 )
 from .mcp_policy import (
@@ -186,9 +186,9 @@ def inventory_cli(
         },
         "root_arguments": root_arguments,
         "repl": {
-            "command_routes": sorted(_REPL_COMMANDS),
+            "command_routes": sorted(repl_commands(parser)),
             "meta_commands": list(REPL_META_COMMANDS),
-            "free_text_route": "draft",
+            "free_text_route": None,
         },
         "plugins": [
             {

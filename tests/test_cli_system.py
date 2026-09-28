@@ -28,7 +28,7 @@ def test_system_cli_writes_aggregate_verdict_and_registers_parser(tmp_path):
     assert parsed.command == "system" and parsed.max_workers == 4
     refactor = parser.parse_args(["system", "plan.json", "--mode", "refactor", "--out-dir", "runs"])
     assert refactor.mode == "refactor"
-    assert "system" in cli._REPL_COMMANDS
+    assert "system" in cli.repl_commands(parser)
 
 
 def test_system_cli_refactor_mode_writes_contract_verdict(tmp_path):

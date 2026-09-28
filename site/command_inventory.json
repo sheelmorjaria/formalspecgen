@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 38,
-  "argument_declaration_count": 205,
-  "commands_with_admitted_profile": 7,
+  "command_count": 39,
+  "argument_declaration_count": 212,
+  "commands_with_admitted_profile": 8,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -2011,6 +2011,175 @@
       ]
     },
     {
+      "cli_command": "evidence",
+      "mcp_tool": "inspect_evidence",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--comparison-expected-sha256"
+            ],
+            "dest": "comparison_expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional second manifest digest, only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "comparison_expected_sha256",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--comparison-manifest"
+            ],
+            "dest": "comparison_manifest",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "second manifest, required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "comparison_manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--expected-sha256"
+            ],
+            "dest": "expected_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "optional caller-supplied manifest digest",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "expected_sha256",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; this command never exports files",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Read-only stdout rendering; MCP returns the same structured result. File export is not supported."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--source"
+            ],
+            "dest": "source",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "check primary-source bytes for a supported verification receipt; not full proof applicability",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "source",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "manifest"
+            ],
+            "dest": "manifest",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "RunLedger terminal manifest JSON",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "manifest",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "validate",
+              "explain",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ]
+    },
+    {
       "cli_command": "generate-traceability-matrix",
       "mcp_tool": "generate_traceability_matrix",
       "workflow_kind": "direct",
@@ -3005,7 +3174,7 @@
             "const": null,
             "type": null,
             "action": "store",
-            "help": null,
+            "help": "hashmap, two_pointer, or binary_search; nested_loop is retained for compatibility but always rejected",
             "hidden": false,
             "metavar": null
           },
@@ -4981,7 +5150,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "d79da98997aaa03720dedcf6a8208e2de861c235f35e48ec18b56c23e3ded257",
+    "inventory_sha256": "75f4296ce5014fa81ee4e7b75d5a7c47edf41b1b1a28565a839051a397ac350c",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

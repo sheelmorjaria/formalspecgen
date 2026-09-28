@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 17,
-  "cli_capability_count": 7,
+  "capability_count": 18,
+  "cli_capability_count": 8,
   "mcp_only_capability_count": 10,
   "capabilities": [
     {
@@ -2065,6 +2065,94 @@
             "workspace_write_new"
           ],
           "profile_sha256": "6a8618620bc4ef9b529799931dc993122f7af8a4ba6d619a30edad5686aa4fd5"
+        }
+      ]
+    },
+    {
+      "name": "inspect_evidence",
+      "mcp_tool": "inspect_evidence",
+      "cli_command": "evidence",
+      "description": "Bounded read-only ledger integrity validation, explanation, comparison and optional primary-source byte matching.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "manifest",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "validate",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "expected_sha256",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "comparison_manifest",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "comparison_expected_sha256",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "source",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "manifest",
+          "operation",
+          "expected_sha256",
+          "comparison_manifest",
+          "comparison_expected_sha256",
+          "source"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-evidence-reader",
+          "modes": [
+            "diff",
+            "explain",
+            "validate"
+          ],
+          "languages": [
+            "evidence"
+          ],
+          "backends": [
+            "builtin-ledger"
+          ],
+          "effects": [
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "read-only-integrity-report",
+          "required_effects": [
+            "workspace_read"
+          ],
+          "profile_sha256": "3c633825a4ced64c8c815229b7a8f578c39c12f54684ebae2071581b7c33da77"
         }
       ]
     }

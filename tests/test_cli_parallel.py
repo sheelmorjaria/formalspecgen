@@ -54,6 +54,7 @@ def test_implement_rayon_fails_closed_without_kernel_proof_or_on_non_rust(tmp_pa
         assert cli.command_implement(values, ui()) == 1
     assert not (tmp_path / "parallel.rs").exists()
     java = args(tmp_path, "java")
+    java.json = str(tmp_path / "java-verdict.json")
     with patch.object(cli, "run_implementation_loop", return_value={
             "final_status": "VERIFIED", "claim": "DEDUCTIVE_PROOF"}):
         assert cli.command_implement(java, ui()) == 1
@@ -65,6 +66,7 @@ def test_implement_rayon_rejects_unsupported_kernel_shape_and_compile_failure(tm
             "final_status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
             "implementation_code": "pub fn other(value: i32) -> i32 { value }"}):
         assert cli.command_implement(values, ui()) == 1
+    values.json = str(tmp_path / "compile-failure-verdict.json")
     with patch.object(cli, "run_implementation_loop", return_value={
             "final_status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
             "implementation_code": KERNEL}), patch(

@@ -563,6 +563,28 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
+def inspect_evidence(manifest: str, operation: str = "validate",
+                     expected_sha256: str | None = None,
+                     comparison_manifest: str | None = None,
+                     comparison_expected_sha256: str | None = None,
+                     source: str | None = None) -> dict[str, Any]:
+    """Read-only ledger integrity; never implies trusted authorship or source correctness."""
+    from pipeline.evidence_consumer import EvidenceWorkflowRequest, inspect_evidence as run
+    try:
+        request = EvidenceWorkflowRequest(manifest, operation, expected_sha256,
+                                          comparison_manifest, comparison_expected_sha256, source)
+    except ValueError as exc:
+        return {"status": "EVIDENCE_INVALID", "claim": "NO_PROOF",
+                "request_satisfied": False, "code": "INVALID_REQUEST", "message": str(exc)}
+    admission = authorize_mcp_invocation(
+        "inspect_evidence", mode=operation, language="evidence", backend="builtin-ledger",
+        effects=request.required_effects())
+    if not admission.admitted:
+        return admission.rejection()
+    context = WorkflowContext.for_mcp(admission, request.required_effects())
+    return {**run(request, context), "mcp_admission": admission.summary()}
+
+
 def inspect_code(
         source: str, result_export: str | None = None) -> dict[str, Any]:
     """Run deterministic Java/JML inspection with an optional controlled export."""

@@ -44,9 +44,10 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
+            requirements-mcp.txt
             pyproject.toml
       - name: Install development dependencies
-        run: python -m pip install --upgrade pip -r requirements-dev.txt -e .
+        run: python -m pip install --upgrade pip -r requirements-dev.txt -r requirements-mcp.txt -e .
       - name: Run tests with branch coverage gate
         run: >-
           python -m pytest
@@ -59,6 +60,14 @@ jobs:
           --ignore=tests/test_m91_riscv_deployment.py
       - name: Check live CLI-to-MCP parity inventory
         run: python scripts/generate_mcp_parity_manifest.py --check
+      - name: Exercise read-only evidence over real MCP stdio
+        env:
+          FORMALSPECGEN_REQUIRE_EVIDENCE_TRANSPORT: "1"
+        run: python -m pytest --no-cov -q tests/test_evidence_consumer.py::test_real_mcp_evidence_discovery_and_calls
+      - name: Qualify installed CLI and MCP evidence interfaces
+        env:
+          FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE: "1"
+        run: python -m pytest --no-cov -q tests/test_wheel_install.py
       - name: Check pinned GitHub Pages publication
         run: python scripts/generate_pages_companions.py --check
       - name: Verify refactor-mode CLI contract
@@ -180,6 +189,7 @@ jobs:
           --require-complete apply-refactor
           --require-complete analyze-codebase
           --require-complete generate-traceability-matrix
+          --require-complete evidence
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -363,6 +373,7 @@ jobs:
             --command apply-refactor \
             --command analyze-codebase \
             --command generate-traceability-matrix \
+            --command evidence \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

@@ -136,8 +136,8 @@ class ComposeCliTests(unittest.TestCase):
         args = parser.parse_args(["reverify", "arch.json", "--changed-module", "smart_lock"])
         self.assertEqual(args.command, "reverify")
         self.assertEqual(args.changed_module, "smart_lock")
-        self.assertIn("compose", cli._REPL_COMMANDS)
-        self.assertIn("reverify", cli._REPL_COMMANDS)
+        self.assertIn("compose", cli.repl_commands(parser))
+        self.assertIn("reverify", cli.repl_commands(parser))
 
 
 class PolyglotComposeCliTests(unittest.TestCase):

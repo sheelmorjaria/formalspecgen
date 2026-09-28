@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.markup import escape
@@ -27,6 +28,8 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from . import __version__, config
+from .cli_output import (CLIOutputError, result_export_path, run_machine_command,
+                         write_json)
 from .c_support import draft_acsl
 from .canonical_contracts import (
     CanonicalContractConflict,
@@ -252,14 +255,7 @@ def _read(path: str) -> str:
 
 
 def _write_json(value: Any, destination: str | None, console: Console) -> None:
-    text = json.dumps(value, indent=2, ensure_ascii=False, default=str)
-    if destination:
-        output_path = Path(destination)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(text + "\n", encoding="utf-8")
-        console.print(f"Evidence written to [path]{destination}[/path]")
-    else:
-        console.print(text)
+    write_json(value, destination, console)
 
 
 def _finish_canonical_draft(
@@ -564,7 +560,7 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
 
     request = VerificationWorkflowRequest(
         args.source, mode=args.mode, backend=args.backend,
-        result_export=args.json)
+        result_export=result_export_path(args.json))
     source = Path(request.source)
     context = WorkflowContext.for_cli(
         request.required_effects(WorkflowInterface.CLI),
@@ -581,7 +577,8 @@ def command_verify(args: argparse.Namespace, ui: TerminalUI) -> int:
     if output.strip():
         ui.console.print(Syntax(output, "text", word_wrap=True))
     if args.json:
-        context.require("workspace_write_new")
+        if result_export_path(args.json):
+            context.require("workspace_write_new")
         _write_json(result, args.json, ui.console)
     return 0 if result.get("request_satisfied", False) else 1
 
@@ -595,14 +592,14 @@ def command_verify_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     )
     from .workflow_services import run_refactor_verification
 
-    if getattr(args, "signing_key", None) and not args.json:
+    if getattr(args, "signing_key", None) and not result_export_path(args.json):
         ui.console.print(
-            "[bold red]Signing a refactor verdict requires --json[/bold red]"
+            "[bold red]Signing a refactor verdict requires --json PATH (not stdout)[/bold red]"
         )
         return 2
     ui.console.print("[cyan]Checking baseline and refactored contract surfaces…[/cyan]")
     request = RefactorWorkflowRequest(
-        args.baseline, args.refactored, result_export=args.json,
+        args.baseline, args.refactored, result_export=result_export_path(args.json),
         # A local CLI invocation may perform the human's separately requested
         # signature below.  No signing authority enters the shared service.
         signing_intent=False,
@@ -703,7 +700,7 @@ def command_security_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
     ui.console.print(
         f"Status: {result['status']}\nFindings: {len(result.get('findings', []))}"
     )
-    return 0
+    return 0 if result.get("request_satisfied", False) else 1
 
 
 def command_security_exploit(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -789,7 +786,7 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
     )
     from .workflow_services import run_java_inspection
 
-    request = InspectionWorkflowRequest(args.source, result_export=args.json)
+    request = InspectionWorkflowRequest(args.source, result_export=result_export_path(args.json))
     source = Path(request.source)
     context = WorkflowContext.for_cli(
         request.required_effects(WorkflowInterface.CLI),
@@ -797,7 +794,7 @@ def command_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:
     result = run_java_inspection(request, context)
     result = bind_workflow_result(
         result, request, WorkflowInterface.CLI, context=context)
-    if args.json:
+    if result_export_path(args.json):
         context.require("workspace_write_new")
     _write_json(result, args.json, ui.console)
     return 0 if result["status"] == "INSPECTED" else 1
@@ -816,7 +813,7 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
     try:
         request = ApplyRefactorWorkflowRequest(
             args.source, getattr(args, "inspection", None), args.pattern,
-            args.method, args.out, result_export=args.json)
+            args.method, args.out, result_export=result_export_path(args.json))
     except (OSError, ValueError) as exc:
         ui.console.print(f"[bold red]{escape(str(exc))}[/bold red]")
         return 2
@@ -864,7 +861,7 @@ def command_apply_refactor(args: argparse.Namespace, ui: TerminalUI) -> int:
             "request_satisfied": False, "code": "invalid_apply_refactor_request",
             "message": str(exc),
         }
-    if args.json and export_allowed:
+    if result_export_path(args.json) and export_allowed:
         try:
             if context is None:
                 raise ValueError("apply-refactor publication authority is unavailable")
@@ -1072,7 +1069,7 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
     try:
         request = CodebaseAnalysisWorkflowRequest(
             args.target_dir, args.out_dir, args.project_root,
-            result_export=args.json)
+            result_export=result_export_path(args.json))
         context = WorkflowContext.for_cli(
             request.required_effects(WorkflowInterface.CLI),
             workspace_root=Path(request.target_dir),
@@ -1133,7 +1130,7 @@ def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:
             "code": getattr(exc, "code", "CODEBASE_ANALYSIS_FAILED"),
             "message": str(exc),
         }
-    if args.json:
+    if result_export_path(args.json):
         try:
             if "context" not in locals():
                 raise ValueError("analysis publication authority is unavailable")
@@ -1168,7 +1165,7 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     request = DocumentationWorkflowRequest(
         args.source, args.out, project_root=args.project_root,
         provider=args.provider, model=args.model, no_llm=args.no_llm,
-        result_export=args.json)
+        result_export=result_export_path(args.json))
     context = WorkflowContext.for_cli(
         request.required_effects(WorkflowInterface.CLI),
         workspace_root=Path(request.source).parent,
@@ -1202,6 +1199,32 @@ def command_document_code(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["status"] == "DOCUMENTED" else 1
 
 
+def command_evidence(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .evidence_consumer import EvidenceWorkflowRequest, inspect_evidence
+    from .workflow_contracts import WorkflowContext
+
+    try:
+        request = EvidenceWorkflowRequest(args.manifest, args.operation, args.expected_sha256,
+            args.comparison_manifest, args.comparison_expected_sha256, args.source)
+    except ValueError as exc:
+        _write_json({"status": "EVIDENCE_INVALID", "claim": "NO_PROOF",
+                     "request_satisfied": False, "code": "INVALID_REQUEST",
+                     "message": str(exc)}, args.json, ui.console)
+        return 1
+    manifest = Path(request.manifest).expanduser().absolute()
+    comparison = (Path(request.comparison_manifest).expanduser().absolute()
+                  if request.comparison_manifest else None)
+    source = Path(request.source).expanduser().absolute() if request.source else None
+    root = Path(os.path.commonpath([p.parent for p in (manifest, comparison, source) if p is not None]))
+    context = WorkflowContext.for_cli(request.required_effects(), workspace_root=root)
+    result = inspect_evidence(EvidenceWorkflowRequest(
+        str(manifest) if comparison or source else manifest.name, request.operation, request.expected_sha256,
+        str(comparison) if comparison else None, request.comparison_expected_sha256,
+        str(source) if source else None), context)
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
+
+
 def command_doctor(args: argparse.Namespace, ui: TerminalUI) -> int:
     """Report judge readiness without minting verification evidence."""
     from .doctor import inspect_environment, required_failures
@@ -1214,10 +1237,7 @@ def command_doctor(args: argparse.Namespace, ui: TerminalUI) -> int:
     failures = required_failures(report, args.require)
     report["required_failures"] = failures
     if args.json:
-        if args.json == "-":
-            ui.console.print_json(data=report)
-        else:
-            _write_json(report, args.json, ui.console)
+        _write_json(report, args.json, ui.console)
     else:
         table = Table(title="FormalSpecGen judge readiness")
         table.add_column("Judge")
@@ -1519,7 +1539,7 @@ def command_generate_traceability(args: argparse.Namespace, ui: TerminalUI) -> i
 
     request = TraceabilityWorkflowRequest(
         args.domain, args.source, args.requirements,
-        out=args.out, result_export=args.json_out)
+        out=args.out, result_export=result_export_path(args.json_out))
     matrix_path = Path(request.out)
     export_path = (Path(request.result_export) if request.result_export
                    else matrix_path.with_suffix(".json"))
@@ -1536,6 +1556,8 @@ def command_generate_traceability(args: argparse.Namespace, ui: TerminalUI) -> i
         request, context, output_root=output_root,
         matrix_key=matrix_path.relative_to(output_root).as_posix(),
         export_key=export_path.relative_to(output_root).as_posix())
+    if args.json_out == "-":
+        _write_json(result, "-", ui.console)
     if not result["request_satisfied"]:
         ui.console.print(
             f"[red]Traceability generation failed:[/red] "
@@ -2167,10 +2189,7 @@ def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
             for name, source in verdict["files"].items():
                 (destination / name).write_text(source, encoding="utf-8")
         if args.json:
-            Path(args.json).write_text(
-                json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
-                encoding="utf-8",
-            )
+            _write_json(verdict, args.json, ui.console)
         style = "green" if verdict["status"] in {"COMPOSITION_VERIFIED"} else "yellow"
         ui.console.print(
             Panel(
@@ -2197,10 +2216,7 @@ def command_compose(args: argparse.Namespace, ui: TerminalUI) -> int:
         for name, source in verdict["files"].items():
             (destination / name).write_text(source, encoding="utf-8")
     if args.json:
-        Path(args.json).write_text(
-            json.dumps(verdict, indent=2, ensure_ascii=False, default=str),
-            encoding="utf-8",
-        )
+        _write_json(verdict, args.json, ui.console)
     style = (
         "green"
         if verdict["status"] in {"COMPOSITION_VERIFIED", "COMPOSITION_CHECKED"}
@@ -2236,10 +2252,7 @@ def command_reverify(args: argparse.Namespace, ui: TerminalUI) -> int:
         value, args.changed_module, args.v2_dir
     )
     if args.json:
-        Path(args.json).write_text(
-            json.dumps(verdict, indent=2, ensure_ascii=False, default=str),
-            encoding="utf-8",
-        )
+        _write_json(verdict, args.json, ui.console)
     style = "green" if verdict["status"] in {"REVERIFIED", "NOT_IMPACTED"} else "yellow"
     ui.console.print(
         Panel(
@@ -2290,10 +2303,7 @@ def command_system(args: argparse.Namespace, ui: TerminalUI) -> int:
             executable=args.executable,
         )
     if args.json:
-        Path(args.json).write_text(
-            json.dumps(verdict, indent=2, ensure_ascii=False, default=str) + "\n",
-            encoding="utf-8",
-        )
+        _write_json(verdict, args.json, ui.console)
     style = (
         "green"
         if verdict["status"]
@@ -2398,6 +2408,17 @@ def build_parser(
         "--provider", choices=["glm", "openai", "ollama"], default="ollama"
     )
     common.add_argument("--model")
+
+    evidence = sub.add_parser(
+        "evidence", help="validate, explain or compare ledger records without asserting proof or trust")
+    evidence.add_argument("operation", choices=["validate", "explain", "diff"])
+    evidence.add_argument("manifest", help="RunLedger terminal manifest JSON")
+    evidence.add_argument("--expected-sha256", help="optional caller-supplied manifest digest")
+    evidence.add_argument("--comparison-manifest", help="second manifest, required only for diff")
+    evidence.add_argument("--comparison-expected-sha256", help="optional second manifest digest, only for diff")
+    evidence.add_argument("--source", help="check primary-source bytes for a supported verification receipt; not full proof applicability")
+    evidence.add_argument("--json", nargs="?", const="-", choices=["-"],
+                          help="structured stdout only; this command never exports files")
 
     doctor = sub.add_parser(
         "doctor", help="report judge readiness and evidence ceilings"
@@ -2547,6 +2568,7 @@ def build_parser(
         "--strategy",
         choices=["hashmap", "two_pointer", "binary_search", "nested_loop"],
         required=True,
+        help="hashmap, two_pointer, or binary_search; nested_loop is retained for compatibility but always rejected",
     )
     optimize.add_argument("--out", required=True)
     optimize.add_argument("--json")
@@ -2649,6 +2671,7 @@ def build_parser(
     bisimulation = sub.add_parser(
         "verify-bisimulation",
         help="validate a scoped state mapping without claiming equivalence",
+        description="Mapping/API preflight only (NO_PROOF); does not prove behavioral or heap equivalence.",
     )
     bisimulation.add_argument("baseline")
     bisimulation.add_argument("refactored")
@@ -3031,6 +3054,15 @@ def build_parser(
         help="skip the optional narrative pass; deterministic sections only",
     )
     document.add_argument("--json")
+
+    for command_parser in sub.choices.values():
+        if any("--json" in action.option_strings for action in command_parser._actions):
+            command_parser.epilog = (
+                "--json - emits one versioned JSON response on stdout; diagnostics go to stderr. "
+                "--json PATH publishes a new result file without replacing an existing file. "
+                "Workflow artifacts are still produced where requested."
+            )
+    evidence.epilog = "Read-only: --json or --json - writes only to stdout. No signature, applicability or assurance-policy validation."
     existing = tuple(sub.choices)
     for plugin in plugins:
         registered = register_plugin(sub, existing, plugin)
@@ -3041,6 +3073,26 @@ def build_parser(
 def dispatch(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
+    """Apply CLI presentation policy without changing shared workflow semantics."""
+    machine = (getattr(args, "_plugin_handler", None) is None and
+               (getattr(args, "json", None) == "-" or
+                getattr(args, "json_out", None) == "-"))
+    if machine:
+        diagnostic_ui = TerminalUI(Console(file=sys.stderr), ui.ask)
+        return run_machine_command(
+            args.command, lambda: _dispatch(args, diagnostic_ui, store, state))
+    try:
+        return _dispatch(args, ui, store, state)
+    except CLIOutputError as exc:
+        Console(file=sys.stderr).print(str(exc), markup=False)
+        return 1
+
+
+def _dispatch(
+    args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
+) -> int:
+    if args.command == "evidence":
+        return command_evidence(args, ui)
     plugin_handler = getattr(args, "_plugin_handler", None)
     if plugin_handler is not None:
         result = plugin_handler(args)
@@ -3124,47 +3176,25 @@ def dispatch(
     return 2
 
 
-_REPL_COMMANDS = {
-    "doctor",
-    "draft",
-    "implement",
-    "verify",
-    "verify-refactor",
-    "discover-algorithms",
-    "inspect",
-    "apply-refactor",
-    "architecture",
-    "design-system",
-    "domain",
-    "validate-domain",
-    "promote-domain",
-    "sign-artifact",
-    "manage-trust",
-    "verify-heap",
-    "verify-hal",
-    "verify-distributed",
-    "macro-dictionary",
-    "verify-lockfree",
-    "verify-linearizability",
-    "verify-unbounded",
-    "prove-equivalence",
-    "generate-traceability-matrix",
-    "compose",
-    "reverify",
-    "system",
-    "document-code",
-}
+def repl_commands(parser: argparse.ArgumentParser) -> frozenset[str]:
+    """Use exactly the commands registered in this parser, including approved plugins."""
+    return frozenset(
+        name for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+        for name in action.choices
+    )
 
 
-def _repl_argv(line: str) -> list[str]:
+def _repl_argv(line: str, parser: argparse.ArgumentParser | None = None) -> list[str]:
     """Accept slash commands, ordinary subcommands, and pasted shell invocations."""
+    line = line.strip()
     text = line[1:].strip() if line.startswith("/") else line
     values = shlex.split(text)
     if values and values[0] == "formalspecgen":
         values = values[1:]
-    if values and values[0] in _REPL_COMMANDS:
+    if values and values[0] in repl_commands(parser if parser is not None else build_parser()):
         return values
-    return ["draft", line]
+    raise ValueError("Unknown command. Use /help, or explicitly draft with /draft TEXT.")
 
 
 def _continued_line(first: str, ask: Callable[[str], str]) -> str:
@@ -3185,10 +3215,18 @@ def repl(
     state: dict[str, Any],
 ) -> int:
     store.directory.mkdir(parents=True, exist_ok=True)
-    session = PromptSession(history=FileHistory(str(store.history_path)))
+    commands = repl_commands(parser)
+    session = PromptSession(
+        history=FileHistory(str(store.history_path)),
+        completer=WordCompleter(sorted(
+            commands | {"/" + name for name in commands}
+            | {"/help", "/session", "/reset", "/quit", "/exit", "formalspecgen"}
+        ), WORD=True),
+    )
     ui.console.print(
         Panel(
-            "Enter a requirement to clarify and draft, or use /help.\n"
+            "Enter a CLI command, or use /help. Draft explicitly with /draft TEXT\n"
+            "(drafting may contact the configured provider).\n"
             "The LLM proposes; deterministic compilers transform; formal tools judge.",
             title="FormalSpecGen CLI",
             border_style="cyan",
@@ -3205,9 +3243,11 @@ def repl(
         if line in {"/quit", "/exit"}:
             return 0
         if line == "/help":
+            ui.console.print(parser.format_help(), markup=False)
             ui.console.print(
-                "/draft TEXT  /implement FILE  /verify FILE  /architecture FILE  "
-                "/domain TEXT  /validate-domain NAME  /session  /reset  /quit"
+                "Commands also accept a / prefix. Use COMMAND --help for options.\n"
+                "Session commands: /help /session /reset /quit /exit\n"
+                "Draft requirements explicitly with /draft TEXT."
             )
             continue
         if line == "/session":
@@ -3219,9 +3259,15 @@ def repl(
             state.update(store.empty())
             ui.console.print("Session cleared.")
             continue
-        argv = _repl_argv(line)
         try:
+            argv = _repl_argv(line, parser)
             args = parser.parse_args(argv)
+        except ValueError as error:
+            ui.console.print(f"Input error: {error}", markup=False)
+            continue
+        except SystemExit:
+            continue
+        try:
             dispatch(args, ui, store, state)
         except SystemExit:
             continue

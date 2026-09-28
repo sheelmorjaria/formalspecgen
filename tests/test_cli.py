@@ -201,6 +201,7 @@ class CliTests(unittest.TestCase):
                           IsolatedVerificationResult({
                               "status": "VERIFIED", "exit_code": 0, "output": "ok"})):
             self.assertEqual(cli.command_verify(args, self.ui), 0)
+        args.json = str(self.root / "v-failed.json")
         with patch.object(cli, "execute_isolated_verification", return_value=
                           IsolatedVerificationResult({
                               "status": "VERIFY_FAILED", "exit_code": 6, "output": "bad"})):
@@ -268,6 +269,7 @@ class CliTests(unittest.TestCase):
         refused = {"status": "LOCK_FREE_VERIFICATION_FAILED",
                    "claim": "NO_PROOF", "code": "mpmc_not_in_dialect",
                    "message": "two writers of head"}
+        args.json_out = str(self.root / "lf-failed.json")
         with patch("pipeline.lockfree.verify_lockfree",
                    return_value=refused):
             self.assertEqual(cli.command_verify_lockfree(args, self.ui), 1)
@@ -698,7 +700,9 @@ class CliTests(unittest.TestCase):
         assert cli._repl_argv("/implement X.java --assurance-level critical") == expected
         assert cli._repl_argv("implement X.java --assurance-level critical") == expected
         assert cli._repl_argv("formalspecgen implement X.java --assurance-level critical") == expected
-        assert cli._repl_argv("Design a counter") == ["draft", "Design a counter"]
+        with self.assertRaises(ValueError):
+            cli._repl_argv("Design a counter")
+        assert cli._repl_argv('/draft "Design a counter"') == ["draft", "Design a counter"]
         answers = iter(["X.java \\", "--mode esc"])
         assert cli._continued_line("formalspecgen verify \\", lambda _prompt: next(answers)) == \
             "formalspecgen verify X.java --mode esc"

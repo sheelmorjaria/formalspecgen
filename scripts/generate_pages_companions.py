@@ -17,6 +17,7 @@ from urllib.parse import unquote, urlparse
 
 import mcp_server
 from pipeline.capability_registry import mcp_capabilities
+from pipeline.evidence_consumer import EvidenceWorkflowRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -211,7 +212,7 @@ def _guide_validation(
         "- Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,",
         "  `VALIDATION.md`, `FORMALSPECGEN_USER_GUIDE.html`, and the archived `91c6790` guide",
         f"- Operating-manual IDs: {len(manual_parser.ids)}; local links and cross-page fragments checked",
-        "- All 38 command-reference and index admission labels generated from the live inventory",
+        f"- All {json.loads(inventory_bytes)['command_count']} command-reference and index admission labels generated from the live inventory",
         "- Unexpected relative assets: none",
         "- Handwritten verification, analysis, refactoring, and traceability MCP payloads validated through application request models",
         f"- Current landing-page CLI examples parsed against the real CLI: {len(parser.cli_examples)}",
@@ -230,6 +231,10 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "evidence-explain": "evidence",
+        "evidence-diff": "evidence",
+        "evidence-source": "evidence",
+        "inspect-stdout": "inspect",
         "inspect": "inspect", "analyze": "analyze-codebase",
         "document": "document-code", "verify": "verify",
         "preserve": "verify-refactor", "traceability": "generate-traceability-matrix",
@@ -247,6 +252,21 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             raise ValueError(f"invalid CLI example: {name}") from exc
         if args.command != expected[name]:
             raise ValueError(f"wrong command for CLI example: {name}")
+        if name == "inspect-stdout" and args.json != "-":
+            raise ValueError("stdout inspection example must use --json -")
+        if name == "evidence-explain":
+            request = EvidenceWorkflowRequest(args.manifest, args.operation, args.expected_sha256)
+            if request.operation != "explain" or args.json != "-":
+                raise ValueError("evidence example must explain existing evidence on stdout")
+        if name == "evidence-diff":
+            request = EvidenceWorkflowRequest(args.manifest, args.operation, args.expected_sha256,
+                                              args.comparison_manifest, args.comparison_expected_sha256)
+            if request.operation != "diff" or args.json != "-":
+                raise ValueError("evidence diff example must compare existing evidence on stdout")
+        if name == "evidence-source":
+            request = EvidenceWorkflowRequest(args.manifest, args.operation, args.expected_sha256, source=args.source)
+            if request.operation != "validate" or not request.source or args.json != "-":
+                raise ValueError("evidence source example must explicitly check a source on stdout")
         if name == "document" and not args.no_llm:
             raise ValueError("manual documentation example must remain provider-free")
         if name == "verify" and args.mode != "esc":
@@ -310,12 +330,21 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "verify-java", "analyze-codebase", "apply-refactor-java", "traceability"}:
+            "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
             "guide workflow-example drift: expected verify-java, analyze-codebase, "
-            "apply-refactor-java, and traceability, found "
+            "apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
     payload = json.loads(examples["verify-java"])
+    evidence = EvidenceWorkflowRequest(**json.loads(examples["evidence-explain"]))
+    if evidence.operation != "explain":
+        raise ValueError("evidence-explain example must request explanation")
+    comparison = EvidenceWorkflowRequest(**json.loads(examples["evidence-diff"]))
+    if comparison.operation != "diff":
+        raise ValueError("evidence-diff example must request comparison")
+    source = EvidenceWorkflowRequest(**json.loads(examples["evidence-source"]))
+    if source.operation != "validate" or not source.source:
+        raise ValueError("evidence-source example must request explicit source validation")
     TraceabilityWorkflowRequest(**json.loads(examples["traceability"]))
     request = VerificationWorkflowRequest(**payload)
     if request.language not in {"java", "jml"} or \
