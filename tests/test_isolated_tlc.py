@@ -204,6 +204,22 @@ def test_missing_java_is_explicit(setup, tmp_path, monkeypatch):
     assert not result["execution_observations"]
 
 
+@pytest.mark.parametrize("exit_code", [0, 1])
+@pytest.mark.parametrize("banner", [
+    "TLC2 Version 2.19 of 08 August 2024\n",
+    "\n\x1b[1mNAME\x1b[0m\n\n\tTLC - provides model checking and simulation "
+    "of TLA+ specifications - Version 2.19 of 08 August 2024\n\n\x1b[1mSYNOPSIS\x1b[0m\n",
+])
+def test_supported_real_tlc_banner_forms(setup, tmp_path, exit_code, banner):
+    jar, request = setup
+    executor = Mock(execute=lambda execution: observed(
+        execution, output=banner if execution.tool == "tlc-provenance" else SUCCESS,
+        exit_code=exit_code if execution.tool == "tlc-provenance" else 0))
+    result = run_isolated_tlc(request, context(tmp_path), tlc_jar=str(jar), executor=executor)
+    assert result["status"] == "TLC_MODEL_CHECK_PASSED"
+    assert result["version"] == "2.19 of 08 August 2024"
+
+
 def test_late_executor_error_retains_probe(setup, tmp_path):
     jar, request = setup
     executor = Mock()

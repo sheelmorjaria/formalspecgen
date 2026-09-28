@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import hashlib
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -65,7 +66,14 @@ Spec == Init /\\ [][Next]_x
         TlcModelRequest("Counter", tla, cfg),
         WorkflowContext.for_cli(("external_execution",), workspace_root=tmp_path),
         executor=executor)
-    assert result["status"] == ("TLC_MODEL_CHECK_PASSED" if valid else "TLC_FAILED"), result
+    evidence_root = os.environ.get("FORMALSPECGEN_TLC_ACCEPTANCE_DIR")
+    if evidence_root:
+        destination = Path(evidence_root)
+        destination.mkdir(parents=True, exist_ok=True)
+        with (destination / f"tlc-{'success' if valid else 'counterexample'}.json").open("x") as stream:
+            json.dump(result, stream, indent=2)
+    assert result["status"] == ("TLC_MODEL_CHECK_PASSED" if valid else "TLC_FAILED"), (
+        result["status"], [item["output"] for item in result["execution_observations"]])
     assert result["request_satisfied"] is valid
     assert result["model_check_passed"] is valid
     assert result["claim"] == "NO_PROOF"

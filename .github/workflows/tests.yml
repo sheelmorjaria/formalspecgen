@@ -248,6 +248,7 @@ jobs:
       CC_BIN: /usr/bin/gcc
       TLC_JAR: ${{ github.workspace }}/tools/tla2tools.jar
       TLC_SHA256: "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+      FORMALSPECGEN_TLC_ACCEPTANCE_DIR: ${{ runner.temp }}/tlc-acceptance
     steps:
       - uses: actions/checkout@v4
       - name: Configure runner-local verifier paths
@@ -394,6 +395,14 @@ jobs:
             tests/test_codebase_analysis_workflow.py \
             tests/test_approval_signing_acceptance.py \
             tests/test_agentic_transport_acceptance.py
+      - name: Upload actual TLC execution observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlc-execution-${{ github.sha }}
+          path: ${{ runner.temp }}/tlc-acceptance/*.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Produce provisioned MCP workflow acceptance evidence
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"

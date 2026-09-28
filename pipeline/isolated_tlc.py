@@ -150,8 +150,10 @@ def run_isolated_tlc(
                     result["status"] = "TLC_EXECUTION_FAILED"
                     return result
                 if stage == "tlc-provenance":
-                    version = re.search(r"^TLC2 Version ([0-9][^\r\n]*)",
-                                        observation.output, re.MULTILINE)
+                    version = re.search(
+                        r"^[ \t]*(?:TLC2 Version |TLC - provides model checking and "
+                        r"simulation of TLA\+ specifications - Version )([0-9][^\r\n]*)",
+                        observation.output, re.MULTILINE)
                     # Supported TLC -help prints the banner and may exit 1.
                     if observation.exit_code not in {0, 1} or not version:
                         result["status"] = "TOOL_VERSION_UNAVAILABLE"
