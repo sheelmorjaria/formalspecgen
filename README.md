@@ -1202,6 +1202,13 @@ record, rerun a tool, or establish that recorded isolation actually held. The
 full terminal remains available. A successful explanation can describe a failed
 check or inconsistent records; callers must inspect the separate dimensions.
 
+Evidence input rejects duplicate JSON field names in manifests and captured
+records, including nested objects and escaped spellings of the same name.
+`AMBIGUOUS_EVIDENCE_JSON` means no unique record interpretation was established;
+matching artifact hashes do not override that rejection. No terminal explanation
+or optional current-source read follows it. Validation, explanation and comparison
+use the same rule without modifying or reopening the captured artifacts.
+
 `diff` requires `--comparison-manifest`; `--comparison-expected-sha256` optionally
 pins that second manifest. These two options are rejected for other operations.
 Both ledgers share the aggregate capture budget (including both manifests).

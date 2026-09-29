@@ -224,7 +224,8 @@
           "source-boundaries", "source-exact-budget", "source-capture-once", "source-binding-consistency",
           "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
           "explain-inconsistent-stages", "explain-ambiguous-stages", "explain-consistency-capture",
-          "source-json-types-request", "source-json-types-stages"
+          "source-json-types-request", "source-json-types-stages",
+          "duplicate-manifest-fields", "duplicate-record-fields", "diff-duplicate-fields"
         ],
         "acceptance_cases": [
           {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_cli_mcp_semantic_equivalence_and_readonly", "variants": ["request-equivalence", "read-only"]},
@@ -253,6 +254,7 @@
           {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_explain_record_consistency_is_separate_from_integrity", "variants": ["explain-inconsistent-stages", "explain-ambiguous-stages"]},
           {"kind": "effect_enforcement", "test": "tests/test_evidence_consumer.py::test_explain_consistency_uses_captured_proof_bytes", "variants": ["explain-consistency-capture"]},
           {"kind": "effect_enforcement", "test": "tests/test_evidence_consumer.py::test_source_binding_preserves_json_types", "variants": ["source-json-types-request", "source-json-types-stages"]},
+          {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_duplicate_evidence_fields_rejected", "variants": ["duplicate-manifest-fields", "duplicate-record-fields"]},
           {"kind": "mcp_transport", "test": "tests/test_evidence_consumer.py::test_real_mcp_evidence_discovery_and_calls", "variants": [
             "validate", "explain", "digest-match", "digest-mismatch", "tampered",
             "missing-artifact", "missing-manifest", "malformed", "denied-path",
@@ -266,7 +268,8 @@
             "source-invalid-options", "source-invalid-receipt",
             "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
             "explain-inconsistent-stages", "explain-ambiguous-stages",
-            "source-json-types-request", "source-json-types-stages"
+            "source-json-types-request", "source-json-types-stages",
+            "duplicate-manifest-fields", "duplicate-record-fields", "diff-duplicate-fields"
           ]}
         ]
       }

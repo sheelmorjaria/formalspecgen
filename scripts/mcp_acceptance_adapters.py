@@ -1056,6 +1056,19 @@ async def _evidence_observation() -> dict:
         (workspace / "linked.json").symlink_to(good)
         malformed = workspace / "malformed.json"
         malformed.write_text("not json", encoding="utf-8")
+        duplicate_manifest = ledger("duplicate-manifest")
+        duplicate_manifest.write_bytes(b'{"fixture":false,"fixture":true,' + duplicate_manifest.read_bytes()[1:])
+        duplicate_record = ledger("duplicate-record")
+        proof_path = duplicate_record.parent / "001-proof.json"
+        proof = json.loads(proof_path.read_bytes())
+        proof["evidence"]["duplicate_probe"] = "REPLACE_DUPLICATE_OBJECT"
+        encoded = json.dumps(proof).replace('"REPLACE_DUPLICATE_OBJECT"',
+            r'{"fixture":true,"fixt\u0075re":true}').encode()
+        proof_path.write_bytes(encoded)
+        duplicate_inventory = json.loads(duplicate_record.read_bytes())
+        next(item for item in duplicate_inventory["artifacts"] if item["path"] == proof_path.name).update(
+            sha256=hashlib.sha256(encoded).hexdigest(), size=len(encoded))
+        duplicate_record.write_text(json.dumps(duplicate_inventory), encoding="utf-8")
         oversized = workspace / "oversized.json"
         oversized.write_bytes(b" " * (EVIDENCE_BUDGET["max_input_bytes"] + 1))
         too_many = workspace / "too-many.json"
@@ -1144,6 +1157,9 @@ async def _evidence_observation() -> dict:
             ("missing-artifact", {"manifest": str(missing)}, "EVIDENCE_INCOMPLETE", "INVALID_INPUT"),
             ("missing-manifest", {"manifest": str(workspace / "absent.json")}, "EVIDENCE_INCOMPLETE", "INVALID_INPUT"),
             ("malformed", {"manifest": str(malformed)}, "EVIDENCE_INVALID", "INVALID_INPUT"),
+            ("duplicate-manifest-fields", {"manifest": str(duplicate_manifest)}, "EVIDENCE_INVALID", "AMBIGUOUS_EVIDENCE_JSON"),
+            ("duplicate-record-fields", {"manifest": str(duplicate_record), "operation": "explain"}, "EVIDENCE_INVALID", "AMBIGUOUS_EVIDENCE_JSON"),
+            ("diff-duplicate-fields", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(duplicate_record)}, "EVIDENCE_COMPARISON_REJECTED", "COMPARISON_EVIDENCE_REJECTED"),
             ("denied-path", {"manifest": "../outside.json"}, "EVIDENCE_INVALID", "PATH_OUTSIDE_WORKSPACE"),
             ("symlink-manifest", {"manifest": str(workspace / "linked.json")}, "EVIDENCE_INVALID", "INVALID_INPUT"),
             ("symlink-artifact", {"manifest": str(linked)}, "EVIDENCE_INVALID", "INVALID_INPUT"),
@@ -1268,6 +1284,14 @@ async def _evidence_observation() -> dict:
                         raise RuntimeError("stage explanation erased baseline or candidate observations")
             if variant == "tampered" and result["integrity"]["status"] != "INVALID":
                 raise RuntimeError("tampering was not detected")
+            if variant in {"duplicate-manifest-fields", "duplicate-record-fields", "diff-duplicate-fields"}:
+                rejected = result["comparison"] if variant == "diff-duplicate-fields" else result
+                if (rejected.get("code") != "AMBIGUOUS_EVIDENCE_JSON"
+                        or rejected["integrity"].get("valid") or "recorded_terminal" in rejected
+                        or "explanation" in rejected):
+                    raise RuntimeError("ambiguous evidence was interpreted as a valid record")
+                if variant == "diff-duplicate-fields" and not result["baseline"]["request_satisfied"]:
+                    raise RuntimeError("ambiguous comparison erased valid baseline evidence")
             if status == "EVIDENCE_COMPARED":
                 for side, path in (("baseline", arguments["manifest"]), ("comparison", arguments["comparison_manifest"])):
                     actual_manifest = Path(path).read_bytes()

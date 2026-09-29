@@ -71,6 +71,18 @@ def _reject_nonfinite(value: str):
     raise ValueError(f"non-finite JSON value is not supported: {value}")
 
 
+def _decode_evidence(content: bytes):
+    """Reject duplicate decoded field names at every object depth."""
+    def unique_fields(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise EvidenceInputError("AMBIGUOUS_EVIDENCE_JSON", "duplicate JSON field in evidence")
+            value[key] = item
+        return value
+    return json.loads(content, object_pairs_hook=unique_fields, parse_constant=_reject_nonfinite)
+
+
 def _json_identity(value):
     """Preserve JSON value types while ignoring object field order."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -89,7 +101,7 @@ def _recorded_stage_consistency(terminal: dict, captured: dict[str, bytes], *, m
     for name, content in captured.items():
         if name == "run.json":
             continue
-        record = json.loads(content, parse_constant=_reject_nonfinite)
+        record = _decode_evidence(content)
         details = record.get("details")
         if (record.get("state") != "PROOF" or not isinstance(details, dict)
                 or "workflow_request" not in details
@@ -173,7 +185,7 @@ def _recorded_source_binding(terminal: dict, captured: dict[str, bytes]) -> dict
             or not isinstance(request.get("source"), str) or not request["source"] \
             or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise EvidenceInputError("UNSUPPORTED_SOURCE_BINDING", "receipt has no supported primary-source binding")
-    proofs = [json.loads(data, parse_constant=_reject_nonfinite) for name, data in captured.items() if name != "run.json"]
+    proofs = [_decode_evidence(data) for name, data in captured.items() if name != "run.json"]
     request_identity = _json_identity(request)
     matching = [record for record in proofs if record.get("state") == "PROOF"
                 and isinstance(record.get("details"), dict)
@@ -313,7 +325,7 @@ def _inspect_one(request: EvidenceWorkflowRequest, context: WorkflowContext,
             result["manifest_binding"] = {"status": "MATCH" if matches else "MISMATCH"}
             if not matches:
                 raise EvidenceInputError("MANIFEST_DIGEST_MISMATCH", "manifest differs from the caller's expected digest")
-        manifest = json.loads(manifest_bytes, parse_constant=_reject_nonfinite)
+        manifest = _decode_evidence(manifest_bytes)
         if not isinstance(manifest, dict) or manifest.get("schema") != "formalspecgen-evidence-manifest-v1":
             raise EvidenceInputError("UNSUPPORTED_MANIFEST", "expected a RunLedger v1 manifest")
         inventory = manifest.get("artifacts")
@@ -331,6 +343,12 @@ def _inspect_one(request: EvidenceWorkflowRequest, context: WorkflowContext,
             names.append(name)
         captured = {name: capture(name) for name in names}
         checked = RunLedger.validate_captured(manifest, captured.__getitem__)
+        if checked["valid"]:
+            # Hash agreement alone cannot select an interpretation of ambiguous
+            # JSON. Validate every captured record before exposing terminal data
+            # or authorizing the optional current-source read. Never reopen paths.
+            for content in captured.values():
+                _decode_evidence(content)
         result["integrity"] = {key: value for key, value in checked.items() if key != "terminal"}
         result["captured_inputs"] = [{"path": name, "sha256": hashlib.sha256(content).hexdigest(),
                                       "size": len(content)} for name, content in captured.items()]

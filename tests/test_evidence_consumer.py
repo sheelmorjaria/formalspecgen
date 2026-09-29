@@ -274,6 +274,44 @@ def test_malformed_manifest(bundle, content):
     assert not inspect(bundle)["request_satisfied"]
 
 
+@pytest.mark.parametrize("operation", ["validate", "explain", "diff"])
+@pytest.mark.parametrize("location", ["manifest", "terminal", "proof", "proof-nested"])
+@pytest.mark.parametrize("members", ['"fixture":false,"fixture":true',
+                                     r'"fixture":true,"fixt\u0075re":true'])
+def test_duplicate_evidence_fields_rejected(bundle, capsys, operation, location, members):
+    from pipeline.evidence_consumer import _capture
+    manifest = json.loads(bundle.read_bytes())
+    path = bundle if location in {"manifest", "terminal"} else bundle.parent / "001-proof.json"
+    value = json.loads(path.read_bytes())
+    if location in {"terminal", "proof-nested"}:
+        field = "terminal" if location == "terminal" else "evidence"
+        value[field]["duplicate_probe"] = "REPLACE_DUPLICATE_OBJECT"
+        encoded = json.dumps(value).replace('"REPLACE_DUPLICATE_OBJECT"', '{' + members + '}').encode()
+    else:
+        encoded = ('{' + members + ',' + json.dumps(value)[1:]).encode()
+    path.write_bytes(encoded)
+    if path != bundle:
+        next(item for item in manifest["artifacts"] if item["path"] == path.name).update(
+            sha256=hashlib.sha256(encoded).hexdigest(), size=len(encoded))
+        bundle.write_text(json.dumps(manifest))
+    before = {p: p.read_bytes() for p in bundle.parent.iterdir() if p.is_file()}
+    kwargs = {"comparison_manifest": str(bundle)} if operation == "diff" else {"source": "never-read.java"}
+    with patch("pipeline.evidence_consumer._capture", wraps=_capture) as capture:
+        remote = mcp_server.inspect_evidence(str(bundle), operation, **kwargs)
+    assert "never-read.java" not in [call.args[0] for call in capture.call_args_list]
+    args = ["evidence", operation, str(bundle), "--json"]
+    args += ["--comparison-manifest", str(bundle)] if operation == "diff" else ["--source", "never-read.java"]
+    assert cli.dispatch(cli.build_parser().parse_args(args), cli.TerminalUI(), None, {}) != 0
+    local = json.loads(capsys.readouterr().out)["result"]
+    assert local == {k: v for k, v in remote.items() if k != "mcp_admission"}
+    result = remote["baseline"] if operation == "diff" else remote
+    assert not result["request_satisfied"] and result["claim"] == "NO_PROOF"
+    assert result["code"] == "AMBIGUOUS_EVIDENCE_JSON"
+    assert not result["integrity"].get("valid", False)
+    assert "recorded_terminal" not in result and "explanation" not in result
+    assert before == {p: p.read_bytes() for p in bundle.parent.iterdir() if p.is_file()}
+
+
 def test_request_and_readonly_profile(bundle):
     from pipeline.mcp_policy import authorize_mcp_invocation
     assert mcp_server.inspect_evidence(str(bundle), operation="sign")["code"] == "INVALID_REQUEST"
@@ -649,8 +687,8 @@ def test_real_mcp_evidence_discovery_and_calls():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     observation = collect_transport_observation("evidence")
     assert observation["transport"] == "mcp-stdio-subprocess"
-    assert len(observation["semantic_results"]) == 46
-    assert len(observation["cli_comparisons"]) == 42
+    assert len(observation["semantic_results"]) == 49
+    assert len(observation["cli_comparisons"]) == 45
     assert len(observation["validated_inputs"]) == 14
     assert len(observation["validated_sources"]) == 3
     assert observation["workspace_unchanged"] is True
@@ -675,4 +713,5 @@ def test_real_mcp_evidence_discovery_and_calls():
         "source-invalid-options", "source-invalid-receipt",
         "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
         "explain-inconsistent-stages", "explain-ambiguous-stages",
-        "source-json-types-request", "source-json-types-stages"}
+        "source-json-types-request", "source-json-types-stages",
+        "duplicate-manifest-fields", "duplicate-record-fields", "diff-duplicate-fields"}
