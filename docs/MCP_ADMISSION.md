@@ -18,6 +18,16 @@ symlinks and nonregular files fail closed. Selected targets include dependencies
 unselected targets remain explicit. Digests bind the bytes actually captured,
 including the manifest; repeated paths are captured once.
 
+Both operations return `target_inputs`, keyed by selected target name. Its
+`sources` and `contracts` lists retain declaration order and contain workspace-
+relative paths, sizes and SHA-256 digests from the same captured bytes as the
+aggregate input manifest. `capture_complete` means only that the target's
+explicit inputs were captured, not that it is approved or verified. A later
+capture failure preserves earlier dependency bindings, marks the failing
+target incomplete and leaves the overall request unsuccessful. These references
+do not make the workspace immutable; consumers must recheck the identities
+before later authorized actions.
+
 `PROJECT_VALIDATED` and `PROJECT_PLANNED` do not establish source-fragment
 support, tool readiness, contract approval or requested assurance. Unavailable
 profiles produce `PROJECT_BLOCKED`; absent contracts produce a warning, not an

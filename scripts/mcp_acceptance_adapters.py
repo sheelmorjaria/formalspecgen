@@ -1276,6 +1276,9 @@ async def _project_observation() -> dict:
             {"name": "base", "sources": ["lib/S.java"], "workflows": [
                 {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
         (workspace / "project.json").write_text(json.dumps(document))
+        missing_input = json.loads(json.dumps(document))
+        missing_input["targets"][0]["sources"] = ["missing.java"]
+        (workspace / "missing-input.json").write_text(json.dumps(missing_input))
         (workspace / "invalid.json").write_text('{"schema":1,"schema":2}')
         document["targets"][0]["workflows"][0]["profile"] = "not-admitted"
         (workspace / "blocked.json").write_text(json.dumps(document))
@@ -1289,6 +1292,7 @@ async def _project_observation() -> dict:
             ("blocked", {"manifest": "blocked.json", "operation": "plan"}, "PROJECT_BLOCKED"),
             ("denied", {"manifest": "../outside.json"}, "PROJECT_INVALID"),
             ("limit", {"manifest": "oversize.json"}, "PROJECT_INVALID"),
+            ("partial-capture", {"manifest": "missing-input.json", "operation": "plan"}, "PROJECT_INVALID"),
         ]
         def identity():
             return {p.relative_to(workspace).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -1314,6 +1318,21 @@ async def _project_observation() -> dict:
                 validated.append({"variant": variant, **item})
             if "inputs_sha256" in result and result["inputs_sha256"] != _sha256(result["inputs"]):
                 raise RuntimeError("project input manifest identity mismatch")
+            inventory = {item["path"]: item for item in result["inputs"]}
+            for name, bindings in result["target_inputs"].items():
+                if expected_status != "PROJECT_INVALID" and not bindings["capture_complete"]:
+                    raise RuntimeError("complete transport fixtures must have complete target captures")
+                for field in ("sources", "contracts"):
+                    expected = [{key: item[key] for key in ("path", "size", "sha256")}
+                                for item in inventory.values() if f"{name}:{field}" in item["roles"]]
+                    if sorted(bindings[field], key=lambda item: item["path"]) != sorted(expected, key=lambda item: item["path"]):
+                        raise RuntimeError("target references differ from captured input identities")
+            if set(result["target_inputs"]) != set(result["targets"]):
+                raise RuntimeError("target binding coverage mismatch")
+            if variant == "partial-capture" and (not result["target_inputs"]["base"]["capture_complete"]
+                    or result["target_inputs"]["app"]["capture_complete"]
+                    or result["target_inputs"]["app"]["sources"]):
+                raise RuntimeError("partial capture erased a completed dependency or claimed uncaptured inputs")
             if variant == "selected" and (result["targets"] != ["base"] or result["unselected_targets"] != ["app"]):
                 raise RuntimeError("project target selection changed")
             if variant == "plan" and (result["targets"] != ["base", "app"] or len(result["steps"]) != 2):

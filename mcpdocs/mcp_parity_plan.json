@@ -49,9 +49,9 @@
         "schema": "formalspecgen-workflow-completion-v1",
         "required_environment": "Provisioned wheel-build dependencies and pinned MCP SDK; FORMALSPECGEN_REQUIRE_PROJECT_TRANSPORT=1 or FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE=1, plus FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1. Wheel build/install uses no index and no dependency downloads. No backend or provider needed.",
         "claim_scope": "Static input and registry metadata only, NO_PROOF; readiness, approval and assurance NOT_ASSESSED.",
-        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp"],
+        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp", "target-input-bindings", "partial-capture", "declared-order"],
         "acceptance_cases": [
-          {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_equivalent_interfaces_and_captured_identities", "variants": ["validate", "plan", "selected", "identities"]},
+          {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_equivalent_interfaces_and_captured_identities", "variants": ["validate", "plan", "selected", "identities", "target-input-bindings"]},
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_selected_dependencies_and_nested_manifest", "variants": ["selected"]},
           {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_unadmitted_steps_are_visible_blockers", "variants": ["blocked"]},
           {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_invalid_declarations_fail_closed", "variants": ["invalid"]},
@@ -62,7 +62,9 @@
           {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_exact_limit_and_once_capture", "variants": ["capture-once"]},
           {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_repeated_inputs_share_one_capture_and_non_ascii_identity", "variants": ["capture-once", "identities"]},
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_cli_rejects_execution_and_export", "variants": ["permissions"]},
-          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit"]},
+          {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_target_binding_uses_captured_bytes_and_preserves_completed_dependencies", "variants": ["partial-capture", "target-input-bindings"]},
+          {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_target_bindings_preserve_declared_order_for_shared_sources", "variants": ["declared-order"]},
+          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit", "target-input-bindings", "partial-capture"]},
           {"kind": "mcp_transport", "test": "tests/test_wheel_install.py::test_installed_project_interfaces", "variants": ["installed-wheel", "installed-cli", "installed-mcp"]}
         ]
       }

@@ -60,6 +60,14 @@ def test_equivalent_interfaces_and_captured_identities(project, capsys, operatio
     assert local["inputs_sha256"] == hashlib.sha256(json.dumps(local["inputs"],
         sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     assert remote["mcp_admission"]["granted_effects"] == ["workspace_read"]
+    assert set(local["target_inputs"]) == set(local["targets"])
+    inventory = {item["path"]: item for item in local["inputs"]}
+    for name, bindings in local["target_inputs"].items():
+        assert bindings["capture_complete"]
+        for field in ("sources", "contracts"):
+            expected = [{key: item[key] for key in ("path", "size", "sha256")}
+                        for item in inventory.values() if f"{name}:{field}" in item["roles"]]
+            assert bindings[field] == expected
 
 
 @pytest.mark.parametrize("mutation", [
@@ -175,6 +183,7 @@ def test_selected_dependencies_and_nested_manifest(project):
     result = inspect_project(ProjectWorkflowRequest("lib/project.json"), WorkflowContext.for_cli(("workspace_read",)))
     assert result["request_satisfied"]
     assert {p["path"] for p in result["inputs"]} == {"lib/project.json", "lib/S.java"}
+    assert result["target_inputs"]["lib"]["sources"][0]["path"] == "lib/S.java"
 
 
 def test_repeated_inputs_share_one_capture_and_non_ascii_identity(project):
@@ -187,6 +196,7 @@ def test_repeated_inputs_share_one_capture_and_non_ascii_identity(project):
     assert result["request_satisfied"] and len(result["inputs"]) == 3
     shared = next(item for item in result["inputs"] if item["path"] == "lib/é.java")
     assert shared["roles"] == ["base:sources", "app:contracts"]
+    assert result["target_inputs"]["base"]["sources"] == result["target_inputs"]["app"]["contracts"]
     assert result["inputs_sha256"] == hashlib.sha256(json.dumps(result["inputs"], sort_keys=True,
         separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
@@ -196,6 +206,40 @@ def test_repeated_inputs_share_one_capture_and_non_ascii_identity(project):
 def test_cli_rejects_execution_and_export(arguments):
     with pytest.raises(SystemExit):
         cli.build_parser().parse_args(arguments)
+
+
+def test_target_binding_uses_captured_bytes_and_preserves_completed_dependencies(project, monkeypatch):
+    from pipeline import project_planning
+    original = project_planning.capture
+    captured = (project / "lib/S.java").read_bytes()
+    calls = []
+    def capture(name, *args):
+        content = original(name, *args)
+        calls.append(name)
+        if content == captured:
+            (project / "lib/S.java").write_text("changed after capture")
+        return content
+    monkeypatch.setattr(project_planning, "capture", capture)
+    (project / "contracts/S.jml").unlink()
+    result = run(project)
+    assert result["status"] == "PROJECT_INVALID" and not result["request_satisfied"]
+    assert result["target_inputs"]["base"]["capture_complete"]
+    assert result["target_inputs"]["base"]["sources"][0]["sha256"] == hashlib.sha256(captured).hexdigest()
+    assert not result["target_inputs"]["app"]["capture_complete"]
+    assert result["target_inputs"]["app"]["sources"][0]["path"] == "src/S.java"
+    assert result["target_inputs"]["app"]["contracts"] == []
+    assert calls.count("S.java") == 2  # distinct lib/ and src/ inputs, each read once
+
+
+def test_target_bindings_preserve_declared_order_for_shared_sources(project):
+    document = project_document()
+    document["targets"][0]["sources"] = ["src/S.java", "lib/S.java"]
+    (project / "project.json").write_text(json.dumps(document))
+    result = run(project)
+    assert result["request_satisfied"]
+    bindings = result["target_inputs"]
+    assert [item["path"] for item in bindings["app"]["sources"]] == ["src/S.java", "lib/S.java"]
+    assert bindings["base"]["sources"][0] == bindings["app"]["sources"][1]
 
 
 @pytest.mark.parametrize("arguments", [{"manifest": ""}, {"manifest": None},
@@ -211,7 +255,7 @@ def test_real_project_transport():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     result = collect_transport_observation("project")
     assert result["workspace_unchanged"]
-    assert len(result["cli_comparisons"]) == 8
+    assert len(result["cli_comparisons"]) == 9
 
 
 def test_completion_requires_installed_project_transport():

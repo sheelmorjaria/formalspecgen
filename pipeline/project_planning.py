@@ -93,7 +93,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
               "status": "PROJECT_INVALID", "request_satisfied": False, "claim": "NO_PROOF",
               "invocation_authorized": False, "readiness": "NOT_ASSESSED",
               "assurance": "NOT_ASSESSED", "contract_approval": "NOT_ASSESSED",
-              "inputs": [], "findings": [], "targets": [], "steps": [],
+              "inputs": [], "findings": [], "targets": [], "target_inputs": {}, "steps": [],
               "limitations": [
                   "Static dependency and registry-profile planning, not an executable or authorized plan.",
                   "No tool probes, builds, providers, plugins, verification, or publication run.",
@@ -113,6 +113,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                                 context.required_effects, context.output_root, limits)
         budget = CaptureBudget(limits["max_input_bytes"], limits["max_input_files"])
         captured = {}
+        input_records = {}
 
         def read(value, role):
             _, relative = input_path(value, child)
@@ -121,9 +122,10 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                 with input_directory(relative, child) as directory:
                     data = capture(relative.name, directory, child, budget)
                 captured[key] = data
-                result["inputs"].append({"path": key, "size": len(data),
-                    "sha256": hashlib.sha256(data).hexdigest(), "roles": []})
-            entry = next(item for item in result["inputs"] if item["path"] == key)
+                input_records[key] = {"path": key, "size": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(), "roles": []}
+                result["inputs"].append(input_records[key])
+            entry = input_records[key]
             if role not in entry["roles"]:
                 entry["roles"].append(role)
             return captured[key], relative
@@ -198,9 +200,16 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
         for name in order:
             target = targets[name]
             result["targets"].append(name)
+            bindings = {"sources": [], "contracts": [], "capture_complete": False}
+            result["target_inputs"][name] = bindings
             for field in ("sources", "contracts"):
                 for source in target[field]:
-                    read((manifest_path.parent / source).as_posix(), f"{name}:{field}")
+                    _, relative = read((manifest_path.parent / source).as_posix(), f"{name}:{field}")
+                    entry = input_records[relative.as_posix()]
+                    # Copy immutable identity fields, not the mutable roles list.
+                    # Shared files retain one capture even across target roles.
+                    bindings[field].append({key: entry[key] for key in ("path", "size", "sha256")})
+            bindings["capture_complete"] = True
             if not target["contracts"]:
                 result["findings"].append({"target": name, "code": "NO_CONTRACT_INPUTS", "blocking": False})
             for workflow in target["workflows"]:

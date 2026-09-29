@@ -1124,6 +1124,9 @@ names. See the [manifest example and limits](site/FORMALSPECGEN_USER_GUIDE.html#
 Inputs are captured under the workspace with aggregate byte/file limits; results
 bind their digests, order dependencies and report unavailable profiles. A selected
 target includes its declared dependencies; unselected targets remain visible.
+`target_inputs` gives each selected target's source and contract paths, sizes
+and captured digests in declaration order. Capture failures preserve earlier
+dependency bindings without marking the failing target or request complete.
 
 This is static planning, not an executable or authorized plan. No tool probes,
 builds, providers or publication occur. Listed contracts are not authenticated

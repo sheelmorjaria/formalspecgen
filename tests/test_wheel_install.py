@@ -390,6 +390,14 @@ for arguments, status in cases:
 assert local[1]["targets"] == ["base", "app"] and len(local[1]["steps"]) == 2
 assert local[2]["targets"] == ["base"] and local[2]["unselected_targets"] == ["app"]
 assert any(f["blocking"] for f in local[3]["findings"])
+for result in local:
+    assert set(result["target_inputs"]) == set(result["targets"])
+    for name, target_binding in result["target_inputs"].items():
+        assert target_binding["capture_complete"]
+        for field in ("sources", "contracts"):
+            expected = [{key: item[key] for key in ("path", "size", "sha256")}
+                        for item in result["inputs"] if f"{name}:{field}" in item["roles"]]
+            assert target_binding[field] == expected
 
 async def transport():
     from mcp import ClientSession, StdioServerParameters
