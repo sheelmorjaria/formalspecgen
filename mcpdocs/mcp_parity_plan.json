@@ -52,7 +52,7 @@
         "schema": "formalspecgen-workflow-completion-v1",
         "required_environment": "Provisioned wheel-build dependencies and pinned MCP SDK; FORMALSPECGEN_REQUIRE_PROJECT_TRANSPORT=1 or FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE=1, plus FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1. Wheel build/install uses no index and no dependency downloads. No backend or provider needed.",
         "claim_scope": "Static input and registry metadata only, NO_PROOF; readiness, approval and assurance NOT_ASSESSED.",
-        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp", "target-input-bindings", "partial-capture", "declared-order", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid"],
+        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp", "target-input-bindings", "partial-capture", "declared-order", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid", "impact-missing-source", "impact-missing-contract", "impact-linked-source", "impact-incomplete-budget"],
         "acceptance_cases": [
           {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_equivalent_interfaces_and_captured_identities", "variants": ["validate", "plan", "selected", "identities", "target-input-bindings"]},
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_selected_dependencies_and_nested_manifest", "variants": ["selected"]},
@@ -72,8 +72,10 @@
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_invalid_impact_requests", "variants": ["invalid", "limit"]},
           {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_invalid_impact_adapters_stop_before_dispatch", "variants": ["impact-invalid", "permissions"]},
           {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_impact_does_not_read_changed_paths_and_preserves_capture_failures", "variants": ["unsafe-inputs", "partial-capture"]},
-          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit", "target-input-bindings", "partial-capture", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid"]},
-          {"kind": "mcp_transport", "test": "tests/test_wheel_install.py::test_installed_project_interfaces", "variants": ["installed-wheel", "installed-cli", "installed-mcp", "impact", "impact-invalid"]}
+          {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_impact_retains_declarations_on_capture_failure", "variants": ["impact-missing-source", "impact-missing-contract", "impact-linked-source"]},
+          {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_impact_capture_budget_and_invalid_graph_are_distinct", "variants": ["impact-incomplete-budget"]},
+          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit", "target-input-bindings", "partial-capture", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid", "impact-missing-source", "impact-missing-contract", "impact-linked-source"]},
+          {"kind": "mcp_transport", "test": "tests/test_wheel_install.py::test_installed_project_interfaces", "variants": ["installed-wheel", "installed-cli", "installed-mcp", "impact", "impact-invalid", "impact-missing-source"]}
         ]
       }
     },

@@ -341,6 +341,9 @@ document = {"schema": "formalspecgen-project-v1", "targets": [
     {"name": "base", "sources": ["lib/S.java"], "workflows": [
         {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
 Path("project.json").write_text(json.dumps(document))
+missing_input = json.loads(json.dumps(document))
+missing_input["targets"][0]["sources"] = ["missing.java"]
+Path("missing-input.json").write_text(json.dumps(missing_input))
 document["targets"][0]["workflows"][0]["profile"] = "unavailable"
 Path("blocked.json").write_text(json.dumps(document))
 Path("invalid.json").write_text('{"schema":1,"schema":2}')
@@ -365,6 +368,8 @@ cases += [({"manifest": "project.json", "operation": "impact", **arguments}, "PR
               {"changed_paths": ["../outside"]}, {"changed_paths": ["lib/S.java", "lib/./S.java"]},
               {"changed_paths": [f"file-{i}.java" for i in range(129)]},
               {"operation": "plan", "changed_paths": ["lib/S.java"]})]
+cases.append(({"manifest": "missing-input.json", "operation": "impact",
+               "changed_paths": ["missing.java"]}, "PROJECT_INVALID"))
 def snapshot():
     return {str(p): ("symlink", os.readlink(p)) if p.is_symlink() else
             ("file", hashlib.sha256(p.read_bytes()).hexdigest()) if p.is_file() else ("directory",)
@@ -408,13 +413,18 @@ assert any(f["blocking"] for f in local[3]["findings"])
 assert local[9]["impact"]["affected_targets"] == local[10]["impact"]["affected_targets"] == ["base", "app"]
 assert local[11]["impact"]["unmapped_changes"] == ["unknown.java"]
 assert not local[9]["impact"]["evidence_reuse_authorized"]
-assert all(result["code"] == "INVALID_REQUEST" for result in local[12:])
+assert all(result["code"] == "INVALID_REQUEST" for result in local[12:-1])
+assert local[9]["impact"]["input_capture_complete"] is True
+assert local[-1]["impact"]["affected_targets"] == ["app"]
+assert local[-1]["impact"]["input_capture_complete"] is False
+assert not local[-1]["request_satisfied"] and "inputs_sha256" not in local[-1]
+assert not local[-1]["impact"]["evidence_reuse_authorized"]
 for result in local:
     if result.get("code") == "INVALID_REQUEST":
         continue
     assert set(result["target_inputs"]) == set(result["targets"])
     for name, target_binding in result["target_inputs"].items():
-        assert target_binding["capture_complete"]
+        assert target_binding["capture_complete"] is not (result is local[-1] and name == "app")
         for field in ("sources", "contracts"):
             expected = [{key: item[key] for key in ("path", "size", "sha256")}
                         for item in result["inputs"] if f"{name}:{field}" in item["roles"]]
@@ -451,8 +461,8 @@ print(json.dumps({"cli_calls": len(cases), "mcp_calls": len(cases) if remote els
         env=environment, capture_output=True, text=True, timeout=120)
     assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
     assert json.loads(checked.stdout) == {
-        "cli_calls": 18, "mcp_calls": 18 if interface == "mcp" else 0,
-        "input_bindings": 21, "installed_root": str(target.resolve()), "read_only": True}
+        "cli_calls": 19, "mcp_calls": 19 if interface == "mcp" else 0,
+        "input_bindings": 23, "installed_root": str(target.resolve()), "read_only": True}
 
 
 @pytest.mark.parametrize("interface", ["cli", "mcp"])

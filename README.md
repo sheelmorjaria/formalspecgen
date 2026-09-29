@@ -1133,8 +1133,13 @@ dependency bindings without marking the failing target or request complete.
 directory, across the full project (no `--target`). It explains directly affected
 targets and their declared dependents. A manifest change affects every target;
 unmapped changes produce `PROJECT_BLOCKED`. The current declared inputs must
-still be readable; deleted inputs produce `PROJECT_INVALID`, not a partial
-impact success. Changed paths are caller assertions, not a Git diff. This does
+still be readable for request success. Deleted or rejected inputs produce
+`PROJECT_INVALID`, while retaining impact derived from the captured, validated
+manifest with `impact.input_capture_complete: false`. Completed input captures
+remain visible; missing inputs receive no invented digest. A malformed manifest
+or dependency graph produces no impact report. Complete capture sets the flag
+to true, but does not establish readiness or evidence applicability.
+Changed paths are caller assertions, not a Git diff. This does
 not authorize evidence reuse or prove that other targets are independent.
 
 This is static planning, not an executable or authorized plan. No tool probes,

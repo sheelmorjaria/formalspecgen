@@ -119,6 +119,7 @@ def _impact(targets, order, changed_paths, manifest_name):
             "affected_targets": list(reasons), "reasons": reasons,
             "not_identified_as_affected": [name for name in order if name not in reasons],
             "unmapped_changes": [path for path in changed_paths if path not in matched],
+            "input_capture_complete": False,
             "evidence_reuse_authorized": False}
 
 
@@ -142,6 +143,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                   "Requested policy is not an authority grant, budget reservation, or assurance assessment.",
                   "Only explicit selected inputs are captured; no transitive import or build discovery.",
                   "Impact uses caller-supplied paths, not a Git diff or an evidence-reuse decision; absence of a link is not proof of independence.",
+                  "Declared impact can remain available after input capture fails; incomplete capture never satisfies the request.",
               ]}
     try:
         limits = {}
@@ -234,6 +236,14 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
             order, active, visited = [], set(), set()
             visit(request.target)
         result["unselected_targets"] = [name for name in targets if name not in order]
+        if request.operation == "impact":
+            # The captured manifest and validated graph suffice for declared
+            # impact, including deletion of a declared input. Preserve it when
+            # subsequent capture fails, without accepting the current source set.
+            result["impact"] = _impact(targets, order, request.changed_paths, manifest_path.name)
+            if result["impact"]["unmapped_changes"]:
+                result["findings"].append({"code": "UNMAPPED_CHANGES", "blocking": True,
+                    "paths": result["impact"]["unmapped_changes"]})
         registry = discover_capabilities(CapabilityDiscoveryRequest(), context)
         result["registry_sha256"] = registry["registry_sha256"]
         result["policy_version"] = registry["policy_version"]
@@ -268,10 +278,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                     result["steps"].append(step)
         result["inputs_sha256"] = _digest(result["inputs"])
         if request.operation == "impact":
-            result["impact"] = _impact(targets, order, request.changed_paths, manifest_path.name)
-            if result["impact"]["unmapped_changes"]:
-                result["findings"].append({"code": "UNMAPPED_CHANGES", "blocking": True,
-                    "paths": result["impact"]["unmapped_changes"]})
+            result["impact"]["input_capture_complete"] = True
         blocked = any(finding["blocking"] for finding in result["findings"])
         result.update(status="PROJECT_BLOCKED" if blocked else (
             {"plan": "PROJECT_PLANNED", "impact": "PROJECT_IMPACT_ANALYZED", "validate": "PROJECT_VALIDATED"}[request.operation]),

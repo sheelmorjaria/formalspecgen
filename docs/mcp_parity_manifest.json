@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "173fa4b9bafd318424d9a9e269bccc69b344eb4566416b138a7d445a47cc1e86",
+  "plan_sha256": "a2eb49a90a648afb148ed549e2ab8f00eefc6fdb7f5ed383fbaff8f55bd93d29",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -10100,8 +10100,12 @@
           "identities",
           "impact",
           "impact-contract",
+          "impact-incomplete-budget",
           "impact-invalid",
+          "impact-linked-source",
           "impact-manifest",
+          "impact-missing-contract",
+          "impact-missing-source",
           "impact-source",
           "impact-transitive",
           "impact-unmapped",
@@ -14562,5 +14566,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "b8f49b0581f8ad2ae3f3c308acc00a91c73d54cf60d1c37a112fc2be1706421c"
+  "sha256": "45a8d5efd2ae7b71fb0652126ef7b745c16af480c8cb3f830f64d01ece43db37"
 }

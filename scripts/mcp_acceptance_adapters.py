@@ -1403,6 +1403,13 @@ async def _project_observation() -> dict:
         missing_input = json.loads(json.dumps(document))
         missing_input["targets"][0]["sources"] = ["missing.java"]
         (workspace / "missing-input.json").write_text(json.dumps(missing_input))
+        missing_contract = json.loads(json.dumps(document))
+        missing_contract["targets"][0]["contracts"] = ["missing.jml"]
+        (workspace / "missing-contract.json").write_text(json.dumps(missing_contract))
+        linked_input = json.loads(json.dumps(document))
+        linked_input["targets"][0]["sources"] = ["linked.java"]
+        (workspace / "linked.java").symlink_to(workspace / "src/S.java")
+        (workspace / "linked-input.json").write_text(json.dumps(linked_input))
         (workspace / "invalid.json").write_text('{"schema":1,"schema":2}')
         document["targets"][0]["workflows"][0]["profile"] = "not-admitted"
         (workspace / "blocked.json").write_text(json.dumps(document))
@@ -1421,6 +1428,9 @@ async def _project_observation() -> dict:
             ("impact-contract", {"manifest": "project.json", "operation": "impact", "changed_paths": ["contracts/S.jml"]}, "PROJECT_IMPACT_ANALYZED"),
             ("impact-manifest", {"manifest": "project.json", "operation": "impact", "changed_paths": ["project.json"]}, "PROJECT_IMPACT_ANALYZED"),
             ("impact-unmapped", {"manifest": "project.json", "operation": "impact", "changed_paths": ["unknown.java", "lib/S.java"]}, "PROJECT_BLOCKED"),
+            ("impact-missing-source", {"manifest": "missing-input.json", "operation": "impact", "changed_paths": ["missing.java", "unknown.java"]}, "PROJECT_INVALID"),
+            ("impact-missing-contract", {"manifest": "missing-contract.json", "operation": "impact", "changed_paths": ["missing.jml"]}, "PROJECT_INVALID"),
+            ("impact-linked-source", {"manifest": "linked-input.json", "operation": "impact", "changed_paths": ["linked.java"]}, "PROJECT_INVALID"),
             ("impact-transitive", {"manifest": "graph.json", "operation": "impact", "changed_paths": ["lib/S.java"]}, "PROJECT_IMPACT_ANALYZED"),
         ]
         cases += [("reject-" + name, {"manifest": "project.json", "operation": "impact", **arguments}, "PROJECT_INVALID")
@@ -1497,7 +1507,8 @@ async def _project_observation() -> dict:
                 raise RuntimeError("project dependencies were not ordered")
             if variant.startswith("impact-"):
                 impact = result["impact"]
-                affected = ["app"] if variant == "impact-contract" else ["base", "app"]
+                partial = variant in {"impact-missing-source", "impact-missing-contract", "impact-linked-source"}
+                affected = ["app"] if variant == "impact-contract" or partial else ["base", "app"]
                 if variant == "impact-transitive":
                     affected = ["base", "middle", "app"]
                     if (impact["not_identified_as_affected"] != ["unrelated"]
@@ -1505,10 +1516,15 @@ async def _project_observation() -> dict:
                                 {"kind": "dependency", "target": "middle"},
                                 {"kind": "dependency", "target": "base"}]):
                         raise RuntimeError("transitive impact lost dependency reasons or unrelated targets")
-                unmapped = ["unknown.java"] if variant == "impact-unmapped" else []
+                unmapped = ["unknown.java"] if variant in {"impact-unmapped", "impact-missing-source"} else []
                 if (impact["affected_targets"] != affected or impact["unmapped_changes"] != unmapped
+                        or impact["input_capture_complete"] is not (not partial)
                         or impact["evidence_reuse_authorized"] or result["steps"]):
                     raise RuntimeError("project impact did not preserve declared scope")
+                if partial and (result["request_satisfied"] or "inputs_sha256" in result
+                        or not result["target_inputs"]["base"]["capture_complete"]
+                        or result["target_inputs"]["app"]["capture_complete"]):
+                    raise RuntimeError("declared impact was promoted to complete input capture")
         if identity() != before:
             raise RuntimeError("project planning wrote workspace content")
     observation = _observation(initialized, tools, schema, results, results[-1])
