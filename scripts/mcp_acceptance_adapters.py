@@ -1072,16 +1072,25 @@ async def _evidence_observation() -> dict:
         source_link = workspace / "source-link.java"
         source_link.symlink_to(source)
 
-        def source_ledger(name: str, *, conflict: bool = False, extra_stages: int = 0) -> Path:
+        def source_ledger(name: str, *, conflict: bool = False, extra_stages: int = 0,
+                          json_type_conflict: str | None = None) -> Path:
             from pipeline.workflow_contracts import VerificationWorkflowRequest
             request = VerificationWorkflowRequest(str(source)).as_dict()
             digest = hashlib.sha256(source.read_bytes()).hexdigest()
             stages = [{"snapshot_files": [{"path": source.name, "sha256": digest, "size": source.stat().st_size}],
                        "fixture": "synthetic; no verifier executed"}]
+            proof_request = dict(request)
+            proof_stages = json.loads(json.dumps(stages))
+            if json_type_conflict == "request":
+                request["fixture_flag"] = True
+                proof_request["fixture_flag"] = 1
+            elif json_type_conflict == "stages":
+                stages[0]["timed_out"] = False
+                proof_stages[0]["timed_out"] = 0
             run = RunLedger(workspace / name)
             run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF,
-                details={"workflow_request": request}, evidence={"source_path": str(source),
-                "source_sha256": digest, "execution_stages": stages})
+                details={"workflow_request": proof_request}, evidence={"source_path": str(source),
+                "source_sha256": digest, "execution_stages": proof_stages})
             for _ in range(extra_stages):
                 run.record(PipelineState.CHEAP_GATES, "FAIL", claim=EvidenceClaim.NO_PROOF)
             return run.commit({"final_status": "FAIL", "claim": "NO_PROOF", "workflow_request": request,
@@ -1091,6 +1100,8 @@ async def _evidence_observation() -> dict:
         bound = source_ledger("source-bound")
         conflicting = source_ledger("source-conflicting", conflict=True)
         full = source_ledger("source-full", extra_stages=253)
+        request_type_conflict = source_ledger("source-request-type-conflict", json_type_conflict="request")
+        stage_type_conflict = source_ledger("source-stage-type-conflict", json_type_conflict="stages")
 
         from pipeline.multistage_evidence import publish_multistage_evidence
         staged = publish_multistage_evidence(workspace / "staged", workflow="verify-refactor",
@@ -1111,6 +1122,18 @@ async def _evidence_observation() -> dict:
         unknown_run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF)
         unknown_stages = unknown_run.commit({"schema": "future-layout", "final_status": "FAIL",
             "claim": "NO_PROOF", "execution_stages": [{"status": "VERIFIED"}]})
+
+        def inconsistent_stages(name, *, duplicate=False):
+            run = RunLedger(workspace / name)
+            request = {"fixture": True}
+            for _ in range(2 if duplicate else 1):
+                run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF,
+                    details={"workflow_request": request}, evidence={"execution_stages": [{"exit_code": 0}]})
+            return run.commit({"claim_policy_version": "verification-policy-v1", "workflow_request": request,
+                "final_status": "FAIL", "claim": "NO_PROOF", "execution_stages": [{"exit_code": 1}]})
+
+        conflicting_stages = inconsistent_stages("conflicting-stages")
+        ambiguous_stages = inconsistent_stages("ambiguous-stages", duplicate=True)
 
         cases = [
             ("validate", {"manifest": str(good)}, "EVIDENCE_VALID", None),
@@ -1157,6 +1180,10 @@ async def _evidence_observation() -> dict:
             ("explain-multistage", {"manifest": staged["manifest_path"], "operation": "explain"}, "EVIDENCE_VALID", None),
             ("explain-partial-stages", {"manifest": str(partial_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
             ("explain-unknown-stages", {"manifest": str(unknown_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
+            ("explain-inconsistent-stages", {"manifest": str(conflicting_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
+            ("explain-ambiguous-stages", {"manifest": str(ambiguous_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
+            ("source-json-types-request", {"manifest": str(request_type_conflict), "source": str(source), "operation": "explain"}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INCONSISTENT_SOURCE_BINDING"),
+            ("source-json-types-stages", {"manifest": str(stage_type_conflict), "source": str(source), "operation": "explain"}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INCONSISTENT_SOURCE_BINDING"),
         ]
 
         def workspace_identity() -> dict:
@@ -1205,13 +1232,28 @@ async def _evidence_observation() -> dict:
                                   "artifacts": inventory})
             if variant == "explain" and result["explanation"]["recorded_claim"] != "DEDUCTIVE_PROOF":
                 raise RuntimeError("explanation lost the recorded (not independently proved) claim")
-            if variant in {"explain", "source-explain", "explain-multistage", "explain-partial-stages", "explain-unknown-stages"}:
+            if variant in {"explain", "source-explain", "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
+                           "explain-inconsistent-stages", "explain-ambiguous-stages"}:
                 execution = result["explanation"]["recorded_execution"]
                 expected_stage_status = {"explain": "NOT_RECORDED", "source-explain": "RECORDED",
                     "explain-multistage": "RECORDED", "explain-partial-stages": "PARTIAL",
-                    "explain-unknown-stages": "UNSUPPORTED_LAYOUT"}[variant]
+                    "explain-unknown-stages": "UNSUPPORTED_LAYOUT", "explain-inconsistent-stages": "RECORDED",
+                    "explain-ambiguous-stages": "RECORDED"}[variant]
                 if execution["status"] != expected_stage_status or execution["source"] != "recorded_terminal":
                     raise RuntimeError("stage explanation hid missing or unsupported recorded data")
+                consistency = execution["consistency"]
+                expected_consistency = {"explain": "NOT_ASSESSED", "source-explain": "CONSISTENT",
+                    "explain-multistage": "CONSISTENT", "explain-partial-stages": "NOT_ESTABLISHED",
+                    "explain-unknown-stages": "NOT_ASSESSED", "explain-inconsistent-stages": "INCONSISTENT",
+                    "explain-ambiguous-stages": "NOT_ESTABLISHED"}[variant]
+                if consistency["status"] != expected_consistency:
+                    raise RuntimeError("recorded-stage consistency was hidden or incorrectly established")
+                if variant == "explain-ambiguous-stages" and consistency.get("reason") != "AMBIGUOUS_PROOF_RECORD":
+                    raise RuntimeError("ambiguous proof records were silently selected")
+                if "proof_artifact" in consistency:
+                    proof = Path(arguments["manifest"]).parent / consistency["proof_artifact"]
+                    if hashlib.sha256(proof.read_bytes()).hexdigest() != consistency["proof_artifact_sha256"]:
+                        raise RuntimeError("consistency result does not bind its proof artifact")
                 for stage in execution["stages"]:
                     for entry in [stage, *stage.get("observations", [])]:
                         recorded = result["recorded_terminal"]
@@ -1269,6 +1311,11 @@ async def _evidence_observation() -> dict:
                 validated_sources.append({"variant": variant, **actual})
             if status == "EVIDENCE_SOURCE_CHECK_REJECTED" and not result["integrity"].get("valid"):
                 raise RuntimeError("source rejection erased valid receipt integrity")
+            if variant.startswith("source-json-types-"):
+                expected_consistency = "NOT_ESTABLISHED" if variant.endswith("request") else "INCONSISTENT"
+                if (result["explanation"]["recorded_execution"]["consistency"]["status"] != expected_consistency
+                        or "source_binding" in result or result["applicability"]["status"] != "NOT_ESTABLISHED"):
+                    raise RuntimeError("source type disagreement was hidden or reached source comparison")
 
             # CLI has explicit local path authority, unlike workspace-scoped MCP.
             # Compare common path semantics, not the intentionally MCP-only denial.

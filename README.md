@@ -1192,9 +1192,15 @@ separate from individual process observations, including timeout, truncation,
 exit-code and isolation-compliance fields when recorded. Pointers are relative
 to `recorded_terminal`. Missing data, unsupported layouts and malformed entries
 are explicit; no success is inferred from an exit code or an empty stage list.
-This is not authentication, proof-stage consistency validation, a fresh execution,
-or an assessment that the recorded isolation actually held. The full terminal
-record remains available, and a successful explanation can describe a failed check.
+Its separate `consistency` field compares recorded execution-stage data with one
+proof record bound to the same request (and, for multi-stage receipts, workflow
+and layout). `CONSISTENT` and `INCONSISTENT` concern those records only;
+`NOT_ESTABLISHED` reports missing or ambiguous bindings. The check uses captured
+bytes and reports the proof artifact's digest. Unsupported layouts remain
+`NOT_ASSESSED`. It does not validate every receipt field, authenticate either
+record, rerun a tool, or establish that recorded isolation actually held. The
+full terminal remains available. A successful explanation can describe a failed
+check or inconsistent records; callers must inspect the separate dimensions.
 
 `diff` requires `--comparison-manifest`; `--comparison-expected-sha256` optionally
 pins that second manifest. These two options are rejected for other operations.
@@ -1206,8 +1212,12 @@ the baseline's captured result but returns an unsuccessful comparison without a 
 
 Optionally pass `--source` to `validate` or `explain` to compare current primary-source
 bytes with a recognized `verification-policy-v1` receipt. The terminal record,
-proof-stage binding and primary snapshot identities must agree. The source shares
-the receipt's byte/file budget and is captured once under the same read boundaries.
+proof-stage binding and primary snapshot identities must agree. Binding comparisons
+preserve JSON types: booleans and numbers are not interchangeable.
+Binding discrepancies reject the source check before reading the current source,
+while keeping the independently checked receipt-integrity result available.
+The source shares the receipt's byte/file budget and is captured once under the
+same read boundaries.
 Recorded paths never grant read authority: only your explicit `--source` is opened.
 Refactor/multisource receipts and missing or ambiguous primary bindings are rejected
 for this check. `--source` is rejected with `diff`.

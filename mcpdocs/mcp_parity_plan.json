@@ -222,7 +222,9 @@
           "source-missing", "source-denied", "source-link", "source-byte-limit", "source-file-limit",
           "source-invalid-options", "source-invalid-receipt", "source-request-equivalence",
           "source-boundaries", "source-exact-budget", "source-capture-once", "source-binding-consistency",
-          "explain-multistage", "explain-partial-stages", "explain-unknown-stages"
+          "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
+          "explain-inconsistent-stages", "explain-ambiguous-stages", "explain-consistency-capture",
+          "source-json-types-request", "source-json-types-stages"
         ],
         "acceptance_cases": [
           {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_cli_mcp_semantic_equivalence_and_readonly", "variants": ["request-equivalence", "read-only"]},
@@ -248,6 +250,9 @@
           {"kind": "argument_delivery", "test": "tests/test_evidence_consumer.py::test_source_options_and_invalid_evidence_stop_before_source", "variants": ["source-invalid-options", "source-invalid-receipt"]},
           {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_explain_multistage_preserves_baseline_and_failed_candidate", "variants": ["explain-multistage", "read-only"]},
           {"kind": "result_equivalence", "test": "tests/test_evidence_consumer.py::test_explain_stage_shapes_are_explicit", "variants": ["explain-partial-stages", "explain-unknown-stages"]},
+          {"kind": "request_equivalence", "test": "tests/test_evidence_consumer.py::test_explain_record_consistency_is_separate_from_integrity", "variants": ["explain-inconsistent-stages", "explain-ambiguous-stages"]},
+          {"kind": "effect_enforcement", "test": "tests/test_evidence_consumer.py::test_explain_consistency_uses_captured_proof_bytes", "variants": ["explain-consistency-capture"]},
+          {"kind": "effect_enforcement", "test": "tests/test_evidence_consumer.py::test_source_binding_preserves_json_types", "variants": ["source-json-types-request", "source-json-types-stages"]},
           {"kind": "mcp_transport", "test": "tests/test_evidence_consumer.py::test_real_mcp_evidence_discovery_and_calls", "variants": [
             "validate", "explain", "digest-match", "digest-mismatch", "tampered",
             "missing-artifact", "missing-manifest", "malformed", "denied-path",
@@ -259,7 +264,9 @@
             "source-match", "source-explain", "source-changed", "source-unsupported", "source-conflict",
             "source-missing", "source-denied", "source-link", "source-byte-limit", "source-file-limit",
             "source-invalid-options", "source-invalid-receipt",
-            "explain-multistage", "explain-partial-stages", "explain-unknown-stages"
+            "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
+            "explain-inconsistent-stages", "explain-ambiguous-stages",
+            "source-json-types-request", "source-json-types-stages"
           ]}
         ]
       }

@@ -89,6 +89,7 @@ def test_explain_multistage_preserves_baseline_and_failed_candidate(tmp_path, mo
     assert explanation["recorded_status"] == "FAIL" and explanation["recorded_claim"] == "NO_PROOF"
     execution = explanation["recorded_execution"]
     assert execution["status"] == "RECORDED" and execution["issues"] == []
+    assert execution["consistency"]["status"] == "CONSISTENT"
     assert [s["recorded"]["status"] for s in execution["stages"]] == ["VERIFIED", "FAIL"]
     assert len(execution["stages"][0]["observations"]) == 2
     assert execution["stages"][1]["observations"][0]["recorded"] == candidate["execution_stages"][0]
@@ -119,6 +120,79 @@ def test_explain_stage_shapes_are_explicit(tmp_path, monkeypatch, terminal, stat
     assert result["integrity"]["valid"] and result["claim"] == "NO_PROOF"
     if status == "RECORDED" and stages:
         assert execution["stages"][0]["recorded"] == {"exit_code": 0}  # no inferred successful status
+
+
+@pytest.mark.parametrize("multistage", [False, True])
+@pytest.mark.parametrize("kind,expected,reason", [
+    ("equal", "CONSISTENT", None), ("changed", "INCONSISTENT", None),
+    ("bool-number", "INCONSISTENT", None), ("missing-null", "INCONSISTENT", None),
+    ("missing-request", "NOT_ESTABLISHED", "MISSING_WORKFLOW_REQUEST"),
+    ("different-request", "NOT_ESTABLISHED", "PROOF_RECORD_NOT_FOUND"),
+    ("request-bool-number", "NOT_ESTABLISHED", "PROOF_RECORD_NOT_FOUND"),
+    ("duplicate", "NOT_ESTABLISHED", "AMBIGUOUS_PROOF_RECORD"),
+    ("missing-stages", "NOT_ESTABLISHED", "PROOF_STAGES_NOT_RECORDED"),
+])
+def test_explain_record_consistency_is_separate_from_integrity(tmp_path, monkeypatch, capsys,
+                                                            multistage, kind, expected, reason):
+    monkeypatch.chdir(tmp_path)
+    terminal_stages = [{"status": "FAIL", "exit_code": 1}]
+    proof_stages = [{"exit_code": 1, "status": "FAIL"}]
+    request = {"fixture": True}
+    details = {"workflow_request": request}
+    terminal = {"claim": "NO_PROOF", "final_status": "FAIL", "workflow_request": request,
+                "execution_stages": terminal_stages}
+    if multistage:
+        details.update(schema="formalspecgen-multistage-evidence-v1", workflow="verify-refactor")
+        terminal.update(schema=details["schema"], workflow=details["workflow"])
+    else:
+        terminal["claim_policy_version"] = "verification-policy-v1"
+    if kind == "changed":
+        proof_stages[0]["exit_code"] = 0
+    elif kind == "bool-number":
+        proof_stages[0]["exit_code"] = True
+    elif kind == "missing-null":
+        proof_stages[0]["missing"] = None
+    elif kind == "missing-request":
+        terminal.pop("workflow_request")
+    elif kind == "different-request":
+        details["workflow_request"] = {"fixture": False}
+    elif kind == "request-bool-number":
+        details["workflow_request"] = {"fixture": 1}
+    evidence = {} if kind == "missing-stages" else {"stages" if multistage else "execution_stages": proof_stages}
+    ledger = RunLedger(tmp_path / "run")
+    for _ in range(2 if kind == "duplicate" else 1):
+        ledger.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF, details=details, evidence=evidence)
+    manifest = ledger.commit(terminal)
+    remote = mcp_server.inspect_evidence(str(manifest), "explain")
+    args = cli.build_parser().parse_args(["evidence", "explain", str(manifest), "--json"])
+    assert cli.dispatch(args, cli.TerminalUI(), None, {}) == 0
+    local = json.loads(capsys.readouterr().out)["result"]
+    assert local == {k: v for k, v in remote.items() if k != "mcp_admission"}
+    consistency = local["explanation"]["recorded_execution"]["consistency"]
+    assert consistency["status"] == expected and consistency.get("reason") == reason
+    assert local["request_satisfied"] and local["integrity"]["valid"]  # explanation delivered, not acceptance
+    assert local["claim"] == "NO_PROOF" and local["recorded_terminal"] == terminal
+    assert local["authenticity"]["status"] == local["assurance"]["status"] == "NOT_ASSESSED"
+    if "proof_artifact" in consistency:
+        path = manifest.parent / consistency["proof_artifact"]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == consistency["proof_artifact_sha256"]
+
+
+def test_explain_consistency_uses_captured_proof_bytes(source_receipt):
+    from pipeline.evidence_consumer import _capture
+    manifest, _ = source_receipt
+    proof = manifest.parent / "001-proof.json"
+    original = proof.read_bytes()
+    def mutate(name, directory_fd, context, budget):
+        data = _capture(name, directory_fd, context, budget)
+        if name == proof.name:
+            proof.write_text("changed after capture")
+        return data
+    with patch("pipeline.evidence_consumer._capture", side_effect=mutate):
+        result = mcp_server.inspect_evidence(str(manifest), "explain")
+    consistency = result["explanation"]["recorded_execution"]["consistency"]
+    assert consistency["status"] == "CONSISTENT" and result["integrity"]["valid"]
+    assert consistency["proof_artifact_sha256"] == hashlib.sha256(original).hexdigest()
 
 
 @pytest.mark.parametrize("name", ["../outside.json", "/etc/passwd", "manifest.json", "", ".", "a/b.json", "a\\b.json"])
@@ -512,6 +586,35 @@ def test_source_binding_rejects_unsupported_or_conflicting_records(source_receip
     assert source.name not in [call.args[0] for call in capture.call_args_list]
 
 
+@pytest.mark.parametrize("operation", ["validate", "explain"])
+@pytest.mark.parametrize("field", ["request", "stages"])
+def test_source_binding_preserves_json_types(source_receipt, operation, field):
+    from pipeline.evidence_consumer import _capture
+    manifest, source = source_receipt
+    value = json.loads(manifest.read_bytes())
+    proof_path = manifest.parent / "001-proof.json"
+    proof = json.loads(proof_path.read_bytes())
+    if field == "request":
+        value["terminal"]["workflow_request"]["fixture_flag"] = True
+        proof["details"]["workflow_request"]["fixture_flag"] = 1
+    else:
+        value["terminal"]["execution_stages"][0]["timed_out"] = False
+        proof["evidence"]["execution_stages"][0]["timed_out"] = 0
+    encoded = json.dumps(proof).encode()
+    proof_path.write_bytes(encoded)
+    next(item for item in value["artifacts"] if item["path"] == proof_path.name).update(
+        sha256=hashlib.sha256(encoded).hexdigest(), size=len(encoded))
+    manifest.write_text(json.dumps(value))
+    with patch("pipeline.evidence_consumer._capture", wraps=_capture) as capture:
+        result = mcp_server.inspect_evidence(str(manifest), operation, source=str(source))
+    assert result["integrity"]["valid"] and not result["request_satisfied"]
+    assert result["code"] == "INCONSISTENT_SOURCE_BINDING"
+    assert source.name not in [call.args[0] for call in capture.call_args_list]
+    if operation == "explain":
+        consistency = result["explanation"]["recorded_execution"]["consistency"]
+        assert consistency["status"] == ("NOT_ESTABLISHED" if field == "request" else "INCONSISTENT")
+
+
 def test_source_capture_exact_budget_and_late_mutation(source_receipt):
     from pipeline.evidence_consumer import _capture
     manifest, source = source_receipt
@@ -546,9 +649,9 @@ def test_real_mcp_evidence_discovery_and_calls():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     observation = collect_transport_observation("evidence")
     assert observation["transport"] == "mcp-stdio-subprocess"
-    assert len(observation["semantic_results"]) == 42
-    assert len(observation["cli_comparisons"]) == 38
-    assert len(observation["validated_inputs"]) == 12
+    assert len(observation["semantic_results"]) == 46
+    assert len(observation["cli_comparisons"]) == 42
+    assert len(observation["validated_inputs"]) == 14
     assert len(observation["validated_sources"]) == 3
     assert observation["workspace_unchanged"] is True
     from scripts.mcp_acceptance_adapters import _sha256
@@ -570,4 +673,6 @@ def test_real_mcp_evidence_discovery_and_calls():
         "source-match", "source-explain", "source-changed", "source-unsupported", "source-conflict",
         "source-missing", "source-denied", "source-link", "source-byte-limit", "source-file-limit",
         "source-invalid-options", "source-invalid-receipt",
-        "explain-multistage", "explain-partial-stages", "explain-unknown-stages"}
+        "explain-multistage", "explain-partial-stages", "explain-unknown-stages",
+        "explain-inconsistent-stages", "explain-ambiguous-stages",
+        "source-json-types-request", "source-json-types-stages"}

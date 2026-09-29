@@ -71,10 +71,53 @@ def _reject_nonfinite(value: str):
     raise ValueError(f"non-finite JSON value is not supported: {value}")
 
 
-def _execution_explanation(terminal: dict) -> dict:
+def _json_identity(value):
+    """Preserve JSON value types while ignoring object field order."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _recorded_stage_consistency(terminal: dict, captured: dict[str, bytes], *, multistage: bool) -> dict:
+    """Compare two captured assertions, without authenticating either one."""
+    result = {"status": "NOT_ESTABLISHED", "scope": "request-bound-execution-stage-data-only",
+              "terminal_pointer": "/execution_stages"}
+    request = terminal.get("workflow_request")
+    if not isinstance(request, dict):
+        return {**result, "reason": "MISSING_WORKFLOW_REQUEST"}
+
+    request_identity = _json_identity(request)
+    matching = []
+    for name, content in captured.items():
+        if name == "run.json":
+            continue
+        record = json.loads(content, parse_constant=_reject_nonfinite)
+        details = record.get("details")
+        if (record.get("state") != "PROOF" or not isinstance(details, dict)
+                or "workflow_request" not in details
+                or _json_identity(details["workflow_request"]) != request_identity):
+            continue
+        if multistage and (details.get("schema") != "formalspecgen-multistage-evidence-v1"
+                           or not isinstance(terminal.get("workflow"), str)
+                           or details.get("workflow") != terminal["workflow"]):
+            continue
+        matching.append((name, record))
+    if len(matching) != 1:
+        return {**result, "reason": "PROOF_RECORD_NOT_FOUND" if not matching else "AMBIGUOUS_PROOF_RECORD"}
+    name, proof = matching[0]
+    result.update(proof_artifact=name, proof_artifact_sha256=hashlib.sha256(captured[name]).hexdigest())
+    evidence = proof.get("evidence")
+    field = "stages" if multistage else "execution_stages"
+    result["proof_pointer"] = f"/evidence/{field}"
+    if not isinstance(evidence, dict) or field not in evidence:
+        return {**result, "reason": "PROOF_STAGES_NOT_RECORDED"}
+    return {**result, "status": "CONSISTENT" if _json_identity(evidence[field]) == _json_identity(terminal["execution_stages"])
+            else "INCONSISTENT"}
+
+
+def _execution_explanation(terminal: dict, captured: dict[str, bytes]) -> dict:
     """Project recorded fields only: do not classify exits or infer proof success."""
     result = {"status": "NOT_RECORDED", "source": "recorded_terminal", "stages": [], "issues": [],
-              "interpretation": "Terminal-record assertions only; not independently executed, authenticated, or checked for proof-stage consistency."}
+              "consistency": {"status": "NOT_ASSESSED"},
+              "interpretation": "Recorded assertions only. Consistency compares request-bound stage data, not authenticity, stage validity, isolation enforcement, or proof success."}
     if "execution_stages" not in terminal:
         return result
     multistage = terminal.get("schema") == "formalspecgen-multistage-evidence-v1"
@@ -83,6 +126,7 @@ def _execution_explanation(terminal: dict) -> dict:
         return result
     result["status"] = "RECORDED"
     result["layout"] = "multistage" if multistage else "verification"
+    result["consistency"] = _recorded_stage_consistency(terminal, captured, multistage=multistage)
 
     def records(value, pointer):
         if not isinstance(value, list):
@@ -130,15 +174,16 @@ def _recorded_source_binding(terminal: dict, captured: dict[str, bytes]) -> dict
             or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise EvidenceInputError("UNSUPPORTED_SOURCE_BINDING", "receipt has no supported primary-source binding")
     proofs = [json.loads(data, parse_constant=_reject_nonfinite) for name, data in captured.items() if name != "run.json"]
+    request_identity = _json_identity(request)
     matching = [record for record in proofs if record.get("state") == "PROOF"
                 and isinstance(record.get("details"), dict)
-                and record["details"].get("workflow_request") == request]
+                and _json_identity(record["details"].get("workflow_request")) == request_identity]
     if len(matching) != 1 or not isinstance(matching[0].get("evidence"), dict):
         raise EvidenceInputError("INCONSISTENT_SOURCE_BINDING", "receipt must bind one verification proof record")
     evidence = matching[0]["evidence"]
     stages = terminal.get("execution_stages")
     if evidence.get("source_sha256") != digest or evidence.get("source_path") != request["source"] \
-            or not isinstance(stages, list) or not stages or evidence.get("execution_stages") != stages:
+            or not isinstance(stages, list) or not stages or _json_identity(evidence.get("execution_stages")) != _json_identity(stages):
         raise EvidenceInputError("INCONSISTENT_SOURCE_BINDING", "terminal and proof-stage source bindings disagree")
     name = Path(request["source"]).name
     if name in {"", ".", ".."} or "\x00" in request["source"]:
@@ -300,7 +345,7 @@ def _inspect_one(request: EvidenceWorkflowRequest, context: WorkflowContext,
                     "recorded_status": terminal.get("final_status", "UNKNOWN"),
                     "recorded_claim": terminal.get("claim", "NO_PROOF"),
                     "recorded_claim_limits": terminal.get("claim_limits", {}),
-                    "recorded_execution": _execution_explanation(terminal),
+                    "recorded_execution": _execution_explanation(terminal, captured),
                     "interpretation": "These are recorded assertions, not independently established proof claims.",
                 }
             if request.source is not None:
