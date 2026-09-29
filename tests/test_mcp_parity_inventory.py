@@ -48,8 +48,8 @@ def test_live_builtin_inventory_matches_every_planned_declaration():
     assert manifest["metrics"] == {
         "discovered_commands": 43,
         "mapped_commands": 43,
-        "discovered_argument_declarations": 224,
-        "mapped_argument_declarations": 224,
+        "discovered_argument_declarations": 225,
+        "mapped_argument_declarations": 225,
         "commands_with_admitted_profile": 14,
         "complete_workflow_commands": 0,
     }

@@ -238,6 +238,7 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
         "project-plan": "project",
+        "project-impact": "project",
         "bisimulation": "verify-bisimulation",
         "security-templates": "security-exploit",
         "run-show": "run",
@@ -268,6 +269,10 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             request = ProjectWorkflowRequest(args.manifest, args.operation, args.target)
             if request != ProjectWorkflowRequest("project.json", "plan", "app") or args.json != "-":
                 raise ValueError("project example must plan app from project.json on stdout")
+        if name == "project-impact":
+            request = ProjectWorkflowRequest(args.manifest, args.operation, args.target, args.changed or ())
+            if request != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]) or args.json != "-":
+                raise ValueError("project impact example must inspect lib/S.java on stdout")
         if name == "security-templates":
             request = SecurityTemplateWorkflowRequest(args.report, args.target, args.out_dir, args.json)
             if request.effective_export != "review/poc-verdict.json":
@@ -370,7 +375,7 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
-            "project-plan",
+            "project-plan", "project-impact",
             "bisimulation", "security-templates",
             "worker-artifacts", "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
         raise ValueError(
@@ -379,6 +384,8 @@ def _validate_workflow_examples(examples: dict[str, str]) -> None:
             + ", ".join(sorted(examples)))
     if ProjectWorkflowRequest(**json.loads(examples["project-plan"])) != ProjectWorkflowRequest("project.json", "plan", "app"):
         raise ValueError("project example must plan app from project.json")
+    if ProjectWorkflowRequest(**json.loads(examples["project-impact"])) != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]):
+        raise ValueError("project impact example must inspect lib/S.java")
     if RunReadRequest(**json.loads(examples["run-show"])).run_id != "review-001":
         raise ValueError("run example must read review-001")
     preflight = BisimulationWorkflowRequest(**json.loads(examples["bisimulation"]))

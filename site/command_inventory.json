@@ -4,7 +4,7 @@
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 43,
-  "argument_declaration_count": 224,
+  "argument_declaration_count": 225,
   "commands_with_admitted_profile": 14,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
@@ -3271,6 +3271,28 @@
         {
           "cli": {
             "flags": [
+              "--changed"
+            ],
+            "dest": "changed",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "append",
+            "help": "impact only: changed path relative to the manifest directory; repeatable",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "changed_paths",
+          "disposition": "direct",
+          "requirement": "Repeatable explicit manifest-relative paths, impact only; not a Git diff or evidence-reuse authorization."
+        },
+        {
+          "cli": {
+            "flags": [
               "--json"
             ],
             "dest": "json",
@@ -3347,7 +3369,8 @@
             "default": null,
             "choices": [
               "validate",
-              "plan"
+              "plan",
+              "impact"
             ],
             "nargs": null,
             "const": null,
@@ -5465,7 +5488,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "6b3527876624c9bc11fd5f85ad7ad2e28e9e6c36f73c99595184a70ffbccaadc",
+    "inventory_sha256": "fa4d945a01250a05fbad7aabb02dc8e619896cd72a9529b079d5054a08c46954",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

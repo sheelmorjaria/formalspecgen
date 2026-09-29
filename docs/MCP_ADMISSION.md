@@ -18,7 +18,7 @@ symlinks and nonregular files fail closed. Selected targets include dependencies
 unselected targets remain explicit. Digests bind the bytes actually captured,
 including the manifest; repeated paths are captured once.
 
-Both operations return `target_inputs`, keyed by selected target name. Its
+All operations return `target_inputs`, keyed by selected target name. Its
 `sources` and `contracts` lists retain declaration order and contain workspace-
 relative paths, sizes and SHA-256 digests from the same captured bytes as the
 aggregate input manifest. `capture_complete` means only that the target's
@@ -27,6 +27,19 @@ capture failure preserves earlier dependency bindings, marks the failing
 target incomplete and leaves the overall request unsuccessful. These references
 do not make the workspace immutable; consumers must recheck the identities
 before later authorized actions.
+
+`project impact MANIFEST --changed PATH [--changed PATH ...] --json -` uses the
+same service with `operation="impact"` and `changed_paths=[...]`. It requires
+1–128 unique, manifest-relative paths and the full project (no target selection).
+Changed paths are bounded labels, not additional read requests. Direct source or
+contract matches propagate through declared dependencies with per-target reasons;
+a change to the manifest affects every target. Unmapped paths remain explicit
+and cause `PROJECT_BLOCKED`; otherwise the operation returns
+`PROJECT_IMPACT_ANALYZED`. All current declared inputs must still pass capture:
+missing or deleted inputs fail with `PROJECT_INVALID` before impact is reported.
+No Git command, verifier or evidence cache is consulted. The report is not a
+semantic dependency proof: `not_identified_as_affected` is not a reuse decision,
+and `evidence_reuse_authorized` remains false.
 
 `PROJECT_VALIDATED` and `PROJECT_PLANNED` do not establish source-fragment
 support, tool readiness, contract approval or requested assurance. Unavailable
@@ -41,7 +54,13 @@ the installed-wheel project cases: the installed console entry point and real
 MCP server must agree outside the source checkout. These cases cover validation,
 planning, target selection, unavailable profiles, malformed/missing/out-of-scope
 manifests, input limits and symlink rejection; they check source digests and
-workspace immutability. Wheel build and installation use no package index or
+workspace immutability. Impact acceptance also exercises direct source/contract
+and manifest changes, unmapped paths and a branched dependency graph through
+real MCP. Both source-checkout transport and installed-wheel interfaces reject
+missing changes, target selection, traversal, duplicate/excessive paths and
+changed paths supplied to planning. Adapter regressions separately confirm
+that invalid requests stop before admission and service dispatch.
+Wheel build and installation use no package index or
 dependency downloads. Dependencies remain supplied by the provisioned test
 environment, so this is not fresh dependency-resolution or backend qualification.
 

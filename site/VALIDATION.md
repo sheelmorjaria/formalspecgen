@@ -5,10 +5,10 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `c0166554af547efade4448daf310732a51b6889c7964c5a1d38169a2626eb2d6`
-- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `f9f27ad47dc35a377ab2ef8b469e0c34dcd8986b39e130133e4ce1093e4a0082`
-- `command_inventory.json` SHA-256: `d37dfe15e93094e11e7655fbb1e0028520d2707685242088972b062ac6d955a6`
-- `mcp_capabilities.json` SHA-256: `23d160cbc1855305c25954f06022c263173565c8673366538367a86d29586ad9`
+- `index.html` SHA-256: `ad3d6b1c4f08a03580a5d14857dd333c530eeff2d024b18c74606d7985186cd0`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `4688191701d5d658b7e878a16b40f7b1c181031af97fa4292e30649c320cf0ca`
+- `command_inventory.json` SHA-256: `bb08a7bf5a7f4e40b420e49d86537fc8cbf7a85a534c3c9711a5e93f48d9ae18`
+- `mcp_capabilities.json` SHA-256: `f2716e2b0ea431a6e7585957020ed3bd8633d95ef666b1f7faeb1dbabcabc136`
 - Parsed HTML element IDs: 21
 - Same-page fragment links checked: 18
 - Missing same-page targets: none
@@ -19,7 +19,7 @@ documentation validation, not formal verification or revision-bound acceptance e
 - All 43 command-reference and index admission labels generated from the live inventory
 - Unexpected relative assets: none
 - Handwritten verification, analysis, refactoring, and traceability MCP payloads validated through application request models
-- Current landing-page CLI examples parsed against the real CLI: 16
+- Current landing-page CLI examples parsed against the real CLI: 17
 
 ## Scope limits
 

@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "490297b33578435641cd3246fb25f3a469ece184d65c6054ee3d83a324161db3",
+  "plan_sha256": "dd5820f1b0f854e300773746be6ee673b8a739b27a938fdb218ba513b9848404",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -124,7 +124,7 @@
         "handler_id": "pipeline.cli:dispatch:project",
         "human_only": false,
         "mcp_exposed_intent": false,
-        "help": "validate or plan explicit project inputs without executing workflows",
+        "help": "validate, plan or inspect declared change impact without executing workflows",
         "description": null,
         "arguments": [
           {
@@ -137,7 +137,8 @@
             "default": null,
             "choices": [
               "validate",
-              "plan"
+              "plan",
+              "impact"
             ],
             "nargs": null,
             "const": null,
@@ -178,6 +179,23 @@
             "type": null,
             "action": "store",
             "help": "select one target and its declared dependencies",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--changed"
+            ],
+            "dest": "changed",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "append",
+            "help": "impact only: changed path relative to the manifest directory; repeatable",
             "hidden": false,
             "metavar": null
           },
@@ -4581,14 +4599,14 @@
       }
     ],
     "command_count": 43,
-    "argument_declaration_count": 224,
-    "sha256": "6b3527876624c9bc11fd5f85ad7ad2e28e9e6c36f73c99595184a70ffbccaadc"
+    "argument_declaration_count": 225,
+    "sha256": "fa4d945a01250a05fbad7aabb02dc8e619896cd72a9529b079d5054a08c46954"
   },
   "metrics": {
     "discovered_commands": 43,
     "mapped_commands": 43,
-    "discovered_argument_declarations": 224,
-    "mapped_argument_declarations": 224,
+    "discovered_argument_declarations": 225,
+    "mapped_argument_declarations": 225,
     "commands_with_admitted_profile": 14,
     "complete_workflow_commands": 0
   },
@@ -9865,6 +9883,28 @@
         {
           "cli": {
             "flags": [
+              "--changed"
+            ],
+            "dest": "changed",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "append",
+            "help": "impact only: changed path relative to the manifest directory; repeatable",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "changed_paths",
+          "disposition": "direct",
+          "requirement": "Repeatable explicit manifest-relative paths, impact only; not a Git diff or evidence-reuse authorization."
+        },
+        {
+          "cli": {
+            "flags": [
               "--json"
             ],
             "dest": "json",
@@ -9941,7 +9981,8 @@
             "default": null,
             "choices": [
               "validate",
-              "plan"
+              "plan",
+              "impact"
             ],
             "nargs": null,
             "const": null,
@@ -9962,6 +10003,7 @@
           {
             "name": "bounded-project-planning",
             "modes": [
+              "impact",
               "plan",
               "validate"
             ],
@@ -10006,23 +10048,33 @@
             "default": null,
             "annotation": "str | None",
             "keyword_only": false
+          },
+          {
+            "name": "changed_paths",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "manifest",
           "operation",
-          "target"
+          "target",
+          "changed_paths"
         ]
       },
       "workflow_completion": {
         "status": "incomplete",
         "complete": false,
         "mapped_mcp_fields": [
+          "changed_paths",
           "manifest",
           "operation",
           "target"
         ],
         "observed_mcp_fields": [
+          "changed_paths",
           "manifest",
           "operation",
           "target"
@@ -10035,6 +10087,13 @@
           "declared-order",
           "denied",
           "identities",
+          "impact",
+          "impact-contract",
+          "impact-invalid",
+          "impact-manifest",
+          "impact-source",
+          "impact-transitive",
+          "impact-unmapped",
           "installed-cli",
           "installed-mcp",
           "installed-wheel",
@@ -14492,5 +14551,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "6411ff0c0a749c993edbaf25e057667a39fadd22779ab2f79416e861bea78cb4"
+  "sha256": "ff26581ac8610221240e1e128094bf5762f50b2b25fd4e2b4b01751f0bb3c983"
 }

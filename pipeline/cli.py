@@ -1252,7 +1252,7 @@ def command_project(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .project_planning import ProjectWorkflowRequest, inspect_project
     from .workflow_contracts import WorkflowContext
     try:
-        request = ProjectWorkflowRequest(args.manifest, args.operation, args.target)
+        request = ProjectWorkflowRequest(args.manifest, args.operation, args.target, args.changed or ())
         result = inspect_project(request, WorkflowContext.for_cli(request.required_effects()))
     except ValueError as exc:
         result = {"status": "PROJECT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
@@ -2485,10 +2485,11 @@ def build_parser(
     )
     common.add_argument("--model")
 
-    project = sub.add_parser("project", help="validate or plan explicit project inputs without executing workflows")
-    project.add_argument("operation", choices=["validate", "plan"])
+    project = sub.add_parser("project", help="validate, plan or inspect declared change impact without executing workflows")
+    project.add_argument("operation", choices=["validate", "plan", "impact"])
     project.add_argument("manifest", help="versioned JSON project manifest inside the current workspace")
     project.add_argument("--target", help="select one target and its declared dependencies")
+    project.add_argument("--changed", action="append", help="impact only: changed path relative to the manifest directory; repeatable")
     project.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout only; no export")
     worker = sub.add_parser("worker", help="read stored worker artifact references; never download or accept them")
     worker.add_argument("operation", choices=["artifacts"])

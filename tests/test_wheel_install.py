@@ -356,7 +356,15 @@ cases = [
     ({"manifest": "../outside.json"}, "PROJECT_INVALID"),
     ({"manifest": "oversize.json"}, "PROJECT_INVALID"),
     ({"manifest": "linked.json"}, "PROJECT_INVALID"),
+    ({"manifest": "project.json", "operation": "impact", "changed_paths": ["lib/S.java"]}, "PROJECT_IMPACT_ANALYZED"),
+    ({"manifest": "project.json", "operation": "impact", "changed_paths": ["project.json"]}, "PROJECT_IMPACT_ANALYZED"),
+    ({"manifest": "project.json", "operation": "impact", "changed_paths": ["unknown.java"]}, "PROJECT_BLOCKED"),
 ]
+cases += [({"manifest": "project.json", "operation": "impact", **arguments}, "PROJECT_INVALID")
+          for arguments in ({}, {"target": "base", "changed_paths": ["lib/S.java"]},
+              {"changed_paths": ["../outside"]}, {"changed_paths": ["lib/S.java", "lib/./S.java"]},
+              {"changed_paths": [f"file-{i}.java" for i in range(129)]},
+              {"operation": "plan", "changed_paths": ["lib/S.java"]})]
 def snapshot():
     return {str(p): ("symlink", os.readlink(p)) if p.is_symlink() else
             ("file", hashlib.sha256(p.read_bytes()).hexdigest()) if p.is_file() else ("directory",)
@@ -369,14 +377,21 @@ for arguments, status in cases:
                arguments["manifest"], "--json", "-"]
     if "target" in arguments:
         command += ["--target", arguments["target"]]
+    for path in arguments.get("changed_paths", []):
+        command += ["--changed", path]
     process = subprocess.run(command, capture_output=True, text=True, timeout=30)
-    satisfied = status in {"PROJECT_VALIDATED", "PROJECT_PLANNED"}
+    satisfied = status in {"PROJECT_VALIDATED", "PROJECT_PLANNED", "PROJECT_IMPACT_ANALYZED"}
     assert process.returncode == (0 if satisfied else 1), (arguments, process.stderr)
     envelope = json.loads(process.stdout)
     assert envelope["schema"] == "formalspecgen-cli-result-v1"
     assert envelope["operation_satisfied"] is satisfied
     result = envelope["result"]
     assert result["status"] == status and result["request_satisfied"] is satisfied
+    if result.get("code") == "INVALID_REQUEST":
+        assert result["claim"] == "NO_PROOF" and not result["request_satisfied"]
+        assert not {"inputs", "impact", "steps"} & result.keys()
+        local.append(result)
+        continue
     assert result["claim"] == "NO_PROOF" and not result["invocation_authorized"]
     assert result["readiness"] == result["assurance"] == result["contract_approval"] == "NOT_ASSESSED"
     for item in result["inputs"]:
@@ -390,7 +405,13 @@ for arguments, status in cases:
 assert local[1]["targets"] == ["base", "app"] and len(local[1]["steps"]) == 2
 assert local[2]["targets"] == ["base"] and local[2]["unselected_targets"] == ["app"]
 assert any(f["blocking"] for f in local[3]["findings"])
+assert local[9]["impact"]["affected_targets"] == local[10]["impact"]["affected_targets"] == ["base", "app"]
+assert local[11]["impact"]["unmapped_changes"] == ["unknown.java"]
+assert not local[9]["impact"]["evidence_reuse_authorized"]
+assert all(result["code"] == "INVALID_REQUEST" for result in local[12:])
 for result in local:
+    if result.get("code") == "INVALID_REQUEST":
+        continue
     assert set(result["target_inputs"]) == set(result["targets"])
     for name, target_binding in result["target_inputs"].items():
         assert target_binding["capture_complete"]
@@ -408,12 +429,15 @@ async def transport():
         async with ClientSession(read, write) as session:
             await session.initialize()
             tool = next(t for t in (await session.list_tools()).tools if t.name == "inspect_project")
-            assert set(tool.inputSchema["properties"]) == {"manifest", "operation", "target"}
+            assert set(tool.inputSchema["properties"]) == {"manifest", "operation", "target", "changed_paths"}
             for (arguments, _), expected in zip(cases, local):
                 response = await session.call_tool("inspect_project", arguments)
                 assert not response.isError
                 actual = response.structuredContent
-                assert actual["mcp_admission"]["granted_effects"] == ["workspace_read"]
+                if expected.get("code") == "INVALID_REQUEST":
+                    assert "mcp_admission" not in actual
+                else:
+                    assert actual["mcp_admission"]["granted_effects"] == ["workspace_read"]
                 assert {k: v for k, v in actual.items() if k != "mcp_admission"} == expected
 
 remote = sys.argv[1] == "mcp"
@@ -427,8 +451,8 @@ print(json.dumps({"cli_calls": len(cases), "mcp_calls": len(cases) if remote els
         env=environment, capture_output=True, text=True, timeout=120)
     assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
     assert json.loads(checked.stdout) == {
-        "cli_calls": 9, "mcp_calls": 9 if interface == "mcp" else 0,
-        "input_bindings": 12, "installed_root": str(target.resolve()), "read_only": True}
+        "cli_calls": 18, "mcp_calls": 18 if interface == "mcp" else 0,
+        "input_bindings": 21, "installed_root": str(target.resolve()), "read_only": True}
 
 
 @pytest.mark.parametrize("interface", ["cli", "mcp"])

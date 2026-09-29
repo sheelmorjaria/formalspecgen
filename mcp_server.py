@@ -529,11 +529,12 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
-def inspect_project(manifest: str, operation: str = "validate", target: str | None = None) -> dict[str, Any]:
+def inspect_project(manifest: str, operation: str = "validate", target: str | None = None,
+                    changed_paths: list[str] | None = None) -> dict[str, Any]:
     """Bounded project declarations and input identities; never execute or authorize a plan."""
     from pipeline.project_planning import ProjectWorkflowRequest, inspect_project as run
     try:
-        request = ProjectWorkflowRequest(manifest, operation, target)
+        request = ProjectWorkflowRequest(manifest, operation, target, () if changed_paths is None else changed_paths)
     except ValueError as exc:
         return {"status": "PROJECT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
                 "code": "INVALID_REQUEST", "message": str(exc)}

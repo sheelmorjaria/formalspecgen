@@ -22,20 +22,32 @@ class ProjectWorkflowRequest:
     manifest: str
     operation: str = "validate"
     target: str | None = None
+    changed_paths: tuple[str, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.manifest, str) or not self.manifest or "\0" in self.manifest:
             raise ValueError("manifest must be a nonempty path")
-        if not isinstance(self.operation, str) or self.operation not in {"validate", "plan"}:
-            raise ValueError("operation must be validate or plan")
+        if not isinstance(self.operation, str) or self.operation not in {"validate", "plan", "impact"}:
+            raise ValueError("operation must be validate, plan or impact")
         if self.target is not None:
             _identifier(self.target)
+        if not isinstance(self.changed_paths, (list, tuple)) or len(self.changed_paths) > 128:
+            raise ValueError("changed_paths must be a list of at most 128 relative paths")
+        paths = tuple(_relative(value) for value in self.changed_paths)
+        if len(set(paths)) != len(paths):
+            raise ValueError("duplicate changed path")
+        if self.operation == "impact":
+            if not paths or self.target is not None:
+                raise ValueError("impact requires changed paths and the full project (no target selection)")
+        elif paths:
+            raise ValueError("changed paths are only supported for impact")
+        object.__setattr__(self, "changed_paths", paths)
 
     def required_effects(self):
         return ("workspace_read",)
 
     def as_dict(self):
-        return asdict(self)
+        return {**asdict(self), "changed_paths": list(self.changed_paths)}
 
 
 def _identifier(value):
@@ -82,6 +94,34 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
+def _impact(targets, order, changed_paths, manifest_name):
+    """Explain declared dependency impact, not evidence applicability or reuse."""
+    changed = set(changed_paths)
+    matched = set()
+    reasons = {}
+    for name in order:
+        target = targets[name]
+        causes = []
+        if manifest_name in changed:
+            matched.add(manifest_name)
+            causes.append({"kind": "manifest", "path": manifest_name})
+        for field in ("sources", "contracts"):
+            for path in target[field]:
+                if path in changed:
+                    matched.add(path)
+                    causes.append({"kind": field, "path": path})
+        for dependency in target["depends_on"]:
+            if dependency in reasons:
+                causes.append({"kind": "dependency", "target": dependency})
+        if causes:
+            reasons[name] = causes
+    return {"scope": "declared-project-dependencies-only", "changed_paths": list(changed_paths),
+            "affected_targets": list(reasons), "reasons": reasons,
+            "not_identified_as_affected": [name for name in order if name not in reasons],
+            "unmapped_changes": [path for path in changed_paths if path not in matched],
+            "evidence_reuse_authorized": False}
+
+
 def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -> dict:
     """Validate declarations and capture inputs; plan only registry-level steps.
 
@@ -101,6 +141,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                   "Profile compatibility does not validate invocation arguments or supported source fragments.",
                   "Requested policy is not an authority grant, budget reservation, or assurance assessment.",
                   "Only explicit selected inputs are captured; no transitive import or build discovery.",
+                  "Impact uses caller-supplied paths, not a Git diff or an evidence-reuse decision; absence of a link is not proof of independence.",
               ]}
     try:
         limits = {}
@@ -226,9 +267,14 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                 if request.operation == "plan":
                     result["steps"].append(step)
         result["inputs_sha256"] = _digest(result["inputs"])
+        if request.operation == "impact":
+            result["impact"] = _impact(targets, order, request.changed_paths, manifest_path.name)
+            if result["impact"]["unmapped_changes"]:
+                result["findings"].append({"code": "UNMAPPED_CHANGES", "blocking": True,
+                    "paths": result["impact"]["unmapped_changes"]})
         blocked = any(finding["blocking"] for finding in result["findings"])
         result.update(status="PROJECT_BLOCKED" if blocked else (
-            "PROJECT_PLANNED" if request.operation == "plan" else "PROJECT_VALIDATED"),
+            {"plan": "PROJECT_PLANNED", "impact": "PROJECT_IMPACT_ANALYZED", "validate": "PROJECT_VALIDATED"}[request.operation]),
             request_satisfied=not blocked)
     except (ValueError, OSError, RecursionError, TypeError) as exc:
         result.update(code=getattr(exc, "code", "INVALID_PROJECT"), message=str(exc))

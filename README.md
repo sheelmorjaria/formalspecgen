@@ -1115,10 +1115,11 @@ semantics. MCP response schemas and verification claims are unchanged.
 ```bash
 formalspecgen project validate project.json --json
 formalspecgen project plan project.json --target app --json -
+formalspecgen project impact project.json --changed lib/S.java --changed contracts/S.jml --json -
 ```
 
 MCP exposes the same read-only service as `inspect_project`, with `manifest`,
-`operation` and optional `target` fields. The versioned JSON manifest lists
+`operation`, optional `target`, and `changed_paths` fields. The versioned JSON manifest lists
 source files, contract inputs, dependencies and exact registry capability/profile
 names. See the [manifest example and limits](site/FORMALSPECGEN_USER_GUIDE.html#project).
 Inputs are captured under the workspace with aggregate byte/file limits; results
@@ -1127,6 +1128,14 @@ target includes its declared dependencies; unselected targets remain visible.
 `target_inputs` gives each selected target's source and contract paths, sizes
 and captured digests in declaration order. Capture failures preserve earlier
 dependency bindings without marking the failing target or request complete.
+
+`impact` takes up to 128 unique, explicit changed paths relative to the manifest
+directory, across the full project (no `--target`). It explains directly affected
+targets and their declared dependents. A manifest change affects every target;
+unmapped changes produce `PROJECT_BLOCKED`. The current declared inputs must
+still be readable; deleted inputs produce `PROJECT_INVALID`, not a partial
+impact success. Changed paths are caller assertions, not a Git diff. This does
+not authorize evidence reuse or prove that other targets are independent.
 
 This is static planning, not an executable or authorized plan. No tool probes,
 builds, providers or publication occur. Listed contracts are not authenticated

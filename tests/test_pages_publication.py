@@ -20,7 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "c0166554af547efade4448daf310732a51b6889c7964c5a1d38169a2626eb2d6"
+GUIDE_SHA256 = "ad3d6b1c4f08a03580a5d14857dd333c530eeff2d024b18c74606d7985186cd0"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -38,7 +38,7 @@ def test_current_guide_and_generated_companions_are_current():
     decoded = json.loads(inventory)
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
     assert decoded["command_count"] == 43
-    assert decoded["argument_declaration_count"] == 224
+    assert decoded["argument_declaration_count"] == 225
     assert decoded["commands_with_admitted_profile"] == 14
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
@@ -98,7 +98,7 @@ def test_integrated_pages_have_valid_navigation_and_cli_examples():
     parser = _GuideLinks()
     parser.feed(documents[SITE / "index.html"])
     _validate_cli_examples(parser.cli_examples)
-    assert len(parser.cli_examples) == 16
+    assert len(parser.cli_examples) == 17
     assert 'FORMALSPECGEN_USER_GUIDE.html#command-reference' in parser.hrefs
     assert "scripted automation" in documents[SITE / "index.html"]
     assert "Not yet a universal approval bridge" in documents[SITE / "index.html"]

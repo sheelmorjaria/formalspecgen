@@ -4,7 +4,7 @@
   "baseline_revision": "91c6790",
   "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
   "baseline_command_count": 43,
-  "baseline_argument_declaration_count": 224,
+  "baseline_argument_declaration_count": 225,
   "inventory_count_scope": "Current plan counts; field names retained for schema compatibility. Generated live inventory is authoritative.",
   "historical_baseline_counts": {"revision": "91c6790", "commands": 38, "argument_declarations": 205},
   "inventory_provenance": {
@@ -36,11 +36,14 @@
       "implementation_status": "admitted_pending_revision_bound_acceptance",
       "argument_mappings": [
         {"cli_flags": ["operation"], "proposed_mcp_field": "operation", "disposition": "direct", "implementation_status": "verified",
-         "baseline_declaration": {"flags": ["operation"], "required": true, "choices": ["validate", "plan"]}},
+         "baseline_declaration": {"flags": ["operation"], "required": true, "choices": ["validate", "plan", "impact"]}},
         {"cli_flags": ["manifest"], "proposed_mcp_field": "manifest", "disposition": "direct", "implementation_status": "verified",
          "baseline_declaration": {"flags": ["manifest"], "required": true}},
         {"cli_flags": ["--target"], "proposed_mcp_field": "target", "disposition": "direct", "implementation_status": "verified",
          "baseline_declaration": {"flags": ["--target"], "required": false}},
+        {"cli_flags": ["--changed"], "proposed_mcp_field": "changed_paths", "disposition": "direct", "implementation_status": "verified",
+         "requirement": "Repeatable explicit manifest-relative paths, impact only; not a Git diff or evidence-reuse authorization.",
+         "baseline_declaration": {"flags": ["--changed"], "required": false}},
         {"cli_flags": ["--json"], "proposed_mcp_field": null, "disposition": "structured_response", "implementation_status": "verified",
          "requirement": "Stdout only; no filesystem export.",
          "baseline_declaration": {"flags": ["--json"], "required": false, "nargs": "?", "const": "-", "choices": ["-"]}}
@@ -49,7 +52,7 @@
         "schema": "formalspecgen-workflow-completion-v1",
         "required_environment": "Provisioned wheel-build dependencies and pinned MCP SDK; FORMALSPECGEN_REQUIRE_PROJECT_TRANSPORT=1 or FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE=1, plus FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1. Wheel build/install uses no index and no dependency downloads. No backend or provider needed.",
         "claim_scope": "Static input and registry metadata only, NO_PROOF; readiness, approval and assurance NOT_ASSESSED.",
-        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp", "target-input-bindings", "partial-capture", "declared-order"],
+        "required_variants": ["validate", "plan", "selected", "identities", "invalid", "missing", "blocked", "denied", "limit", "permissions", "no-effects", "malformed-json", "unsafe-inputs", "capture-once", "real-discovery", "real-calls", "installed-wheel", "installed-cli", "installed-mcp", "target-input-bindings", "partial-capture", "declared-order", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid"],
         "acceptance_cases": [
           {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_equivalent_interfaces_and_captured_identities", "variants": ["validate", "plan", "selected", "identities", "target-input-bindings"]},
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_selected_dependencies_and_nested_manifest", "variants": ["selected"]},
@@ -64,8 +67,13 @@
           {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_cli_rejects_execution_and_export", "variants": ["permissions"]},
           {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_target_binding_uses_captured_bytes_and_preserves_completed_dependencies", "variants": ["partial-capture", "target-input-bindings"]},
           {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_target_bindings_preserve_declared_order_for_shared_sources", "variants": ["declared-order"]},
-          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit", "target-input-bindings", "partial-capture"]},
-          {"kind": "mcp_transport", "test": "tests/test_wheel_install.py::test_installed_project_interfaces", "variants": ["installed-wheel", "installed-cli", "installed-mcp"]}
+          {"kind": "request_equivalence", "test": "tests/test_project_planning.py::test_impact_cli_mcp_equivalence", "variants": ["impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped"]},
+          {"kind": "result_equivalence", "test": "tests/test_project_planning.py::test_impact_transitive_diamond_and_nested_manifest", "variants": ["impact-transitive"]},
+          {"kind": "argument_delivery", "test": "tests/test_project_planning.py::test_invalid_impact_requests", "variants": ["invalid", "limit"]},
+          {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_invalid_impact_adapters_stop_before_dispatch", "variants": ["impact-invalid", "permissions"]},
+          {"kind": "effect_enforcement", "test": "tests/test_project_planning.py::test_impact_does_not_read_changed_paths_and_preserves_capture_failures", "variants": ["unsafe-inputs", "partial-capture"]},
+          {"kind": "mcp_transport", "test": "tests/test_project_planning.py::test_real_project_transport", "variants": ["real-discovery", "real-calls", "validate", "plan", "selected", "invalid", "missing", "blocked", "denied", "limit", "target-input-bindings", "partial-capture", "impact", "impact-source", "impact-contract", "impact-manifest", "impact-unmapped", "impact-transitive", "impact-invalid"]},
+          {"kind": "mcp_transport", "test": "tests/test_wheel_install.py::test_installed_project_interfaces", "variants": ["installed-wheel", "installed-cli", "installed-mcp", "impact", "impact-invalid"]}
         ]
       }
     },

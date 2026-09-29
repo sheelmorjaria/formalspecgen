@@ -1268,14 +1268,22 @@ async def _project_observation() -> dict:
         workspace = Path(directory)
         (workspace / "src").mkdir()
         (workspace / "lib").mkdir()
+        (workspace / "contracts").mkdir()
+        (workspace / "contracts/S.jml").write_text("class S {} // contract\n")
         (workspace / "src/S.java").write_text("class S {}\n")
         (workspace / "lib/S.java").write_text("class S {} // dependency\n")
         document = {"schema": "formalspecgen-project-v1", "targets": [
-            {"name": "app", "sources": ["src/S.java"], "depends_on": ["base"], "workflows": [
+            {"name": "app", "sources": ["src/S.java"], "contracts": ["contracts/S.jml"], "depends_on": ["base"], "workflows": [
                 {"capability": "verify_code", "profile": "java-openjml-verification"}]},
             {"name": "base", "sources": ["lib/S.java"], "workflows": [
                 {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
         (workspace / "project.json").write_text(json.dumps(document))
+        graph = json.loads(json.dumps(document))
+        graph["targets"][0]["depends_on"] = ["middle", "base"]
+        graph["targets"].extend([
+            {**graph["targets"][1], "name": "middle", "sources": ["src/S.java"], "depends_on": ["base"]},
+            {**graph["targets"][1], "name": "unrelated", "sources": ["contracts/S.jml"]}])
+        (workspace / "graph.json").write_text(json.dumps(graph))
         missing_input = json.loads(json.dumps(document))
         missing_input["targets"][0]["sources"] = ["missing.java"]
         (workspace / "missing-input.json").write_text(json.dumps(missing_input))
@@ -1293,7 +1301,20 @@ async def _project_observation() -> dict:
             ("denied", {"manifest": "../outside.json"}, "PROJECT_INVALID"),
             ("limit", {"manifest": "oversize.json"}, "PROJECT_INVALID"),
             ("partial-capture", {"manifest": "missing-input.json", "operation": "plan"}, "PROJECT_INVALID"),
+            ("impact-source", {"manifest": "project.json", "operation": "impact", "changed_paths": ["lib/S.java"]}, "PROJECT_IMPACT_ANALYZED"),
+            ("impact-contract", {"manifest": "project.json", "operation": "impact", "changed_paths": ["contracts/S.jml"]}, "PROJECT_IMPACT_ANALYZED"),
+            ("impact-manifest", {"manifest": "project.json", "operation": "impact", "changed_paths": ["project.json"]}, "PROJECT_IMPACT_ANALYZED"),
+            ("impact-unmapped", {"manifest": "project.json", "operation": "impact", "changed_paths": ["unknown.java", "lib/S.java"]}, "PROJECT_BLOCKED"),
+            ("impact-transitive", {"manifest": "graph.json", "operation": "impact", "changed_paths": ["lib/S.java"]}, "PROJECT_IMPACT_ANALYZED"),
         ]
+        cases += [("reject-" + name, {"manifest": "project.json", "operation": "impact", **arguments}, "PROJECT_INVALID")
+                  for name, arguments in (
+                      ("missing-changes", {}),
+                      ("selected-target", {"target": "base", "changed_paths": ["lib/S.java"]}),
+                      ("traversal", {"changed_paths": ["../outside"]}),
+                      ("duplicate", {"changed_paths": ["lib/S.java", "lib/./S.java"]}),
+                      ("excessive", {"changed_paths": [f"file-{i}.java" for i in range(129)]}),
+                      ("plan-changes", {"operation": "plan", "changed_paths": ["lib/S.java"]}))]
         def identity():
             return {p.relative_to(workspace).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                     for p in workspace.rglob("*") if p.is_file()}
@@ -1301,10 +1322,31 @@ async def _project_observation() -> dict:
         initialized, tools, schema, results = await _call_tool(
             workspace, "inspect_project", [case[1] for case in cases],
             environment={"FORMALSPECGEN_MCP_STRICT_JAVA_ONLY": "1"})
-        if set(schema["properties"]) != {"manifest", "operation", "target"}:
+        if set(schema["properties"]) != {"manifest", "operation", "target", "changed_paths"}:
             raise RuntimeError("unexpected project request schema")
         comparisons, validated = [], []
         for (variant, arguments, expected_status), result in zip(cases, results):
+            command = [sys.executable, "-m", "pipeline.cli", "project", arguments.get("operation", "validate"),
+                       arguments["manifest"], "--json", "-"]
+            if "target" in arguments:
+                command += ["--target", arguments["target"]]
+            for path in arguments.get("changed_paths", []):
+                command += ["--changed", path]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                capture_output=True, text=True, timeout=30, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            envelope = json.loads(process.stdout)
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if envelope["result"] != expected or process.returncode != (0 if result["request_satisfied"] else 1) \
+                    or envelope["operation_satisfied"] != result["request_satisfied"]:
+                raise RuntimeError(f"CLI/MCP project results differ: {variant}")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(expected)})
+            if variant.startswith("reject-"):
+                if (result["status"] != "PROJECT_INVALID" or result["code"] != "INVALID_REQUEST"
+                        or result["claim"] != "NO_PROOF" or result["request_satisfied"]
+                        or {"mcp_admission", "inputs", "impact", "steps"} & result.keys()):
+                    raise RuntimeError("invalid project request reached admission or input capture")
+                continue
             if result["status"] != expected_status or result["claim"] != "NO_PROOF" \
                     or result["invocation_authorized"] or result["assurance"] != "NOT_ASSESSED" \
                     or result["contract_approval"] != "NOT_ASSESSED" or result["readiness"] != "NOT_ASSESSED":
@@ -1337,19 +1379,20 @@ async def _project_observation() -> dict:
                 raise RuntimeError("project target selection changed")
             if variant == "plan" and (result["targets"] != ["base", "app"] or len(result["steps"]) != 2):
                 raise RuntimeError("project dependencies were not ordered")
-            command = [sys.executable, "-m", "pipeline.cli", "project", arguments.get("operation", "validate"),
-                       arguments["manifest"], "--json", "-"]
-            if "target" in arguments:
-                command += ["--target", arguments["target"]]
-            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
-                capture_output=True, text=True, timeout=30, check=False,
-                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
-            envelope = json.loads(process.stdout)
-            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
-            if envelope["result"] != expected or process.returncode != (0 if result["request_satisfied"] else 1) \
-                    or envelope["operation_satisfied"] != result["request_satisfied"]:
-                raise RuntimeError(f"CLI/MCP project results differ: {variant}")
-            comparisons.append({"variant": variant, "result_sha256": _sha256(expected)})
+            if variant.startswith("impact-"):
+                impact = result["impact"]
+                affected = ["app"] if variant == "impact-contract" else ["base", "app"]
+                if variant == "impact-transitive":
+                    affected = ["base", "middle", "app"]
+                    if (impact["not_identified_as_affected"] != ["unrelated"]
+                            or impact["reasons"]["app"] != [
+                                {"kind": "dependency", "target": "middle"},
+                                {"kind": "dependency", "target": "base"}]):
+                        raise RuntimeError("transitive impact lost dependency reasons or unrelated targets")
+                unmapped = ["unknown.java"] if variant == "impact-unmapped" else []
+                if (impact["affected_targets"] != affected or impact["unmapped_changes"] != unmapped
+                        or impact["evidence_reuse_authorized"] or result["steps"]):
+                    raise RuntimeError("project impact did not preserve declared scope")
         if identity() != before:
             raise RuntimeError("project planning wrote workspace content")
     observation = _observation(initialized, tools, schema, results, results[-1])

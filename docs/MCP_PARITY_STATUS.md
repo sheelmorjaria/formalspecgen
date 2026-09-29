@@ -6,7 +6,7 @@ Do not edit it by hand.
 ## Inventory
 
 - Commands mapped: 43 / 43
-- Argument declarations mapped: 224 / 224
+- Argument declarations mapped: 225 / 225
 - Commands with at least one admitted invocation profile: 14 / 43
 - Complete command workflows: 0 / 43
 - Inventory drift: none
@@ -36,7 +36,7 @@ Do not edit it by hand.
 | `macro-dictionary` | `macro_dictionary` | `direct_or_task` | `compatibility_alias_present_target_missing` | `incomplete` | 6 |
 | `manage-trust` | `manage_trust` | `read_or_human_approval` | `approval_coordinator_missing` | `incomplete` | 4 |
 | `optimize-algorithm` | `optimize_algorithm` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
-| `project` | `inspect_project` | `direct` | `admitted` | `incomplete` | 4 |
+| `project` | `inspect_project` | `direct` | `admitted` | `incomplete` | 5 |
 | `promote-domain` | `promote_domain` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 6 |
 | `prove-equivalence` | `prove_equivalence` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `remediate` | `remediate_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |

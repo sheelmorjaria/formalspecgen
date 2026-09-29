@@ -2369,18 +2369,27 @@
             "default": null,
             "annotation": "str | None",
             "keyword_only": false
+          },
+          {
+            "name": "changed_paths",
+            "required": false,
+            "default": null,
+            "annotation": "list[str] | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "manifest",
           "operation",
-          "target"
+          "target",
+          "changed_paths"
         ]
       },
       "profiles": [
         {
           "name": "bounded-project-planning",
           "modes": [
+            "impact",
             "plan",
             "validate"
           ],
@@ -2399,7 +2408,7 @@
           "required_effects": [
             "workspace_read"
           ],
-          "profile_sha256": "f1b04b826916f6d7886d09aaaef36faa3ac1bb78fa95163b657e18822d7f79cc"
+          "profile_sha256": "2f8c4ec6ea30de7bc3d82ea977f1b27b24461758fdcc453b965f3ade6a19e16f"
         }
       ]
     }

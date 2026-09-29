@@ -242,6 +242,101 @@ def test_target_bindings_preserve_declared_order_for_shared_sources(project):
     assert bindings["base"]["sources"][0] == bindings["app"]["sources"][1]
 
 
+@pytest.mark.parametrize("changed,affected,status", [
+    (["lib/S.java"], ["base", "app"], "PROJECT_IMPACT_ANALYZED"),
+    (["contracts/S.jml"], ["app"], "PROJECT_IMPACT_ANALYZED"),
+    (["src/S.java", "contracts/S.jml"], ["app"], "PROJECT_IMPACT_ANALYZED"),
+    (["project.json"], ["base", "app"], "PROJECT_IMPACT_ANALYZED"),
+    (["unknown.java"], [], "PROJECT_BLOCKED"),
+    (["lib/S.java", "unknown.java"], ["base", "app"], "PROJECT_BLOCKED"),
+])
+def test_impact_cli_mcp_equivalence(project, capsys, changed, affected, status):
+    args = ["project", "impact", "project.json", "--json"]
+    for path in changed:
+        args += ["--changed", path]
+    with patch("subprocess.run", side_effect=AssertionError("no git or verifier")), \
+         patch("subprocess.Popen", side_effect=AssertionError("no execution")), \
+         patch("pipeline.llm._chat_fn", side_effect=AssertionError("no provider")):
+        code = cli.dispatch(cli.build_parser().parse_args(args), cli.TerminalUI(), None, {})
+        local = json.loads(capsys.readouterr().out)["result"]
+        remote = mcp_server.inspect_project("project.json", "impact", changed_paths=changed)
+    assert local == {k: v for k, v in remote.items() if k != "mcp_admission"}
+    assert local["status"] == status and code == (1 if status == "PROJECT_BLOCKED" else 0)
+    assert local["impact"]["affected_targets"] == affected
+    assert local["impact"]["unmapped_changes"] == (["unknown.java"] if "unknown.java" in changed else [])
+    assert not local["impact"]["evidence_reuse_authorized"] and not local["invocation_authorized"]
+    assert local["claim"] == "NO_PROOF" and local["steps"] == []
+    assert remote["mcp_admission"]["granted_effects"] == ["workspace_read"]
+
+
+def test_impact_transitive_diamond_and_nested_manifest(project):
+    document = project_document()
+    base = document["targets"][1]
+    document["targets"].extend([
+        {**base, "name": "middle", "sources": ["src/S.java"], "depends_on": ["base"]},
+        {**base, "name": "unrelated", "sources": ["contracts/S.jml"]}])
+    document["targets"][0]["depends_on"] = ["middle", "base"]
+    (project / "project.json").write_text(json.dumps(document))
+    context = WorkflowContext.for_cli(("workspace_read",), workspace_root=project)
+    result = inspect_project(ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]), context)
+    assert result["impact"]["affected_targets"] == ["base", "middle", "app"]
+    assert result["impact"]["not_identified_as_affected"] == ["unrelated"]
+    assert result["impact"]["reasons"]["app"] == [
+        {"kind": "dependency", "target": "middle"}, {"kind": "dependency", "target": "base"}]
+    nested = {"schema": document["schema"], "targets": [{**base, "sources": ["S.java"]}]}
+    (project / "lib/project.json").write_text(json.dumps(nested))
+    for path, reason in [("S.java", "sources"), ("project.json", "manifest")]:
+        result = inspect_project(ProjectWorkflowRequest("lib/project.json", "impact", changed_paths=[path]), context)
+        assert result["request_satisfied"]
+        assert result["impact"]["reasons"]["base"] == [{"kind": reason, "path": path}]
+        assert result["target_inputs"]["base"]["sources"][0]["path"] == "lib/S.java"
+
+
+@pytest.mark.parametrize("arguments", [
+    {"operation": "impact"}, {"operation": "impact", "changed_paths": []},
+    {"changed_paths": ["src/S.java"]},
+    {"operation": "impact", "target": "base", "changed_paths": ["src/S.java"]},
+    *({"operation": "impact", "changed_paths": paths} for paths in (
+        "src/S.java", [None], ["../outside"], ["/absolute"], ["x", "./x"], ["x"] * 129)),
+])
+def test_invalid_impact_requests(arguments):
+    with pytest.raises(ValueError):
+        ProjectWorkflowRequest("project.json", **arguments)
+
+
+@pytest.mark.parametrize("arguments", [
+    {}, {"target": "base", "changed_paths": ["lib/S.java"]},
+    {"changed_paths": ["../outside"]}, {"changed_paths": ["lib/S.java", "lib/./S.java"]},
+    {"changed_paths": [f"file-{i}.java" for i in range(129)]},
+    {"operation": "plan", "changed_paths": ["lib/S.java"]},
+])
+def test_invalid_impact_adapters_stop_before_dispatch(project, capsys, arguments):
+    request = {"manifest": "project.json", "operation": "impact", **arguments}
+    argv = ["project", request["operation"], "project.json", "--json"]
+    if "target" in request:
+        argv += ["--target", request["target"]]
+    for path in request.get("changed_paths", []):
+        argv += ["--changed", path]
+    with patch("pipeline.project_planning.inspect_project", side_effect=AssertionError("no service dispatch")), \
+         patch("mcp_server.authorize_mcp_invocation", side_effect=AssertionError("no admission")):
+        remote = mcp_server.inspect_project(**request)
+        assert cli.dispatch(cli.build_parser().parse_args(argv), cli.TerminalUI(), None, {}) == 1
+    assert json.loads(capsys.readouterr().out)["result"] == remote
+    assert remote["code"] == "INVALID_REQUEST" and not remote["request_satisfied"]
+
+
+def test_impact_does_not_read_changed_paths_and_preserves_capture_failures(project):
+    context = WorkflowContext.for_cli(("workspace_read",), workspace_root=project)
+    (project / "unknown").symlink_to("/etc/passwd")
+    result = inspect_project(ProjectWorkflowRequest("project.json", "impact", changed_paths=["unknown"]), context)
+    assert result["status"] == "PROJECT_BLOCKED"
+    assert "unknown" not in {item["path"] for item in result["inputs"]}
+    (project / "src/S.java").unlink()
+    result = inspect_project(ProjectWorkflowRequest("project.json", "impact", changed_paths=["src/S.java"]), context)
+    assert result["status"] == "PROJECT_INVALID" and "impact" not in result
+    assert not result["target_inputs"]["app"]["capture_complete"]
+
+
 @pytest.mark.parametrize("arguments", [{"manifest": ""}, {"manifest": None},
     {"manifest": "x", "operation": []}, {"manifest": "x", "target": "../x"}])
 def test_invalid_requests(arguments):
@@ -255,7 +350,9 @@ def test_real_project_transport():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     result = collect_transport_observation("project")
     assert result["workspace_unchanged"]
-    assert len(result["cli_comparisons"]) == 9
+    assert len(result["cli_comparisons"]) == 20
+    assert {"impact-transitive", "reject-missing-changes", "reject-selected-target",
+            "reject-traversal", "reject-duplicate", "reject-excessive", "reject-plan-changes"} <= set(result["variants"])
 
 
 def test_completion_requires_installed_project_transport():

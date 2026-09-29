@@ -1249,7 +1249,7 @@ _GENERIC_DATA.append({
     "cli_command": "project", "mcp_tool": "inspect_project",
     "epistemic_boundary": "A static plan is not authorization, tool readiness, authenticated contract review, or proof.",
     "mcp_isolation": "non-executing",
-    "mcp_profiles": ({"name": "bounded-project-planning", "modes": ("validate", "plan"),
+    "mcp_profiles": ({"name": "bounded-project-planning", "modes": ("validate", "plan", "impact"),
                       "languages": ("metadata",), "backends": ("builtin-project",),
                       "effects": ("workspace_read",), "required_effects": ("workspace_read",),
                       "output_scope": "none", "evidence": "read-only-project-plan"},),
