@@ -63,6 +63,64 @@ def test_tampered_missing_and_digest_mismatch_are_distinct(bundle):
     assert inspect(bundle)["status"] == "EVIDENCE_INCOMPLETE"
 
 
+def test_explain_multistage_preserves_baseline_and_failed_candidate(tmp_path, monkeypatch, capsys):
+    from pipeline.multistage_evidence import publish_multistage_evidence
+    monkeypatch.chdir(tmp_path)
+    baseline = {"stage": "baseline", "language": "java", "status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
+                "execution_stages": [
+                    {"status": "COMPLETED", "tool": "openjml-check", "exit_code": 0, "policy_compliance": "ENFORCED"},
+                    {"status": "COMPLETED", "tool": "openjml-esc", "exit_code": 0, "policy_compliance": "ENFORCED"}]}
+    candidate = {"stage": "candidate", "language": "java", "status": "FAIL", "claim": "NO_PROOF",
+                 "execution_stages": [{"status": "TIMEOUT", "tool": "openjml-esc", "exit_code": 0,
+                    "policy_compliance": "NOT_ENFORCED", "timed_out": True, "output_truncated": True}]}
+    receipt = publish_multistage_evidence(tmp_path / "run", workflow="verify-refactor", status="FAIL",
+        claim="NO_PROOF", request={"fixture": True}, admission=None, inputs={},
+        stages=[baseline, candidate], semantic_bindings={}, claim_limits={"synthetic_fixture": True})
+    path = receipt["manifest_path"]
+    before = {p: p.read_bytes() for p in (tmp_path / "run").rglob("*") if p.is_file()}
+    with patch("subprocess.run", side_effect=AssertionError("no execution")), \
+         patch("pipeline.llm._chat_fn", side_effect=AssertionError("no provider")):
+        remote = mcp_server.inspect_evidence(path, "explain")
+        args = cli.build_parser().parse_args(["evidence", "explain", path, "--json"])
+        assert cli.dispatch(args, cli.TerminalUI(), None, {}) == 0
+    local = json.loads(capsys.readouterr().out)["result"]
+    assert local == {k: v for k, v in remote.items() if k != "mcp_admission"}
+    explanation = local["explanation"]
+    assert explanation["recorded_status"] == "FAIL" and explanation["recorded_claim"] == "NO_PROOF"
+    execution = explanation["recorded_execution"]
+    assert execution["status"] == "RECORDED" and execution["issues"] == []
+    assert [s["recorded"]["status"] for s in execution["stages"]] == ["VERIFIED", "FAIL"]
+    assert len(execution["stages"][0]["observations"]) == 2
+    assert execution["stages"][1]["observations"][0]["recorded"] == candidate["execution_stages"][0]
+    assert execution["stages"][1]["observations"][0]["pointer"] == "/execution_stages/1/execution_stages/0"
+    assert local["claim"] == "NO_PROOF" and local["request_satisfied"]  # explanation, not verification
+    assert local["authenticity"]["status"] == local["assurance"]["status"] == "NOT_ASSESSED"
+    assert before == {p: p.read_bytes() for p in (tmp_path / "run").rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("terminal,status,stages,issues", [
+    ({}, "NOT_RECORDED", 0, 0),
+    ({"execution_stages": []}, "UNSUPPORTED_LAYOUT", 0, 0),
+    ({"claim_policy_version": "verification-policy-v1", "execution_stages": []}, "RECORDED", 0, 0),
+    ({"claim_policy_version": "verification-policy-v1", "execution_stages": [{"exit_code": 0}]}, "RECORDED", 1, 0),
+    ({"claim_policy_version": "verification-policy-v1", "execution_stages": {}}, "PARTIAL", 0, 1),
+    ({"schema": "formalspecgen-multistage-evidence-v1", "execution_stages": [None, {"stage": "baseline"},
+        {"stage": "candidate", "execution_stages": [None, {"exit_code": 0}]}]}, "PARTIAL", 2, 3),
+])
+def test_explain_stage_shapes_are_explicit(tmp_path, monkeypatch, terminal, status, stages, issues):
+    monkeypatch.chdir(tmp_path)
+    ledger = RunLedger(tmp_path / "run")
+    ledger.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF)
+    manifest = ledger.commit({"claim": "NO_PROOF", "final_status": "FAIL", **terminal})
+    result = mcp_server.inspect_evidence(str(manifest), "explain")
+    execution = result["explanation"]["recorded_execution"]
+    assert execution["status"] == status and len(execution["stages"]) == stages
+    assert len(execution["issues"]) == issues
+    assert result["integrity"]["valid"] and result["claim"] == "NO_PROOF"
+    if status == "RECORDED" and stages:
+        assert execution["stages"][0]["recorded"] == {"exit_code": 0}  # no inferred successful status
+
+
 @pytest.mark.parametrize("name", ["../outside.json", "/etc/passwd", "manifest.json", "", ".", "a/b.json", "a\\b.json"])
 def test_inventory_paths_rejected_before_artifact_capture(bundle, name):
     manifest = json.loads(bundle.read_bytes())
@@ -488,9 +546,9 @@ def test_real_mcp_evidence_discovery_and_calls():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     observation = collect_transport_observation("evidence")
     assert observation["transport"] == "mcp-stdio-subprocess"
-    assert len(observation["semantic_results"]) == 39
-    assert len(observation["cli_comparisons"]) == 35
-    assert len(observation["validated_inputs"]) == 9
+    assert len(observation["semantic_results"]) == 42
+    assert len(observation["cli_comparisons"]) == 38
+    assert len(observation["validated_inputs"]) == 12
     assert len(observation["validated_sources"]) == 3
     assert observation["workspace_unchanged"] is True
     from scripts.mcp_acceptance_adapters import _sha256
@@ -511,4 +569,5 @@ def test_real_mcp_evidence_discovery_and_calls():
         "diff-aggregate-bytes", "diff-aggregate-files", "diff-invalid-options",
         "source-match", "source-explain", "source-changed", "source-unsupported", "source-conflict",
         "source-missing", "source-denied", "source-link", "source-byte-limit", "source-file-limit",
-        "source-invalid-options", "source-invalid-receipt"}
+        "source-invalid-options", "source-invalid-receipt",
+        "explain-multistage", "explain-partial-stages", "explain-unknown-stages"}

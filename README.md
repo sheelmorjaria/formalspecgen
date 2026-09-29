@@ -1186,6 +1186,16 @@ RunLedger v1 artifact/hash-chain validator. Optional `--expected-sha256` binds
 the captured manifest to a caller-supplied digest, not an authenticated identity.
 No backend, provider, artifact publication, or source replay occurs.
 
+`explain` includes `recorded_execution`: a projection of terminal-record fields
+for verification and multi-stage receipts. It keeps baseline/candidate verdicts
+separate from individual process observations, including timeout, truncation,
+exit-code and isolation-compliance fields when recorded. Pointers are relative
+to `recorded_terminal`. Missing data, unsupported layouts and malformed entries
+are explicit; no success is inferred from an exit code or an empty stage list.
+This is not authentication, proof-stage consistency validation, a fresh execution,
+or an assessment that the recorded isolation actually held. The full terminal
+record remains available, and a successful explanation can describe a failed check.
+
 `diff` requires `--comparison-manifest`; `--comparison-expected-sha256` optionally
 pins that second manifest. These two options are rejected for other operations.
 Both ledgers share the aggregate capture budget (including both manifests).

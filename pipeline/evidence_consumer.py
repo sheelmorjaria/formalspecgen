@@ -71,6 +71,55 @@ def _reject_nonfinite(value: str):
     raise ValueError(f"non-finite JSON value is not supported: {value}")
 
 
+def _execution_explanation(terminal: dict) -> dict:
+    """Project recorded fields only: do not classify exits or infer proof success."""
+    result = {"status": "NOT_RECORDED", "source": "recorded_terminal", "stages": [], "issues": [],
+              "interpretation": "Terminal-record assertions only; not independently executed, authenticated, or checked for proof-stage consistency."}
+    if "execution_stages" not in terminal:
+        return result
+    multistage = terminal.get("schema") == "formalspecgen-multistage-evidence-v1"
+    if not multistage and terminal.get("claim_policy_version") != "verification-policy-v1":
+        result["status"] = "UNSUPPORTED_LAYOUT"
+        return result
+    result["status"] = "RECORDED"
+    result["layout"] = "multistage" if multistage else "verification"
+
+    def records(value, pointer):
+        if not isinstance(value, list):
+            result["issues"].append({"pointer": pointer, "code": "EXPECTED_LIST"})
+            return []
+        found = []
+        for index, record in enumerate(value):
+            location = f"{pointer}/{index}"
+            if not isinstance(record, dict):
+                result["issues"].append({"pointer": location, "code": "EXPECTED_OBJECT"})
+            else:
+                found.append((location, record))
+        return found
+
+    def observation(pointer, record):
+        fields = ("status", "tool", "exit_code", "policy_compliance", "timed_out",
+                  "output_truncated", "snapshot_manifest_sha256")
+        return {"pointer": pointer, "recorded": {key: record[key] for key in fields if key in record}}
+
+    for pointer, stage in records(terminal["execution_stages"], "/execution_stages"):
+        if multistage:
+            summary = {"pointer": pointer, "recorded": {
+                key: stage[key] for key in ("stage", "language", "status", "claim", "request_satisfied") if key in stage},
+                "observations": []}
+            if "execution_stages" not in stage:
+                result["issues"].append({"pointer": pointer + "/execution_stages", "code": "NOT_RECORDED"})
+            else:
+                summary["observations"] = [observation(path, value) for path, value in
+                    records(stage["execution_stages"], pointer + "/execution_stages")]
+        else:
+            summary = observation(pointer, stage)
+        result["stages"].append(summary)
+    if result["issues"]:
+        result["status"] = "PARTIAL"
+    return result
+
+
 def _recorded_source_binding(terminal: dict, captured: dict[str, bytes]) -> dict:
     """Interpret only the current verification receipt, never follow its paths."""
     request = terminal.get("workflow_request")
@@ -251,6 +300,7 @@ def _inspect_one(request: EvidenceWorkflowRequest, context: WorkflowContext,
                     "recorded_status": terminal.get("final_status", "UNKNOWN"),
                     "recorded_claim": terminal.get("claim", "NO_PROOF"),
                     "recorded_claim_limits": terminal.get("claim_limits", {}),
+                    "recorded_execution": _execution_explanation(terminal),
                     "interpretation": "These are recorded assertions, not independently established proof claims.",
                 }
             if request.source is not None:

@@ -1092,6 +1092,26 @@ async def _evidence_observation() -> dict:
         conflicting = source_ledger("source-conflicting", conflict=True)
         full = source_ledger("source-full", extra_stages=253)
 
+        from pipeline.multistage_evidence import publish_multistage_evidence
+        staged = publish_multistage_evidence(workspace / "staged", workflow="verify-refactor",
+            status="FAIL", claim="NO_PROOF", request={"fixture": True}, admission=None, inputs={},
+            stages=[{"stage": "baseline", "status": "VERIFIED", "claim": "DEDUCTIVE_PROOF",
+                "execution_stages": [{"status": "COMPLETED", "tool": "openjml-check", "exit_code": 0},
+                                     {"status": "COMPLETED", "tool": "openjml-esc", "exit_code": 0}]},
+                {"stage": "candidate", "status": "FAIL", "claim": "NO_PROOF",
+                 "execution_stages": [{"status": "TIMEOUT", "exit_code": 0, "timed_out": True,
+                                       "policy_compliance": "NOT_ENFORCED"}]}],
+            semantic_bindings={}, claim_limits={"synthetic_fixture": True})
+        partial_run = RunLedger(workspace / "partial-stages")
+        partial_run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF)
+        partial_stages = partial_run.commit({"schema": "formalspecgen-multistage-evidence-v1",
+            "final_status": "FAIL", "claim": "NO_PROOF", "execution_stages": [None,
+                {"stage": "baseline", "execution_stages": [{"exit_code": 0}]}, {"stage": "candidate"}]})
+        unknown_run = RunLedger(workspace / "unknown-stages")
+        unknown_run.record(PipelineState.PROOF, "FAIL", claim=EvidenceClaim.NO_PROOF)
+        unknown_stages = unknown_run.commit({"schema": "future-layout", "final_status": "FAIL",
+            "claim": "NO_PROOF", "execution_stages": [{"status": "VERIFIED"}]})
+
         cases = [
             ("validate", {"manifest": str(good)}, "EVIDENCE_VALID", None),
             ("explain", {"manifest": str(good), "operation": "explain", "expected_sha256": digest}, "EVIDENCE_VALID", None),
@@ -1134,6 +1154,9 @@ async def _evidence_observation() -> dict:
             ("source-file-limit", {"manifest": str(full), "source": str(source)}, "EVIDENCE_SOURCE_CHECK_REJECTED", "INPUT_LIMIT_EXCEEDED"),
             ("source-invalid-options", {"manifest": str(good), "operation": "diff", "comparison_manifest": str(good), "source": str(source)}, "EVIDENCE_INVALID", "INVALID_REQUEST"),
             ("source-invalid-receipt", {"manifest": str(tampered), "source": str(source)}, "EVIDENCE_INVALID", None),
+            ("explain-multistage", {"manifest": staged["manifest_path"], "operation": "explain"}, "EVIDENCE_VALID", None),
+            ("explain-partial-stages", {"manifest": str(partial_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
+            ("explain-unknown-stages", {"manifest": str(unknown_stages), "operation": "explain"}, "EVIDENCE_VALID", None),
         ]
 
         def workspace_identity() -> dict:
@@ -1164,21 +1187,43 @@ async def _evidence_observation() -> dict:
                 if result["mcp_admission"]["granted_effects"] != ["workspace_read"]:
                     raise RuntimeError("evidence inspection gained non-read authority")
             if status == "EVIDENCE_VALID":
-                if result["manifest_sha256"] != digest or result["integrity"]["status"] != "VALID":
+                actual_path = Path(arguments["manifest"])
+                actual_manifest = actual_path.read_bytes()
+                actual_digest = hashlib.sha256(actual_manifest).hexdigest()
+                if result["manifest_sha256"] != actual_digest or result["integrity"]["status"] != "VALID":
                     raise RuntimeError("manifest identity or integrity mismatch")
-                if result["request"]["manifest"] != str(good):
+                if result["request"]["manifest"] != str(actual_path):
                     raise RuntimeError("evidence result refers to a different manifest")
-                inventory = json.loads(good.read_bytes())["artifacts"]
+                inventory = json.loads(actual_manifest)["artifacts"]
                 if result["captured_inputs"] != inventory:
                     raise RuntimeError("captured evidence inventory differs from fixture")
                 for artifact in inventory:
-                    content = (good.parent / artifact["path"]).read_bytes()
+                    content = (actual_path.parent / artifact["path"]).read_bytes()
                     if len(content) != artifact["size"] or hashlib.sha256(content).hexdigest() != artifact["sha256"]:
                         raise RuntimeError("captured artifact differs from actual bytes")
-                validated.append({"variant": variant, "manifest_sha256": digest,
+                validated.append({"variant": variant, "manifest_sha256": actual_digest,
                                   "artifacts": inventory})
             if variant == "explain" and result["explanation"]["recorded_claim"] != "DEDUCTIVE_PROOF":
                 raise RuntimeError("explanation lost the recorded (not independently proved) claim")
+            if variant in {"explain", "source-explain", "explain-multistage", "explain-partial-stages", "explain-unknown-stages"}:
+                execution = result["explanation"]["recorded_execution"]
+                expected_stage_status = {"explain": "NOT_RECORDED", "source-explain": "RECORDED",
+                    "explain-multistage": "RECORDED", "explain-partial-stages": "PARTIAL",
+                    "explain-unknown-stages": "UNSUPPORTED_LAYOUT"}[variant]
+                if execution["status"] != expected_stage_status or execution["source"] != "recorded_terminal":
+                    raise RuntimeError("stage explanation hid missing or unsupported recorded data")
+                for stage in execution["stages"]:
+                    for entry in [stage, *stage.get("observations", [])]:
+                        recorded = result["recorded_terminal"]
+                        for component in entry["pointer"].strip("/").split("/"):
+                            recorded = recorded[int(component)] if isinstance(recorded, list) else recorded[component]
+                        if any(key not in recorded or recorded[key] != value for key, value in entry["recorded"].items()):
+                            raise RuntimeError("stage explanation differs from recorded assertions")
+                if variant == "explain-multistage":
+                    if ([s["recorded"]["status"] for s in execution["stages"]] != ["VERIFIED", "FAIL"]
+                            or [len(s["observations"]) for s in execution["stages"]] != [2, 1]
+                            or execution["stages"][1]["observations"][0]["recorded"]["timed_out"] is not True):
+                        raise RuntimeError("stage explanation erased baseline or candidate observations")
             if variant == "tampered" and result["integrity"]["status"] != "INVALID":
                 raise RuntimeError("tampering was not detected")
             if status == "EVIDENCE_COMPARED":
