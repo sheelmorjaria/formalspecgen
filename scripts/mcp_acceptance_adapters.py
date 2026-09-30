@@ -1387,6 +1387,11 @@ async def _contract_observation() -> dict:
             "Body.java": source.replace("return 1", "return 2"),
             "Clause.java": source.replace(">= 0", ">= 1"),
             "Trust.java": source.replace("return 1;", "\n//@ assume true;\nreturn 1;"),
+            "Context.java": "import java.util.List;\n" + source,
+            "Api.java": source.replace("balance()", "balance(int extra)"),
+            "NoMembers.java": "public class Account {}",
+            "NoClauses.java": "public class Account { public void reset() {} }",
+            "Inventory.java": "public class Account {\n public Account() {}\n //@ requires true;\n //@ ensures \\result >= 0;\n //@ assignable \\nothing;\n //@ signals (Exception e) true;\n public int balance() { return 1; }\n protected void reset() {}\n private void helper() {}\n}",
             "Syntax.java": "public class {", "Oversized.java": " " * (1024 * 1024 + 1)}
         for name, content in fixtures.items():
             (workspace / name).write_text(content)
@@ -1394,9 +1399,14 @@ async def _contract_observation() -> dict:
         cases = [
             ("extract-java", {"source": "Account.java"}, "CONTRACT_EXTRACTED"),
             ("extract-jml", {"source": "Account.jml"}, "CONTRACT_EXTRACTED"),
+            ("inventory-mixed", {"source": "Inventory.java"}, "CONTRACT_EXTRACTED"),
+            ("inventory-no-members", {"source": "NoMembers.java"}, "CONTRACT_EXTRACTED"),
+            ("inventory-no-clauses", {"source": "NoClauses.java"}, "CONTRACT_EXTRACTED"),
             ("diff-body", {"source": "Account.java", "operation": "diff", "candidate": "Body.java"}, "CONTRACT_COMPARED"),
             ("diff-clause", {"source": "Account.java", "operation": "diff", "candidate": "Clause.java"}, "CONTRACT_COMPARED"),
             ("diff-trust", {"source": "Account.java", "operation": "diff", "candidate": "Trust.java"}, "CONTRACT_COMPARED"),
+            ("diff-context", {"source": "Account.java", "operation": "diff", "candidate": "Context.java"}, "CONTRACT_COMPARED"),
+            ("diff-api", {"source": "Account.java", "operation": "diff", "candidate": "Api.java"}, "CONTRACT_COMPARED"),
             ("missing-source", {"source": "Missing.java"}, "CONTRACT_INVALID"),
             ("missing-candidate", {"source": "Account.java", "operation": "diff", "candidate": "Missing.java"}, "CONTRACT_INVALID"),
             ("unsupported-syntax", {"source": "Syntax.java"}, "CONTRACT_UNSUPPORTED"),
@@ -1414,6 +1424,11 @@ async def _contract_observation() -> dict:
             raise RuntimeError("unexpected contract discovery schema")
         comparisons, validated = [], []
         for (variant, arguments, status), result in zip(cases, results):
+            def resolve(pointer):
+                value = result
+                for token in pointer[1:].split("/"):
+                    value = value[token.replace("~1", "/").replace("~0", "~")]
+                return value
             satisfied = status in {"CONTRACT_EXTRACTED", "CONTRACT_COMPARED"}
             if result["status"] != status or result["request_satisfied"] != satisfied or result["claim"] != "NO_PROOF":
                 raise RuntimeError("contract result changed scope or satisfaction")
@@ -1430,9 +1445,53 @@ async def _contract_observation() -> dict:
                     if item["sha256"] != hashlib.sha256(content).hexdigest() or item["size"] != len(content):
                         raise RuntimeError("contract captured input identity mismatch")
                     validated.append({"variant": variant, **item})
+                for role, inventory in result["clause_inventory"].items():
+                    surface = result["surfaces"][role]
+                    members = inventory["members"]
+                    if (inventory["adequacy"] != "NOT_ASSESSED" or inventory["effective_contracts"] != "NOT_ASSESSED"
+                            or inventory["input_pointer"] != f"/inputs/{role}"
+                            or resolve(inventory["input_pointer"]) != result["inputs"][role]
+                            or inventory["member_count"] != len(members)
+                            or [m["signature"] for m in members] != surface["methods"] + surface["constructors"]
+                            or inventory["members_without_explicit_clauses"] != sum(m["clause_count"] == 0 for m in members)):
+                        raise RuntimeError("clause inventory changed scope, source binding or membership")
+                    for member in members:
+                        if (resolve(member["clauses_pointer"]) != surface["clauses"]["members"][member["signature"]]
+                                or member["clause_count"] != len(resolve(member["clauses_pointer"]))
+                                or member["clause_count"] != sum(member["keywords"].values())):
+                            raise RuntimeError("clause inventory pointer or count mismatch")
+                if variant.startswith("inventory-"):
+                    inventory = result["clause_inventory"]["source"]
+                    expected_counts = {"inventory-mixed": (3, 2), "inventory-no-members": (0, 0),
+                                       "inventory-no-clauses": (1, 1)}[variant]
+                    if (inventory["member_count"], inventory["members_without_explicit_clauses"]) != expected_counts:
+                        raise RuntimeError("explicit clause inventory does not match fixture")
+                    if variant == "inventory-mixed" and inventory["members"][1]["keywords"] != {"requires": 1, "ensures": 1, "assignable": 1, "signals": 1}:
+                        raise RuntimeError("clause kinds do not match mixed inventory fixture")
             if status == "CONTRACT_COMPARED":
                 if result["comparison"]["surface_equal"] != (variant == "diff-body"):
                     raise RuntimeError("surface mutation disappeared or body-only change was misclassified")
+                changes = result["comparison"]["review_changes"]
+                expected_category = {"diff-clause": "CONTRACT_CLAUSES", "diff-trust": "PROOF_TRUST",
+                                     "diff-context": "SEMANTIC_CONTEXT", "diff-api": "PUBLIC_API"}.get(variant)
+                if (variant == "diff-body" and changes) or (expected_category and expected_category not in {c["category"] for c in changes}):
+                    raise RuntimeError("contract review categories do not describe the observed mutation")
+                for change in changes:
+                    for role in ("source", "candidate"):
+                        reference = change[role]
+                        if (reference["input_pointer"] != f"/inputs/{role}"
+                                or resolve(reference["input_pointer"]) != result["inputs"][role]):
+                            raise RuntimeError("review change input reference mismatch")
+                        if reference["present"]:
+                            if (not reference["surface_pointer"].startswith(f"/surfaces/{role}/")
+                                    or resolve(reference["surface_pointer"]) != reference["value"]):
+                                raise RuntimeError("review change surface reference mismatch")
+                        elif reference["surface_pointer"] is not None or reference["value"] is not None:
+                            raise RuntimeError("absent review field fabricated a reference")
+                    kind = ("ADDED" if not change["source"]["present"] else
+                            "REMOVED" if not change["candidate"]["present"] else "MODIFIED")
+                    if change["kind"] != kind or (change["source"]["present"], change["source"]["value"]) == (change["candidate"]["present"], change["candidate"]["value"]):
+                        raise RuntimeError("review change misrepresented presence or value")
             if variant == "missing-candidate" and ("source" not in result["surfaces"] or "comparison" in result):
                 raise RuntimeError("candidate failure erased baseline or fabricated comparison")
             command = [sys.executable, "-m", "pipeline.cli", "contract", arguments.get("operation", "extract"),

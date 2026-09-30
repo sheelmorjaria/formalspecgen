@@ -49,16 +49,20 @@
         "schema": "formalspecgen-workflow-completion-v1",
         "required_environment": "Linux, installed parser dependencies and pinned MCP SDK; FORMALSPECGEN_REQUIRE_CONTRACT_TRANSPORT=1 or FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE=1. No backend or provider.",
         "claim_scope": "Supported structural Java/JML public surface only; NO_PROOF and no review authentication or refactor acceptance.",
-        "required_variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "context", "api", "missing-source", "missing-candidate", "unsupported-syntax", "encoding", "byte-limit", "file-limit", "symlink", "denied-path", "invalid-request", "capture-once", "permissions", "stdout-only", "no-contract", "read-only"],
+        "required_variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "context", "api", "missing-source", "missing-candidate", "unsupported-syntax", "encoding", "byte-limit", "file-limit", "symlink", "denied-path", "invalid-request", "capture-once", "permissions", "stdout-only", "no-contract", "read-only", "review-changes", "review-pointer-escaping", "review-captured-inputs", "diff-context", "diff-api", "modifier", "annotation", "private-assumption", "inventory-mixed", "inventory-no-members", "inventory-no-clauses", "inventory-scope", "inventory-clause-kinds"],
         "acceptance_cases": [
           {"kind": "request_equivalence", "test": "tests/test_contract_inspection.py::test_interfaces_and_scope", "variants": ["extract-java", "extract-jml", "diff-body", "read-only"]},
           {"kind": "argument_delivery", "test": "tests/test_contract_inspection.py::test_interfaces_and_scope", "variants": ["extract-java", "extract-jml", "diff-body"]},
-          {"kind": "result_equivalence", "test": "tests/test_contract_inspection.py::test_surface_mutations_are_reported_not_proved", "variants": ["diff-clause", "diff-trust", "context", "api"]},
+          {"kind": "result_equivalence", "test": "tests/test_contract_inspection.py::test_surface_mutations_are_reported_not_proved", "variants": ["diff-clause", "diff-trust", "context", "api", "review-changes", "modifier", "annotation", "private-assumption"]},
+          {"kind": "result_equivalence", "test": "tests/test_contract_inspection.py::test_review_change_structure_and_pointer_escaping", "variants": ["review-pointer-escaping"]},
+          {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_review_changes_bind_captured_not_current_sources", "variants": ["review-captured-inputs"]},
+          {"kind": "request_equivalence", "test": "tests/test_contract_inspection.py::test_explicit_clause_inventory_is_not_adequacy", "variants": ["inventory-mixed", "inventory-no-members", "inventory-no-clauses", "inventory-scope"]},
+          {"kind": "result_equivalence", "test": "tests/test_contract_inspection.py::test_inventory_preserves_prefixes_duplicates_and_unclassified_syntax", "variants": ["inventory-clause-kinds"]},
           {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_invalid_requests_stop_before_dispatch", "variants": ["invalid-request"]},
           {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_candidate_failures_preserve_baseline", "variants": ["missing-candidate", "unsupported-syntax", "encoding", "byte-limit", "file-limit", "symlink", "denied-path"]},
           {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_once_capture_and_exact_budget", "variants": ["capture-once"]},
           {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_permissions_no_contracts_and_output", "variants": ["permissions", "stdout-only", "no-contract"]},
-          {"kind": "mcp_transport", "test": "tests/test_contract_inspection.py::test_real_contract_transport", "variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "missing-source", "missing-candidate", "unsupported-syntax", "byte-limit", "symlink", "denied-path", "invalid-request", "read-only"]}
+          {"kind": "mcp_transport", "test": "tests/test_contract_inspection.py::test_real_contract_transport", "variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "missing-source", "missing-candidate", "unsupported-syntax", "byte-limit", "symlink", "denied-path", "invalid-request", "read-only", "review-changes", "diff-context", "diff-api", "inventory-mixed", "inventory-no-members", "inventory-no-clauses"]}
         ]
       }
     },

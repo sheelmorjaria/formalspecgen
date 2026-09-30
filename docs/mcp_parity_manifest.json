@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "27eb8c5ea0881ab502a769211d6cc49f1b04ffbfe0659b53683f4262cbef8d95",
+  "plan_sha256": "33ebc718233b8850d4582666c5bdd7df2d294855213af9592ea808b5256fcc52",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -6190,24 +6190,37 @@
         "missing_mcp_fields": [],
         "unverified_argument_mappings": [],
         "required_variants": [
+          "annotation",
           "api",
           "byte-limit",
           "capture-once",
           "context",
           "denied-path",
+          "diff-api",
           "diff-body",
           "diff-clause",
+          "diff-context",
           "diff-trust",
           "encoding",
           "extract-java",
           "extract-jml",
           "file-limit",
           "invalid-request",
+          "inventory-clause-kinds",
+          "inventory-mixed",
+          "inventory-no-clauses",
+          "inventory-no-members",
+          "inventory-scope",
           "missing-candidate",
           "missing-source",
+          "modifier",
           "no-contract",
           "permissions",
+          "private-assumption",
           "read-only",
+          "review-captured-inputs",
+          "review-changes",
+          "review-pointer-escaping",
           "stdout-only",
           "symlink",
           "unsupported-syntax"
@@ -14866,5 +14879,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "181ea9204cae039dbefb53960891c24ad6ef32f5bbbf109d95c900d8e75a8c96"
+  "sha256": "39253c50a4f1de1e4295e1c016d0985218aea59ad03ad551c85b2173b3c2492a"
 }

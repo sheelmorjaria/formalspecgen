@@ -1123,6 +1123,19 @@ compilation-context, and proof-trust surface parser. Inputs share a 1 MiB/two-fi
 capture budget; no verifier, provider, publication, or approval runs. Unsupported
 syntax is explicit, and candidate failure retains the captured baseline.
 
+`comparison.review_changes` groups API, clause, context, modifier, annotation,
+and proof-trust changes. Each entry identifies added/removed/modified data and
+provides JSON pointers to the captured surface values and source identities.
+Lists remain whole, preserving order and duplicates; categories are navigation
+aids, not severity ratings or authenticated review decisions.
+
+`clause_inventory` lists captured public/protected methods and explicit
+constructors, their parser-observed clause kinds/counts, and members without
+explicit clauses. References resolve to the captured surfaces and input hashes.
+This is not a correctness-coverage score: inherited/default contracts, implicit
+members and specification adequacy remain unassessed. Class clauses, annotations,
+and proof-trust data remain separately visible in the surfaces.
+
 Differences are structural—not proof of stronger or weaker contracts. Equal
 surfaces do not establish behavioral equivalence or accept a refactor. Contract
 statement presence is not authenticated review. Results remain `NO_PROOF` with

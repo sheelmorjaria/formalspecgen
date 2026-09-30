@@ -2,15 +2,80 @@
 # SPDX-License-Identifier: Apache-2.0
 """Read-only Java/JML surface inspection; no proof or review authority."""
 from dataclasses import asdict, dataclass
+from collections import Counter
 import hashlib
 from pathlib import Path
 
 from .bounded_inputs import CaptureBudget, capture, input_directory, input_path
 from .java_contracts import contract_surface, has_reviewed_contract, surface_differences
+from .jml_io import _STATEMENT_PREFIX
 from .workflow_contracts import WorkflowContext
 
 
 CONTRACT_LIMITS = {"max_input_bytes": 1024 * 1024, "max_input_files": 2, "max_path_depth": 32}
+
+
+def _clause_inventory(surface: dict, role: str) -> dict:
+    """Count parser-observed syntax, never effective obligations or adequacy."""
+    members = []
+    for kind, signatures in (("method", surface["methods"]), ("constructor", surface["constructors"])):
+        for signature in signatures:
+            clauses = surface["clauses"]["members"][signature]
+            keywords = Counter()
+            for clause in clauses:
+                match = _STATEMENT_PREFIX.match(clause)
+                # Retain unfamiliar statements rather than silently counting
+                # a header or future syntax as a precondition/postcondition.
+                keywords[match.group(1).lower() if match else "other"] += 1
+            token = signature.replace("~", "~0").replace("/", "~1")
+            members.append({"kind": kind, "signature": signature,
+                            "clauses_pointer": f"/surfaces/{role}/clauses/members/{token}",
+                            "clause_count": len(clauses), "keywords": dict(sorted(keywords.items()))})
+    return {"scope": "explicit-parser-observed-member-clauses-only",
+            "input_pointer": f"/inputs/{role}", "adequacy": "NOT_ASSESSED",
+            "effective_contracts": "NOT_ASSESSED", "member_count": len(members),
+            "members_without_explicit_clauses": sum(item["clause_count"] == 0 for item in members),
+            "members": members,
+            "limitations": [
+                "Absence of explicit member clauses is not absence of an effective contract or a demonstrated defect.",
+                "Inherited contracts, specification defaults, implicit constructors and generated members are not inventoried.",
+                "Class clauses, annotations and proof-trust data remain in surfaces; counts do not measure requirement satisfaction or adequacy.",
+            ]}
+
+
+def _surface_review_changes(source: dict, candidate: dict) -> list[dict]:
+    """Locate structural changes, not logical implications between contracts.
+
+    Lists remain atomic: order and duplicate clauses can matter, and matching
+    their elements would imply a correspondence this parser does not establish.
+    Pointers address this result's captured surfaces, never live source lines.
+    """
+    categories = {"class": "PUBLIC_API", "methods": "PUBLIC_API",
+                  "constructors": "PUBLIC_API", "fields": "PUBLIC_API",
+                  "context": "SEMANTIC_CONTEXT", "clauses": "CONTRACT_CLAUSES",
+                  "semantic_modifiers": "SEMANTIC_MODIFIERS",
+                  "java_annotations": "JAVA_ANNOTATIONS", "proof_trust": "PROOF_TRUST",
+                  "private_assumptions": "PROOF_TRUST"}
+    changes = []
+
+    def visit(before, after, path, before_present=True, after_present=True):
+        if before_present and after_present and before == after:
+            return
+        if before_present and after_present and isinstance(before, dict) and isinstance(after, dict):
+            for key in sorted(before.keys() | after.keys()):
+                visit(before.get(key), after.get(key), (*path, key), key in before, key in after)
+            return
+        pointer = "/" + "/".join(key.replace("~", "~0").replace("/", "~1") for key in path)
+        change = {"category": categories.get(path[0], "OTHER_SURFACE"),
+                  "kind": "ADDED" if not before_present else "REMOVED" if not after_present else "MODIFIED"}
+        for role, value, present in (("source", before, before_present), ("candidate", after, after_present)):
+            change[role] = {"input_pointer": f"/inputs/{role}", "present": present,
+                            "surface_pointer": f"/surfaces/{role}{pointer}" if present else None,
+                            "value": value}
+        changes.append(change)
+
+    visit(source, candidate, ())
+    return changes
 
 
 @dataclass(frozen=True)
@@ -44,7 +109,7 @@ def inspect_contract(request: ContractInspectionRequest, context: WorkflowContex
     context.require("workspace_read")
     result = {"schema": "formalspecgen-contract-inspection-v1", "request": request.as_dict(),
               "status": "CONTRACT_INVALID", "request_satisfied": False, "claim": "NO_PROOF",
-              "inputs": {}, "surfaces": {}, "contract_statements_present": {},
+              "inputs": {}, "surfaces": {}, "contract_statements_present": {}, "clause_inventory": {},
               "review_status": "NOT_ASSESSED", "semantic_equivalence_proved": False,
               "behavior_equivalence_proved": False,
               "limitations": [
@@ -88,10 +153,13 @@ def inspect_contract(request: ContractInspectionRequest, context: WorkflowContex
                 return result
             # The historical parser helper name does not authenticate review.
             result["contract_statements_present"][role] = has_reviewed_contract(surface)
+            result["clause_inventory"][role] = _clause_inventory(surface, role)
         if request.operation == "diff":
             differences = surface_differences(result["surfaces"]["source"], result["surfaces"]["candidate"])
             result["comparison"] = {"scope": "supported-public-contract-surface-only",
-                                    "surface_equal": not differences, "differences": differences}
+                                    "surface_equal": not differences, "differences": differences,
+                                    "review_changes": _surface_review_changes(
+                                        result["surfaces"]["source"], result["surfaces"]["candidate"])}
         result.update(status="CONTRACT_COMPARED" if request.operation == "diff" else "CONTRACT_EXTRACTED",
                       request_satisfied=True)
     except (ValueError, OSError, RecursionError, TypeError) as exc:
