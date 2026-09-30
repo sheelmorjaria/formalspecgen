@@ -1378,6 +1378,82 @@ async def _evidence_observation() -> dict:
     return observation
 
 
+async def _contract_observation() -> dict:
+    """Real transport for static surface reports, never verifier evidence."""
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-contract-") as directory:
+        workspace = Path(directory)
+        source = "public class Account {\n //@ requires true;\n //@ ensures \\result >= 0;\n public int balance() { return 1; }\n}\n"
+        fixtures = {"Account.java": source, "Account.jml": source,
+            "Body.java": source.replace("return 1", "return 2"),
+            "Clause.java": source.replace(">= 0", ">= 1"),
+            "Trust.java": source.replace("return 1;", "\n//@ assume true;\nreturn 1;"),
+            "Syntax.java": "public class {", "Oversized.java": " " * (1024 * 1024 + 1)}
+        for name, content in fixtures.items():
+            (workspace / name).write_text(content)
+        (workspace / "Linked.java").symlink_to(workspace / "Account.java")
+        cases = [
+            ("extract-java", {"source": "Account.java"}, "CONTRACT_EXTRACTED"),
+            ("extract-jml", {"source": "Account.jml"}, "CONTRACT_EXTRACTED"),
+            ("diff-body", {"source": "Account.java", "operation": "diff", "candidate": "Body.java"}, "CONTRACT_COMPARED"),
+            ("diff-clause", {"source": "Account.java", "operation": "diff", "candidate": "Clause.java"}, "CONTRACT_COMPARED"),
+            ("diff-trust", {"source": "Account.java", "operation": "diff", "candidate": "Trust.java"}, "CONTRACT_COMPARED"),
+            ("missing-source", {"source": "Missing.java"}, "CONTRACT_INVALID"),
+            ("missing-candidate", {"source": "Account.java", "operation": "diff", "candidate": "Missing.java"}, "CONTRACT_INVALID"),
+            ("unsupported-syntax", {"source": "Syntax.java"}, "CONTRACT_UNSUPPORTED"),
+            ("byte-limit", {"source": "Oversized.java"}, "CONTRACT_INVALID"),
+            ("symlink", {"source": "Linked.java"}, "CONTRACT_INVALID"),
+            ("denied-path", {"source": "../Outside.java"}, "CONTRACT_INVALID"),
+            ("invalid-request", {"source": "Account.java", "operation": "diff"}, "CONTRACT_INVALID"),
+        ]
+        def identity():
+            return {p.name: (os.readlink(p) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest())
+                    for p in workspace.iterdir()}
+        before = identity()
+        initialized, tools, schema, results = await _call_tool(workspace, "inspect_contract", [c[1] for c in cases])
+        if set(schema["properties"]) != {"source", "operation", "candidate"}:
+            raise RuntimeError("unexpected contract discovery schema")
+        comparisons, validated = [], []
+        for (variant, arguments, status), result in zip(cases, results):
+            satisfied = status in {"CONTRACT_EXTRACTED", "CONTRACT_COMPARED"}
+            if result["status"] != status or result["request_satisfied"] != satisfied or result["claim"] != "NO_PROOF":
+                raise RuntimeError("contract result changed scope or satisfaction")
+            if variant == "invalid-request":
+                if "mcp_admission" in result or result["code"] != "INVALID_REQUEST":
+                    raise RuntimeError("invalid contract request reached admission")
+            else:
+                if (result["mcp_admission"]["granted_effects"] != ["workspace_read"]
+                        or result["semantic_equivalence_proved"] or result["behavior_equivalence_proved"]
+                        or result["review_status"] != "NOT_ASSESSED"):
+                    raise RuntimeError("contract inspection strengthened claims or authority")
+                for item in result["inputs"].values():
+                    content = (workspace / item["path"]).read_bytes()
+                    if item["sha256"] != hashlib.sha256(content).hexdigest() or item["size"] != len(content):
+                        raise RuntimeError("contract captured input identity mismatch")
+                    validated.append({"variant": variant, **item})
+            if status == "CONTRACT_COMPARED":
+                if result["comparison"]["surface_equal"] != (variant == "diff-body"):
+                    raise RuntimeError("surface mutation disappeared or body-only change was misclassified")
+            if variant == "missing-candidate" and ("source" not in result["surfaces"] or "comparison" in result):
+                raise RuntimeError("candidate failure erased baseline or fabricated comparison")
+            command = [sys.executable, "-m", "pipeline.cli", "contract", arguments.get("operation", "extract"),
+                       arguments["source"], "--json", "-"]
+            if "candidate" in arguments:
+                command += ["--candidate", arguments["candidate"]]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(
+                command, cwd=workspace, text=True, capture_output=True, timeout=30, check=False))
+            envelope = json.loads(process.stdout)
+            expected = {k: v for k, v in result.items() if k != "mcp_admission"}
+            if envelope["result"] != expected or process.returncode != (0 if satisfied else 1):
+                raise RuntimeError("contract CLI/MCP semantic mismatch")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(expected)})
+        if identity() != before:
+            raise RuntimeError("contract inspection modified workspace")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, validated_inputs=validated,
+                       workspace_unchanged=True, variants=[c[0] for c in cases])
+    return observation
+
+
 async def _project_observation() -> dict:
     """Real static project requests and CLI equivalence; no backend qualification."""
     with tempfile.TemporaryDirectory(prefix="formalspecgen-project-") as directory:
@@ -1972,6 +2048,7 @@ async def _security_template_observation() -> dict:
 
 
 _ADAPTERS = {
+    "contract": _contract_observation,
     "security-exploit": _security_template_observation,
     "verify-bisimulation": _bisimulation_observation,
     "worker": _worker_observation,

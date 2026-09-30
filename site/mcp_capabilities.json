@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 22,
-  "cli_capability_count": 14,
+  "capability_count": 23,
+  "cli_capability_count": 15,
   "mcp_only_capability_count": 8,
   "capabilities": [
     {
@@ -2409,6 +2409,69 @@
             "workspace_read"
           ],
           "profile_sha256": "2f8c4ec6ea30de7bc3d82ea977f1b27b24461758fdcc453b965f3ade6a19e16f"
+        }
+      ]
+    },
+    {
+      "name": "inspect_contract",
+      "mcp_tool": "inspect_contract",
+      "cli_command": "contract",
+      "description": "Extract or compare supported Java/JML contract surfaces without verification.",
+      "isolation": "non-executing",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "extract",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "operation",
+          "candidate"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "readonly-java-contract-surface",
+          "modes": [
+            "diff",
+            "extract"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "builtin-contract-surface"
+          ],
+          "effects": [
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "captured-source-identities",
+          "required_effects": [
+            "workspace_read"
+          ],
+          "profile_sha256": "b9cb735c65c9f3191a05d7e326427fb8e51a379c9a107a19c8e70214732be7f0"
         }
       ]
     }

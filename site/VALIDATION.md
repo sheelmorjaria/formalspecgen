@@ -5,21 +5,21 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `ad3d6b1c4f08a03580a5d14857dd333c530eeff2d024b18c74606d7985186cd0`
-- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `6dca504fccca4090141ac3bd43c451fc7ad809d46d6c298ce92f2388bceff3b0`
-- `command_inventory.json` SHA-256: `bb08a7bf5a7f4e40b420e49d86537fc8cbf7a85a534c3c9711a5e93f48d9ae18`
-- `mcp_capabilities.json` SHA-256: `f2716e2b0ea431a6e7585957020ed3bd8633d95ef666b1f7faeb1dbabcabc136`
-- Parsed HTML element IDs: 21
+- `index.html` SHA-256: `3e6d46f4563ab309aab2e7126ad3574ca18d02219746e59142ff6de6fc1c4eb3`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `e5a6711876d758b9c4f3fec4871d5866676cd9dcb6d4b264812ce4d0bc804243`
+- `command_inventory.json` SHA-256: `1c7147c4dc8e2e93074c7ae0d6424cf03e3a35643547a2d6c5f0ec10d093fd61`
+- `mcp_capabilities.json` SHA-256: `27b2c8e985fea4a02946c6c5564f2a79d92fe8801427b45c30d3c45e71ae480c`
+- Parsed HTML element IDs: 22
 - Same-page fragment links checked: 18
 - Missing same-page targets: none
 - Duplicate element IDs: none
 - Linked publication files: `command_inventory.json`, `mcp_capabilities.json`,
   `VALIDATION.md`, `FORMALSPECGEN_USER_GUIDE.html`, and the archived `91c6790` guide
-- Operating-manual IDs: 205; local links and cross-page fragments checked
-- All 43 command-reference and index admission labels generated from the live inventory
+- Operating-manual IDs: 206; local links and cross-page fragments checked
+- All 44 command-reference and index admission labels generated from the live inventory
 - Unexpected relative assets: none
 - Handwritten verification, analysis, refactoring, and traceability MCP payloads validated through application request models
-- Current landing-page CLI examples parsed against the real CLI: 17
+- Current landing-page CLI examples parsed against the real CLI: 18
 
 ## Scope limits
 

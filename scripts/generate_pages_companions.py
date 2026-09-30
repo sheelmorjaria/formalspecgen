@@ -22,6 +22,7 @@ from pipeline.capability_discovery import CapabilityDiscoveryRequest
 from pipeline.agentic.run_reader import RunReadRequest
 from pipeline.worker_queries import WorkerArtifactsRequest
 from pipeline.project_planning import ProjectWorkflowRequest
+from pipeline.contract_inspection import ContractInspectionRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -237,6 +238,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "contract-diff": "contract",
         "project-plan": "project",
         "project-impact": "project",
         "bisimulation": "verify-bisimulation",
@@ -269,6 +271,10 @@ def _validate_cli_examples(examples: dict[str, str]) -> None:
             request = ProjectWorkflowRequest(args.manifest, args.operation, args.target)
             if request != ProjectWorkflowRequest("project.json", "plan", "app") or args.json != "-":
                 raise ValueError("project example must plan app from project.json on stdout")
+        if name == "contract-diff":
+            request = ContractInspectionRequest(args.source, args.operation, args.candidate)
+            if request != ContractInspectionRequest("before/Account.java", "diff", "after/Account.java") or args.json != "-":
+                raise ValueError("contract example must compare Account.java revisions on stdout")
         if name == "project-impact":
             request = ProjectWorkflowRequest(args.manifest, args.operation, args.target, args.changed or ())
             if request != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]) or args.json != "-":
@@ -375,6 +381,7 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
+            "contract-diff",
             "project-plan", "project-impact",
             "bisimulation", "security-templates",
             "worker-artifacts", "run-show", "capabilities", "verify-java", "analyze-codebase", "apply-refactor-java", "traceability", "evidence-explain", "evidence-diff", "evidence-source"}:
@@ -382,6 +389,8 @@ def _validate_workflow_examples(examples: dict[str, str]) -> None:
             "guide workflow-example drift: expected project-plan, security-templates, bisimulation, verify-java, analyze-codebase, "
             "worker-artifacts, run-show, capabilities, apply-refactor-java, traceability, evidence-explain, evidence-diff, and evidence-source, found "
             + ", ".join(sorted(examples)))
+    if ContractInspectionRequest(**json.loads(examples["contract-diff"])) != ContractInspectionRequest("before/Account.java", "diff", "after/Account.java"):
+        raise ValueError("contract example must compare Account.java revisions")
     if ProjectWorkflowRequest(**json.loads(examples["project-plan"])) != ProjectWorkflowRequest("project.json", "plan", "app"):
         raise ValueError("project example must plan app from project.json")
     if ProjectWorkflowRequest(**json.loads(examples["project-impact"])) != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]):

@@ -46,11 +46,11 @@ def test_live_builtin_inventory_matches_every_planned_declaration():
     assert manifest["inventory_complete"] is True
     assert manifest["issues"] == []
     assert manifest["metrics"] == {
-        "discovered_commands": 43,
-        "mapped_commands": 43,
-        "discovered_argument_declarations": 225,
-        "mapped_argument_declarations": 225,
-        "commands_with_admitted_profile": 14,
+        "discovered_commands": 44,
+        "mapped_commands": 44,
+        "discovered_argument_declarations": 229,
+        "mapped_argument_declarations": 229,
+        "commands_with_admitted_profile": 15,
         "complete_workflow_commands": 0,
     }
     assert manifest["full_workflow_parity_complete"] is False

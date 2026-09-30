@@ -1255,6 +1255,17 @@ _GENERIC_DATA.append({
                       "output_scope": "none", "evidence": "read-only-project-plan"},),
 })
 
+_GENERIC_DATA.append({
+    "name": "inspect_contract", "description": "Extract or compare supported Java/JML contract surfaces without verification.",
+    "cli_command": "contract", "mcp_tool": "inspect_contract",
+    "epistemic_boundary": "Surface agreement is not semantic equivalence, proof, authenticated review, or refactor acceptance.",
+    "mcp_isolation": "non-executing",
+    "mcp_profiles": ({"name": "readonly-java-contract-surface", "modes": ("extract", "diff"),
+                      "languages": ("java",), "backends": ("builtin-contract-surface",),
+                      "effects": ("workspace_read",), "required_effects": ("workspace_read",),
+                      "output_scope": "none", "evidence": "captured-source-identities"},),
+})
+
 CAPABILITIES: tuple[CapabilitySpec, ...] = tuple(
     _capability(item) for item in _GENERIC_DATA
 )

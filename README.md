@@ -1110,6 +1110,24 @@ traceability still writes its matrix and default JSON sidecar. Signed refactorin
 requires `--json PATH`, not stdout. Plugin-defined options retain their plugin
 semantics. MCP response schemas and verification claims are unchanged.
 
+### Inspect Java/JML contract surfaces
+
+```bash
+formalspecgen contract extract src/Account.java --json -
+formalspecgen contract diff before/Account.java --candidate after/Account.java --json -
+```
+
+MCP exposes the same shared service through `inspect_contract(source, operation,
+candidate)`. It reuses the refactor gate's supported public/protected contract,
+compilation-context, and proof-trust surface parser. Inputs share a 1 MiB/two-file
+capture budget; no verifier, provider, publication, or approval runs. Unsupported
+syntax is explicit, and candidate failure retains the captured baseline.
+
+Differences are structural—not proof of stronger or weaker contracts. Equal
+surfaces do not establish behavioral equivalence or accept a refactor. Contract
+statement presence is not authenticated review. Results remain `NO_PROOF` with
+review unassessed. See the [scope and examples](site/FORMALSPECGEN_USER_GUIDE.html#contract).
+
 ### Validate and plan explicit project inputs
 
 ```bash

@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "f826c5bc4f98678840438e884f3b82f72eab5eda9870eca07b1a1c34134b382b",
+  "plan_sha256": "27eb8c5ea0881ab502a769211d6cc49f1b04ffbfe0659b53683f4262cbef8d95",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -68,6 +68,7 @@
         "assess-security",
         "capabilities",
         "compose",
+        "contract",
         "correct-behavior",
         "design-system",
         "discover-algorithms",
@@ -117,6 +118,91 @@
     },
     "plugins": [],
     "commands": [
+      {
+        "command": "contract",
+        "origin": "builtin",
+        "plugin_id": null,
+        "handler_id": "pipeline.cli:dispatch:contract",
+        "human_only": false,
+        "mcp_exposed_intent": false,
+        "help": "extract or compare supported Java/JML contract surfaces; no proof",
+        "description": null,
+        "arguments": [
+          {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "extract",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "source"
+            ],
+            "dest": "source",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "baseline Java/JML source inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "candidate Java/JML source; required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          }
+        ]
+      },
       {
         "command": "project",
         "origin": "builtin",
@@ -4598,16 +4684,16 @@
         ]
       }
     ],
-    "command_count": 43,
-    "argument_declaration_count": 225,
-    "sha256": "fa4d945a01250a05fbad7aabb02dc8e619896cd72a9529b079d5054a08c46954"
+    "command_count": 44,
+    "argument_declaration_count": 229,
+    "sha256": "93f3e5cb19a99b4aff87426e6af8128fea1d3a261a9d26fc04181ab30deb957f"
   },
   "metrics": {
-    "discovered_commands": 43,
-    "mapped_commands": 43,
-    "discovered_argument_declarations": 225,
-    "mapped_argument_declarations": 225,
-    "commands_with_admitted_profile": 14,
+    "discovered_commands": 44,
+    "mapped_commands": 44,
+    "discovered_argument_declarations": 229,
+    "mapped_argument_declarations": 229,
+    "commands_with_admitted_profile": 15,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -5925,6 +6011,215 @@
           "mapped_inputs_missing_from_mcp_schema",
           "argument_mappings_not_verified",
           "completion_contract_missing"
+        ]
+      }
+    },
+    {
+      "cli_command": "contract",
+      "target_mcp_tool": "inspect_contract",
+      "workflow_kind": "direct",
+      "requirements": "Bounded read-only extraction and structural comparison of supported public Java/JML surfaces. No semantic proof, review authentication, execution or export.",
+      "origin": "builtin",
+      "plugin_id": null,
+      "arguments": [
+        {
+          "cli": {
+            "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "candidate Java/JML source; required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "candidate",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only; no file export."
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "extract",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "source"
+            ],
+            "dest": "source",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "baseline Java/JML source inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "source",
+          "disposition": "direct",
+          "requirement": null
+        }
+      ],
+      "adapter": {
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "readonly-java-contract-surface",
+            "modes": [
+              "diff",
+              "extract"
+            ],
+            "languages": [
+              "java"
+            ],
+            "backends": [
+              "builtin-contract-surface"
+            ],
+            "effects": [
+              "workspace_read"
+            ],
+            "providers": [],
+            "output_scope": "none",
+            "evidence": "captured-source-identities",
+            "required_effects": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "compatibility_aliases": []
+      },
+      "mcp_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "default": "extract",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "operation",
+          "candidate"
+        ]
+      },
+      "workflow_completion": {
+        "status": "incomplete",
+        "complete": false,
+        "mapped_mcp_fields": [
+          "candidate",
+          "operation",
+          "source"
+        ],
+        "observed_mcp_fields": [
+          "candidate",
+          "operation",
+          "source"
+        ],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "api",
+          "byte-limit",
+          "capture-once",
+          "context",
+          "denied-path",
+          "diff-body",
+          "diff-clause",
+          "diff-trust",
+          "encoding",
+          "extract-java",
+          "extract-jml",
+          "file-limit",
+          "invalid-request",
+          "missing-candidate",
+          "missing-source",
+          "no-contract",
+          "permissions",
+          "read-only",
+          "stdout-only",
+          "symlink",
+          "unsupported-syntax"
+        ],
+        "covered_variants": [],
+        "evidence_revision": null,
+        "acceptance_cases": [],
+        "transport_observation": null,
+        "blockers": [
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -14571,5 +14866,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "addf88c5f8ba209cba9ab93f94a2b0456d1d5396049a5287c79d0a2a7c75c6da"
+  "sha256": "181ea9204cae039dbefb53960891c24ad6ef32f5bbbf109d95c900d8e75a8c96"
 }

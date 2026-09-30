@@ -3,8 +3,8 @@
   "status": "implementation_target_not_runtime_policy",
   "baseline_revision": "91c6790",
   "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
-  "baseline_command_count": 43,
-  "baseline_argument_declaration_count": 225,
+  "baseline_command_count": 44,
+  "baseline_argument_declaration_count": 229,
   "inventory_count_scope": "Current plan counts; field names retained for schema compatibility. Generated live inventory is authoritative.",
   "historical_baseline_counts": {"revision": "91c6790", "commands": 38, "argument_declarations": 205},
   "inventory_provenance": {
@@ -27,6 +27,41 @@
   },
   "completion_rule": "Every valid CLI semantic profile completes through MCP on a provisioned reference environment under approved policy; a registered tool returning only unsupported/rejected is incomplete.",
   "commands": [
+    {
+      "cli_command": "contract",
+      "proposed_mcp_tool": "inspect_contract",
+      "workflow_kind": "direct",
+      "requirements": "Bounded read-only extraction and structural comparison of supported public Java/JML surfaces. No semantic proof, review authentication, execution or export.",
+      "baseline_strict_mcp": "Not present at historical baseline",
+      "implementation_status": "admitted_pending_revision_bound_acceptance",
+      "argument_mappings": [
+        {"cli_flags": ["operation"], "proposed_mcp_field": "operation", "disposition": "direct", "implementation_status": "verified",
+         "baseline_declaration": {"flags": ["operation"], "required": true, "choices": ["extract", "diff"]}},
+        {"cli_flags": ["source"], "proposed_mcp_field": "source", "disposition": "direct", "implementation_status": "verified",
+         "baseline_declaration": {"flags": ["source"], "required": true}},
+        {"cli_flags": ["--candidate"], "proposed_mcp_field": "candidate", "disposition": "direct", "implementation_status": "verified",
+         "baseline_declaration": {"flags": ["--candidate"], "required": false}},
+        {"cli_flags": ["--json"], "proposed_mcp_field": null, "disposition": "structured_response", "implementation_status": "verified",
+         "requirement": "Stdout only; no file export.",
+         "baseline_declaration": {"flags": ["--json"], "required": false, "nargs": "?", "const": "-", "choices": ["-"]}}
+      ],
+      "completion_contract": {
+        "schema": "formalspecgen-workflow-completion-v1",
+        "required_environment": "Linux, installed parser dependencies and pinned MCP SDK; FORMALSPECGEN_REQUIRE_CONTRACT_TRANSPORT=1 or FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE=1. No backend or provider.",
+        "claim_scope": "Supported structural Java/JML public surface only; NO_PROOF and no review authentication or refactor acceptance.",
+        "required_variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "context", "api", "missing-source", "missing-candidate", "unsupported-syntax", "encoding", "byte-limit", "file-limit", "symlink", "denied-path", "invalid-request", "capture-once", "permissions", "stdout-only", "no-contract", "read-only"],
+        "acceptance_cases": [
+          {"kind": "request_equivalence", "test": "tests/test_contract_inspection.py::test_interfaces_and_scope", "variants": ["extract-java", "extract-jml", "diff-body", "read-only"]},
+          {"kind": "argument_delivery", "test": "tests/test_contract_inspection.py::test_interfaces_and_scope", "variants": ["extract-java", "extract-jml", "diff-body"]},
+          {"kind": "result_equivalence", "test": "tests/test_contract_inspection.py::test_surface_mutations_are_reported_not_proved", "variants": ["diff-clause", "diff-trust", "context", "api"]},
+          {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_invalid_requests_stop_before_dispatch", "variants": ["invalid-request"]},
+          {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_candidate_failures_preserve_baseline", "variants": ["missing-candidate", "unsupported-syntax", "encoding", "byte-limit", "file-limit", "symlink", "denied-path"]},
+          {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_once_capture_and_exact_budget", "variants": ["capture-once"]},
+          {"kind": "effect_enforcement", "test": "tests/test_contract_inspection.py::test_permissions_no_contracts_and_output", "variants": ["permissions", "stdout-only", "no-contract"]},
+          {"kind": "mcp_transport", "test": "tests/test_contract_inspection.py::test_real_contract_transport", "variants": ["extract-java", "extract-jml", "diff-body", "diff-clause", "diff-trust", "missing-source", "missing-candidate", "unsupported-syntax", "byte-limit", "symlink", "denied-path", "invalid-request", "read-only"]}
+        ]
+      }
+    },
     {
       "cli_command": "project",
       "proposed_mcp_tool": "inspect_project",

@@ -3,9 +3,9 @@
   "application_version": "13.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
-  "command_count": 43,
-  "argument_declaration_count": 225,
-  "commands_with_admitted_profile": 14,
+  "command_count": 44,
+  "argument_declaration_count": 229,
+  "commands_with_admitted_profile": 15,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -672,6 +672,108 @@
           "mcp_field": "artifact",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
+        }
+      ]
+    },
+    {
+      "cli_command": "contract",
+      "mcp_tool": "inspect_contract",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
+      "completion_status": "incomplete",
+      "argument_declarations": [
+        {
+          "cli": {
+            "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "candidate Java/JML source; required only for diff",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "candidate",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout only; no export",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": null,
+          "disposition": "structured_response",
+          "requirement": "Stdout only; no file export."
+        },
+        {
+          "cli": {
+            "flags": [
+              "operation"
+            ],
+            "dest": "operation",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [
+              "extract",
+              "diff"
+            ],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "operation",
+          "disposition": "direct",
+          "requirement": null
+        },
+        {
+          "cli": {
+            "flags": [
+              "source"
+            ],
+            "dest": "source",
+            "positional": true,
+            "required": true,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "baseline Java/JML source inside the current workspace",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "source",
+          "disposition": "direct",
+          "requirement": null
         }
       ]
     },
@@ -5488,7 +5590,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "fa4d945a01250a05fbad7aabb02dc8e619896cd72a9529b079d5054a08c46954",
+    "inventory_sha256": "93f3e5cb19a99b4aff87426e6af8128fea1d3a261a9d26fc04181ab30deb957f",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

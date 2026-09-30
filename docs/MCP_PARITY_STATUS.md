@@ -5,10 +5,10 @@ Do not edit it by hand.
 
 ## Inventory
 
-- Commands mapped: 43 / 43
-- Argument declarations mapped: 225 / 225
-- Commands with at least one admitted invocation profile: 14 / 43
-- Complete command workflows: 0 / 43
+- Commands mapped: 44 / 44
+- Argument declarations mapped: 229 / 229
+- Commands with at least one admitted invocation profile: 15 / 44
+- Complete command workflows: 0 / 44
 - Inventory drift: none
 - Full workflow parity: in progress
 
@@ -22,6 +22,7 @@ Do not edit it by hand.
 | `assess-security` | `assess_security` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `capabilities` | `describe_capabilities` | `direct` | `admitted` | `incomplete` | 2 |
 | `compose` | `compose` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |
+| `contract` | `inspect_contract` | `direct` | `admitted` | `incomplete` | 4 |
 | `correct-behavior` | `correct_behavior` | `direct_or_task_with_approval` | `adapter_present_not_admitted` | `incomplete` | 12 |
 | `design-system` | `design_system` | `resumable` | `adapter_missing` | `incomplete` | 8 |
 | `discover-algorithms` | `discover_algorithms` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |

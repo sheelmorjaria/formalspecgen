@@ -1248,6 +1248,19 @@ def command_run(args: argparse.Namespace, ui: TerminalUI) -> int:
     return 0 if result["request_satisfied"] else 1
 
 
+def command_contract(args: argparse.Namespace, ui: TerminalUI) -> int:
+    from .contract_inspection import ContractInspectionRequest, inspect_contract
+    from .workflow_contracts import WorkflowContext
+    try:
+        request = ContractInspectionRequest(args.source, args.operation, args.candidate)
+        result = inspect_contract(request, WorkflowContext.for_cli(request.required_effects()))
+    except ValueError as exc:
+        result = {"status": "CONTRACT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                  "code": "INVALID_REQUEST", "message": str(exc)}
+    _write_json(result, args.json, ui.console)
+    return 0 if result["request_satisfied"] else 1
+
+
 def command_project(args: argparse.Namespace, ui: TerminalUI) -> int:
     from .project_planning import ProjectWorkflowRequest, inspect_project
     from .workflow_contracts import WorkflowContext
@@ -2485,6 +2498,12 @@ def build_parser(
     )
     common.add_argument("--model")
 
+    contract = sub.add_parser("contract", help="extract or compare supported Java/JML contract surfaces; no proof")
+    contract.add_argument("operation", choices=["extract", "diff"])
+    contract.add_argument("source", help="baseline Java/JML source inside the current workspace")
+    contract.add_argument("--candidate", help="candidate Java/JML source; required only for diff")
+    contract.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout only; no export")
+
     project = sub.add_parser("project", help="validate, plan or inspect declared change impact without executing workflows")
     project.add_argument("operation", choices=["validate", "plan", "impact"])
     project.add_argument("manifest", help="versioned JSON project manifest inside the current workspace")
@@ -3185,6 +3204,8 @@ def dispatch(
 def _dispatch(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
+    if args.command == "contract":
+        return command_contract(args, ui)
     if args.command == "project":
         return command_project(args, ui)
     if args.command == "capabilities":

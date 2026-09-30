@@ -529,6 +529,22 @@ def implement_code(spec_path: str, provider: str = "ollama",
     return _guarded(run)
 
 
+def inspect_contract(source: str, operation: str = "extract", candidate: str | None = None) -> dict[str, Any]:
+    """Read-only Java/JML surface extraction/comparison; never proof or approval."""
+    from pipeline.contract_inspection import ContractInspectionRequest, inspect_contract as run
+    try:
+        request = ContractInspectionRequest(source, operation, candidate)
+    except ValueError as exc:
+        return {"status": "CONTRACT_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": "INVALID_REQUEST", "message": str(exc)}
+    admission = authorize_mcp_invocation("inspect_contract", mode=operation, language="java",
+        backend="builtin-contract-surface", effects=request.required_effects())
+    if not admission.admitted:
+        return admission.rejection()
+    context = WorkflowContext.for_mcp(admission, request.required_effects())
+    return {**run(request, context), "mcp_admission": admission.summary()}
+
+
 def inspect_project(manifest: str, operation: str = "validate", target: str | None = None,
                     changed_paths: list[str] | None = None) -> dict[str, Any]:
     """Bounded project declarations and input identities; never execute or authorize a plan."""
