@@ -2621,12 +2621,19 @@ FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE=1 \
 ```
 
 This gate verifies application imports come from the installed wheel, compares
-CLI/MCP evidence and capability results, checks tampered and missing inputs, and confirms that
+CLI/MCP evidence, capability, and contract-inspection results, checks tampered and missing inputs, and confirms that
 inspection leaves the workspace unchanged. The ledgers are synthetic, not proof
 evidence. Third-party dependencies come from the provisioned test environment;
 this is not a hermetic dependency installation, formal-backend qualification, or
 production signing/isolation deployment certification. CI requires this gate
 separately from revision-bound workflow completion.
+
+Contract inspection also requires installed-wheel acceptance in its completion
+plan. Its 16 installed-interface scenarios cover Java/JML extraction, body and
+contract/proof-trust differences, clause inventories and references, unsupported
+syntax, missing inputs, byte limits, symlinks, out-of-scope paths, and invalid
+requests. Both the installed console entry point and discovered MCP tool must
+agree without turning structural reports into proof or review approval.
 
 Coverage is revision- and environment-dependent; use the test run's report rather
 than a fixed percentage in this guide. `pytest.ini` requests branch coverage and

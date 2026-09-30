@@ -6,7 +6,7 @@ documentation validation, not formal verification or revision-bound acceptance e
 ## Checked publication inputs
 
 - `index.html` SHA-256: `3e6d46f4563ab309aab2e7126ad3574ca18d02219746e59142ff6de6fc1c4eb3`
-- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `c6b45d5c41f99f731f47585e48ce930e4b4c8af41e01cfbf576bb4396660d657`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `6d81ea4659b214599982c6dfc78d22893e6273832c2f61880e6f3cc662004511`
 - `command_inventory.json` SHA-256: `1c7147c4dc8e2e93074c7ae0d6424cf03e3a35643547a2d6c5f0ec10d093fd61`
 - `mcp_capabilities.json` SHA-256: `27b2c8e985fea4a02946c6c5564f2a79d92fe8801427b45c30d3c45e71ae480c`
 - Parsed HTML element IDs: 22

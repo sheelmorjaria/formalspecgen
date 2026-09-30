@@ -478,6 +478,166 @@ print(json.dumps({"cli_calls": len(cases), "mcp_calls": len(cases) if remote els
 
 
 @pytest.mark.parametrize("interface", ["cli", "mcp"])
+def test_installed_contract_interfaces(installed_wheel, tmp_path, interface):
+    if interface == "mcp" and os.environ.get("FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE") != "1":
+        pytest.skip("requires installed MCP acceptance")
+    target, _, environment = installed_wheel
+    script = r'''
+import asyncio, hashlib, json, os, subprocess, sys
+from pathlib import Path
+root = Path(os.environ["PYTHONPATH"]).resolve()
+guard = """
+import sys
+from pathlib import Path
+import mcp_server
+import pipeline.cli
+import pipeline.contract_inspection
+import pipeline.java_contracts
+import pipeline.jml_io
+import pipeline.bounded_inputs
+root = Path(__import__('os').environ['PYTHONPATH']).resolve()
+for name, module in tuple(sys.modules.items()):
+    if name == 'mcp_server' or name.split('.')[0] in ('pipeline', 'formalspec_core'):
+        location = getattr(module, '__file__', None)
+        if location:
+            assert Path(location).resolve().is_relative_to(root), (name, location)
+"""
+exec(guard)
+source = "public class Account {\n //@ requires true;\n //@ ensures \\result >= 0;\n public int balance() { return 1; }\n}\n"
+fixtures = {
+    "Account.java": source, "Account.jml": source,
+    "Body.java": source.replace("return 1", "return 2"),
+    "Clause.java": source.replace(">= 0", ">= 1"),
+    "Trust.java": source.replace("return 1;", "\n//@ assume true;\nreturn 1;"),
+    "Mixed.java": "public class Account {\n public Account() {}\n protected void reset() {}\n //@ requires true;\n //@ ensures \\result >= 0;\n public int balance() { return 1; }\n}",
+    "NoClauses.java": "public class Account { public void reset() {} }",
+    "Empty.java": "public class Account {}",
+    "Syntax.java": "public class {", "Oversized.java": " " * (1024 * 1024 + 1),
+}
+for name, content in fixtures.items():
+    Path(name).write_text(content)
+Path("Linked.java").symlink_to("Account.java")
+cases = [
+    ("extract-java", {"source": "Account.java"}, "CONTRACT_EXTRACTED"),
+    ("extract-jml", {"source": "Account.jml"}, "CONTRACT_EXTRACTED"),
+    ("body", {"source": "Account.java", "operation": "diff", "candidate": "Body.java"}, "CONTRACT_COMPARED"),
+    ("clause", {"source": "Account.java", "operation": "diff", "candidate": "Clause.java"}, "CONTRACT_COMPARED"),
+    ("trust", {"source": "Account.java", "operation": "diff", "candidate": "Trust.java"}, "CONTRACT_COMPARED"),
+    ("mixed", {"source": "Mixed.java"}, "CONTRACT_EXTRACTED"),
+    ("no-clauses", {"source": "NoClauses.java"}, "CONTRACT_EXTRACTED"),
+    ("empty", {"source": "Empty.java"}, "CONTRACT_EXTRACTED"),
+    ("missing", {"source": "Missing.java"}, "CONTRACT_INVALID"),
+    ("missing-candidate", {"source": "Account.java", "operation": "diff", "candidate": "Missing.java"}, "CONTRACT_INVALID"),
+    ("syntax", {"source": "Syntax.java"}, "CONTRACT_UNSUPPORTED"),
+    ("limit", {"source": "Oversized.java"}, "CONTRACT_INVALID"),
+    ("symlink", {"source": "Linked.java"}, "CONTRACT_INVALID"),
+    ("denied", {"source": "../Outside.java"}, "CONTRACT_INVALID"),
+    ("invalid", {"source": "Account.java", "operation": "diff"}, "CONTRACT_INVALID"),
+    ("unsupported", {"source": "file.c"}, "CONTRACT_INVALID"),
+]
+def snapshot():
+    return {str(p.relative_to(Path.cwd())): ("symlink", os.readlink(p)) if p.is_symlink()
+            else ("file", hashlib.sha256(p.read_bytes()).hexdigest()) if p.is_file() else ("directory",)
+            for p in Path.cwd().rglob("*")}
+before = snapshot()
+local, bindings = [], 0
+for variant, arguments, status in cases:
+    command = [str(root / "bin/formalspecgen"), "contract", arguments.get("operation", "extract"),
+               arguments["source"], "--json", "-"]
+    if "candidate" in arguments:
+        command += ["--candidate", arguments["candidate"]]
+    process = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    satisfied = status in ("CONTRACT_EXTRACTED", "CONTRACT_COMPARED")
+    assert process.returncode == (0 if satisfied else 1), (variant, process.stderr)
+    envelope = json.loads(process.stdout)
+    assert envelope["schema"] == "formalspecgen-cli-result-v1"
+    assert envelope["operation_satisfied"] is satisfied
+    result = envelope["result"]
+    assert result["status"] == status and result["request_satisfied"] is satisfied
+    assert result["claim"] == "NO_PROOF"
+    local.append(result)
+    if variant in ("invalid", "unsupported"):
+        assert result["code"] == "INVALID_REQUEST"
+        continue
+    assert result["review_status"] == "NOT_ASSESSED"
+    assert not result["semantic_equivalence_proved"] and not result["behavior_equivalence_proved"]
+    def resolve(pointer):
+        value = result
+        for token in pointer[1:].split("/"):
+            value = value[token.replace("~1", "/").replace("~0", "~")]
+        return value
+    for item in result["inputs"].values():
+        content = Path(item["path"]).read_bytes()
+        assert item["sha256"] == hashlib.sha256(content).hexdigest() and item["size"] == len(content)
+        bindings += 1
+    for role, inventory in result["clause_inventory"].items():
+        assert inventory["adequacy"] == inventory["effective_contracts"] == "NOT_ASSESSED"
+        assert resolve(inventory["input_pointer"]) == result["inputs"][role]
+        assert inventory["member_count"] == len(inventory["members"])
+        assert inventory["members_without_explicit_clauses"] == sum(m["clause_count"] == 0 for m in inventory["members"])
+        for member in inventory["members"]:
+            assert len(resolve(member["clauses_pointer"])) == member["clause_count"] == sum(member["keywords"].values())
+    if variant in ("mixed", "no-clauses", "empty"):
+        inventory = result["clause_inventory"]["source"]
+        expected = {"mixed": (3, 2), "no-clauses": (1, 1), "empty": (0, 0)}[variant]
+        assert (inventory["member_count"], inventory["members_without_explicit_clauses"]) == expected
+    if status == "CONTRACT_COMPARED":
+        comparison = result["comparison"]
+        assert comparison["surface_equal"] is (variant == "body")
+        changes = comparison["review_changes"]
+        if variant == "body":
+            assert changes == []
+        else:
+            category = "CONTRACT_CLAUSES" if variant == "clause" else "PROOF_TRUST"
+            assert category in {item["category"] for item in changes}
+        for change in changes:
+            for role in ("source", "candidate"):
+                reference = change[role]
+                assert resolve(reference["input_pointer"]) == result["inputs"][role]
+                if reference["present"]:
+                    assert resolve(reference["surface_pointer"]) == reference["value"]
+                else:
+                    assert reference["surface_pointer"] is None and reference["value"] is None
+    if variant == "missing-candidate":
+        assert set(result["clause_inventory"]) == {"source"} and "comparison" not in result
+    if variant == "syntax":
+        assert result["clause_inventory"] == {}
+
+async def transport():
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    parameters = StdioServerParameters(command=sys.executable,
+        args=["-c", guard + "\nmcp_server.create_server().run()"], cwd=str(Path.cwd()), env=dict(os.environ))
+    async with stdio_client(parameters) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tool = next(t for t in (await session.list_tools()).tools if t.name == "inspect_contract")
+            assert set(tool.inputSchema["properties"]) == {"source", "operation", "candidate"}
+            for (_, arguments, _), expected in zip(cases, local):
+                response = await session.call_tool("inspect_contract", arguments)
+                assert not response.isError
+                actual = response.structuredContent
+                if expected.get("code") == "INVALID_REQUEST":
+                    assert "mcp_admission" not in actual
+                else:
+                    assert actual["mcp_admission"]["granted_effects"] == ["workspace_read"]
+                assert {k: v for k, v in actual.items() if k != "mcp_admission"} == expected
+remote = sys.argv[1] == "mcp"
+if remote:
+    asyncio.run(asyncio.wait_for(transport(), timeout=45))
+assert snapshot() == before, "Installed contract inspection changed its workspace"
+print(json.dumps({"cli_calls": len(cases), "mcp_calls": len(cases) if remote else 0,
+                  "input_bindings": bindings, "installed_root": str(root), "read_only": True}))
+'''
+    checked = subprocess.run([sys.executable, "-c", script, interface], cwd=tmp_path,
+        env=environment, capture_output=True, text=True, timeout=120)
+    assert checked.returncode == 0, (checked.stdout + checked.stderr)[-6000:]
+    assert json.loads(checked.stdout) == {
+        "cli_calls": 16, "mcp_calls": 16 if interface == "mcp" else 0,
+        "input_bindings": 13, "installed_root": str(target.resolve()), "read_only": True}
+
+
+@pytest.mark.parametrize("interface", ["cli", "mcp"])
 def test_installed_security_template_interfaces(installed_wheel, tmp_path, interface):
     if interface == "mcp" and os.environ.get("FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE") != "1":
         pytest.skip("requires installed MCP acceptance")
