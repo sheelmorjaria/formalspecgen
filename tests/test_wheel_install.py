@@ -399,6 +399,17 @@ for arguments, status in cases:
         continue
     assert result["claim"] == "NO_PROOF" and not result["invocation_authorized"]
     assert result["readiness"] == result["assurance"] == result["contract_approval"] == "NOT_ASSESSED"
+    if "registry_sha256" in result:
+        preview = result["effect_preview"]
+        assert not preview["invocation_authorized"]
+        assert preview["invocation_effects"] == preview["provider_disclosure"] == "NOT_ASSESSED"
+        assert all(preview[key] == result[key] for key in ("manifest_sha256", "registry_sha256", "policy_version"))
+        resolved = [step for step in preview["steps"] if step["resolved"]]
+        assert preview["resolution_complete"] == (len(resolved) == len(preview["steps"]))
+        assert preview["effect_ceiling_union"] == sorted({effect for step in resolved for effect in step["effect_ceiling"]})
+        for step in preview["steps"]:
+            if not step["resolved"]:
+                assert all(step[key] is None for key in ("effect_ceiling", "provider_options", "output_scope"))
     for item in result["inputs"]:
         content = Path(item["path"]).read_bytes()
         assert item["size"] == len(content) and item["sha256"] == hashlib.sha256(content).hexdigest()

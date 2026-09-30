@@ -1160,6 +1160,14 @@ target includes its declared dependencies; unselected targets remain visible.
 and captured digests in declaration order. Capture failures preserve earlier
 dependency bindings without marking the failing target or request complete.
 
+`effect_preview` summarizes the selected profiles' effect ceilings, provider
+options and output scopes, with a per-workflow breakdown bound to the captured
+manifest and installed registry. Unions cover resolved profiles only; unavailable
+profiles keep unknown (`null`) fields and `resolution_complete: false`. The
+preview can survive an input-capture failure, but the request still fails.
+It is not a list of granted or necessarily required invocation effects, provider
+disclosure approvals, or resolved output destinations. No provider is contacted.
+
 `target_fingerprints` provides an inspectable SHA-256 binding for each fully
 captured target: ordered source and contract identities, direct dependency
 fingerprints, workflow profile metadata, requested policy, and installed registry

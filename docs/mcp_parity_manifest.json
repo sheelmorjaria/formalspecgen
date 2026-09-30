@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "561e02f749f998a022129379a379ef971a993e65970db531021a93dc68b3efe2",
+  "plan_sha256": "e6f6f4c0d8537871050b7635e14ea5b5e83503cc1c7d5d984b8261efaf48c4a9",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -10408,6 +10408,11 @@
           "capture-once",
           "declared-order",
           "denied",
+          "effect-incomplete-capture",
+          "effect-preview",
+          "effect-provider",
+          "effect-selected",
+          "effect-unresolved",
           "fingerprint-dependency-change",
           "fingerprint-input-change",
           "fingerprint-partial-capture",
@@ -14882,5 +14887,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "0e54d4dc9121b7cd57ad394e34c95ab6b07dbd719f45ce50780a68c74379ba96"
+  "sha256": "720f976a2a8d4e537518bfbcb246f6e2f81a3419145e76c636dfae24ea809707"
 }

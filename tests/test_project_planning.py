@@ -114,6 +114,79 @@ def test_aggregate_limits(project, limits):
     assert not run(project, **limits)["request_satisfied"]
 
 
+@pytest.mark.parametrize("operation", ["validate", "plan", "impact"])
+def test_effect_preview_is_descriptive_and_interface_equivalent(project, capsys, operation):
+    document = project_document()
+    document["targets"][0]["workflows"].append({"capability": "document_code", "profile": "java-provider-assisted-documentation"})
+    (project / "project.json").write_text(json.dumps(document))
+    before = {p: p.read_bytes() for p in project.rglob("*") if p.is_file()}
+    extra = {"changed_paths": ["src/S.java"]} if operation == "impact" else {}
+    args = ["project", operation, "project.json", "--json", "-"]
+    if extra:
+        args += ["--changed", "src/S.java"]
+    with patch("subprocess.run", side_effect=AssertionError("no probe")), \
+         patch("subprocess.Popen", side_effect=AssertionError("no execution")), \
+         patch("pipeline.llm._chat_fn", side_effect=AssertionError("no disclosure")), \
+         patch("pipeline.mcp_artifacts.publish_new_artifacts", side_effect=AssertionError("no publication")):
+        remote = mcp_server.inspect_project("project.json", operation, **extra)
+        assert cli.dispatch(cli.build_parser().parse_args(args), cli.TerminalUI(), None, {}) == 0
+    local = json.loads(capsys.readouterr().out)["result"]
+    assert local == {key: value for key, value in remote.items() if key != "mcp_admission"}
+    assert local["request_satisfied"] and local["claim"] == "NO_PROOF"
+    preview = local["effect_preview"]
+    assert preview["resolution_complete"] and not preview["invocation_authorized"]
+    assert preview["invocation_effects"] == preview["provider_disclosure"] == "NOT_ASSESSED"
+    assert preview["effect_ceiling_union"] == ["evidence_publication", "external_execution", "provider_access", "workspace_read", "workspace_write_new"]
+    assert preview["provider_options_union"] == ["glm", "ollama", "openai"]
+    assert preview["output_scopes"] == ["designated-new-artifacts", "immutable-evidence-only", "none"]
+    assert [(s["target"], s["workflow_index"]) for s in preview["steps"]] == [("base", 0), ("app", 0), ("app", 1)]
+    for key in ("manifest_sha256", "registry_sha256", "policy_version"):
+        assert preview[key] == local[key]
+    for step in preview["steps"]:
+        profile = local["target_fingerprints"][step["target"]]["binding"]["workflows"][step["workflow_index"]]["profile_definition"]
+        assert step["effect_ceiling"] == profile["effects"]
+        assert step["provider_options"] == profile["providers"]
+        assert step["output_scope"] == profile["output_scope"]
+    assert remote["mcp_admission"]["granted_effects"] == ["workspace_read"]
+    assert before == {p: p.read_bytes() for p in project.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("failure", ["unknown", "unadmitted", "all-unresolved", "missing-source", "invalid-graph", "selected"])
+def test_effect_preview_preserves_unknown_and_incomplete_scope(project, failure):
+    document = project_document()
+    if failure in {"unknown", "all-unresolved", "unadmitted"}:
+        document["targets"][0]["workflows"] = [{"capability": "implement_code" if failure == "unadmitted" else "unknown", "profile": "unavailable"}]
+        if failure == "all-unresolved":
+            document["targets"][1]["workflows"] = document["targets"][0]["workflows"]
+    elif failure == "missing-source":
+        document["targets"][0]["sources"] = ["missing.java"]
+    elif failure == "invalid-graph":
+        document["targets"][0]["depends_on"] = ["missing"]
+    else:
+        document["targets"][0]["workflows"] = [{"capability": "document_code", "profile": "java-provider-assisted-documentation"}]
+    (project / "project.json").write_text(json.dumps(document))
+    result = run(project, target="base" if failure == "selected" else None)
+    if failure == "invalid-graph":
+        assert "effect_preview" not in result and not result["request_satisfied"]
+        return
+    preview = result["effect_preview"]
+    assert not preview["invocation_authorized"]
+    if failure == "selected":
+        assert result["request_satisfied"] and preview["resolution_complete"]
+        assert len(preview["steps"]) == 1 and preview["steps"][0]["target"] == "base"
+        assert preview["effect_ceiling_union"] == ["workspace_read"] and preview["provider_options_union"] == []
+    elif failure == "missing-source":
+        assert result["status"] == "PROJECT_INVALID" and not result["request_satisfied"]
+        assert preview["resolution_complete"] and len(preview["steps"]) == 2
+        assert not result["target_inputs"]["app"]["capture_complete"]
+    else:
+        assert result["status"] == "PROJECT_BLOCKED" and not preview["resolution_complete"]
+        unresolved = [step for step in preview["steps"] if not step["resolved"]]
+        assert len(unresolved) == (2 if failure == "all-unresolved" else 1)
+        assert all(step[key] is None for step in unresolved for key in ("effect_ceiling", "provider_options", "output_scope"))
+        assert preview["effect_ceiling_union"] == ([] if failure == "all-unresolved" else ["workspace_read"])
+
+
 def test_exact_limit_and_once_capture(project, monkeypatch):
     size = sum(p.stat().st_size for p in project.rglob("*") if p.is_file())
     assert run(project, max_input_bytes=size, max_input_files=4)["request_satisfied"]
@@ -480,10 +553,10 @@ def test_real_project_transport():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     result = collect_transport_observation("project")
     assert result["workspace_unchanged"]
-    assert len(result["cli_comparisons"]) == 25
+    assert len(result["cli_comparisons"]) == 28
     assert {"impact-transitive", "reject-missing-changes", "reject-selected-target",
             "impact-missing-source", "impact-missing-contract", "impact-linked-source",
-            "fingerprint-input-change", "fingerprint-policy-change",
+            "fingerprint-input-change", "fingerprint-policy-change", "effect-provider", "effect-selected", "effect-unresolved",
             "reject-traversal", "reject-duplicate", "reject-excessive", "reject-plan-changes"} <= set(result["variants"])
 
 

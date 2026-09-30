@@ -1536,6 +1536,13 @@ async def _project_observation() -> dict:
         changed_policy = json.loads(json.dumps(document))
         changed_policy["policy"] = {"required_assurance": "DEDUCTIVE_PROOF"}
         (workspace / "changed-policy.json").write_text(json.dumps(changed_policy))
+        provider_plan = json.loads(json.dumps(document))
+        provider_plan["targets"][0]["workflows"].append({"capability": "document_code", "profile": "java-provider-assisted-documentation"})
+        (workspace / "provider-plan.json").write_text(json.dumps(provider_plan))
+        unresolved_plan = json.loads(json.dumps(document))
+        for target in unresolved_plan["targets"]:
+            target["workflows"] = [{"capability": "unknown", "profile": "unavailable"}]
+        (workspace / "unresolved-plan.json").write_text(json.dumps(unresolved_plan))
         graph = json.loads(json.dumps(document))
         graph["targets"][0]["depends_on"] = ["middle", "base"]
         graph["targets"].extend([
@@ -1562,6 +1569,9 @@ async def _project_observation() -> dict:
             ("selected", {"manifest": "project.json", "operation": "plan", "target": "base"}, "PROJECT_PLANNED"),
             ("fingerprint-input-change", {"manifest": "changed-input.json", "operation": "plan"}, "PROJECT_PLANNED"),
             ("fingerprint-policy-change", {"manifest": "changed-policy.json", "operation": "plan"}, "PROJECT_PLANNED"),
+            ("effect-provider", {"manifest": "provider-plan.json", "operation": "plan"}, "PROJECT_PLANNED"),
+            ("effect-selected", {"manifest": "provider-plan.json", "operation": "plan", "target": "base"}, "PROJECT_PLANNED"),
+            ("effect-unresolved", {"manifest": "unresolved-plan.json", "operation": "plan"}, "PROJECT_BLOCKED"),
             ("invalid", {"manifest": "invalid.json"}, "PROJECT_INVALID"),
             ("missing", {"manifest": "missing.json"}, "PROJECT_INVALID"),
             ("blocked", {"manifest": "blocked.json", "operation": "plan"}, "PROJECT_BLOCKED"),
@@ -1623,6 +1633,35 @@ async def _project_observation() -> dict:
                 raise RuntimeError("project planning changed its status or claim boundary")
             if result["mcp_admission"]["granted_effects"] != ["workspace_read"]:
                 raise RuntimeError("project planning received additional authority")
+            if "registry_sha256" in result:
+                preview = result["effect_preview"]
+                if (preview["invocation_authorized"] or preview["invocation_effects"] != "NOT_ASSESSED"
+                        or preview["provider_disclosure"] != "NOT_ASSESSED"
+                        or any(preview[key] != result[key] for key in ("manifest_sha256", "registry_sha256", "policy_version"))):
+                    raise RuntimeError("effect preview changed authority or declaration bindings")
+                resolved = [step for step in preview["steps"] if step["resolved"]]
+                if (preview["resolution_complete"] != (len(resolved) == len(preview["steps"]))
+                        or preview["effect_ceiling_union"] != sorted({effect for step in resolved for effect in step["effect_ceiling"]})
+                        or preview["provider_options_union"] != sorted({provider for step in resolved for provider in step["provider_options"]})
+                        or preview["output_scopes"] != sorted({step["output_scope"] for step in resolved})):
+                    raise RuntimeError("effect preview summary mismatch")
+                for step in preview["steps"]:
+                    if not step["resolved"] and any(step[key] is not None for key in ("effect_ceiling", "provider_options", "output_scope")):
+                        raise RuntimeError("unresolved effects were represented as known")
+                    fingerprint = result["target_fingerprints"].get(step["target"])
+                    if fingerprint:
+                        profile = fingerprint["binding"]["workflows"][step["workflow_index"]]["profile_definition"]
+                        if step["resolved"] != (profile is not None) or (profile and
+                                (step["effect_ceiling"] != profile["effects"] or step["provider_options"] != profile["providers"]
+                                 or step["output_scope"] != profile["output_scope"])):
+                            raise RuntimeError("effect preview differs from bound profile")
+                if variant == "effect-provider" and (preview["provider_options_union"] != ["glm", "ollama", "openai"]
+                        or "provider_access" not in preview["effect_ceiling_union"]):
+                    raise RuntimeError("provider option exposure disappeared")
+                if variant == "effect-selected" and (preview["provider_options_union"] or preview["effect_ceiling_union"] != ["workspace_read"]):
+                    raise RuntimeError("effect preview included unselected targets")
+                if variant == "effect-unresolved" and (preview["resolution_complete"] or resolved or len(preview["steps"]) != 2):
+                    raise RuntimeError("unknown profile effects disappeared")
             for item in result["inputs"]:
                 content = (workspace / item["path"]).read_bytes()
                 if item["sha256"] != hashlib.sha256(content).hexdigest() or item["size"] != len(content):

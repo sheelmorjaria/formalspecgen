@@ -94,6 +94,41 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
+def _profile_definition(entries, workflow):
+    entry = entries.get(workflow["capability"])
+    profiles = [] if entry is None else [p for p in entry["profiles"] if p["name"] == workflow["profile"]]
+    return profiles[0] if entry and entry["strict_mcp_exposed"] and len(profiles) == 1 else None
+
+
+def _effect_preview(targets, order, entries, manifest_sha256, registry):
+    """Describe selected profile ceilings, never infer invocation permissions."""
+    steps = []
+    for name in order:
+        for index, workflow in enumerate(targets[name]["workflows"]):
+            profile = _profile_definition(entries, workflow)
+            steps.append({"target": name, "workflow_index": index, **workflow,
+                          "resolved": profile is not None,
+                          "effect_ceiling": profile["effects"] if profile else None,
+                          "provider_options": profile["providers"] if profile else None,
+                          "output_scope": profile["output_scope"] if profile else None})
+    resolved = [step for step in steps if step["resolved"]]
+    return {"scope": "selected-declared-profile-ceilings-only",
+            "manifest_sha256": manifest_sha256, "registry_sha256": registry["registry_sha256"],
+            "policy_version": registry["policy_version"],
+            "resolution_complete": len(resolved) == len(steps),
+            "effect_ceiling_union": sorted({effect for step in resolved for effect in step["effect_ceiling"]}),
+            "provider_options_union": sorted({provider for step in resolved for provider in step["provider_options"]}),
+            "output_scopes": sorted({step["output_scope"] for step in resolved}),
+            "steps": steps, "invocation_effects": "NOT_ASSESSED",
+            "provider_disclosure": "NOT_ASSESSED", "invocation_authorized": False,
+            "limitations": [
+                "Unions cover resolved profiles only; unresolved steps have unknown effects, providers and outputs.",
+                "Profile ceilings are not required or granted invocation effects; no concrete invocation arguments are validated.",
+                "Provider names are registry options, not endpoint selections or source-disclosure approvals.",
+                "Output scopes are declarations, not resolved destinations or publication authority.",
+            ]}
+
+
 def _impact(targets, order, changed_paths, manifest_name):
     """Explain declared dependency impact, not evidence applicability or reuse."""
     changed = set(changed_paths)
@@ -250,6 +285,10 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
         result["registry_sha256"] = registry["registry_sha256"]
         result["policy_version"] = registry["policy_version"]
         entries = {item["name"]: item for item in registry["capabilities"]}
+        # Declaration-only preview survives later capture failure. It does not
+        # claim complete input identity or execution readiness in that case.
+        result["effect_preview"] = _effect_preview(
+            targets, order, entries, result["manifest_sha256"], registry)
         for name in order:
             target = targets[name]
             result["targets"].append(name)
@@ -268,11 +307,11 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
             workflow_bindings = []
             for workflow in target["workflows"]:
                 entry = entries.get(workflow["capability"])
-                profiles = [] if entry is None else [p for p in entry["profiles"] if p["name"] == workflow["profile"]]
-                available = bool(entry and entry["strict_mcp_exposed"] and len(profiles) == 1)
+                profile = _profile_definition(entries, workflow)
+                available = profile is not None
                 step = {"target": name, **workflow, "profile_available": available,
                         "depends_on": target["depends_on"], "invocation_authorized": False,
-                        "profile_definition": profiles[0] if available else None,
+                        "profile_definition": profile,
                         "claim_boundary": entry["claim_boundary"] if entry else None}
                 if not available:
                     result["findings"].append({"target": name, "capability": workflow["capability"],
