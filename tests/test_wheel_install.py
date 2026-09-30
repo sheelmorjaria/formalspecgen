@@ -423,6 +423,18 @@ for result in local:
     if result.get("code") == "INVALID_REQUEST":
         continue
     assert set(result["target_inputs"]) == set(result["targets"])
+    assert set(result["target_fingerprints"]) == {
+        name for name, binding in result["target_inputs"].items() if binding["capture_complete"]}
+    for name, fingerprint in result["target_fingerprints"].items():
+        binding = fingerprint["binding"]
+        encoded = json.dumps(binding, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        assert fingerprint["sha256"] == hashlib.sha256(encoded).hexdigest()
+        assert fingerprint["evidence_reuse_authorized"] is False
+        assert binding["target"] == name and binding["registry_sha256"] == result["registry_sha256"]
+        assert binding["sources"] == result["target_inputs"][name]["sources"]
+        assert binding["contracts"] == result["target_inputs"][name]["contracts"]
+        assert all(dep["sha256"] == result["target_fingerprints"][dep["target"]]["sha256"]
+                   for dep in binding["dependencies"])
     for name, target_binding in result["target_inputs"].items():
         assert target_binding["capture_complete"] is not (result is local[-1] and name == "app")
         for field in ("sources", "contracts"):

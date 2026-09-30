@@ -1129,6 +1129,20 @@ target includes its declared dependencies; unselected targets remain visible.
 and captured digests in declaration order. Capture failures preserve earlier
 dependency bindings without marking the failing target or request complete.
 
+`target_fingerprints` provides an inspectable SHA-256 binding for each fully
+captured target: ordered source and contract identities, direct dependency
+fingerprints, workflow profile metadata, requested policy, and installed registry
+identity. The binding is versioned and hashed as sorted-key compact JSON with
+UTF-8 characters preserved. Changing a dependency propagates to its dependents;
+unrelated source changes do not. Global policy or registry changes conservatively
+change every target fingerprint. Presentation mode and manifest formatting do not
+affect these identities. Failed captures produce no fingerprint for the affected
+target, while completed dependencies remain visible. A blocked workflow can have
+a fingerprint: it identifies declarations, not permission or successful checking.
+These are not semantic cache keys. Unrecorded imports, translator/toolchain
+versions, assumptions and full evidence applicability are not established;
+`evidence_reuse_authorized` is always false.
+
 `impact` takes up to 128 unique, explicit changed paths relative to the manifest
 directory, across the full project (no `--target`). It explains directly affected
 targets and their declared dependents. A manifest change affects every target;

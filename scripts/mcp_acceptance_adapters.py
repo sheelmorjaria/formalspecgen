@@ -1394,6 +1394,13 @@ async def _project_observation() -> dict:
             {"name": "base", "sources": ["lib/S.java"], "workflows": [
                 {"capability": "inspect_code", "profile": "java-readonly-inspection"}]}]}
         (workspace / "project.json").write_text(json.dumps(document))
+        changed_input = json.loads(json.dumps(document))
+        changed_input["targets"][0]["sources"] = ["src/Changed.java"]
+        (workspace / "src/Changed.java").write_text("class Changed {}\n")
+        (workspace / "changed-input.json").write_text(json.dumps(changed_input))
+        changed_policy = json.loads(json.dumps(document))
+        changed_policy["policy"] = {"required_assurance": "DEDUCTIVE_PROOF"}
+        (workspace / "changed-policy.json").write_text(json.dumps(changed_policy))
         graph = json.loads(json.dumps(document))
         graph["targets"][0]["depends_on"] = ["middle", "base"]
         graph["targets"].extend([
@@ -1418,6 +1425,8 @@ async def _project_observation() -> dict:
             ("validate", {"manifest": "project.json"}, "PROJECT_VALIDATED"),
             ("plan", {"manifest": "project.json", "operation": "plan"}, "PROJECT_PLANNED"),
             ("selected", {"manifest": "project.json", "operation": "plan", "target": "base"}, "PROJECT_PLANNED"),
+            ("fingerprint-input-change", {"manifest": "changed-input.json", "operation": "plan"}, "PROJECT_PLANNED"),
+            ("fingerprint-policy-change", {"manifest": "changed-policy.json", "operation": "plan"}, "PROJECT_PLANNED"),
             ("invalid", {"manifest": "invalid.json"}, "PROJECT_INVALID"),
             ("missing", {"manifest": "missing.json"}, "PROJECT_INVALID"),
             ("blocked", {"manifest": "blocked.json", "operation": "plan"}, "PROJECT_BLOCKED"),
@@ -1497,6 +1506,23 @@ async def _project_observation() -> dict:
                         raise RuntimeError("target references differ from captured input identities")
             if set(result["target_inputs"]) != set(result["targets"]):
                 raise RuntimeError("target binding coverage mismatch")
+            fingerprints = result["target_fingerprints"]
+            if set(fingerprints) != {name for name, binding in result["target_inputs"].items() if binding["capture_complete"]}:
+                raise RuntimeError("target fingerprint coverage differs from completed capture")
+            for name, fingerprint in fingerprints.items():
+                binding = fingerprint["binding"]
+                if (fingerprint["sha256"] != _sha256(binding) or fingerprint["evidence_reuse_authorized"]
+                        or fingerprint["scope"] != "declared-inputs-and-registry-metadata-only"
+                        or binding["registry_sha256"] != result["registry_sha256"]
+                        or binding["policy_version"] != result["policy_version"]
+                        or binding["requested_policy"] != result["requested_policy"]
+                        or binding["target"] != name):
+                    raise RuntimeError("target fingerprint metadata binding mismatch")
+                for field in ("sources", "contracts"):
+                    if binding[field] != result["target_inputs"][name][field]:
+                        raise RuntimeError("target fingerprint uses different captured inputs")
+                if any(dep["sha256"] != fingerprints[dep["target"]]["sha256"] for dep in binding["dependencies"]):
+                    raise RuntimeError("target fingerprint lost dependency binding")
             if variant == "partial-capture" and (not result["target_inputs"]["base"]["capture_complete"]
                     or result["target_inputs"]["app"]["capture_complete"]
                     or result["target_inputs"]["app"]["sources"]):
@@ -1525,6 +1551,16 @@ async def _project_observation() -> dict:
                         or not result["target_inputs"]["base"]["capture_complete"]
                         or result["target_inputs"]["app"]["capture_complete"]):
                     raise RuntimeError("declared impact was promoted to complete input capture")
+        by_variant = {case[0]: result for case, result in zip(cases, results)}
+        reference = by_variant["plan"]["target_fingerprints"]
+        for variant in ("validate", "impact-source", "impact-contract", "impact-manifest"):
+            if by_variant[variant]["target_fingerprints"] != reference:
+                raise RuntimeError("target fingerprints depend on presentation operation")
+        for variant, expected_changes in (("fingerprint-input-change", {"app"}),
+                ("fingerprint-policy-change", {"base", "app"}), ("blocked", {"app"})):
+            actual = by_variant[variant]["target_fingerprints"]
+            if {name for name in reference if reference[name]["sha256"] != actual[name]["sha256"]} != expected_changes:
+                raise RuntimeError("target fingerprint change scope is incorrect")
         if identity() != before:
             raise RuntimeError("project planning wrote workspace content")
     observation = _observation(initialized, tools, schema, results, results[-1])

@@ -201,6 +201,86 @@ def test_repeated_inputs_share_one_capture_and_non_ascii_identity(project):
         separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
+def assert_target_fingerprints(result):
+    expected = {name for name, item in result["target_inputs"].items() if item["capture_complete"]}
+    assert set(result["target_fingerprints"]) == expected
+    for name, fingerprint in result["target_fingerprints"].items():
+        binding = fingerprint["binding"]
+        assert fingerprint["sha256"] == hashlib.sha256(json.dumps(binding, sort_keys=True,
+            separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+        assert fingerprint["scope"] == "declared-inputs-and-registry-metadata-only"
+        assert fingerprint["evidence_reuse_authorized"] is False
+        assert binding["target"] == name
+        assert binding["schema"] == "formalspecgen-project-target-binding-v1"
+        assert binding["requested_policy"] == result["requested_policy"]
+        assert binding["registry_sha256"] == result["registry_sha256"]
+        assert binding["policy_version"] == result["policy_version"]
+        for field in ("sources", "contracts"):
+            assert binding[field] == result["target_inputs"][name][field]
+        assert all(dep["sha256"] == result["target_fingerprints"][dep["target"]]["sha256"]
+                   for dep in binding["dependencies"])
+        assert all(not step["invocation_authorized"] for step in binding["workflows"])
+
+
+def test_target_fingerprints_are_inspectable_and_selection_independent(project, capsys):
+    original = run(project)
+    assert_target_fingerprints(original)
+    for operation in ("validate", "plan", "impact"):
+        kwargs = {"changed_paths": ["lib/S.java"]} if operation == "impact" else {"target": "app"}
+        remote = mcp_server.inspect_project("project.json", operation, **kwargs)
+        assert_target_fingerprints(remote)
+        assert remote["target_fingerprints"] == original["target_fingerprints"]
+        args = ["project", operation, "project.json", "--json"]
+        args += ["--changed", "lib/S.java"] if operation == "impact" else ["--target", "app"]
+        assert cli.dispatch(cli.build_parser().parse_args(args), cli.TerminalUI(), None, {}) == 0
+        assert json.loads(capsys.readouterr().out)["result"] == {
+            k: v for k, v in remote.items() if k != "mcp_admission"}
+    selected = run(project, target="base")
+    assert selected["target_fingerprints"]["base"] == original["target_fingerprints"]["base"]
+    document = json.loads((project / "project.json").read_bytes())
+    (project / "project.json").write_text(json.dumps(document, indent=4, sort_keys=True))
+    assert run(project)["target_fingerprints"] == original["target_fingerprints"]
+
+
+@pytest.mark.parametrize("change,affected", [
+    ("base-source", {"base", "app"}), ("app-source", {"app"}), ("contract", {"app"}),
+    ("unrelated", {"other"}), ("policy", {"base", "app", "other"}),
+    ("workflow", {"app"}), ("dependency", {"app"}), ("registry", {"base", "app", "other"})])
+def test_target_fingerprint_changes_follow_declared_bindings(project, monkeypatch, change, affected):
+    from pipeline import project_planning
+    document = project_document()
+    document["targets"].append({"name": "other", "sources": ["Other.java"],
+        "workflows": [{"capability": "inspect_code", "profile": "java-readonly-inspection"}]})
+    (project / "Other.java").write_text("class Other {}")
+    manifest = project / "project.json"
+    manifest.write_text(json.dumps(document))
+    before = run(project)
+    if change in {"base-source", "app-source", "contract", "unrelated"}:
+        path = {"base-source": "lib/S.java", "app-source": "src/S.java",
+                "contract": "contracts/S.jml", "unrelated": "Other.java"}[change]
+        (project / path).write_text("changed captured bytes")
+    elif change == "policy":
+        document["policy"]["required_assurance"] = "BOUNDED_PROOF"
+    elif change == "workflow":
+        document["targets"][0]["workflows"][0]["profile"] = "unavailable"
+    elif change == "dependency":
+        document["targets"][0]["depends_on"] = ["base", "other"]
+    else:
+        discover = project_planning.discover_capabilities
+        def changed_registry(*args):
+            result = discover(*args)
+            result["registry_sha256"] = "0" * 64
+            return result
+        monkeypatch.setattr(project_planning, "discover_capabilities", changed_registry)
+    manifest.write_text(json.dumps(document))
+    after = run(project)
+    assert_target_fingerprints(after)
+    assert {name for name in before["target_fingerprints"] if before["target_fingerprints"][name]["sha256"]
+            != after["target_fingerprints"][name]["sha256"]} == affected
+    assert after["claim"] == "NO_PROOF" and not after["invocation_authorized"]
+    assert after["request_satisfied"] is (change != "workflow")
+
+
 @pytest.mark.parametrize("arguments", [["project", "execute", "project.json"],
     ["project", "plan", "project.json", "--json", "output.json"]])
 def test_cli_rejects_execution_and_export(arguments):
@@ -222,6 +302,7 @@ def test_target_binding_uses_captured_bytes_and_preserves_completed_dependencies
     monkeypatch.setattr(project_planning, "capture", capture)
     (project / "contracts/S.jml").unlink()
     result = run(project)
+    assert_target_fingerprints(result)
     assert result["status"] == "PROJECT_INVALID" and not result["request_satisfied"]
     assert result["target_inputs"]["base"]["capture_complete"]
     assert result["target_inputs"]["base"]["sources"][0]["sha256"] == hashlib.sha256(captured).hexdigest()
@@ -356,6 +437,7 @@ def test_impact_retains_declarations_on_capture_failure(project, capsys, path, a
     local = json.loads(capsys.readouterr().out)["result"]
     assert local == {k: v for k, v in remote.items() if k != "mcp_admission"}
     assert local["status"] == "PROJECT_INVALID" and not local["request_satisfied"]
+    assert_target_fingerprints(local)
     assert local["impact"]["affected_targets"] == affected
     assert local["impact"]["input_capture_complete"] is False
     assert local["impact"]["unmapped_changes"] == ["unknown.java"]
@@ -398,9 +480,10 @@ def test_real_project_transport():
     from scripts.mcp_acceptance_adapters import collect_transport_observation
     result = collect_transport_observation("project")
     assert result["workspace_unchanged"]
-    assert len(result["cli_comparisons"]) == 23
+    assert len(result["cli_comparisons"]) == 25
     assert {"impact-transitive", "reject-missing-changes", "reject-selected-target",
             "impact-missing-source", "impact-missing-contract", "impact-linked-source",
+            "fingerprint-input-change", "fingerprint-policy-change",
             "reject-traversal", "reject-duplicate", "reject-excessive", "reject-plan-changes"} <= set(result["variants"])
 
 

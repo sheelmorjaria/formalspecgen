@@ -135,6 +135,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
               "invocation_authorized": False, "readiness": "NOT_ASSESSED",
               "assurance": "NOT_ASSESSED", "contract_approval": "NOT_ASSESSED",
               "inputs": [], "findings": [], "targets": [], "target_inputs": {}, "steps": [],
+              "target_fingerprints": {},
               "limitations": [
                   "Static dependency and registry-profile planning, not an executable or authorized plan.",
                   "No tool probes, builds, providers, plugins, verification, or publication run.",
@@ -144,6 +145,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                   "Only explicit selected inputs are captured; no transitive import or build discovery.",
                   "Impact uses caller-supplied paths, not a Git diff or an evidence-reuse decision; absence of a link is not proof of independence.",
                   "Declared impact can remain available after input capture fails; incomplete capture never satisfies the request.",
+                  "Target fingerprints bind declared input and registry metadata only, not translator/toolchain identities, semantic completeness, or evidence applicability.",
               ]}
     try:
         limits = {}
@@ -263,6 +265,7 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
             bindings["capture_complete"] = True
             if not target["contracts"]:
                 result["findings"].append({"target": name, "code": "NO_CONTRACT_INPUTS", "blocking": False})
+            workflow_bindings = []
             for workflow in target["workflows"]:
                 entry = entries.get(workflow["capability"])
                 profiles = [] if entry is None else [p for p in entry["profiles"] if p["name"] == workflow["profile"]]
@@ -276,6 +279,20 @@ def inspect_project(request: ProjectWorkflowRequest, context: WorkflowContext) -
                                                "code": "PROFILE_UNAVAILABLE", "blocking": True})
                 if request.operation == "plan":
                     result["steps"].append(step)
+                workflow_bindings.append(step)
+            identity = {
+                "schema": "formalspecgen-project-target-binding-v1", "target": name,
+                "sources": bindings["sources"], "contracts": bindings["contracts"],
+                "dependencies": [{"target": dependency,
+                    "sha256": result["target_fingerprints"][dependency]["sha256"]}
+                    for dependency in target["depends_on"]],
+                "workflows": workflow_bindings, "requested_policy": policy,
+                "registry_sha256": registry["registry_sha256"], "policy_version": registry["policy_version"],
+            }
+            result["target_fingerprints"][name] = {
+                "sha256": _digest(identity), "binding": identity,
+                "scope": "declared-inputs-and-registry-metadata-only", "evidence_reuse_authorized": False,
+            }
         result["inputs_sha256"] = _digest(result["inputs"])
         if request.operation == "impact":
             result["impact"]["input_capture_complete"] = True
