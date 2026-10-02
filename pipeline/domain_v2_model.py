@@ -12,6 +12,8 @@ from .domain_v2 import (
 )
 
 MAX_STATE_SPACE = 100_000
+MAX_TRANSITIONS = 1_000_000
+MAX_WORK_ITEMS = 2_000_000
 
 
 class UnsupportedV2Boundary(ValueError):
@@ -193,8 +195,64 @@ def _freeze(state: dict[str, Any]) -> tuple:
                         for key, value in state.items()))
 
 
+class _BoundedFrontier:
+    """Charge edges/work independently; enqueue each discovered state only once.
+
+    Limits bound counts, not bytes or expression complexity. Callers handling
+    untrusted models must additionally bound input size and expression depth.
+    """
+
+    def __init__(self, max_states: int, max_transitions: int, max_work_items: int):
+        for name, value in (("max_states", max_states),
+                            ("max_transitions", max_transitions),
+                            ("max_work_items", max_work_items)):
+            if type(value) is not int or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        self.max_states = max_states
+        self.max_transitions = max_transitions
+        self.max_work_items = max_work_items
+        self.queue: deque = deque()
+        self.discovered: set[tuple] = set()
+        self.transitions = 0
+        self.work_items = 0
+
+    def discover(self, state: dict[str, Any]) -> None:
+        key = _freeze(state)
+        if key in self.discovered:
+            return
+        if len(self.discovered) >= self.max_states:
+            raise UnsupportedV2Boundary(
+                f"reachable states exceed maximum {self.max_states}")
+        self.discovered.add(key)
+        self.queue.append(state)
+
+    def step(self) -> None:
+        # Disabled actions consume work too, even though they yield no edge.
+        if self.work_items >= self.max_work_items:
+            raise UnsupportedV2Boundary(
+                f"traversal work items exceed maximum {self.max_work_items}")
+        self.work_items += 1
+
+    def append(self, state: dict[str, Any]) -> None:
+        # Parallel edges and self-loops remain counted, even when deduplicated.
+        if self.transitions >= self.max_transitions:
+            raise UnsupportedV2Boundary(
+                f"reachable transitions exceed maximum {self.max_transitions}")
+        self.transitions += 1
+        self.discover(state)
+
+
 def validate_transitions_and_invariants(
-        spec: DomainSpecV2, *, max_states: int = MAX_STATE_SPACE) -> tuple[int, int]:
+        spec: DomainSpecV2, *, max_states: int = MAX_STATE_SPACE,
+        max_transitions: int = MAX_TRANSITIONS,
+        max_work_items: int = MAX_WORK_ITEMS) -> tuple[int, int]:
+    """Explore the finite abstraction, or fail without returning partial success.
+
+    A work item is an atomic operation attempt, an actor successor attempt, or
+    a lock-protocol actor/idle-operation attempt. The initial state counts
+    toward max_states; repeated edges count toward max_transitions.
+    """
+    frontier = _BoundedFrontier(max_states, max_transitions, max_work_items)
     # The cap binds on ACTUAL exploration, not the worst-case estimate:
     # hardware capacities produce wide bounds but sparse reachable sets (a
     # counter set to a literal then decremented explores one axis, not the
@@ -209,48 +267,44 @@ def validate_transitions_and_invariants(
         initial["callResult"] = tuple("none" for _ in range(spec.actors))
     _check_bounds(spec, initial, "Init")
     _check_invariants(spec, initial, "Init")
-    queue, visited, transitions = deque([initial]), set(), 0
-    while queue:
-        state = queue.popleft()
-        key = _freeze(state)
-        if key in visited:
-            continue
-        visited.add(key)
-        if len(visited) > max_states:
-            raise UnsupportedV2Boundary(
-                f"reachable states exceed maximum {max_states}")
+    frontier.discover(initial)
+    while frontier.queue:
+        state = frontier.queue.popleft()
         if (spec.concurrency is not None and
                 spec.concurrency.linearization_points is not None):
-            transitions += _enqueue_lock_protocol_successors(spec, state, queue)
+            _enqueue_lock_protocol_successors(spec, state, frontier)
             continue
         for operation in spec.operations:
+            frontier.step()
             enabled = guards_hold(operation, state)
             if enabled:
                 domain_post = apply_effects(operation, state)
                 actors = range(spec.actors) if operation.return_type == "boolean" else (None,)
                 for actor in actors:
+                    frontier.step()
                     post = dict(domain_post)
                     if actor is not None and has_results:
                         results = list(state["callResult"]); results[actor] = "true"
                         post["callResult"] = tuple(results)
                     _check_bounds(spec, post, operation.name)
                     _check_invariants(spec, post, operation.name)
-                    transitions += 1; queue.append(post)
+                    frontier.append(post)
             elif operation.failure_semantics == "false_and_stutter":
                 for actor in range(spec.actors):
+                    frontier.step()
                     post = dict(state)
                     results = list(state["callResult"]); results[actor] = "false"
                     post["callResult"] = tuple(results)
-                    transitions += 1; queue.append(post)
-    if transitions == 0:
+                    frontier.append(post)
+    if frontier.transitions == 0:
         raise V2ValidationError(
             "initial state has no enabled transition; add the missing environment/controller "
             "operations or explicitly redesign the initial state (deadlock checking remains on)")
-    return len(visited), transitions
+    return len(frontier.discovered), frontier.transitions
 
 
 def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
-                                      queue: deque) -> int:
+                                      queue: _BoundedFrontier) -> int:
     """Explore invocation, acquisition, commit/reject, release, and response."""
     metadata = spec.concurrency
     assert metadata is not None and metadata.actor_lock_values is not None
@@ -258,10 +312,12 @@ def _enqueue_lock_protocol_successors(spec: DomainSpecV2, state: dict[str, Any],
     count = 0
     lock = metadata.lock_variable
     for actor in range(spec.actors):
+        queue.step()
         pc = state["__pc"][actor]
         pending = state["__pending"][actor]
         if pc == "IDLE":
             for operation in spec.operations:
+                queue.step()
                 post = dict(state)
                 pcs = list(state["__pc"]); pcs[actor] = "INVOKED"
                 pending_ops = list(state["__pending"]); pending_ops[actor] = operation.name

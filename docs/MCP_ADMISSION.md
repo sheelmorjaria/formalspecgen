@@ -64,6 +64,37 @@ Wheel build and installation use no package index or
 dependency downloads. Dependencies remain supplied by the provisioned test
 environment, so this is not fresh dependency-resolution or backend qualification.
 
+## Domain traversal infrastructure (not workflow admission)
+
+The V2 in-process traverser now bounds discovered states, generated transitions
+and work items separately. Default ceilings are 100,000 states, 1,000,000
+transitions and 2,000,000 work items. The initial state counts toward the state
+ceiling. A new state is rejected before retention if it would exceed that
+ceiling; an already discovered state is never queued again. Parallel edges and
+self-loops still count as transitions, so deduplication does not change the
+reported state/transition semantics.
+
+A work item is an atomic operation attempt, an actor successor attempt, or a
+lock-protocol actor/idle-operation attempt. Disabled operations consume work
+before guard evaluation, even when they generate no transitions. These are
+deterministic count limits, not a wall-clock, byte or expression-complexity
+guarantee. Input capture, typed parsing, expression depth and model rendering
+must be bounded separately before remote admission.
+
+The internal `validate_transitions_and_invariants` service accepts positive
+integer `max_states`, `max_transitions` and `max_work_items` limits. Exhaustion
+raises `UnsupportedV2Boundary`, never a partial successful result. The existing
+domain validation orchestrator records a `bounded_traversal` failure and does
+not render or invoke TLC after exhaustion. This is an incomplete check, not a
+counterexample or evidence that the specification is invalid.
+
+`validate-domain` remains **unadmitted**. Its next migration still requires a
+permission-carrying shared request/service, bounded capture and parsing, strict
+TLC execution, immutable candidate/model evidence, controlled `--emit-tla`
+publication and real CLI/MCP acceptance. The legacy validation-sidecar writer
+is not made suitable for MCP by the traversal changes. No inventory or
+completion count changes for this infrastructure slice.
+
 ## Semgrep execution infrastructure (not workflow admission)
 
 `pipeline.isolated_semgrep.run_isolated_semgrep` requires explicit workspace-read

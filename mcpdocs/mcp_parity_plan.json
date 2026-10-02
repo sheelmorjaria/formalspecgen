@@ -3129,7 +3129,7 @@
           "cli_flags": [
             "artifact"
           ],
-          "proposed_mcp_field": "artifact",
+          "proposed_mcp_field": "artifact_path",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service.",
           "baseline_declaration": {

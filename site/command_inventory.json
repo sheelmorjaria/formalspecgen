@@ -4679,7 +4679,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "artifact",
+          "mcp_field": "artifact_path",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         }

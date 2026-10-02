@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "1febbd8b6967e6a848a64f9b18ef3f4fd9032d53fab4e28ab6b8b755c6c88236",
+  "plan_sha256": "b45e9def01d2bf3146f8d1a5d76cba705db55c91f8c5e1b66e09d69913c995a9",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -12455,7 +12455,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "artifact",
+          "mcp_field": "artifact_path",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
         }
@@ -12527,7 +12527,7 @@
         "status": "incomplete",
         "complete": false,
         "mapped_mcp_fields": [
-          "artifact",
+          "artifact_path",
           "result_export",
           "timeout"
         ],
@@ -12536,9 +12536,7 @@
           "result_export",
           "timeout"
         ],
-        "missing_mcp_fields": [
-          "artifact"
-        ],
+        "missing_mcp_fields": [],
         "unverified_argument_mappings": [],
         "required_variants": [
           "byte-limit",
@@ -12557,7 +12555,6 @@
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "mapped_inputs_missing_from_mcp_schema",
           "runner_acceptance_evidence_missing",
           "required_acceptance_cases_missing_or_unpassed",
           "workflow_variants_incomplete"
@@ -14973,5 +14970,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "0aeb9d6da68ef66bfed7b8fb047270e62d4944e631c5dbff298cd2093e305d22"
+  "sha256": "ee86ff1f2faabd08be174b964d26ad4844a6092cc0e02e6367b892ddfdf6d02e"
 }

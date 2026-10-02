@@ -77,6 +77,23 @@ def test_inventory_records_root_repl_hidden_and_inherited_semantics():
     assert draft[("--model",)]["default"] is None
 
 
+def test_verified_mappings_name_actual_handler_fields():
+    """Catch stale plan labels before paying for provisioned acceptance.
+
+    This is only a static consistency check, never completion evidence.
+    """
+    plan = load_parity_plan(PLAN)
+    manifest = reconcile_parity_plan(plan, handlers=_handlers())
+    by_command = {item["cli_command"]: item for item in manifest["command_mappings"]}
+    for command in plan["commands"]:
+        observed = set(by_command[command["cli_command"]]["workflow_completion"]["observed_mcp_fields"])
+        for mapping in command["argument_mappings"]:
+            if (mapping.get("implementation_status") == "verified"
+                    and mapping.get("proposed_mcp_field")):
+                assert mapping["proposed_mcp_field"] in observed, (
+                    command["cli_command"], mapping["cli_flags"], mapping["proposed_mcp_field"])
+
+
 def test_committed_manifest_and_status_are_generated_from_live_inventory():
     manifest = reconcile_parity_plan(
         load_parity_plan(PLAN), handlers=_handlers())
