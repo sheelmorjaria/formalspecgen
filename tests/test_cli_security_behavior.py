@@ -16,9 +16,11 @@ def _ui():
 def test_security_cli_commands_write_verdicts_and_return_status(tmp_path):
     ui = _ui()
     source = tmp_path / "Example.java"; source.write_text("class Example {}")
-    with patch("pipeline.security_assessment.assess_security", return_value={"status": "VERIFIED_SECURE", "claim": "SECURITY"}):
+    with patch("pipeline.security_workflow.run_security_assessment", return_value={"status": "CHECKS_PASSED", "claim": "NO_PROOF", "request_satisfied": True}) as assessment:
         args = SimpleNamespace(source=str(source), no_sast=True, json=str(tmp_path / "security.json"))
         assert cli.command_assess_security(args, ui) == 0
+        assert assessment.call_args.args[0].result_export == "security.json"
+        assert not assessment.call_args.args[0].run_sast
     with patch("pipeline.security_poc.inspect_security", return_value={"status": "NO_FINDINGS", "findings": [], "request_satisfied": True}):
         args = SimpleNamespace(source=str(source), json=str(tmp_path / "vulns.json"))
         assert cli.command_security_inspect(args, ui) == 0
@@ -29,12 +31,11 @@ def test_security_cli_commands_write_verdicts_and_return_status(tmp_path):
     with patch("pipeline.remediation.remediate", return_value={"status": "REMEDIATION_VERIFIED", "claim": "REMEDIATION_VERIFIED"}):
         args = SimpleNamespace(target=str(source), report=str(report), out_dir=str(tmp_path / "fixed"), provider="ollama", model=None, json=None)
         assert cli.command_remediate(args, ui) == 0
-    assert (tmp_path / "security.json").exists()
 
 
 def test_security_cli_failure_paths_return_nonzero(tmp_path):
     ui = _ui(); source = tmp_path / "Example.java"; source.write_text("class Example {}")
-    with patch("pipeline.security_assessment.assess_security", return_value={"status": "SECURITY_VIOLATION"}):
+    with patch("pipeline.security_workflow.run_security_assessment", return_value={"status": "SECURITY_FINDINGS", "request_satisfied": False}):
         assert cli.command_assess_security(SimpleNamespace(source=str(source), no_sast=False, json=str(tmp_path / "a.json")), ui) == 1
     with patch("pipeline.algorithm_optimization.optimize_algorithm", return_value={"status": "FAIL", "code": "NO_PROOF"}):
         args = SimpleNamespace(source=str(source), out=str(tmp_path / "out.java"), strategy="hashmap", provider="ollama", model=None, json=None)

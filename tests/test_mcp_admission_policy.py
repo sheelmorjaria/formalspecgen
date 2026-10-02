@@ -149,7 +149,7 @@ def test_every_strict_capability_has_visible_invocation_profiles():
     strict = mcp_capabilities(strict_isolation=True)
     assert {item.name for item in strict} == {
         "inspect_evidence", "describe_capabilities", "verify_bisimulation", "security_exploit", "inspect_project", "inspect_contract",
-        "verify_code", "inspect_code", "document_code",
+        "verify_code", "inspect_code", "document_code", "assess_security",
         "analyze_codebase", "generate_traceability_matrix",
         "submit_work_item", "get_work_item", "get_work_artifacts",
         "cancel_work_item", "start_agent_run", "get_agent_run",

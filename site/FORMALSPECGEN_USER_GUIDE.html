@@ -486,10 +486,12 @@ trip.</p>
 </section><section class="doc-section" data-section-title="5. Greenfield:
 requirements to implementation"><h2 id="5-greenfield-requirements-to-implementation">5. Greenfield:
 requirements to implementation</h2>
-<p><strong>Interface:</strong> operator-facing CLI workflow. The
-complete workflow is not admitted to default strict MCP. Java inspection
-or verification can be used separately under their own profiles; that
-does not authorize the surrounding steps. <a class="cite" href="#s48">S48</a> <a class="cite" href="#s56">S56</a></p>
+<p><strong>Interfaces:</strong> direct CLI and admitted MCP for the bounded
+Java assessment and review-only template steps. The full remediation/correction
+sequence is not admitted to default strict MCP; admission of assessment does
+not authorize patch generation, replacement, or integration.
+<a href="index.html#security-assessment">Current assessment scope</a> takes
+precedence over historical examples. <a class="cite" href="#s48">S48</a> <a class="cite" href="#s56">S56</a></p>
 <p>This route suits a new component whose method contracts are the
 immediate goal.</p>
 <h3 id="step-1--write-requirements-and-clarify-behavior">Step 1 — Write
@@ -903,7 +905,7 @@ formalspecgen assess-security src/Service.java --json evidence/security-assessme
 vulnerability report. Its zero exit means the report was produced,
 <strong>not that there are no findings</strong>.
 <code>assess-security --no-sast</code> explicitly reduces scope. Even a
-scoped <code>VERIFIED_SECURE</code> result is not immunity from every
+scoped <code>CHECKS_PASSED</code> result is not immunity from every
 weakness. <a class="cite" href="#s01">S01</a> <a class="cite" href="#s37">S37</a></p>
 <h3 id="generate-review-only-tests-for-findings">Generate review-only
 tests for findings</h3>
@@ -1787,7 +1789,7 @@ every backend they reach is migrated to the strict sandbox. Consult the <a href=
 <td><a href="#assess-security"><code>assess-security</code></a></td>
 <td>Security</td>
 <td>No; use shell</td>
-<td data-cli-admission="assess-security">Not admitted</td>
+<td data-cli-admission="assess-security">Admitted profiles; not a completion claim</td>
 </tr>
 <tr class="odd">
 <td><a href="#compose"><code>compose</code></a></td>
@@ -2158,7 +2160,7 @@ refinement or deployed concurrency.</p>
 CLI syntax: <a class="cite" href="#s01">S01</a>.</p>
 </section><section class="doc-section" data-section-title="assess-security"><h2 id="assess-security">assess-security</h2>
 <p>Combine formal diagnostics with configured SAST checks.</p>
-<p data-cli-command="assess-security"><strong>Interface availability.</strong> Operator CLI; strict MCP: Not admitted. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>
+<p data-cli-command="assess-security"><strong>Interface availability.</strong> Operator CLI; strict MCP: Admitted profiles; not a completion claim. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>
 <pre class="text"><code>formalspecgen assess-security SOURCE [options]</code></pre>
 <div class="table-wrap" tabindex="0"><table>
 <thead>
@@ -2192,10 +2194,14 @@ run.</td>
 <p><strong>Result.</strong> Security verdict; default file is
 security_verdict.json. Full success requires the configured formal and
 SAST checks.</p>
-<p><strong>Boundary and common mistakes.</strong> VERIFIED_SECURE is a
-scoped label, not immunity from every weakness. SAST omission or
-unavailable tools cannot establish a complete assessment. Only assess
-code you are authorized to examine.</p>
+<p><strong>Boundary and common mistakes.</strong> The shared CLI/MCP service
+returns <code>CHECKS_PASSED</code> only when the requested checks pass without
+findings. Its overall claim remains <code>NO_PROOF</code>; the OpenJML claim is
+separate. SAST omission explicitly reduces scope; unavailable tools cannot
+establish a complete assessment. Source capture, isolated checks and immutable
+evidence are shared. Exports never replace existing files. See the
+<a href="index.html#security-assessment">current CLI/MCP assessment guide</a>.
+Only assess code you are authorized to examine.</p>
 <p><strong>Source:</strong> <a href="https://github.com/sheelmorjaria/formalspecgen/blob/91c6790/pipeline/security_assessment.py" rel="noopener noreferrer" target="_blank"><code>pipeline/security_assessment.py</code></a>;
 CLI syntax: <a class="cite" href="#s01">S01</a>.</p>
 </section><section class="doc-section" data-section-title="compose"><h2 id="compose">compose</h2>

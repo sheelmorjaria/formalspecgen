@@ -928,10 +928,22 @@ def document_code(
             result, request, WorkflowInterface.MCP, context=context)
 
 
-def assess_security(source: str, run_sast: bool = True) -> dict[str, Any]:
-    """Assess a Java source against formal verification and Semgrep SAST evidence."""
-    from pipeline.security_assessment import assess_security as run_assessment
-    return _guarded(lambda: run_assessment(_workspace_path(source), run_sast=run_sast))
+def assess_security(source: str, run_sast: bool = True,
+                    result_export: str | None = "security_verdict.json") -> dict[str, Any]:
+    """Assess captured Java with isolated ESC/local SAST; no general security proof."""
+    from pipeline.security_workflow import SECURITY_BUDGET, SecurityAssessmentWorkflowRequest, run_security_assessment
+    try:
+        request = SecurityAssessmentWorkflowRequest(source, run_sast, result_export)
+        admission = authorize_mcp_invocation("assess_security", mode="combined" if run_sast else "formal-only",
+            language="java", backend="openjml-semgrep-local", effects=request.required_effects())
+        if not admission.admitted:
+            return admission.rejection()
+        context = WorkflowContext.for_mcp(admission, request.required_effects(),
+            output_root=_designated_mcp_output_root(), resource_budget=SECURITY_BUDGET)
+        return run_security_assessment(request, context)
+    except (OSError, ValueError, RuntimeError, MCPPolicyViolation) as exc:
+        return {"status": "SECURITY_ASSESSMENT_INCOMPLETE", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": getattr(exc, "code", "INVALID_INPUT"), "message": str(exc)}
 
 
 def security_inspect(source: str) -> dict[str, Any]:

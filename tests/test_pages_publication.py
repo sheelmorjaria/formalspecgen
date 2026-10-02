@@ -20,7 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "3e6d46f4563ab309aab2e7126ad3574ca18d02219746e59142ff6de6fc1c4eb3"
+GUIDE_SHA256 = "ae3d8dbdfce5f03afbe74455dc6834be0eec1f312d139c5d85baa272a37a7879"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -39,11 +39,11 @@ def test_current_guide_and_generated_companions_are_current():
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
     assert decoded["command_count"] == 44
     assert decoded["argument_declaration_count"] == 229
-    assert decoded["commands_with_admitted_profile"] == 15
+    assert decoded["commands_with_admitted_profile"] == 16
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 23
-    assert strict["cli_capability_count"] == 15
+    assert strict["capability_count"] == 24
+    assert strict["cli_capability_count"] == 16
     assert strict["mcp_only_capability_count"] == 8
     assert {"verify_refactor", "apply_refactor", "analyze_codebase"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}
@@ -98,7 +98,7 @@ def test_integrated_pages_have_valid_navigation_and_cli_examples():
     parser = _GuideLinks()
     parser.feed(documents[SITE / "index.html"])
     _validate_cli_examples(parser.cli_examples)
-    assert len(parser.cli_examples) == 18
+    assert len(parser.cli_examples) == 19
     assert 'FORMALSPECGEN_USER_GUIDE.html#command-reference' in parser.hrefs
     assert "scripted automation" in documents[SITE / "index.html"]
     assert "Not yet a universal approval bridge" in documents[SITE / "index.html"]

@@ -1,7 +1,7 @@
-"""Legacy security assessment; not an admitted strict MCP workflow.
+"""Legacy internal helpers; CLI/MCP use the strict ``security_workflow`` service.
 
-New isolated SAST callers use ``isolated_semgrep.run_isolated_semgrep``.
-The legacy CLI's formal and publication stages still need shared-service migration.
+The compatibility functions below are not admitted entry points. Diagnostic
+mapping is shared; their subprocess and legacy claim semantics are not.
 """
 from __future__ import annotations
 

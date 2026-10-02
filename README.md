@@ -287,17 +287,26 @@ formalspecgen assess-security src/Counter.java --json security-verdict.json
 
 Recognized formal verification conditions are mapped to CWE evidence (for example,
 `ArithmeticOperationRange` → CWE-190, index failures → CWE-125, and null dereferences → CWE-476).
-Semgrep findings with `HIGH`, `ERROR`, or `CRITICAL` severity fail closed as `SECURITY_VIOLATION`.
-If Semgrep is unavailable or skipped, the report cannot claim full security:
+The shared CLI/MCP service captures one bounded Java source, runs isolated OpenJML ESC and
+local-rule Semgrep against those bytes, and retains both actual execution observations.
+Any SAST finding returns `SECURITY_FINDINGS`; a failed requested check is unsuccessful.
+If Semgrep is unavailable or skipped, the report cannot claim a complete combined assessment:
 
 ```bash
 formalspecgen assess-security src/Counter.java --no-sast
 # status: FORMALLY_VERIFIED_SAST_SKIPPED
 ```
 
-`VERIFIED_SECURE` requires successful formal verification, no mapped formal findings, and a
-successful clean Semgrep run. This is scoped evidence—not immunity from all CWEs, cryptographic
-assurance, taint-flow proof, external-I/O safety, or regulatory certification.
+`CHECKS_PASSED` requires successful formal verification, no mapped formal findings, and a
+complete clean Semgrep run. The overall claim remains `NO_PROOF`; formal claims are separate.
+`--no-sast` can satisfy the explicitly reduced request but never marks SAST complete.
+The default `security_verdict.json`, explicit exports, and immutable multi-stage evidence use
+no-replace publication. `--json -` renders stdout without a result-file export. MCP
+`assess_security(source, run_sast=True, result_export="security_verdict.json")` publishes below
+the configured output root; `result_export: null` suppresses just the JSON export.
+Missing tools, sandbox failures and publication failures leave the request unsatisfied.
+This is not immunity from all CWEs, cryptographic assurance, taint-flow proof, external-I/O
+safety, or regulatory certification. Admission is not revision-bound workflow completion.
 
 The bundled [`security/java_custom.yml`](security/java_custom.yml) rules supplement Semgrep's
 Java rules with CWE-22 path traversal, CWE-502 unsafe deserialization, CWE-327 weak cryptography,

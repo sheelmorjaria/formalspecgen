@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 23,
-  "cli_capability_count": 15,
+  "capability_count": 24,
+  "cli_capability_count": 16,
   "mcp_only_capability_count": 8,
   "capabilities": [
     {
@@ -1414,6 +1414,75 @@
             "service_state_write"
           ],
           "profile_sha256": "91d3083fe2d5bc2836dd0a8e6bd72ea92d6d95b70d50ef30462d624989c94e7a"
+        }
+      ]
+    },
+    {
+      "name": "assess_security",
+      "mcp_tool": "assess_security",
+      "cli_command": "assess-security",
+      "description": "Captured Java assessment with isolated formal and local-rule SAST stages.",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "source",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "run_sast",
+            "required": false,
+            "default": true,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": "security_verdict.json",
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "source",
+          "run_sast",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "java-security-assessment",
+          "modes": [
+            "combined",
+            "formal-only"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "openjml-semgrep-local"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-source-multistage-assessment",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "4f005fb4f8b8e4a1fe71e625f340bde49d7f79e3a280ef3c14e2568bad98c848"
         }
       ]
     },

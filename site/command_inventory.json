@@ -5,7 +5,7 @@
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
   "argument_declaration_count": 229,
-  "commands_with_admitted_profile": 15,
+  "commands_with_admitted_profile": 16,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -380,8 +380,8 @@
     {
       "cli_command": "assess-security",
       "mcp_tool": "assess_security",
-      "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -424,7 +424,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "no_sast",
+          "mcp_field": "run_sast",
           "disposition": "assurance_parameter",
           "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim."
         },

@@ -21,7 +21,8 @@ def publish_multistage_evidence(
         request: Mapping[str, Any], admission: Mapping[str, Any] | None,
         inputs: Mapping[str, Any], stages: Sequence[Mapping[str, Any]],
         semantic_bindings: Mapping[str, Any],
-        claim_limits: Mapping[str, Any]) -> dict[str, Any]:
+        claim_limits: Mapping[str, Any],
+        request_satisfied: bool | None = None) -> dict[str, Any]:
     """Commit one write-once manifest that binds all inputs and observations."""
     run_root = root / uuid.uuid4().hex
     ledger = RunLedger(run_root)
@@ -52,7 +53,8 @@ def publish_multistage_evidence(
         "workflow": workflow,
         "final_status": status,
         "claim": claim,
-        "request_satisfied": status == "VERIFIED" and claim != "NO_PROOF",
+        "request_satisfied": (status == "VERIFIED" and claim != "NO_PROOF")
+        if request_satisfied is None else request_satisfied,
         "workflow_request": dict(request),
         "mcp_admission": dict(admission) if admission is not None else None,
         "inputs": dict(inputs),

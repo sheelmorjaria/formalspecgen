@@ -1545,10 +1545,10 @@
     {
       "cli_command": "assess-security",
       "proposed_mcp_tool": "assess_security",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Formal and SAST stages; no-sast keeps its restricted claim rather than full assessment assurance.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "workflow_kind": "direct",
+      "requirements": "Captured Java with isolated ESC and optional local-rule SAST, distinct stage outcomes, immutable evidence and no-replace export. No overall security proof.",
+      "baseline_strict_mcp": "Admitted Java assessment; completion requires provisioned revision-bound transport evidence.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -1565,7 +1565,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -1582,13 +1582,13 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
             "--no-sast"
           ],
-          "proposed_mcp_field": "no_sast",
+          "proposed_mcp_field": "run_sast",
           "disposition": "assurance_parameter",
           "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim.",
           "baseline_declaration": {
@@ -1600,10 +1600,118 @@
             "required": false,
             "action": "store_true"
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/security_assessment.py"
+      "baseline_source": "pipeline/security_workflow.py",
+      "completion_contract": {
+        "required_variants": [
+          "combined",
+          "formal-only",
+          "formal-failure",
+          "findings",
+          "missing",
+          "unsupported",
+          "denied",
+          "byte-limit",
+          "symlink",
+          "collision",
+          "stdout",
+          "default-export"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_security_workflow.py::test_cli_mcp_request_and_result_equivalence",
+            "variants": [
+              "combined",
+              "formal-only",
+              "stdout"
+            ]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_security_workflow.py::test_cli_mcp_request_and_result_equivalence",
+            "variants": [
+              "combined",
+              "formal-only",
+              "stdout"
+            ]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_security_workflow.py::test_stages_evidence_and_negative_exports",
+            "variants": [
+              "combined",
+              "formal-only",
+              "formal-failure",
+              "findings"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_security_workflow.py::test_missing_effect_stops_dispatch",
+            "variants": [
+              "denied"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_security_workflow.py::test_capture_stops_before_execution_with_negative_export",
+            "variants": [
+              "missing",
+              "unsupported",
+              "denied",
+              "byte-limit",
+              "symlink"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_security_workflow.py::test_sast_failure_retains_formal_evidence",
+            "variants": [
+              "combined"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_security_workflow.py::test_export_collision_preserves_existing_bytes",
+            "variants": [
+              "collision"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_security_workflow.py::test_evidence_failure_is_not_success_and_exports",
+            "variants": [
+              "combined"
+            ]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_security_workflow.py::test_real_security_assessment_transport",
+            "variants": [
+              "combined",
+              "formal-only",
+              "formal-failure",
+              "findings",
+              "missing",
+              "unsupported",
+              "denied",
+              "byte-limit",
+              "symlink",
+              "collision",
+              "stdout",
+              "default-export"
+            ]
+          }
+        ],
+        "required_ci_environments": [
+          "provisioned-linux-bwrap-cgroup-v2",
+          "openjml",
+          "semgrep-local-rules"
+        ]
+      }
     },
     {
       "cli_command": "security-inspect",

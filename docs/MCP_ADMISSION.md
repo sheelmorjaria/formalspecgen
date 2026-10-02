@@ -104,14 +104,43 @@ raw tool output stays in the execution observation. Unknown CWE mappings remain
 explicit. Partial results retain findings but return `SAST_INCOMPLETE` and an
 unsatisfied request; invalid output and isolation failures are distinct failures.
 
-This service does not publish evidence or admit `assess-security` or
-`security-inspect`. Their formal checks, source sets, publication and CLI/MCP
-acceptance remain separate migrations. The provisioned sandbox suite adds real
+The adapter itself does not publish evidence. The shared `assess-security` service
+now admits single Java sources with isolated ESC and optional local SAST; its
+`java-security-assessment` profile requires read, execution, evidence publication
+and new-artifact write effects. It permits no provider, remote rule lookup or
+source replacement. `security-inspect` remains a separate unadmitted migration.
+The provisioned sandbox suite adds real
 Java/C/C++ clean/finding cases, the packaged default rules and malformed-rule
 rejection with Semgrep 1.138.0
 in a dedicated venv; this is a pinned test toolchain, not a claim of full
 dependency-lock or current-version deployment qualification.
 CI retains the actual Semgrep execution observations as separate artifacts.
+
+### Shared Java assessment
+
+`assess_security(source, run_sast=True, result_export="security_verdict.json")`
+captures once with a 4 MiB ceiling, rejects non-Java inputs and symlinks, and
+feeds private copies to both judges. One aggregate execution allowance caps
+elapsed time (180 seconds) and output (2 MiB); each backend retains its stricter
+per-stage limits. Local rules also count toward the SAST capture allowance.
+No model argument selects executables or rules. OpenJML contracts and assumptions
+remain the formal scope, not proof that the specification is adequate.
+
+The overall report is always `NO_PROOF`. `CHECKS_PASSED`,
+`FORMALLY_VERIFIED_SAST_SKIPPED`, `SECURITY_FINDINGS`, formal verification failure
+and incomplete execution remain distinct. Intentional SAST omission can satisfy
+only the reduced request. Formal results and all actual observations survive a
+later SAST or publication failure. Immutable ledger artifacts bind the source
+identity, local-rule snapshot, invocation policies, stage results and limitations.
+The ledger is prepared privately and published through the controlled no-replace
+publisher. Its returned manifest path comes from publication metadata.
+
+CLI defaults to a new `security_verdict.json`; `--json -` is stdout. MCP null
+`result_export` omits the result-file export, not evidence. Unsafe input/export
+aliases are rejected before execution; existing outputs are never replaced.
+Negative results may be exported. Any requested publication failure makes the
+request unsuccessful. The provisioned real-MCP/CLI matrix is a release gate;
+unit tests and static admission alone do not establish completion.
 
 ## TLC execution infrastructure (not workflow admission)
 

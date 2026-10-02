@@ -23,6 +23,7 @@ from pipeline.agentic.run_reader import RunReadRequest
 from pipeline.worker_queries import WorkerArtifactsRequest
 from pipeline.project_planning import ProjectWorkflowRequest
 from pipeline.contract_inspection import ContractInspectionRequest
+from pipeline.security_workflow import SecurityAssessmentWorkflowRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -238,6 +239,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "security-assessment": "assess-security",
         "contract-diff": "contract",
         "project-plan": "project",
         "project-impact": "project",
@@ -381,6 +383,7 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
+            "security-assessment",
             "contract-diff",
             "project-plan", "project-impact",
             "bisimulation", "security-templates",
@@ -391,6 +394,9 @@ def _validate_workflow_examples(examples: dict[str, str]) -> None:
             + ", ".join(sorted(examples)))
     if ContractInspectionRequest(**json.loads(examples["contract-diff"])) != ContractInspectionRequest("before/Account.java", "diff", "after/Account.java"):
         raise ValueError("contract example must compare Account.java revisions")
+    assessment = SecurityAssessmentWorkflowRequest(**json.loads(examples["security-assessment"]))
+    if not assessment.run_sast or assessment.result_export != "security-verdict.json":
+        raise ValueError("assessment example must request both checks and a controlled export")
     if ProjectWorkflowRequest(**json.loads(examples["project-plan"])) != ProjectWorkflowRequest("project.json", "plan", "app"):
         raise ValueError("project example must plan app from project.json")
     if ProjectWorkflowRequest(**json.loads(examples["project-impact"])) != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]):

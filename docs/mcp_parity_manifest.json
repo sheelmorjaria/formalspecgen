@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "e6f6f4c0d8537871050b7635e14ea5b5e83503cc1c7d5d984b8261efaf48c4a9",
+  "plan_sha256": "0c58dff512582c7b9d182d94eae84c55f318c33b97c2f86fc29990fcd1cce32e",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4693,7 +4693,7 @@
     "mapped_commands": 44,
     "discovered_argument_declarations": 229,
     "mapped_argument_declarations": 229,
-    "commands_with_admitted_profile": 15,
+    "commands_with_admitted_profile": 16,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -5481,8 +5481,8 @@
     {
       "cli_command": "assess-security",
       "target_mcp_tool": "assess_security",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Formal and SAST stages; no-sast keeps its restricted claim rather than full assessment assurance.",
+      "workflow_kind": "direct",
+      "requirements": "Captured Java with isolated ESC and optional local-rule SAST, distinct stage outcomes, immutable evidence and no-replace export. No overall security proof.",
       "origin": "builtin",
       "plugin_id": null,
       "arguments": [
@@ -5526,7 +5526,7 @@
             "hidden": false,
             "metavar": null
           },
-          "mcp_field": "no_sast",
+          "mcp_field": "run_sast",
           "disposition": "assurance_parameter",
           "requirement": "Preserve requested mode and its claim ceiling. Skipping a check cannot retain the stronger claim."
         },
@@ -5554,8 +5554,37 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "java-security-assessment",
+            "modes": [
+              "combined",
+              "formal-only"
+            ],
+            "languages": [
+              "java"
+            ],
+            "backends": [
+              "openjml-semgrep-local"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "captured-source-multistage-assessment",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -5573,44 +5602,58 @@
             "default": true,
             "annotation": "bool",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": "security_verdict.json",
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "source",
-          "run_sast"
+          "run_sast",
+          "result_export"
         ]
       },
       "workflow_completion": {
         "status": "incomplete",
         "complete": false,
         "mapped_mcp_fields": [
-          "no_sast",
           "result_export",
-          "source"
-        ],
-        "observed_mcp_fields": [
           "run_sast",
           "source"
         ],
-        "missing_mcp_fields": [
-          "no_sast",
-          "result_export"
-        ],
-        "unverified_argument_mappings": [
-          "source",
+        "observed_mcp_fields": [
           "result_export",
-          "no_sast"
+          "run_sast",
+          "source"
         ],
-        "required_variants": [],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "byte-limit",
+          "collision",
+          "combined",
+          "default-export",
+          "denied",
+          "findings",
+          "formal-failure",
+          "formal-only",
+          "missing",
+          "stdout",
+          "symlink",
+          "unsupported"
+        ],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -14887,5 +14930,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "720f976a2a8d4e537518bfbcb246f6e2f81a3419145e76c636dfae24ea809707"
+  "sha256": "75ea037613b89968877bc25449d6eb33ed79d8e154fc8486f6e0288e94c68912"
 }

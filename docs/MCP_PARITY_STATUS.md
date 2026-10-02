@@ -7,7 +7,7 @@ Do not edit it by hand.
 
 - Commands mapped: 44 / 44
 - Argument declarations mapped: 229 / 229
-- Commands with at least one admitted invocation profile: 15 / 44
+- Commands with at least one admitted invocation profile: 16 / 44
 - Complete command workflows: 0 / 44
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -19,7 +19,7 @@ Do not edit it by hand.
 | `analyze-codebase` | `analyze_codebase` | `direct_or_task` | `admitted` | `incomplete` | 4 |
 | `apply-refactor` | `apply_refactor` | `direct_or_task` | `admitted` | `incomplete` | 6 |
 | `architecture` | `architecture` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 5 |
-| `assess-security` | `assess_security` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
+| `assess-security` | `assess_security` | `direct` | `admitted` | `incomplete` | 3 |
 | `capabilities` | `describe_capabilities` | `direct` | `admitted` | `incomplete` | 2 |
 | `compose` | `compose` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |
 | `contract` | `inspect_contract` | `direct` | `admitted` | `incomplete` | 4 |

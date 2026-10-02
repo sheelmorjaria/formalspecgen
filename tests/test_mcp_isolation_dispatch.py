@@ -80,6 +80,7 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
     strict = {item.mcp_tool: item.mcp_isolation
               for item in mcp_capabilities(strict_isolation=True)}
     assert strict == {
+        "assess_security": "strict-execution",
         "inspect_contract": "non-executing",
         "inspect_project": "non-executing",
         "security_exploit": "non-executing",
@@ -131,5 +132,5 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
         "get_work_item", "get_work_artifacts", "cancel_work_item",
         "start_agent_run", "get_agent_run", "resume_agent_run",
             "cancel_agent_run", "get_approval_request",
-            "complete_refactor_signing", "security_exploit", "apply_refactor", "verify_refactor", "verify_bisimulation",
+            "complete_refactor_signing", "assess_security", "security_exploit", "apply_refactor", "verify_refactor", "verify_bisimulation",
             "generate_traceability_matrix", "inspect_evidence", "describe_capabilities", "inspect_project", "inspect_contract"]

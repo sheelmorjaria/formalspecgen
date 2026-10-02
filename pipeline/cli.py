@@ -682,14 +682,22 @@ def command_discover_algorithms(args: argparse.Namespace, ui: TerminalUI) -> int
 
 
 def command_assess_security(args: argparse.Namespace, ui: TerminalUI) -> int:
-    from .security_assessment import assess_security
-
-    result = assess_security(args.source, run_sast=not args.no_sast)
-    _write_json(result, args.json or "security_verdict.json", ui.console)
+    from .security_workflow import SECURITY_BUDGET, SecurityAssessmentWorkflowRequest, run_security_assessment
+    from .workflow_contracts import WorkflowContext
+    source = Path(args.source).expanduser().absolute()
+    export = None if args.json == "-" else Path(args.json or "security_verdict.json").expanduser()
+    output_root = export.parent if export and export.is_absolute() else Path.cwd()
+    export_key = (export.name if export.is_absolute() else str(export)) if export else None
+    request = SecurityAssessmentWorkflowRequest(str(source), not args.no_sast, export_key)
+    source_root = Path.cwd() if source.is_relative_to(Path.cwd()) else source.parent
+    context = WorkflowContext.for_cli(request.required_effects(), workspace_root=source_root,
+        output_root=output_root, resource_budget=SECURITY_BUDGET)
+    result = run_security_assessment(request, context)
+    _write_json(result, "-" if args.json == "-" else None, ui.console)
     ui.console.print(
         f"Status: {result['status']}\nClaim: {result.get('claim', 'NO_PROOF')}"
     )
-    return 0 if result["status"] == "VERIFIED_SECURE" else 1
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_security_inspect(args: argparse.Namespace, ui: TerminalUI) -> int:

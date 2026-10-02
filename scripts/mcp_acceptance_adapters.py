@@ -2145,7 +2145,106 @@ async def _security_template_observation() -> dict:
     return observation
 
 
+async def _security_assessment_observation() -> dict:
+    """Real OpenJML, Semgrep, MCP and CLI. Missing provisioned judges must fail."""
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-security-acceptance-") as directory:
+        workspace = Path(directory)
+        output = workspace / "controlled-output"
+        output.mkdir()
+        (workspace / "Good.java").write_text("public class Good {\n //@ ensures \\result == 1;\n public static int one() { return 1; }\n}\n")
+        (workspace / "Bad.java").write_text("public class Bad {\n //@ ensures \\result == 1;\n public static int one() { return 2; }\n}\n")
+        (workspace / "Finding.java").write_text('public class Finding { public static final String password = "fixture-only"; }\n')
+        (workspace / "other.txt").write_text("unsupported")
+        (workspace / "Large.java").write_bytes(b" " * (4 * 1024**2 + 1))
+        (workspace / "Link.java").symlink_to(workspace / "Good.java")
+        (output / "collision.json").write_text("preserved")
+        cases = [
+            ("combined", {"source": "Good.java", "result_export": "combined.json"}, "CHECKS_PASSED"),
+            ("formal-only", {"source": "Good.java", "run_sast": False, "result_export": "formal-only.json"}, "FORMALLY_VERIFIED_SAST_SKIPPED"),
+            ("formal-failure", {"source": "Bad.java", "result_export": "bad.json"}, "FORMAL_VERIFICATION_FAILED"),
+            ("findings", {"source": "Finding.java", "result_export": "findings.json"}, "SECURITY_FINDINGS"),
+            ("missing", {"source": "Missing.java", "result_export": "missing.json"}, "SECURITY_ASSESSMENT_INCOMPLETE"),
+            ("unsupported", {"source": "other.txt", "result_export": "unsupported.json"}, "SECURITY_ASSESSMENT_INCOMPLETE"),
+            ("denied", {"source": "../outside.java", "result_export": "denied.json"}, "SECURITY_ASSESSMENT_INCOMPLETE"),
+            ("byte-limit", {"source": "Large.java", "result_export": "limit.json"}, "SECURITY_ASSESSMENT_INCOMPLETE"),
+            ("symlink", {"source": "Link.java", "result_export": "symlink.json"}, "SECURITY_ASSESSMENT_INCOMPLETE"),
+            ("collision", {"source": "Good.java", "result_export": "collision.json"}, "RESULT_EXPORT_FAILED"),
+            ("stdout", {"source": "Good.java", "run_sast": False, "result_export": None}, "FORMALLY_VERIFIED_SAST_SKIPPED"),
+            ("default-export", {"source": "Good.java", "run_sast": False}, "FORMALLY_VERIFIED_SAST_SKIPPED"),
+        ]
+        initialized, tools, schema, results = await _call_tool(workspace, "assess_security",
+            [args for _, args, _ in cases], environment={"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output)}, timeout_s=480)
+        validations, comparisons = [], []
+        def semantic(value):
+            formal = value.get("formal_verification") or {}
+            return {"status": value["status"], "claim": value["claim"], "request_satisfied": value["request_satisfied"],
+                    "inputs": value["inputs"], "formal_status": formal.get("status"), "formal_claim": formal.get("claim"),
+                    "sast_status": value["sast"]["status"], "findings": value["sast"]["findings"],
+                    "claim_limits": value["claim_limits"]}
+        for (variant, args, expected), result in zip(cases, results):
+            success = expected in {"CHECKS_PASSED", "FORMALLY_VERIFIED_SAST_SKIPPED"}
+            if result["status"] != expected or result["request_satisfied"] != success or result["claim"] != "NO_PROOF":
+                raise RuntimeError(f"incorrect assessment outcome: {variant}: {result}")
+            from pipeline.lifecycle import RunLedger
+            receipt = result["publication"]["receipt"]
+            manifest_path = Path(receipt["manifest_path"])
+            manifest = json.loads(manifest_path.read_text())
+            if (hashlib.sha256(manifest_path.read_bytes()).hexdigest() != receipt["manifest_sha256"]
+                    or RunLedger._validate_artifacts(manifest_path.parent, manifest["artifacts"])
+                    or manifest["terminal"]["inputs"]["sources"] != result["inputs"]
+                    or manifest["terminal"]["execution_stages"] != result["execution_stages"]
+                    or manifest["terminal"]["claim"] != "NO_PROOF"):
+                raise RuntimeError("assessment receipt does not bind the returned inputs and stages")
+            for identity in result["inputs"]:
+                if hashlib.sha256((workspace / identity["path"]).read_bytes()).hexdigest() != identity["sha256"]:
+                    raise RuntimeError("assessment input digest mismatch")
+            if variant in {"combined", "formal-failure", "findings", "collision", "formal-only", "stdout", "default-export"}:
+                expected_count = 1 if args.get("run_sast") is False else 2
+                if len(result["execution_observations"]) != expected_count:
+                    raise RuntimeError("missing actual execution observations")
+                for item in result["execution_observations"]:
+                    if item["policy_compliance"] != "ENFORCED" or not any(
+                            record["sha256"] == result["inputs"][0]["sha256"] for record in item["snapshot_files"]):
+                        raise RuntimeError("assessment execution/source binding mismatch")
+            for publication in (result["publication"], result.get("result_export", {})):
+                for key, artifact in publication.get("artifacts", {}).items():
+                    data = Path(artifact["path"]).read_bytes()
+                    if hashlib.sha256(data).hexdigest() != artifact["sha256"]:
+                        raise RuntimeError("assessment publication digest mismatch")
+                    validations.append({"variant": variant, "artifact": key, "sha256": artifact["sha256"]})
+            if result.get("result_export", {}).get("status") == "COMMITTED":
+                saved = json.loads(Path(next(iter(result["result_export"]["artifacts"].values()))["path"]).read_text())
+                if semantic(saved) != semantic(result) or saved["publication"] != result["publication"]:
+                    raise RuntimeError("assessment export disagrees with response")
+            if variant == "denied":
+                continue  # Direct CLI has a separately selected local read scope.
+            if variant == "collision":
+                (workspace / "collision.json").write_text("preserved")
+            command = [sys.executable, "-m", "pipeline.cli", "assess-security", args["source"]]
+            if "result_export" in args:
+                command += ["--json", args["result_export"] or "-"]
+            if args.get("run_sast") is False:
+                command += ["--no-sast"]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                text=True, capture_output=True, timeout=200, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            decoded = json.JSONDecoder().raw_decode(process.stdout.lstrip())[0]
+            local = decoded["result"] if decoded.get("schema") == "formalspecgen-cli-result-v1" else decoded
+            if process.returncode != (0 if success else 1) or semantic(local) != semantic(result):
+                raise RuntimeError(f"CLI/MCP assessment semantics differ: {variant}: {local}")
+            if local["workflow_result"]["request"] != result["workflow_result"]["request"]:
+                raise RuntimeError("assessment normalized request mismatch")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+        if (output / "collision.json").read_text() != "preserved":
+            raise RuntimeError("assessment replaced an existing export")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
+                       variants=[name for name, _, _ in cases])
+    return observation
+
+
 _ADAPTERS = {
+    "assess-security": _security_assessment_observation,
     "contract": _contract_observation,
     "security-exploit": _security_template_observation,
     "verify-bisimulation": _bisimulation_observation,

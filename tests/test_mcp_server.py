@@ -135,9 +135,9 @@ def test_mcp_analyze_and_document_guarded(tmp_path, monkeypatch):
 def test_mcp_security_tools_guarded(tmp_path, monkeypatch):
     source = _workspace(tmp_path, monkeypatch)
     Path("report.json").write_text('{"findings": []}', encoding="utf-8")
-    with patch("pipeline.security_assessment.assess_security",
-               return_value={"status": "VERIFIED_SECURE"}) as assess:
-        assert mcp_server.assess_security(str(source))["status"] == "VERIFIED_SECURE"
+    with patch("pipeline.security_workflow.run_security_assessment",
+               return_value={"status": "CHECKS_PASSED"}) as assess:
+        assert mcp_server.assess_security(str(source))["status"] == "CHECKS_PASSED"
         assess.assert_called_once()
     with patch("pipeline.security_poc.inspect_security",
                return_value={"status": "NO_FINDINGS"}) as inspect_:
