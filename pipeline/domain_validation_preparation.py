@@ -43,6 +43,17 @@ class DomainPreparationRequest:
 
 
 @dataclass(frozen=True)
+class CapturedDomainCandidate:
+    source_path: str
+    source_bytes: bytes
+    effective_limits: tuple[tuple[str, int], ...]
+
+    def identity(self) -> dict:
+        return {"path": self.source_path, "size": len(self.source_bytes),
+                "sha256": hashlib.sha256(self.source_bytes).hexdigest()}
+
+
+@dataclass(frozen=True)
 class PreparedDomainCandidate:
     # Immutable bytes/text only: do not hand later stages a mutable Pydantic
     # object whose nested lists can diverge from its captured identity.
@@ -144,13 +155,9 @@ def _parse_candidate(content: bytes, limits: dict[str, int]) -> dict:
     return value
 
 
-def prepare_domain_candidate(request: DomainPreparationRequest,
-                             context: WorkflowContext) -> PreparedDomainCandidate:
-    """Capture once, parse with bounds, and render the same semantic candidate.
-
-    Limits only attenuate the installed ceilings. Resource and schema failures
-    propagate without a prepared result. No caller-supplied tool path is used.
-    """
+def capture_domain_candidate(request: DomainPreparationRequest,
+                             context: WorkflowContext) -> CapturedDomainCandidate:
+    """Retain captured identity even if a subsequent preparation gate fails."""
     context.require("workspace_read")
     limits = _limits(context)
     _, relative = input_path(request.candidate_path, context)
@@ -159,6 +166,12 @@ def prepare_domain_candidate(request: DomainPreparationRequest,
     with input_directory(relative, context) as directory:
         content = capture(relative.name, directory, context,
                           CaptureBudget(limits["max_input_bytes"], 1))
+    return CapturedDomainCandidate(relative.as_posix(), content, tuple(sorted(limits.items())))
+
+
+def prepare_captured_domain_candidate(captured: CapturedDomainCandidate) -> PreparedDomainCandidate:
+    """Pure internal stage over a previously authorized immutable capture."""
+    content, limits = captured.source_bytes, dict(captured.effective_limits)
     try:
         value = _parse_candidate(content, limits)
         candidate = DomainSpecV2.model_validate(value)
@@ -178,8 +191,14 @@ def prepare_domain_candidate(request: DomainPreparationRequest,
         tla, cfg = render_v2_tla(candidate)
         if len(tla.encode("utf-8")) + len(cfg.encode("utf-8")) > limits["max_generated_bytes"]:
             raise ValueError("generated candidate model allowance exceeded")
-        return PreparedDomainCandidate(relative.as_posix(), content, canonical,
+        return PreparedDomainCandidate(captured.source_path, content, canonical,
             candidate_sha256(candidate), TlcModelRequest(candidate.domain_name, tla, cfg),
             tuple(sorted(limits.items())))
     except (yaml.YAMLError, RecursionError) as exc:
         raise ValueError("candidate parsing failed within the supported YAML boundary") from exc
+
+
+def prepare_domain_candidate(request: DomainPreparationRequest,
+                             context: WorkflowContext) -> PreparedDomainCandidate:
+    """Capture once, then parse/render without reopening the caller's path."""
+    return prepare_captured_domain_candidate(capture_domain_candidate(request, context))

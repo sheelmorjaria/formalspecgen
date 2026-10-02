@@ -114,13 +114,53 @@ publishes nothing and returns no output paths. A model can be prepared even
 when its invariants are false. Existing reviewed/unreviewed metadata is
 reported as input data, never authenticated or promoted by preparation.
 
-`validate-domain` remains **unadmitted**. Its next migration still requires a
-permission-carrying shared workflow connecting these preparation/traversal
-stages to strict TLC execution, immutable candidate/model evidence, controlled
-`--emit-tla` publication and real CLI/MCP acceptance. Neither CLI nor MCP has
-been switched to this preparation stage yet. The legacy validation-sidecar writer
-is not made suitable for MCP by the traversal changes. No inventory or
-completion count changes for this infrastructure slice.
+The internal `domain_validation_workflow.run_domain_validation` service now
+connects capture/preparation, static deadlock findings, bounded traversal,
+strict TLC provenance/checking, and controlled multi-stage evidence publication.
+Its typed request selects the candidate, timeout, optional TLA/CFG export and
+optional result JSON. It accepts no provider, tool pathname or signing key.
+All four effects (`workspace_read`, `external_execution`,
+`evidence_publication`, `workspace_write_new`) are required before capture;
+child stages receive attenuated authority. Requested outputs must stay under
+the context's designated root, be distinct from each other and the input,
+and publish without replacement. The service does not overwrite or remove
+legacy success/failure sidecars.
+
+Captured bytes survive preparation failures. Successful preparation never
+implies successful checking. Each actual execution observation is retained,
+including when a later stage raises. A positive check requires both enforced
+TLC observations bound to the exact TLA/CFG digests, together with successful
+static/traversal gates. The result retains exact state/transition counts,
+state bounds and actor count separately; a 1,024-bit ceiling bounds finite
+state-space estimates for reporting, independently of reachable-state limits.
+`VALIDATED` carries only `BOUNDED_ARCHITECTURE_EVIDENCE`, never source proof or
+authenticated human review.
+
+The immutable bundle embeds the captured input (base64), generated model text,
+actual stage observations, effective limits, and a compatible V2 validation
+envelope on successful checks. Exported source/model/envelope copies are
+derived artifacts: verify their bytes against the publication digests before
+reuse. User-facing references come from publication metadata. The legacy V2
+envelope alone does not carry the full execution/policy binding; retain the
+bundle receipt with it.
+
+`checks_satisfied` remains separate from overall `request_satisfied`. TLA/CFG
+exports are attempted only after successful checks. Export or evidence
+publication failure makes the overall result unsuccessful and `NO_PROOF`,
+without erasing check observations or already-published files. A requested
+JSON export contains the final receipt and model references; its own subsequent
+publication failure is reported to the caller, not retroactively written into
+an immutable terminal manifest. Negative checks can be exported to safe new
+JSON destinations.
+
+`validate-domain` remains **unadmitted**. Neither CLI nor MCP has been switched
+to the internal service yet. Remaining work is name/project-root and output
+option mapping, strict profile admission, and provisioned real CLI/MCP
+acceptance. Unit tests with injected execution observations are not TLC
+acceptance. An opt-in real internal-service test is provided under
+`FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE=1`; it requires the
+provisioned TLC/sandbox environment and is not yet a completion gate. No
+inventory or completion count changes for this infrastructure slice.
 
 ## Semgrep execution infrastructure (not workflow admission)
 

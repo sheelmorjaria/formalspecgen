@@ -562,7 +562,7 @@ class WorkflowResultEnvelope:
             context: WorkflowContext | None = None) -> "WorkflowResultEnvelope":
         request_value = request.as_dict()
         is_verification = request_value["workflow"] in {
-            "verify", "verify-refactor", "apply-refactor", "validate-architecture"}
+            "verify", "verify-refactor", "apply-refactor", "validate-architecture", "validate-domain"}
         return cls(
             workflow=str(request_value["workflow"]), interface=interface,
             request=request_value,
