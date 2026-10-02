@@ -88,10 +88,37 @@ domain validation orchestrator records a `bounded_traversal` failure and does
 not render or invoke TLC after exhaustion. This is an incomplete check, not a
 counterexample or evidence that the specification is invalid.
 
+The internal `domain_validation_preparation.prepare_domain_candidate` stage
+now provides a typed `DomainPreparationRequest` and requires explicit
+`workspace_read` authority. Relative candidate paths are resolved under the
+context's workspace, not the process working directory. Descriptor-based
+capture rejects symlinks and nonregular files, reads the candidate once, and
+enforces a 1 MiB byte ceiling and 32 path components. Returned source bytes,
+canonical candidate JSON, semantic identity and TLA/CFG text are immutable.
+The existing candidate hash and renderer semantics are preserved.
+
+YAML (including JSON syntax) is limited during composition, before typed
+schema construction: 8,192 nodes including keys, 48 levels, 4,096 characters per
+scalar and 64 characters for integer literals/numeric strings. Aliases,
+duplicate/non-string keys, merge keys, multiple documents, floats, timestamps,
+binary blobs and non-core tags are rejected. Context limits can only lower
+the installed ceilings. Generated text has a 2 MiB aggregate ceiling, with a
+conservative pre-render expansion check to bound repeated state-name lists.
+Large valid models can be rejected by that allowance without implying a model
+defect. The result records the effective preparation limits and separate raw
+source, semantic candidate, and generated model digests.
+
+Preparation returns `DOMAIN_MODEL_PREPARED` / `NO_PROOF`, not `VALIDATED`.
+It does not run static deadlock analysis, traversal, TLC or a provider; it
+publishes nothing and returns no output paths. A model can be prepared even
+when its invariants are false. Existing reviewed/unreviewed metadata is
+reported as input data, never authenticated or promoted by preparation.
+
 `validate-domain` remains **unadmitted**. Its next migration still requires a
-permission-carrying shared request/service, bounded capture and parsing, strict
-TLC execution, immutable candidate/model evidence, controlled `--emit-tla`
-publication and real CLI/MCP acceptance. The legacy validation-sidecar writer
+permission-carrying shared workflow connecting these preparation/traversal
+stages to strict TLC execution, immutable candidate/model evidence, controlled
+`--emit-tla` publication and real CLI/MCP acceptance. Neither CLI nor MCP has
+been switched to this preparation stage yet. The legacy validation-sidecar writer
 is not made suitable for MCP by the traversal changes. No inventory or
 completion count changes for this infrastructure slice.
 
