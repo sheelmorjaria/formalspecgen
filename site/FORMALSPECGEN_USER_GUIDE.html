@@ -1933,7 +1933,7 @@ every backend they reach is migrated to the strict sandbox. Consult the <a href=
 <td><a href="#validate-architecture"><code>validate-architecture</code></a></td>
 <td>Architecture</td>
 <td>No; use shell</td>
-<td data-cli-admission="validate-architecture">Not admitted</td>
+<td data-cli-admission="validate-architecture">Admitted profiles; not a completion claim</td>
 </tr>
 <tr class="odd">
 <td><a href="#validate-domain"><code>validate-domain</code></a></td>
@@ -3702,7 +3702,7 @@ unified-evidence validation.</p>
 CLI syntax: <a class="cite" href="#s01">S01</a>.</p>
 </section><section class="doc-section" data-section-title="validate-architecture"><h2 id="validate-architecture">validate-architecture</h2>
 <p>Validate a staged unified architecture artifact with TLC.</p>
-<p data-cli-command="validate-architecture"><strong>Interface availability.</strong> Operator CLI; strict MCP: Not admitted. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>
+<p data-cli-command="validate-architecture"><strong>Interface availability.</strong> Operator CLI; strict MCP: Admitted profiles; not a completion claim. See <a href="index.html#catalogue">current invocation scope</a> and <a href="index.html#approvals">human approval boundaries</a>.</p>
 <pre class="text"><code>formalspecgen validate-architecture ARTIFACT [options]</code></pre>
 <div class="table-wrap" tabindex="0"><table>
 <thead>
@@ -3737,7 +3737,12 @@ run.</td>
 requested model check succeeds.</p>
 <p><strong>Boundary and common mistakes.</strong> Do not pass a generic
 system plan or raw V2 domain. This is model evidence under finite
-bounds, not implementation verification.</p>
+bounds, not implementation verification. The shared CLI/MCP service preserves
+captured input/model identities and isolated TLC observations in immutable,
+no-replace evidence. Operation contracts and use-case ordering are outside the
+current renderer's scope; unresolved domains and colliding flattened names are
+rejected. See <a href="index.html#architecture-validation">current invocation
+scope and publication rules</a>.</p>
 <p><strong>Source:</strong> <a href="https://github.com/sheelmorjaria/formalspecgen/blob/91c6790/pipeline/architecture_tlc_gate.py" rel="noopener noreferrer" target="_blank"><code>pipeline/architecture_tlc_gate.py</code></a>;
 CLI syntax: <a class="cite" href="#s01">S01</a>.</p>
 </section><section class="doc-section" data-section-title="validate-domain"><h2 id="validate-domain">validate-domain</h2>

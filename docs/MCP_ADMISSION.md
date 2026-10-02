@@ -171,12 +171,49 @@ inadequate output fail closed without an unrestricted runner fallback.
 correspondence, reviewed assumptions, specification adequacy or published
 evidence. Its `request_satisfied` refers only to this model-check request.
 
-Legacy domain and architecture callers are **not yet migrated or admitted**.
-Their source capture, static exploration, model correspondence, publication and
-interface acceptance remain separate work. No new CLI/MCP command or completion
-is counted for this adapter. The provisioned sandbox CI job requires real TLC
+`validate-architecture` now uses this adapter through the shared bounded workflow
+below. Legacy domain validation and the other architecture/composition workflows
+remain separate migrations. The adapter itself creates no command-completion
+claim. The provisioned sandbox CI job requires real TLC
 success and invariant-failure cases using a digest-pinned jar; mocked unit tests
 are not backend acceptance evidence.
+
+### Bounded architecture validation
+
+CLI `validate-architecture ARTIFACT --timeout 120 --json result.json` and MCP
+`validate_architecture(artifact_path, timeout=120, result_export=None)` capture
+one regular JSON file (4 MiB ceiling) without following symlinks. Parsing rejects
+duplicate keys/nonfinite values; structure is limited to 16,384 nodes and depth
+32. Typed validation precedes rendering and execution. The finite state-space
+ceiling is 1,000,000; a conservative expansion allowance bounds repeated state
+names before rendering and generated TLA/CFG together are capped at 1 MiB.
+
+The current renderer flattens component state/actions. Duplicate or colliding
+names and unresolved domain references are rejected rather than silently
+checking a different composition. Operation contracts, use-case ordering,
+external behavior, source correspondence, liveness and specification adequacy
+are **not checked**. The bounded claim concerns generated `TypeOK` and default
+TLC deadlock checking only. Model validation neither approves a specification nor
+authorizes source changes.
+
+The profile requires read, execution, new-artifact write and evidence publication.
+It exposes no provider, tool path, jar path or unrestricted execution option.
+The isolated adapter retains provenance and model-check observations under one
+execution allowance (at most 120 seconds), with the same captured tool/model
+bytes. Missing tools and sandbox/check failures remain `NO_PROOF`.
+
+The immutable bundle contains generated TLA/CFG, captured-input digests, model
+bounds, both actual observations, claim limits and admission policy. All user
+references derive from controlled publication metadata. The model text itself
+is embedded in the hash-chained ledger; standalone TLA/CFG files are derived
+exports whose bytes must match the returned and recorded model digests before
+reuse. Ledger integrity alone does not validate those external export paths.
+JSON export is optional,
+supports negative results and never replaces existing files; publication failure
+leaves the request unsuccessful and `NO_PROOF`. CLI stdout uses `--json -`;
+without a file export its evidence is under `.formalspecgen/cli-output`.
+MCP always uses the designated output root. Provisioned real CLI/MCP acceptance,
+not static admission or mocked execution, establishes completion.
 
 ## Review-only security templates
 

@@ -222,6 +222,7 @@ jobs:
           --require-complete project
           --require-complete contract
           --require-complete assess-security
+          --require-complete validate-architecture
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -447,6 +448,7 @@ jobs:
             --command project \
             --command contract \
             --command assess-security \
+            --command validate-architecture \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

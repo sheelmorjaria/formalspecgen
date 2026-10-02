@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 24,
-  "cli_capability_count": 16,
+  "capability_count": 25,
+  "cli_capability_count": 17,
   "mcp_only_capability_count": 8,
   "capabilities": [
     {
@@ -449,6 +449,74 @@
             "workspace_write_new"
           ],
           "profile_sha256": "6fe515428f396a53a7d5e0d767235f22a3384f64de76c5f0d633ee6c816db733"
+        }
+      ]
+    },
+    {
+      "name": "validate_architecture",
+      "mcp_tool": "validate_architecture",
+      "cli_command": "validate-architecture",
+      "description": "Bounded captured architecture validation through isolated TLC.",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "artifact_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "timeout",
+            "required": false,
+            "default": 120,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "artifact_path",
+          "timeout",
+          "result_export"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-architecture-validation",
+          "modes": [
+            "validate"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "tlc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-architecture-models-and-tlc-observations",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "1e9386f20d45c2db7d440d9e06328380c013a79c0cf7b1d60bd6bec3f6afb224"
         }
       ]
     },

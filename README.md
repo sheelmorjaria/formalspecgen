@@ -123,6 +123,12 @@ The strict catalogue also admits `apply_refactor` for bounded deterministic Java
 C++ transformations. It stages candidates privately, reuses the preservation service, and publishes
 only new unreviewed candidate artifacts plus immutable evidence; it does not modify authoritative
 source files or claim general behavioral equivalence.
+`validate_architecture` now shares the CLI's bounded input, isolated TLC and
+controlled evidence service. Its claim concerns only the generated finite model's
+`TypeOK` and deadlock checks—not operation contracts, use-case ordering or source
+behavior. The bundle embeds model text and retains both execution observations;
+standalone TLA/CFG exports must match their recorded digests before reuse.
+See [architecture admission and limits](docs/MCP_ADMISSION.md#bounded-architecture-validation).
 Deployment and reviewer steps are documented in
 [Authenticated approval and protected signing](docs/APPROVAL_SIGNING.md).
 The server can also expose the operator-configured A2A proposal bridge
@@ -1895,7 +1901,12 @@ state variables, transitions, or nested expression trees. A component with `doma
 from carrying inline `state_variables` or `transitions`; the reviewed V2 artifact is the sole source
 of truth for those ASTs.
 
-The complete workflow is:
+The intended sequence is shown below, but it is **not yet an executable end-to-end
+validation recipe**: the current `validate-architecture` renderer handles inline
+finite-state fragments and rejects unresolved `domain` references. A reviewed
+domain-to-architecture lowering step is still needed before step 3 can validate
+this example. Do not substitute an unrelated inline model's evidence for that
+missing correspondence.
 
 ```bash
 # 1. Generate, validate, and promote the bounded core domain.

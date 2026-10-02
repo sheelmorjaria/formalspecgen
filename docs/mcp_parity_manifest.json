@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "0c58dff512582c7b9d182d94eae84c55f318c33b97c2f86fc29990fcd1cce32e",
+  "plan_sha256": "1febbd8b6967e6a848a64f9b18ef3f4fd9032d53fab4e28ab6b8b755c6c88236",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -4693,7 +4693,7 @@
     "mapped_commands": 44,
     "discovered_argument_declarations": 229,
     "mapped_argument_declarations": 229,
-    "commands_with_admitted_profile": 16,
+    "commands_with_admitted_profile": 17,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -12388,8 +12388,8 @@
     {
       "cli_command": "validate-architecture",
       "target_mcp_tool": "validate_architecture",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Architecture input, timeout and exact real-TLC observation.",
+      "workflow_kind": "direct",
+      "requirements": "Bounded captured architecture JSON, generated TLA/CFG, strict TLC provenance/checking and immutable no-replace evidence. Model TypeOK/deadlock scope only.",
       "origin": "builtin",
       "plugin_id": null,
       "arguments": [
@@ -12461,8 +12461,36 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-architecture-validation",
+            "modes": [
+              "validate"
+            ],
+            "languages": [
+              "model"
+            ],
+            "backends": [
+              "tlc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "captured-architecture-models-and-tlc-observations",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -12480,11 +12508,19 @@
             "default": 120,
             "annotation": "int",
             "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
           "artifact_path",
-          "timeout"
+          "timeout",
+          "result_export"
         ]
       },
       "workflow_completion": {
@@ -12497,27 +12533,34 @@
         ],
         "observed_mcp_fields": [
           "artifact_path",
-          "timeout"
-        ],
-        "missing_mcp_fields": [
-          "artifact",
-          "result_export"
-        ],
-        "unverified_argument_mappings": [
-          "artifact",
           "result_export",
           "timeout"
         ],
-        "required_variants": [],
+        "missing_mcp_fields": [
+          "artifact"
+        ],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "byte-limit",
+          "collision",
+          "deadlock",
+          "denied",
+          "invalid",
+          "invariant-failure",
+          "malformed",
+          "missing",
+          "timeout-stdout",
+          "valid"
+        ],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
           "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -14930,5 +14973,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "75ea037613b89968877bc25449d6eb33ed79d8e154fc8486f6e0288e94c68912"
+  "sha256": "0aeb9d6da68ef66bfed7b8fb047270e62d4944e631c5dbff298cd2093e305d22"
 }

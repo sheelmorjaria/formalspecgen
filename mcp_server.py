@@ -486,24 +486,23 @@ def verify_code(
             result, request, WorkflowInterface.MCP, context=context)
 
 
-def validate_architecture(artifact_path: str, timeout: int = 120) -> dict[str, Any]:
-    """Validate a unified architecture through its typed model and TLC gate."""
-    from pipeline.architecture_tla_renderer import render_unified_architecture
-    from pipeline.staged_architecture import UnifiedArchitecture
-    from pipeline.architecture_tlc_gate import validate_architecture_with_tlc
-    path = _workspace_path(artifact_path)
+def validate_architecture(artifact_path: str, timeout: int = 120,
+                          result_export: str | None = None) -> dict[str, Any]:
+    """Check a bounded generated architecture model; no source-level proof."""
+    from pipeline.architecture_validation_workflow import (
+        ARCHITECTURE_BUDGET, ArchitectureValidationRequest, run_architecture_validation)
     try:
-        architecture = UnifiedArchitecture.model_validate(json.loads(path.read_text(encoding="utf-8")))
-        tla, cfg = render_unified_architecture(architecture)
-        with tempfile.TemporaryDirectory(prefix="formalspecgen-mcp-") as directory:
-            root = Path(directory)
-            tla_path, cfg_path = root / "architecture.tla", root / "architecture.cfg"
-            tla_path.write_text(tla, encoding="utf-8"); cfg_path.write_text(cfg, encoding="utf-8")
-            result = validate_architecture_with_tlc(tla_path, cfg_path, config.TLC_JAR,
-                                                    config.JAVA_BIN, timeout)
-        return {"artifact": str(path), **result}
-    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-        return {"status": "ARCHITECTURE_INVALID", "claim": "NO_PROOF", "message": str(exc)}
+        request = ArchitectureValidationRequest(artifact_path, timeout, result_export)
+        admission = authorize_mcp_invocation("validate_architecture", mode="validate", language="model",
+            backend="tlc", effects=request.required_effects())
+        if not admission.admitted:
+            return admission.rejection()
+        context = WorkflowContext.for_mcp(admission, request.required_effects(),
+            output_root=_designated_mcp_output_root(), resource_budget=ARCHITECTURE_BUDGET)
+        return run_architecture_validation(request, context)
+    except (OSError, ValueError, RuntimeError, MCPPolicyViolation) as exc:
+        return {"status": "ARCHITECTURE_INVALID", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": getattr(exc, "code", "INVALID_INPUT"), "message": str(exc)}
 
 
 def implement_code(spec_path: str, provider: str = "ollama",

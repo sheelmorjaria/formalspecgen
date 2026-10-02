@@ -7,7 +7,7 @@ Do not edit it by hand.
 
 - Commands mapped: 44 / 44
 - Argument declarations mapped: 229 / 229
-- Commands with at least one admitted invocation profile: 16 / 44
+- Commands with at least one admitted invocation profile: 17 / 44
 - Complete command workflows: 0 / 44
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -48,7 +48,7 @@ Do not edit it by hand.
 | `sign-artifact` | `sign_artifact` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 2 |
 | `system` | `system` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 9 |
 | `unified-system` | `unified_system` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
-| `validate-architecture` | `validate_architecture` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
+| `validate-architecture` | `validate_architecture` | `direct` | `admitted` | `incomplete` | 3 |
 | `validate-domain` | `validate_domain` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
 | `verify` | `verify_code` | `direct_or_task` | `admitted` | `incomplete` | 4 |
 | `verify-bisimulation` | `verify_bisimulation` | `direct` | `admitted` | `incomplete` | 4 |

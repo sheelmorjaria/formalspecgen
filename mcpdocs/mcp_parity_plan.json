@@ -3120,10 +3120,10 @@
     {
       "cli_command": "validate-architecture",
       "proposed_mcp_tool": "validate_architecture",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Architecture input, timeout and exact real-TLC observation.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "workflow_kind": "direct",
+      "requirements": "Bounded captured architecture JSON, generated TLA/CFG, strict TLC provenance/checking and immutable no-replace evidence. Model TypeOK/deadlock scope only.",
+      "baseline_strict_mcp": "Admitted bounded model validation; provisioned revision-bound completion pending.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -3140,7 +3140,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3157,7 +3157,7 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3175,10 +3175,101 @@
             "required": false,
             "type": "int"
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/architecture_tlc_gate.py"
+      "baseline_source": "pipeline/architecture_validation_workflow.py",
+      "completion_contract": {
+        "required_variants": [
+          "valid",
+          "timeout-stdout",
+          "invariant-failure",
+          "deadlock",
+          "invalid",
+          "malformed",
+          "missing",
+          "denied",
+          "collision",
+          "byte-limit"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_architecture_validation_workflow.py::test_cli_mcp_equivalence_and_options",
+            "variants": [
+              "valid",
+              "timeout-stdout"
+            ]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_architecture_validation_workflow.py::test_cli_mcp_equivalence_and_options",
+            "variants": [
+              "valid",
+              "timeout-stdout"
+            ]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_architecture_validation_workflow.py::test_captured_source_models_receipt_and_authoritative_paths",
+            "variants": [
+              "valid"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_architecture_validation_workflow.py::test_denied_effects_stop_before_execution",
+            "variants": [
+              "denied"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_architecture_validation_workflow.py::test_rejection_before_backend_with_negative_exports",
+            "variants": [
+              "missing",
+              "invalid",
+              "malformed",
+              "byte-limit"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_architecture_validation_workflow.py::test_failed_checks_retain_observations_and_export",
+            "variants": [
+              "invariant-failure"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_architecture_validation_workflow.py::test_existing_export_and_publication_failures_are_no_proof",
+            "variants": [
+              "collision"
+            ]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_architecture_validation_workflow.py::test_real_architecture_transport",
+            "variants": [
+              "valid",
+              "timeout-stdout",
+              "invariant-failure",
+              "deadlock",
+              "invalid",
+              "malformed",
+              "missing",
+              "denied",
+              "collision",
+              "byte-limit"
+            ]
+          }
+        ],
+        "required_ci_environments": [
+          "provisioned-linux-bwrap-cgroup-v2",
+          "java",
+          "pinned-tlc"
+        ]
+      }
     },
     {
       "cli_command": "domain",

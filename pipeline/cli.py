@@ -1026,54 +1026,22 @@ def command_design_system(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 
 def command_validate_architecture(args: argparse.Namespace, ui: TerminalUI) -> int:
-    """Validate a unified staged architecture JSON through TLA+/TLC."""
-    try:
-        architecture = UnifiedArchitecture.model_validate(
-            json.loads(Path(args.artifact).read_text(encoding="utf-8"))
-        )
-        tla, cfg = render_unified_architecture(architecture)
-        import tempfile
-
-        with tempfile.TemporaryDirectory(
-            prefix="formalspecgen-architecture-"
-        ) as directory:
-            root = Path(directory)
-            tla_path, cfg_path = (
-                root / f"{architecture.name}.tla",
-                root / f"{architecture.name}.cfg",
-            )
-            tla_path.write_text(tla, encoding="utf-8")
-            cfg_path.write_text(cfg, encoding="utf-8")
-            result = validate_architecture_with_tlc(
-                tla_path, cfg_path, config.TLC_JAR, config.JAVA_BIN, args.timeout
-            )
-        if result["status"] != "VERIFIED":
-            if args.json:
-                _write_json(
-                    {"status": result["status"], "tlc": result}, args.json, ui.console
-                )
-            ui.console.print(
-                f"[red]Architecture validation failed: {result['status']}[/red]"
-            )
-            return 1
-        evidence = {
-            "status": "VERIFIED",
-            "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
-            "tlc": result,
-        }
-        if args.json:
-            _write_json(
-                {"architecture": architecture.model_dump(), **evidence},
-                args.json,
-                ui.console,
-            )
-        ui.console.print("[green]Unified architecture TLC validation passed[/green]")
-        return 0
-    except Exception as exc:
-        ui.console.print(
-            f"[red]Architecture validation failed: {escape(str(exc))}[/red]"
-        )
-        return 1
+    """Validate captured architecture bytes with shared isolated TLC and publication."""
+    from .architecture_validation_workflow import (
+        ARCHITECTURE_BUDGET, ArchitectureValidationRequest, run_architecture_validation)
+    from .workflow_contracts import WorkflowContext
+    source = Path(args.artifact).expanduser().absolute()
+    export = Path(args.json).expanduser() if args.json and args.json != "-" else None
+    output_root = (export.parent if export.is_absolute() else Path.cwd()) if export else Path.cwd() / ".formalspecgen/cli-output"
+    export_key = (export.name if export.is_absolute() else str(export)) if export else None
+    request = ArchitectureValidationRequest(str(source), args.timeout, export_key)
+    source_root = Path.cwd() if source.is_relative_to(Path.cwd()) else source.parent
+    context = WorkflowContext.for_cli(request.required_effects(), workspace_root=source_root,
+        output_root=output_root, resource_budget=ARCHITECTURE_BUDGET)
+    result = run_architecture_validation(request, context)
+    _write_json(result, "-" if args.json == "-" else None, ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result['claim']}")
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_analyze_codebase(args: argparse.Namespace, ui: TerminalUI) -> int:

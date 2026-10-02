@@ -5,7 +5,7 @@
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
   "argument_declaration_count": 229,
-  "commands_with_admitted_profile": 16,
+  "commands_with_admitted_profile": 17,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -4613,8 +4613,8 @@
     {
       "cli_command": "validate-architecture",
       "mcp_tool": "validate_architecture",
-      "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {

@@ -80,6 +80,7 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
     strict = {item.mcp_tool: item.mcp_isolation
               for item in mcp_capabilities(strict_isolation=True)}
     assert strict == {
+        "validate_architecture": "strict-execution",
         "assess_security": "strict-execution",
         "inspect_contract": "non-executing",
         "inspect_project": "non-executing",
@@ -127,7 +128,7 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
     monkeypatch.setattr(mcp_server, "FastMCP", FakeFastMCP)
     server = mcp_server.create_server()
     assert server.registered == [
-        "verify_code", "inspect_code", "analyze_codebase", "document_code",
+        "verify_code", "validate_architecture", "inspect_code", "analyze_codebase", "document_code",
         "submit_work_item",
         "get_work_item", "get_work_artifacts", "cancel_work_item",
         "start_agent_run", "get_agent_run", "resume_agent_run",

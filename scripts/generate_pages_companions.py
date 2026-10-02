@@ -24,6 +24,7 @@ from pipeline.worker_queries import WorkerArtifactsRequest
 from pipeline.project_planning import ProjectWorkflowRequest
 from pipeline.contract_inspection import ContractInspectionRequest
 from pipeline.security_workflow import SecurityAssessmentWorkflowRequest
+from pipeline.architecture_validation_workflow import ArchitectureValidationRequest
 from pipeline.mcp_policy import (
     MCP_ADMISSION_POLICY_VERSION,
     canonical_profile_definition,
@@ -239,6 +240,7 @@ def _guide_validation(
 def _validate_cli_examples(examples: dict[str, str]) -> None:
     from pipeline.cli import build_parser
     expected = {
+        "architecture-validation": "validate-architecture",
         "security-assessment": "assess-security",
         "contract-diff": "contract",
         "project-plan": "project",
@@ -383,6 +385,7 @@ def _manual_admission(text: str, inventory: dict) -> str:
 
 def _validate_workflow_examples(examples: dict[str, str]) -> None:
     if set(examples) != {
+            "architecture-validation",
             "security-assessment",
             "contract-diff",
             "project-plan", "project-impact",
@@ -397,6 +400,9 @@ def _validate_workflow_examples(examples: dict[str, str]) -> None:
     assessment = SecurityAssessmentWorkflowRequest(**json.loads(examples["security-assessment"]))
     if not assessment.run_sast or assessment.result_export != "security-verdict.json":
         raise ValueError("assessment example must request both checks and a controlled export")
+    architecture = ArchitectureValidationRequest(**json.loads(examples["architecture-validation"]))
+    if architecture.timeout != 120 or architecture.result_export != "architecture-result.json":
+        raise ValueError("architecture example must use the default time allowance and a controlled export")
     if ProjectWorkflowRequest(**json.loads(examples["project-plan"])) != ProjectWorkflowRequest("project.json", "plan", "app"):
         raise ValueError("project example must plan app from project.json")
     if ProjectWorkflowRequest(**json.loads(examples["project-impact"])) != ProjectWorkflowRequest("project.json", "impact", changed_paths=["lib/S.java"]):

@@ -2243,7 +2243,112 @@ async def _security_assessment_observation() -> dict:
     return observation
 
 
+async def _architecture_validation_observation() -> dict:
+    """Provisioned TLC over real CLI/MCP with captured model and receipt checks."""
+    from pipeline.lifecycle import RunLedger
+    model = {"name": "Counter", "components": [{"name": "Core", "type": "core",
+        "state_variables": [{"name": "x", "type": "int", "bound": [0, 1], "initial": 0}],
+        "operations": [{"name": "toggle", "contract": {"requires": "true", "ensures": "true"}}],
+        "transitions": [{"operation_name": "toggle", "precondition": {"kind": "boolean", "value": True},
+            "frame": ["x"], "effects": [{"target": "x", "value": {"kind": "sub",
+                "left": {"kind": "integer", "value": 1}, "right": {"kind": "field", "name": "x"}}}]}]}]}
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-architecture-acceptance-") as directory:
+        workspace = Path(directory)
+        output = workspace / "controlled-output"
+        output.mkdir()
+        (workspace / "model.json").write_text(json.dumps(model))
+        broken = json.loads(json.dumps(model))
+        broken["components"][0]["state_variables"][0]["initial"] = 2
+        (workspace / "broken.json").write_text(json.dumps(broken))
+        deadlock = json.loads(json.dumps(model))
+        deadlock["components"][0]["transitions"][0]["precondition"]["value"] = False
+        (workspace / "deadlock.json").write_text(json.dumps(deadlock))
+        (workspace / "invalid.json").write_text('{"name":"NoComponents","components":[]}')
+        (workspace / "malformed.json").write_text('{')
+        (workspace / "large.json").write_bytes(b" " * (4 * 1024**2 + 1))
+        (output / "collision.json").write_text("preserved")
+        cases = [
+            ("valid", {"artifact_path": "model.json", "result_export": "valid.json"}, "VERIFIED"),
+            ("timeout-stdout", {"artifact_path": "model.json", "timeout": 30}, "VERIFIED"),
+            ("invariant-failure", {"artifact_path": "broken.json", "result_export": "failed.json"}, "ARCHITECTURE_CHECK_FAILED"),
+            ("deadlock", {"artifact_path": "deadlock.json", "result_export": "deadlock-result.json"}, "ARCHITECTURE_CHECK_FAILED"),
+            ("invalid", {"artifact_path": "invalid.json", "result_export": "invalid-result.json"}, "ARCHITECTURE_INVALID"),
+            ("malformed", {"artifact_path": "malformed.json", "result_export": "malformed-result.json"}, "ARCHITECTURE_INVALID"),
+            ("missing", {"artifact_path": "missing.json", "result_export": "missing-result.json"}, "ARCHITECTURE_INVALID"),
+            ("denied", {"artifact_path": "../outside.json", "result_export": "denied.json"}, "ARCHITECTURE_INVALID"),
+            ("collision", {"artifact_path": "model.json", "result_export": "collision.json"}, "RESULT_EXPORT_FAILED"),
+            ("byte-limit", {"artifact_path": "large.json", "result_export": "large-result.json"}, "ARCHITECTURE_INVALID"),
+        ]
+        initialized, tools, schema, results = await _call_tool(workspace, "validate_architecture",
+            [args for _, args, _ in cases], environment={"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(output)}, timeout_s=480)
+        def semantic(value):
+            return {"status": value["status"], "claim": value["claim"], "request_satisfied": value["request_satisfied"],
+                "inputs": value["inputs"], "model_scope": value["model_scope"], "claim_limits": value["claim_limits"],
+                "tlc_status": (value["tlc"] or {}).get("status"),
+                "models": {name: {key: item[key] for key in ("sha256", "size")}
+                           for name, item in value["generated_models"].items()}}
+        validations, comparisons = [], []
+        for (variant, args, expected), result in zip(cases, results):
+            if result["status"] != expected or result["request_satisfied"] != (expected == "VERIFIED"):
+                raise RuntimeError(f"unexpected architecture result {variant}: {result}")
+            if result["claim"] != ("BOUNDED_ARCHITECTURE_EVIDENCE" if expected == "VERIFIED" else "NO_PROOF"):
+                raise RuntimeError("architecture claim exceeds checked scope")
+            for item in result["inputs"]:
+                if hashlib.sha256((workspace / item["path"]).read_bytes()).hexdigest() != item["sha256"]:
+                    raise RuntimeError("architecture source identity mismatch")
+            if result["generated_models"]:
+                if len(result["execution_stages"]) != 2 or any(
+                        item["policy_compliance"] != "ENFORCED" for item in result["execution_stages"]):
+                    raise RuntimeError("architecture judges did not execute with enforced isolation")
+                for name, model_identity in result["generated_models"].items():
+                    if hashlib.sha256(Path(model_identity["path"]).read_bytes()).hexdigest() != model_identity["sha256"]:
+                        raise RuntimeError("returned model path differs from checked model bytes")
+                    for stage in result["execution_stages"]:
+                        if not any(entry["path"] == name and entry["sha256"] == model_identity["sha256"]
+                                   for entry in stage["snapshot_files"]):
+                            raise RuntimeError("model digest differs from actual TLC snapshot")
+            receipt = result["publication"]["receipt"]
+            path = Path(receipt["manifest_path"])
+            manifest = json.loads(path.read_text())
+            if (hashlib.sha256(path.read_bytes()).hexdigest() != receipt["manifest_sha256"]
+                    or RunLedger._validate_artifacts(path.parent, manifest["artifacts"])
+                    or manifest["terminal"]["inputs"]["sources"] != result["inputs"]
+                    or manifest["terminal"]["execution_stages"] != result["execution_stages"]):
+                raise RuntimeError("architecture receipt binding mismatch")
+            for publication in (result["publication"], result.get("result_export", {})):
+                for key, item in publication.get("artifacts", {}).items():
+                    if hashlib.sha256(Path(item["path"]).read_bytes()).hexdigest() != item["sha256"]:
+                        raise RuntimeError("architecture artifact digest mismatch")
+                    validations.append({"variant": variant, "artifact": key, "sha256": item["sha256"]})
+            if result.get("result_export", {}).get("status") == "COMMITTED":
+                saved = json.loads(Path(next(iter(result["result_export"]["artifacts"].values()))["path"]).read_text())
+                if semantic(saved) != semantic(result) or saved["generated_models"] != result["generated_models"]:
+                    raise RuntimeError("architecture export references differ from response")
+            if variant == "denied":
+                continue
+            if variant == "collision":
+                (workspace / "collision.json").write_text("preserved")
+            command = [sys.executable, "-m", "pipeline.cli", "validate-architecture", args["artifact_path"],
+                       "--timeout", str(args.get("timeout", 120)), "--json", args.get("result_export", "-")]
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                capture_output=True, text=True, timeout=150, check=False,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            decoded = json.JSONDecoder().raw_decode(process.stdout.lstrip())[0]
+            local = decoded["result"] if decoded.get("schema") == "formalspecgen-cli-result-v1" else decoded
+            if (process.returncode != (0 if expected == "VERIFIED" else 1) or semantic(local) != semantic(result)
+                    or local["workflow_result"]["request"] != result["workflow_result"]["request"]):
+                raise RuntimeError(f"CLI/MCP architecture semantics differ: {variant}: {local}")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+        if (output / "collision.json").read_text() != "preserved":
+            raise RuntimeError("architecture export overwrote existing bytes")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
+                       variants=[name for name, _, _ in cases])
+    return observation
+
+
 _ADAPTERS = {
+    "validate-architecture": _architecture_validation_observation,
     "assess-security": _security_assessment_observation,
     "contract": _contract_observation,
     "security-exploit": _security_template_observation,

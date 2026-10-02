@@ -72,12 +72,12 @@ def test_validate_architecture_command_paths(tmp_path):
          "operations": [{"name": "reserve", "params": [],
                          "contract": {"requires": "stock > 0", "ensures": "true"}}],
          "transitions": []}]}), encoding="utf-8")
-    verified = {"status": "VERIFIED", "states": 6, "transitions": 10}
-    with patch("pipeline.cli.validate_architecture_with_tlc", return_value=verified):
+    verified = {"status": "VERIFIED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE", "request_satisfied": True}
+    with patch("pipeline.architecture_validation_workflow.run_architecture_validation", return_value=verified):
         assert cli.main(["validate-architecture", str(artifact),
                          "--json", str(tmp_path / "v1.json")]) == 0
-    with patch("pipeline.cli.validate_architecture_with_tlc",
-               return_value={"status": "DEADLOCK"}):
+    with patch("pipeline.architecture_validation_workflow.run_architecture_validation",
+               return_value={"status": "ARCHITECTURE_CHECK_FAILED", "claim": "NO_PROOF", "request_satisfied": False}):
         assert cli.main(["validate-architecture", str(artifact),
                          "--json", str(tmp_path / "v2.json")]) == 1
     broken = tmp_path / "broken.json"
