@@ -1,6 +1,6 @@
 {
   "schema": "formalspecgen-guide-command-inventory-v2",
-  "application_version": "13.0.0",
+  "application_version": "14.0.0",
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
@@ -5590,7 +5590,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "93f3e5cb19a99b4aff87426e6af8128fea1d3a261a9d26fc04181ab30deb957f",
+    "inventory_sha256": "361c375f303be1839b8dddbac4c1f064bce8feee6a2d00494302606085da9ed5",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

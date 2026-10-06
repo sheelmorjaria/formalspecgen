@@ -1,6 +1,6 @@
 {
   "schema": "formalspecgen-mcp-parity-manifest-v2",
-  "application_version": "13.0.0",
+  "application_version": "14.0.0",
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
@@ -26,7 +26,7 @@
   "acceptance_evidence": null,
   "inventory": {
     "schema": "formalspecgen-live-cli-inventory-v1",
-    "application_version": "13.0.0",
+    "application_version": "14.0.0",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1",
     "program": "formalspecgen",
     "description": "NL → contracts → bounded architecture evidence → verified implementation",
@@ -38,7 +38,7 @@
       "version_flags": [
         "--version"
       ],
-      "version_text": "formalspecgen 13.0.0"
+      "version_text": "formalspecgen 14.0.0"
     },
     "root_arguments": [
       {
@@ -57,7 +57,7 @@
         "help": "show program's version number and exit",
         "hidden": false,
         "metavar": null,
-        "version": "formalspecgen 13.0.0"
+        "version": "formalspecgen 14.0.0"
       }
     ],
     "repl": {
@@ -4686,7 +4686,7 @@
     ],
     "command_count": 44,
     "argument_declaration_count": 229,
-    "sha256": "93f3e5cb19a99b4aff87426e6af8128fea1d3a261a9d26fc04181ab30deb957f"
+    "sha256": "361c375f303be1839b8dddbac4c1f064bce8feee6a2d00494302606085da9ed5"
   },
   "metrics": {
     "discovered_commands": 44,
@@ -14970,5 +14970,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "ee86ff1f2faabd08be174b964d26ad4844a6092cc0e02e6367b892ddfdf6d02e"
+  "sha256": "474dfd1803bcb2af40e24d40c13b51faebfaf5790ced6e82f486d9b52276c6b8"
 }
