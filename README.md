@@ -2634,6 +2634,20 @@ archived; implementation synthesis now runs inside this repository.
 
 ## Testing and packaging
 
+Provision `requirements-a2a.txt` to include the pinned official A2A SDK client
+contract tests; those tests skip when the optional SDK is absent.
+
+The Rayon/Tokio tests compile with Cargo's `--locked --offline` flags. Populate
+the configured `CARGO_HOME` in a separate network-enabled setup step before
+running them:
+
+```bash
+cargo fetch --locked --manifest-path ci/rust-deps/Cargo.toml
+```
+
+Frama-C WP tests also require Why3's local Unix socket to be permitted so the
+prover can run; executable readiness alone does not establish proof readiness.
+
 ```bash
 python3 -m pytest -c pytest.ini
 python3 -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist
