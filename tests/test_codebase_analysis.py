@@ -59,7 +59,7 @@ def test_analyze_codebase_extracts_rust_c_and_cpp_components(tmp_path):
 
 def test_analyze_rust_struct_metadata(tmp_path):
     (tmp_path / "sensor.rs").write_text("pub struct Sensor { pub value: i32, }")
-    result = analyze_codebase(tmp_path, project_root=tmp_path)
+    result = analyze_codebase(tmp_path, tmp_path / "extracted", project_root=tmp_path)
     comp = result["components"][0]
     assert comp["name"] == "Sensor" and comp["lang"] == "rs"
     assert comp["fields"] == [{"name": "value", "type": "int"}]
@@ -67,7 +67,7 @@ def test_analyze_rust_struct_metadata(tmp_path):
 
 def test_analyze_c_struct_metadata(tmp_path):
     (tmp_path / "counter.c").write_text("struct Counter { int count; };")
-    result = analyze_codebase(tmp_path, project_root=tmp_path)
+    result = analyze_codebase(tmp_path, tmp_path / "extracted", project_root=tmp_path)
     comp = result["components"][0]
     assert comp["name"] == "Counter" and comp["lang"] == "c"
     assert comp["fields"] == [{"name": "count", "type": "int"}]
@@ -77,7 +77,7 @@ def test_tree_sitter_fallback_extracts_java(tmp_path):
     (tmp_path / "Weird.java").write_text("class Weird { int x; }")
     with patch("pipeline.codebase_analysis._tree_sitter_declarations",
                return_value=(None, False)):
-        result = analyze_codebase(tmp_path, project_root=tmp_path)
+        result = analyze_codebase(tmp_path, tmp_path / "extracted", project_root=tmp_path)
     assert result["components"][0]["name"] == "Weird"
 
 

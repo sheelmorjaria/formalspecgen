@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,50 @@ from pipeline import doctor
 
 def _completed(command, **_kwargs):
     return subprocess.CompletedProcess(command, 0, stdout=f"{Path(command[0]).name} 1.0\n", stderr="")
+
+
+def test_prusti_probe_filters_formalspecgen_metadata_env(monkeypatch, tmp_path):
+    binary = tmp_path / "prusti-rustc"
+    binary.write_text("stub")
+    binary.chmod(0o755)
+    monkeypatch.setattr(doctor.config, "PRUSTI_BIN", str(binary))
+    metadata = {"PRUSTI_BIN": str(binary), "PRUSTI_VERSION": "test-version",
+                "PRUSTI_SHA256": "test-sha"}
+    for key, value in metadata.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("PRUSTI_CHECK_OVERFLOWS", "true")
+    monkeypatch.setenv("FORMALSPECGEN_TEST_ENV", "preserved")
+    calls = []
+
+    def runner(command, **kwargs):
+        if command[0] == str(binary):
+            calls.append((command, kwargs))
+        return _completed(command, **kwargs)
+
+    report = doctor.inspect_environment(runner=runner, which=lambda _name: None)
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command == [str(binary), "--version"]
+    assert not metadata.keys() & kwargs["env"].keys()
+    assert kwargs["env"]["PRUSTI_CHECK_OVERFLOWS"] == "true"
+    assert kwargs["env"]["FORMALSPECGEN_TEST_ENV"] == "preserved"
+    assert all(os.environ[key] == value for key, value in metadata.items())
+    assert next(item for item in report["capabilities"]
+                if item["name"] == "Prusti")["status"] == "READY"
+
+
+def test_tlc_help_exit_one_is_ready_with_available_jar(monkeypatch, tmp_path):
+    jar = tmp_path / "tla2tools.jar"
+    jar.write_bytes(b"jar")
+    monkeypatch.setattr(doctor.config, "TLC_JAR", str(jar))
+    monkeypatch.setattr(doctor.config, "JAVA_BIN", "java")
+
+    def help_page(command, **kwargs):
+        assert command == ["/tools/java", "-cp", str(jar), "tlc2.TLC", "-help"]
+        return subprocess.CompletedProcess(command, 1, "TLC help", "")
+
+    result = doctor._tlc_probe(runner=help_page, which=lambda _name: "/tools/java")
+    assert result["status"] == "READY" and result["exit_code"] == 1
 
 
 def test_doctor_reports_claim_effects_without_minting(monkeypatch, tmp_path):

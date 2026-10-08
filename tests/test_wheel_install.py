@@ -178,6 +178,7 @@ os.environ["FORMALSPECGEN_AGENT_PRINCIPAL"] = "installed-reader"
 from pipeline.a2a_coordination import TaskStore
 worker_policy = run_store.root / "worker-policy.json"
 worker_policy.write_text(json.dumps({"schema": "formalspecgen-a2a-policy-v1", "authorities": [], "workers": []}))
+worker_policy.chmod(0o600)
 worker_store = TaskStore(run_store.root / "workers")
 worker_store.create({"work_item_id": "work-001", "principal_id": "installed-reader", "state": "completed",
                      "request_sha256": "a" * 64, "acceptance": {"status": "pending", "claim": "NO_PROOF"},

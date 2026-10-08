@@ -29,6 +29,7 @@ def store(tmp_path, monkeypatch):
     monkeypatch.chdir(workspace)
     policy = tmp_path / "policy.json"
     policy.write_text(json.dumps({"schema": "formalspecgen-a2a-policy-v1", "authorities": [], "workers": []}))
+    policy.chmod(0o600)
     monkeypatch.setenv("FORMALSPECGEN_A2A_POLICY", str(policy))
     monkeypatch.setenv("FORMALSPECGEN_A2A_STATE_ROOT", str(tmp_path / "state"))
     monkeypatch.setenv("FORMALSPECGEN_A2A_PRINCIPAL", "operator")
@@ -92,12 +93,14 @@ def test_failed_queries_preserve_state(store, monkeypatch, capsys, failure, code
     assert snapshot(store.root.parent) == before
 
 
-@pytest.mark.parametrize("kind", ["principal", "policy", "state", "relative", "workspace", "symlink", "writable", "malformed-policy"])
+@pytest.mark.parametrize("kind", ["principal", "policy", "policy-writable", "state", "relative", "workspace", "symlink", "writable", "malformed-policy"])
 def test_operator_configuration_denied_without_state_creation(store, monkeypatch, kind, capsys):
     if kind == "principal":
         monkeypatch.delenv("FORMALSPECGEN_A2A_PRINCIPAL")
     elif kind == "policy":
         monkeypatch.delenv("FORMALSPECGEN_A2A_POLICY")
+    elif kind == "policy-writable":
+        Path(os.environ["FORMALSPECGEN_A2A_POLICY"]).chmod(0o664)
     elif kind == "malformed-policy":
         Path(os.environ["FORMALSPECGEN_A2A_POLICY"]).write_text("{}")
     else:

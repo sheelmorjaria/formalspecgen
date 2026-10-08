@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import config
+from .prusti_environment import prusti_subprocess_env
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Which = Callable[[str], str | None]
@@ -138,7 +139,8 @@ def inspect_environment(*, runner: Runner = subprocess.run,
          ["RUST_SOURCE_COMPILABLE"], "rustc", "RUSTC_BIN"),
     ]
     checks = [_probe(name, command, claims, pending, runner=runner, which=which,
-                     source=source if source == "PATH" or os.environ.get(source) else "default")
+                     source=source if source == "PATH" or os.environ.get(source) else "default",
+                     env=prusti_subprocess_env() if name == "Prusti" else None)
               for name, command, claims, pending, source in specs]
     checks.insert(1, _tlc_probe(runner=runner, which=which))
     dafny_env = os.environ.copy()

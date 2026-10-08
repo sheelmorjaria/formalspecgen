@@ -15,6 +15,7 @@ from pathlib import Path
 from . import config
 from .llm import LLMError, _chat_fn
 from .parse_prusti import parse_prusti_vcs
+from .prusti_environment import prusti_subprocess_env
 
 RUST_PASS_NAMES = ("inject_overflow_bounds", "inject_sum_helper", "guard_array_access",
                    "inject_pure", "inject_slice_bounds")
@@ -283,6 +284,7 @@ def verify_prusti(code: str, timeout: int | None = None) -> dict:
             process = subprocess.run(
                 [str(binary), "--edition=2021", "--crate-type", "lib", str(source)],
                 cwd=binary.parent,
+                env=prusti_subprocess_env(),
                 capture_output=True, text=True, timeout=timeout or config.PRUSTI_TIMEOUT)
         except subprocess.TimeoutExpired:
             return {"status": "TIMEOUT", "exit_code": 124,

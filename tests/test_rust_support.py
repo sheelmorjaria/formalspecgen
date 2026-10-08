@@ -159,7 +159,10 @@ def test_check_rust_syntax_success_failure_missing_and_timeout():
         assert rust.check_rust_syntax("fn f() {}")["status"] == "TIMEOUT"
 
 
-def test_verify_prusti_all_outcomes_and_diagnostics(tmp_path):
+def test_verify_prusti_all_outcomes_and_diagnostics(tmp_path, monkeypatch):
+    for key in ("PRUSTI_BIN", "PRUSTI_VERSION", "PRUSTI_SHA256"):
+        monkeypatch.setenv(key, "metadata")
+    monkeypatch.setenv("PRUSTI_CHECK_OVERFLOWS", "true")
     with patch.object(rust, "_prusti_binary", return_value=None):
         assert rust.verify_prusti("fn f() {}")["status"] == "TOOL_MISSING"
 
@@ -174,6 +177,10 @@ def test_verify_prusti_all_outcomes_and_diagnostics(tmp_path):
     assert result["status"] == "VERIFY_FAILED" and result["vcs"][0]["line"] == 2
     assert run.call_args.kwargs["cwd"] == binary.parent
     assert run.call_args.kwargs["timeout"] == 9
+    assert run.call_args.args[0][0] == str(binary)
+    env = run.call_args.kwargs["env"]
+    assert not {"PRUSTI_BIN", "PRUSTI_VERSION", "PRUSTI_SHA256"} & env.keys()
+    assert env["PRUSTI_CHECK_OVERFLOWS"] == "true"
 
     with (patch.object(rust, "_prusti_binary", return_value=binary),
           patch.object(rust.subprocess, "run", return_value=SimpleNamespace(

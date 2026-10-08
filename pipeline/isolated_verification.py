@@ -96,6 +96,8 @@ def execute_isolated_verification(
             "message": f"source file unavailable: {path}",
         })
     if suffix == ".rs":
+        if mode not in {"parse", "check", "esc"}:
+            return _unsupported_mode("rust", "Rust supports parse, check, and esc")
         return _verify_rust(path, mode, backend, executor)
     if suffix == ".c":
         if mode != "esc":
