@@ -5,10 +5,10 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `b8f12c31985cb040a7a2fd9fff051637e489c8a4300e9b2747535a158d3a232c`
-- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `03ec982db2f9697e1267870c8a616405036ec383eb66662cd4c9cc8ba2479ba9`
-- `command_inventory.json` SHA-256: `29bd58304b488f11ba4599d7314e0d3468eb12c98f4ae04b9121d8b082b766ee`
-- `mcp_capabilities.json` SHA-256: `877f731deb2c0545467d74a4150c63b82b7518ce3c6248467e24d961cd06f01f`
+- `index.html` SHA-256: `f7d6bfe1123923c6f4f0178e3aa0db97f6811b0cdeafa1cf044b6731300a5d90`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `5d03e18e91ac09de0ecac98837138c9b48a27b15067df3f8c2bb23bfb1c26302`
+- `command_inventory.json` SHA-256: `a50fcd5f3f0305211b7fc4b792d50b1bf768d5cce525cd0c88865526051ffe2b`
+- `mcp_capabilities.json` SHA-256: `e737e2b66956570a2d28231d73eee9f0a4518008ad63d0f352ad17ceed21181d`
 - Parsed HTML element IDs: 24
 - Same-page fragment links checked: 19
 - Missing same-page targets: none

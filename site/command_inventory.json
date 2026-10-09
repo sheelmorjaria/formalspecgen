@@ -4,8 +4,8 @@
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
-  "argument_declaration_count": 229,
-  "commands_with_admitted_profile": 17,
+  "argument_declaration_count": 235,
+  "commands_with_admitted_profile": 18,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
   "commands": [
@@ -3611,6 +3611,28 @@
         {
           "cli": {
             "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicit V2 validation artifact returned by validate-domain",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_evidence",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Explicit immutable V2 validation artifact; human-only hash-bound promotion remains outside agent authority."
+        },
+        {
+          "cli": {
+            "flags": [
               "name"
             ],
             "dest": "name",
@@ -4688,8 +4710,8 @@
     {
       "cli_command": "validate-domain",
       "mcp_tool": "validate_domain",
-      "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "workflow_kind": "direct",
+      "admission_status": "admitted",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -4717,6 +4739,94 @@
         {
           "cli": {
             "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "New result file under project root, or '-' for stdout",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-states"
+            ],
+            "dest": "max_states",
+            "positional": false,
+            "required": false,
+            "default": 100000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_states",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-transitions"
+            ],
+            "dest": "max_transitions",
+            "positional": false,
+            "required": false,
+            "default": 1000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_transitions",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-work-items"
+            ],
+            "dest": "max_work_items",
+            "positional": false,
+            "required": false,
+            "default": 2000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_work_items",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
               "--project-root"
             ],
             "dest": "project_root",
@@ -4735,6 +4845,28 @@
           "mcp_field": "project_root",
           "disposition": "scoped_root_or_registry_reference",
           "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--timeout"
+            ],
+            "dest": "timeout",
+            "positional": false,
+            "required": false,
+            "default": 120,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
         },
         {
           "cli": {
@@ -5590,7 +5722,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "361c375f303be1839b8dddbac4c1f064bce8feee6a2d00494302606085da9ed5",
+    "inventory_sha256": "6567a5628dfc4e32c1bd0d0a4d1aac61dfe30e3640bdc05ecee4beb3105edf26",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

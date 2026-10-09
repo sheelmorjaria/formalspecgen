@@ -223,6 +223,7 @@ jobs:
           --require-complete contract
           --require-complete assess-security
           --require-complete validate-architecture
+          --require-complete validate-domain
       - name: Publish revision-bound parity evidence
         uses: actions/upload-artifact@v4
         with:
@@ -396,6 +397,7 @@ jobs:
           FORMALSPECGEN_REQUIRE_OPENJML_MCP_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
+          FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
           # requires write access at their common ancestor; descendants can
@@ -408,6 +410,7 @@ jobs:
             tests/test_apply_refactor_workflow.py \
             tests/test_codebase_analysis_workflow.py \
             tests/test_approval_signing_acceptance.py \
+            tests/test_domain_validation_workflow.py \
             tests/test_agentic_transport_acceptance.py
       - name: Upload actual TLC execution observations
         if: always()
@@ -429,6 +432,7 @@ jobs:
         env:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_INSTALLED_MCP_ACCEPTANCE: "1"
+          FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE: "1"
         run: |
           echo "$$" | sudo tee "$FORMALSPECGEN_CGROUP_ROOT/runner/cgroup.procs" >/dev/null
           exec python scripts/run_mcp_acceptance.py \
@@ -449,6 +453,7 @@ jobs:
             --command contract \
             --command assess-security \
             --command validate-architecture \
+            --command validate-domain \
             --evidence build/mcp-acceptance-evidence.json
       - name: Upload provisioned MCP workflow acceptance evidence
         if: always()

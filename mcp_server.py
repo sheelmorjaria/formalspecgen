@@ -1410,22 +1410,29 @@ def discover_algorithms(source: str, out_dir: str = "discovered",
 
 
 def validate_domain(name: str, project_root: str = ".",
-                    timeout: int | None = None) -> dict[str, Any]:
-    """Validate a V2 domain candidate with the bounded traverser and real TLC."""
-    def run() -> dict[str, Any]:
-        from pipeline.domain_v2_validation import validate_domain as run_validation
-        try:
-            root = _workspace_path(project_root, must_exist=False)
-        except (ValueError, FileNotFoundError):
-            raise  # path violations stay path failures, not validation failures
-        try:
-            evidence = run_validation(name, project_root=str(root), timeout=timeout)
-        except Exception as exc:  # validation failures are evidence, not crashes
-            return {"status": "VALIDATION_FAILED", "claim": "NO_PROOF",
-                    "message": str(exc)[:400]}
-        return {"status": "VALIDATED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE",
-                **evidence.model_dump(mode="json")}
-    return _guarded(run)
+                    timeout: int = 120, emit_tla: str | None = None,
+                    result_export: str | None = None, max_states: int = 100_000,
+                    max_transitions: int = 1_000_000, max_work_items: int = 2_000_000) -> dict[str, Any]:
+    """Validate a captured finite V2 model; evidence never promotes a domain.
+
+    Exports are relative to the operator-designated output root and never replace files.
+    """
+    from pipeline.domain_validation_workflow import (
+        DOMAIN_VALIDATION_LIMITS, DomainValidationWorkflowRequest, run_domain_validation)
+    try:
+        request = DomainValidationWorkflowRequest.for_candidate(name, project_root,
+            timeout=timeout, emit_tla=emit_tla, result_export=result_export,
+            max_states=max_states, max_transitions=max_transitions, max_work_items=max_work_items)
+        admission = authorize_mcp_invocation("validate_domain", mode="validate", language="model",
+            backend="tlc", effects=request.required_effects())
+        if not admission.admitted:
+            return admission.rejection()
+        context = WorkflowContext.for_mcp(admission, request.required_effects(),
+            output_root=_designated_mcp_output_root(), resource_budget=DOMAIN_VALIDATION_LIMITS)
+        return run_domain_validation(request, context)
+    except (OSError, ValueError, RuntimeError, MCPPolicyViolation) as exc:
+        return {"status": "DOMAIN_VALIDATION_FAILED", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": getattr(exc, "code", "INVALID_REQUEST"), "message": str(exc)}
 
 
 def compose(artifact_path: str, v2_dir: str | None = None, run_esc: bool = True,

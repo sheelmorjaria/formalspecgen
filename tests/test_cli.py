@@ -571,20 +571,20 @@ class CliTests(unittest.TestCase):
         self.assertEqual(self.state["domain_draft"]["idea"], "switch")
 
     def test_validate_domain_cli_success_failure_and_tla_emission(self):
-        evidence = SimpleNamespace(candidate_sha256="a" * 64, reachable_state_count=2,
-                                   reachable_transition_count=1)
         emitted = self.root / "Switch.tla"
         args = SimpleNamespace(name="switch", project_root=str(self.root),
                                emit_tla=str(emitted))
-        with patch.object(cli, "validate_v2_candidate", return_value=evidence), \
-             patch.object(cli, "load_candidate", return_value=object()), \
-             patch.object(cli, "render_v2_tla", return_value=("MODULE", "CONFIG")):
+        with patch("pipeline.domain_validation_workflow.run_domain_validation", return_value={
+                "status": "VALIDATED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE", "request_satisfied": True}) as validate:
             self.assertEqual(cli.command_validate_domain(args, self.ui), 0)
-        self.assertEqual(emitted.read_text(), "MODULE")
-        self.assertEqual(emitted.with_suffix(".cfg").read_text(), "CONFIG")
+        request, context = validate.call_args.args
+        self.assertEqual(request.emit_tla, "Switch.tla")
+        self.assertEqual(context.output_root, self.root)
+        self.assertEqual(request.candidate_path, str(self.root / "domains/candidates/switch.v2.yaml"))
         args.emit_tla = None
-        with patch.object(cli, "validate_v2_candidate", side_effect=RuntimeError("failed")):
-            self.assertEqual(cli.command_validate_domain(args, self.ui), 2)
+        with patch("pipeline.domain_validation_workflow.run_domain_validation", return_value={
+                "status": "DOMAIN_VALIDATION_FAILED", "claim": "NO_PROOF", "request_satisfied": False}):
+            self.assertEqual(cli.command_validate_domain(args, self.ui), 1)
 
     def test_validate_domain_accepts_candidate_basenames_and_explains_v1_mismatch(self):
         assert cli._domain_candidate_name("smart-lock.v2.yaml") == "smart_lock"
@@ -595,7 +595,7 @@ class CliTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "safe lower-case"):
             cli._domain_candidate_name("bad.name.json")
         invalid = SimpleNamespace(name="../escape", project_root=str(self.root), emit_tla=None)
-        self.assertEqual(cli.command_validate_domain(invalid, self.ui), 2)
+        self.assertEqual(cli.command_validate_domain(invalid, self.ui), 1)
         invalid.schema_version = 2
         invalid.accept_candidate_sha256 = "a" * 64
         invalid.replace_reviewed_domain = False
@@ -607,7 +607,7 @@ class CliTests(unittest.TestCase):
         args = SimpleNamespace(name="smart_lock.generated", project_root=str(self.root),
                                emit_tla=None)
         with patch.object(cli, "validate_v2_candidate") as validate:
-            self.assertEqual(cli.command_validate_domain(args, self.ui), 2)
+            self.assertEqual(cli.command_validate_domain(args, self.ui), 1)
         validate.assert_not_called()
 
     def test_v2_promotion_cli_requires_hash_and_publishes_separate_registry(self):

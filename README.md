@@ -129,6 +129,10 @@ controlled evidence service. Its claim concerns only the generated finite model'
 behavior. The bundle embeds model text and retains both execution observations;
 standalone TLA/CFG exports must match their recorded digests before reuse.
 See [architecture admission and limits](docs/MCP_ADMISSION.md#bounded-architecture-validation).
+`validate_domain` also shares the CLI's typed V2 capture, bounded traversal,
+strict TLC and immutable evidence service. It admits finite model validation,
+never domain promotion or source-level proof. Model/result exports never replace
+files; human promotion can explicitly select the returned validation artifact.
 Deployment and reviewer steps are documented in
 [Authenticated approval and protected signing](docs/APPROVAL_SIGNING.md).
 The server can also expose the operator-configured A2A proposal bridge
@@ -1648,9 +1652,11 @@ math after human review, and lower a memory-safe Rust port that Prusti proves re
 formalspecgen analyze-codebase legacy_c/ --out-dir extracted/
 
 # 2. Human gate: review the candidate, then TLC proves the extracted machine bounded.
-formalspecgen validate-domain connection --project-root .
-HASH=$(jq -r '.evidence.candidate_sha256' domains/candidates/connection.v2.validation.json)
-formalspecgen promote-domain connection --accept-candidate-sha256 "$HASH" --project-root .
+formalspecgen validate-domain connection --project-root . --json connection-validation.json
+HASH=$(jq -r '.candidate_sha256' connection-validation.json)
+EVIDENCE=$(jq -r '.validation_artifact.path' connection-validation.json)
+formalspecgen promote-domain connection --accept-candidate-sha256 "$HASH" \
+  --validation-evidence "$EVIDENCE" --project-root .
 
 # 3. Lower the reviewed math into a deterministic Prusti contract and prove the port.
 formalspecgen draft "connection port" --canonical-domain connection --lang rust \
@@ -1807,15 +1813,28 @@ formalspecgen validate-domain elevator_controller --emit-tla ElevatorController.
 validated as typed V2 input; regenerate it with `domain --schema-version 2` rather than renaming or
 implicitly converting the schema.
 
-Successful validation writes `domains/candidates/elevator_controller.v2.validation.json` and
-prints the exact canonical candidate digest. A failure instead writes
-`elevator_controller.v2.validation_failed.json` and does not overwrite successful evidence.
+Validation publishes a new immutable evidence bundle, retains the exact captured candidate,
+model text and actual TLC observations, and returns the canonical candidate digest.
+On success, `validation_artifact.path` identifies the compatible V2 validation envelope.
+Legacy success/failure sidecars are neither overwritten nor removed.
+
+Use `--json result.json` for a new result file under `--project-root`, or `--json -`
+for stdout. `--emit-tla models/Domain.tla` exports matching TLA/CFG files under
+the project root after successful checking. Without explicit exports, evidence
+is under `<project_root>/.formalspecgen/cli-output`. Existing destinations fail
+closed; choose new names for later runs. Optional `--max-states`,
+`--max-transitions`, and `--max-work-items` tighten the independent traversal
+ceilings of 100,000, 1,000,000 and 2,000,000. `--timeout` defaults to 120 seconds.
+MCP `validate_domain` exposes the same options (`result_export` for `--json`)
+with exports confined to the operator-designated root. Human promotion must
+select `--validation-evidence` using the returned artifact path.
 
 After reviewing the candidate semantics, promote that exact digest:
 
 ```bash
 formalspecgen promote-domain elevator_controller \
   --schema-version 2 \
+  --validation-evidence <validation_artifact.path-returned-by-validation> \
   --accept-candidate-sha256 <digest-printed-by-validate-domain>
 ```
 
@@ -1913,10 +1932,11 @@ missing correspondence.
 formalspecgen domain \
   "An inventory tracker for checkout. Stock is 0 to 5; reserve decrements it and release increments it." \
   --schema-version 2 --force --restart-clarifications
-formalspecgen validate-domain inventory --project-root .
-HASH=$(jq -r '.evidence.candidate_sha256' \
-  domains/candidates/inventory.v2.validation.json)
-formalspecgen promote-domain inventory --accept-candidate-sha256 "$HASH" --project-root .
+formalspecgen validate-domain inventory --project-root . --json inventory-validation.json
+HASH=$(jq -r '.candidate_sha256' inventory-validation.json)
+EVIDENCE=$(jq -r '.validation_artifact.path' inventory-validation.json)
+formalspecgen promote-domain inventory --accept-candidate-sha256 "$HASH" \
+  --validation-evidence "$EVIDENCE" --project-root .
 
 # 2. Design the architecture in staged/domain-reference mode.
 formalspecgen design-system \

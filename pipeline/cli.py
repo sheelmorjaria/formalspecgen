@@ -49,10 +49,8 @@ from .domain_generator import (
 from .domain_v2 import DomainSpecV2
 from .domain_v2_promotion import (
     candidate_sha256,
-    load_candidate,
     promote_validated_candidate,
 )
-from .domain_v2_tla import render_v2_tla
 from .domain_v2_validation import validate_v2_candidate
 from .elicit import augment_spec, extract_ambiguities
 from .jml_io import class_name as java_class_name
@@ -1505,55 +1503,34 @@ def command_domain(
 
 
 def command_validate_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
-    root = Path(args.project_root).resolve()
+    """Validate captured V2 bytes through strict TLC and immutable publication."""
+    from .domain_validation_workflow import (
+        DOMAIN_VALIDATION_LIMITS, DomainValidationWorkflowRequest, run_domain_validation)
+    from .workflow_contracts import WorkflowContext
     try:
-        name = _domain_candidate_name(args.name)
+        root = Path(args.project_root).expanduser().absolute()
+        export = getattr(args, "json", None)
+        outputs = {"emit_tla": args.emit_tla, "result_export": None if export == "-" else export}
+        # Explicit CLI exports are rooted at the declared project. Internal
+        # evidence remains separate when no derived export was requested.
+        output_root = root if any(outputs.values()) else root / ".formalspecgen/cli-output"
+        for key, value in outputs.items():
+            if value is not None and Path(value).is_absolute():
+                outputs[key] = str(Path(value).relative_to(output_root))
+        request = DomainValidationWorkflowRequest.for_candidate(args.name, args.project_root,
+            timeout=getattr(args, "timeout", 120), **outputs,
+            **{key: getattr(args, key, DOMAIN_VALIDATION_LIMITS[key])
+               for key in ("max_states", "max_transitions", "max_work_items")})
+        source_root = Path.cwd() if root.is_relative_to(Path.cwd()) else root
+        context = WorkflowContext.for_cli(request.required_effects(), workspace_root=source_root,
+            output_root=output_root, resource_budget=DOMAIN_VALIDATION_LIMITS)
+        result = run_domain_validation(request, context)
     except ValueError as exc:
-        ui.console.print(
-            f"[bold red]V2 domain validation failed:[/bold red] {escape(str(exc))}"
-        )
-        return 2
-    candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
-    validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
-    failure = root / "domains" / "candidates" / f"{name}.v2.validation_failed.json"
-    try:
-        if not candidate.exists():
-            v1_candidate = root / "domains" / "candidates" / f"{name}.generated.yaml"
-            if v1_candidate.exists():
-                raise ValueError(
-                    f"{v1_candidate.name} is a V1 plugin scaffold, not a typed V2 candidate. "
-                    "V1 requires human review of its generated extractor and renderer. "
-                    "Regenerate the domain with --schema-version 2 before using validate-domain."
-                )
-        evidence = validate_v2_candidate(
-            candidate,
-            validation,
-            failure_path=failure,
-            tlc_jar=config.TLC_JAR,
-            java=getattr(config, "JAVA_BIN", "java"),
-            timeout=config.TLC_TIMEOUT,
-        )
-        if args.emit_tla:
-            tla, cfg = render_v2_tla(load_candidate(candidate))
-            destination = Path(args.emit_tla)
-            destination.write_text(tla, encoding="utf-8")
-            destination.with_suffix(".cfg").write_text(cfg, encoding="utf-8")
-    except (ValueError, RuntimeError, OSError) as exc:
-        ui.console.print(
-            f"[bold red]V2 domain validation failed:[/bold red] {escape(str(exc))}"
-        )
-        return 2
-    ui.console.print(
-        Panel(
-            f"Status: VALIDATED\nCandidate SHA-256: {evidence.candidate_sha256}\n"
-            f"Reachable states: {evidence.reachable_state_count}\n"
-            f"Reachable transitions: {evidence.reachable_transition_count}\n"
-            f"Evidence: {validation}",
-            title="V2 bounded evidence",
-            border_style="green",
-        )
-    )
-    return 0
+        result = {"status": "DOMAIN_VALIDATION_FAILED", "claim": "NO_PROOF",
+                  "request_satisfied": False, "code": "INVALID_REQUEST", "message": str(exc)}
+    _write_json(result, "-" if getattr(args, "json", None) == "-" else None, ui.console)
+    ui.console.print(f"Status: {result['status']}\nClaim: {result['claim']}")
+    return 0 if result["request_satisfied"] else 1
 
 
 def command_sign_artifact(args: argparse.Namespace, ui: TerminalUI) -> int:
@@ -1788,12 +1765,16 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
         )
         return 2
     requested_schema = getattr(args, "schema_version", None)
+    explicit_validation = getattr(args, "validation_evidence", None)
     if requested_schema is None:
         v2_validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
-        requested_schema = 2 if v2_validation.exists() else 1
+        requested_schema = 2 if explicit_validation or v2_validation.exists() else 1
     if int(requested_schema) == 2:
         candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
-        validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
+        validation = (Path(explicit_validation).expanduser() if explicit_validation else
+                      root / "domains" / "candidates" / f"{name}.v2.validation.json")
+        if not validation.is_absolute():
+            validation = root / validation
         canonical = root / "domains" / "v2" / f"{name}.json"
         try:
             if not args.accept_candidate_sha256:
@@ -2435,25 +2416,8 @@ def command_unified_system(args: argparse.Namespace, ui: TerminalUI) -> int:
 
 def _domain_candidate_name(value: str) -> str:
     """Accept a module name or displayed candidate filename without allowing paths."""
-    raw = value.strip().lower().replace("-", "_")
-    if Path(raw).name != raw:
-        raise ValueError(
-            "domain candidate must be a module name or basename, not a path"
-        )
-    for suffix in (
-        ".v2.validation.json",
-        ".v2.yaml",
-        ".generated.yaml",
-        ".generated",
-        ".v2",
-        ".yaml",
-    ):
-        if raw.endswith(suffix):
-            raw = raw[: -len(suffix)]
-            break
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", raw):
-        raise ValueError("domain candidate name must be a safe lower-case identifier")
-    return raw
+    from .domain_validation_workflow import domain_candidate_name
+    return domain_candidate_name(value)
 
 
 def build_parser(
@@ -2879,6 +2843,11 @@ def build_parser(
     validate_domain.add_argument("name")
     validate_domain.add_argument("--project-root", default=".")
     validate_domain.add_argument("--emit-tla")
+    validate_domain.add_argument("--timeout", type=int, default=120)
+    validate_domain.add_argument("--json", help="New result file under project root, or '-' for stdout")
+    validate_domain.add_argument("--max-states", type=int, default=100_000)
+    validate_domain.add_argument("--max-transitions", type=int, default=1_000_000)
+    validate_domain.add_argument("--max-work-items", type=int, default=2_000_000)
     promote = sub.add_parser(
         "promote-domain", help="promote a reviewed candidate domain"
     )
@@ -3025,6 +2994,7 @@ def build_parser(
         help="candidate schema; inferred from validated V2 evidence when omitted",
     )
     promote.add_argument("--accept-candidate-sha256")
+    promote.add_argument("--validation-evidence", help="Explicit V2 validation artifact returned by validate-domain")
     promote.add_argument(
         "--signing-key", help="GPG key ID for a detached promotion signature"
     )

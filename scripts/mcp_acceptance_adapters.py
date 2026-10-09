@@ -2347,7 +2347,118 @@ async def _architecture_validation_observation() -> dict:
     return observation
 
 
+async def _domain_validation_observation() -> dict:
+    """Real transport and TLC; filesystem failures are exercised without mocks."""
+    from pipeline.lifecycle import RunLedger
+    model = {"domain_name": "Toggle", "module_name": "toggle",
+        "state_variables": [{"kind": "bool", "name": "bit", "initial": False}],
+        "operations": [{"name": "flip", "return_type": "void", "failure_semantics": "unavailable",
+            "guards": [], "frame": ["bit"], "effects": [{"id": "toggle", "target": "bit",
+                "value": {"kind": "not", "expression": {"kind": "field", "name": "bit"}}}]}],
+        "tlc_invariants": [{"id": "Trivial", "expression": {"kind": "boolean", "value": True}}]}
+    def semantic(value):
+        return {key: value.get(key) for key in ("status", "claim", "request_satisfied", "checks_satisfied",
+            "failed_gate", "inputs", "candidate_sha256", "model_scope", "traversal", "claim_limits")}
+    with tempfile.TemporaryDirectory(prefix="formalspecgen-domain-acceptance-") as directory:
+        workspace = Path(directory)
+        candidates = workspace / "domains/candidates"; candidates.mkdir(parents=True)
+        (candidates / "toggle.v2.yaml").write_text(json.dumps(model))
+        broken = json.loads(json.dumps(model)); broken["tlc_invariants"][0]["expression"]["value"] = False
+        (candidates / "broken.v2.yaml").write_text(json.dumps(broken))
+        deadlock = json.loads(json.dumps(model))
+        deadlock["state_variables"] = [{"kind": "int", "name": "x", "initial": 0, "bound": [0, 2]}]
+        deadlock["operations"] = [{"name": "never", "return_type": "void", "failure_semantics": "unavailable",
+            "guards": [{"id": "no", "expression": {"kind": "boolean", "value": False}}], "effects": [], "frame": []}]
+        (candidates / "deadlock.v2.yaml").write_text(json.dumps(deadlock))
+        (candidates / "malformed.v2.yaml").write_text("a: [")
+        output = workspace / "controlled-output"; output.mkdir()
+        (output / "collision.json").write_text("preserved")
+        blocked = workspace / "blocked-output"; blocked.mkdir()
+        (blocked / "domain-evidence").write_text("preserved")
+        failure_project = workspace / "failure-project"
+        (failure_project / "domains/candidates").mkdir(parents=True)
+        (failure_project / "domains/candidates/toggle.v2.yaml").write_text(json.dumps(model))
+        (failure_project / "domain-evidence").write_text("preserved")
+        cases = [
+            ("valid", {"name": "toggle.v2.yaml", "project_root": ".", "timeout": 30,
+                "emit_tla": "models/Toggle.tla", "result_export": "valid.json",
+                "max_states": 7, "max_transitions": 9, "max_work_items": 11}, "VALIDATED", None),
+            ("stdout", {"name": "toggle"}, "VALIDATED", None),
+            ("invariant", {"name": "broken", "result_export": "invariant.json"}, "DOMAIN_VALIDATION_FAILED", "bounded_traversal"),
+            ("deadlock", {"name": "deadlock", "result_export": "deadlock.json"}, "DOMAIN_VALIDATION_FAILED", "static_deadlock"),
+            ("state-limit", {"name": "toggle", "max_states": 1}, "DOMAIN_VALIDATION_FAILED", "bounded_traversal"),
+            ("transition-limit", {"name": "toggle", "max_transitions": 1}, "DOMAIN_VALIDATION_FAILED", "bounded_traversal"),
+            ("work-item-limit", {"name": "toggle", "max_work_items": 1}, "DOMAIN_VALIDATION_FAILED", "bounded_traversal"),
+            ("malformed", {"name": "malformed", "result_export": "malformed.json"}, "DOMAIN_VALIDATION_FAILED", "preparation"),
+            ("unsafe", {"name": "toggle", "project_root": "../outside"}, "DOMAIN_VALIDATION_FAILED", "capture"),
+            ("tlc-unavailable", {"name": "toggle"}, "DOMAIN_VALIDATION_FAILED", "tlc"),
+            ("result-export-failure", {"name": "toggle", "result_export": "collision.json"}, "RESULT_EXPORT_FAILED", "result_export"),
+            ("evidence-publication-failure", {"name": "toggle", "project_root": "failure-project", "result_export": "negative.json"}, "EVIDENCE_PUBLICATION_FAILED", "evidence_publication"),
+        ]
+        results, validations, comparisons = [], [], []
+        for variant, args, expected, gate in cases:
+            environment = {"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(blocked if variant == "evidence-publication-failure" else output)}
+            if variant == "tlc-unavailable": environment["TLC_JAR"] = str(workspace / "absent.jar")
+            initialized, tools, schema, observed = await _call_tool(workspace, "validate_domain", [args],
+                environment=environment, timeout_s=180)
+            result = observed[0]; results.append(result)
+            if (result["status"] != expected or result["failed_gate"] != gate or
+                    result["request_satisfied"] != (expected == "VALIDATED") or
+                    result["claim"] != ("BOUNDED_ARCHITECTURE_EVIDENCE" if expected == "VALIDATED" else "NO_PROOF")):
+                raise RuntimeError(f"unexpected domain result {variant}: {result}")
+            if result["claim_limits"]["review_authenticated"] or result["claim_limits"]["source_correspondence_proved"]:
+                raise RuntimeError("domain validation crossed its claim boundary")
+            if result["checks_satisfied"]:
+                stages = result["execution_stages"]
+                if len(stages) != 2 or any(stage["policy_compliance"] != "ENFORCED" for stage in stages):
+                    raise RuntimeError("domain TLC stages were not enforced")
+                for name, identity in result["generated_models"].items():
+                    if any(not any(entry["path"] == name and entry["sha256"] == identity["sha256"]
+                                   for entry in stage["snapshot_files"]) for stage in stages):
+                        raise RuntimeError("domain model differs from TLC snapshot")
+            elif result["execution_stages"]:
+                raise RuntimeError("preexecution domain rejection launched TLC")
+            for item in result["inputs"]:
+                if hashlib.sha256((workspace / item["path"]).read_bytes()).hexdigest() != item["sha256"]:
+                    raise RuntimeError("domain input identity differs")
+            if result["publication"].get("status") == "COMMITTED":
+                receipt = result["publication"]["receipt"]
+                path = Path(receipt["manifest_path"]); manifest = json.loads(path.read_text())
+                if (hashlib.sha256(path.read_bytes()).hexdigest() != receipt["manifest_sha256"] or
+                        RunLedger._validate_artifacts(path.parent, manifest["artifacts"]) or
+                        manifest["terminal"]["inputs"]["sources"] != result["inputs"] or
+                        manifest["terminal"]["execution_stages"] != result["execution_stages"]):
+                    raise RuntimeError("domain immutable receipt binding differs")
+            for publication in (result["publication"], result.get("model_export", {}), result.get("result_export", {})):
+                for key, item in publication.get("artifacts", {}).items():
+                    if hashlib.sha256(Path(item["path"]).read_bytes()).hexdigest() != item["sha256"]:
+                        raise RuntimeError("domain published artifact digest differs")
+                    validations.append({"variant": variant, "artifact": key, "sha256": item["sha256"]})
+            if variant == "unsafe": continue  # CLI project roots are explicitly operator-selected.
+            if variant == "result-export-failure": (workspace / "collision.json").write_text("preserved")
+            command = [sys.executable, "-m", "pipeline.cli", "validate-domain", args["name"],
+                       "--project-root", args.get("project_root", "."), "--json", args.get("result_export", "-")]
+            for key in ("timeout", "emit_tla", "max_states", "max_transitions", "max_work_items"):
+                if key in args: command.extend(["--" + key.replace("_", "-"), str(args[key])])
+            process = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                capture_output=True, text=True, timeout=150, check=False,
+                env={**os.environ, **environment, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+            decoded = json.JSONDecoder().raw_decode(process.stdout.lstrip())[0]
+            local = decoded["result"] if decoded.get("schema") == "formalspecgen-cli-result-v1" else decoded
+            if (process.returncode != (0 if expected == "VALIDATED" else 1) or
+                    semantic(local) != semantic(result) or local["workflow_result"]["request"] != result["workflow_result"]["request"]):
+                raise RuntimeError(f"CLI/MCP domain semantics differ: {variant}: {local}")
+            comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+        if (output / "collision.json").read_text() != "preserved" or (blocked / "domain-evidence").read_text() != "preserved":
+            raise RuntimeError("domain publication replaced existing bytes")
+    observation = _observation(initialized, tools, schema, results, results[-1])
+    observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
+                       variants=[row[0] for row in cases])
+    return observation
+
+
 _ADAPTERS = {
+    "validate-domain": _domain_validation_observation,
     "validate-architecture": _architecture_validation_observation,
     "assess-security": _security_assessment_observation,
     "contract": _contract_observation,

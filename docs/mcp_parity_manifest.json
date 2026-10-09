@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "b45e9def01d2bf3146f8d1a5d76cba705db55c91f8c5e1b66e09d69913c995a9",
+  "plan_sha256": "c1d10db80aff1f059a02e3c22d6191947d7ed16a575ad518f9f56d0f4b6af6e8",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -3049,6 +3049,91 @@
             "help": null,
             "hidden": false,
             "metavar": null
+          },
+          {
+            "flags": [
+              "--timeout"
+            ],
+            "dest": "timeout",
+            "positional": false,
+            "required": false,
+            "default": 120,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "New result file under project root, or '-' for stdout",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--max-states"
+            ],
+            "dest": "max_states",
+            "positional": false,
+            "required": false,
+            "default": 100000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--max-transitions"
+            ],
+            "dest": "max_transitions",
+            "positional": false,
+            "required": false,
+            "default": 1000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--max-work-items"
+            ],
+            "dest": "max_work_items",
+            "positional": false,
+            "required": false,
+            "default": 2000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
           }
         ]
       },
@@ -3147,6 +3232,23 @@
             "type": null,
             "action": "store",
             "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicit V2 validation artifact returned by validate-domain",
             "hidden": false,
             "metavar": null
           },
@@ -4685,15 +4787,15 @@
       }
     ],
     "command_count": 44,
-    "argument_declaration_count": 229,
-    "sha256": "361c375f303be1839b8dddbac4c1f064bce8feee6a2d00494302606085da9ed5"
+    "argument_declaration_count": 235,
+    "sha256": "6567a5628dfc4e32c1bd0d0a4d1aac61dfe30e3640bdc05ecee4beb3105edf26"
   },
   "metrics": {
     "discovered_commands": 44,
     "mapped_commands": 44,
-    "discovered_argument_declarations": 229,
-    "mapped_argument_declarations": 229,
-    "commands_with_admitted_profile": 17,
+    "discovered_argument_declarations": 235,
+    "mapped_argument_declarations": 235,
+    "commands_with_admitted_profile": 18,
     "complete_workflow_commands": 0
   },
   "command_mappings": [
@@ -10626,6 +10728,28 @@
         {
           "cli": {
             "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicit V2 validation artifact returned by validate-domain",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_evidence",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Explicit immutable V2 validation artifact; human-only hash-bound promotion remains outside agent authority."
+        },
+        {
+          "cli": {
+            "flags": [
               "name"
             ],
             "dest": "name",
@@ -10661,7 +10785,8 @@
           "project_root",
           "replace_reviewed_domain",
           "schema_version",
-          "signing_key"
+          "signing_key",
+          "validation_evidence"
         ],
         "observed_mcp_fields": [],
         "missing_mcp_fields": [
@@ -10670,7 +10795,8 @@
           "project_root",
           "replace_reviewed_domain",
           "schema_version",
-          "signing_key"
+          "signing_key",
+          "validation_evidence"
         ],
         "unverified_argument_mappings": [
           "name",
@@ -10678,7 +10804,8 @@
           "replace_reviewed_domain",
           "schema_version",
           "accept_candidate_sha256",
-          "signing_key"
+          "signing_key",
+          "validation_evidence"
         ],
         "required_variants": [],
         "covered_variants": [],
@@ -12564,8 +12691,8 @@
     {
       "cli_command": "validate-domain",
       "target_mcp_tool": "validate_domain",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Candidate name, project root, TLA export, deterministic traversal and real TLC.",
+      "workflow_kind": "direct",
+      "requirements": "Captured typed V2 candidate, bounded traversal, strict TLC, immutable evidence and no-replace model/result exports.",
       "origin": "builtin",
       "plugin_id": null,
       "arguments": [
@@ -12594,6 +12721,94 @@
         {
           "cli": {
             "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "New result file under project root, or '-' for stdout",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-states"
+            ],
+            "dest": "max_states",
+            "positional": false,
+            "required": false,
+            "default": 100000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_states",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-transitions"
+            ],
+            "dest": "max_transitions",
+            "positional": false,
+            "required": false,
+            "default": 1000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_transitions",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--max-work-items"
+            ],
+            "dest": "max_work_items",
+            "positional": false,
+            "required": false,
+            "default": 2000000,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "max_work_items",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
+        },
+        {
+          "cli": {
+            "flags": [
               "--project-root"
             ],
             "dest": "project_root",
@@ -12612,6 +12827,28 @@
           "mcp_field": "project_root",
           "disposition": "scoped_root_or_registry_reference",
           "requirement": "Bind to configured workspace/registry scopes; input text cannot expand the server authority or traverse outside approved roots."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--timeout"
+            ],
+            "dest": "timeout",
+            "positional": false,
+            "required": false,
+            "default": 120,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": "int",
+            "action": "store",
+            "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files."
         },
         {
           "cli": {
@@ -12637,8 +12874,36 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
+        "status": "admitted",
+        "profiles": [
+          {
+            "name": "bounded-domain-validation",
+            "modes": [
+              "validate"
+            ],
+            "languages": [
+              "model"
+            ],
+            "backends": [
+              "tlc"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "captured-domain-models-traversal-and-tlc-observations",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
         "compatibility_aliases": []
       },
       "mcp_input_schema": {
@@ -12660,15 +12925,55 @@
           {
             "name": "timeout",
             "required": false,
+            "default": 120,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "emit_tla",
+            "required": false,
             "default": null,
-            "annotation": "int | None",
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "max_states",
+            "required": false,
+            "default": 100000,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "max_transitions",
+            "required": false,
+            "default": 1000000,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "max_work_items",
+            "required": false,
+            "default": 2000000,
+            "annotation": "int",
             "keyword_only": false
           }
         ],
         "field_names": [
           "name",
           "project_root",
-          "timeout"
+          "timeout",
+          "emit_tla",
+          "result_export",
+          "max_states",
+          "max_transitions",
+          "max_work_items"
         ]
       },
       "workflow_completion": {
@@ -12676,32 +12981,48 @@
         "complete": false,
         "mapped_mcp_fields": [
           "emit_tla",
-          "name",
-          "project_root"
-        ],
-        "observed_mcp_fields": [
+          "max_states",
+          "max_transitions",
+          "max_work_items",
           "name",
           "project_root",
+          "result_export",
           "timeout"
         ],
-        "missing_mcp_fields": [
-          "emit_tla"
-        ],
-        "unverified_argument_mappings": [
+        "observed_mcp_fields": [
+          "emit_tla",
+          "max_states",
+          "max_transitions",
+          "max_work_items",
           "name",
           "project_root",
-          "emit_tla"
+          "result_export",
+          "timeout"
         ],
-        "required_variants": [],
+        "missing_mcp_fields": [],
+        "unverified_argument_mappings": [],
+        "required_variants": [
+          "deadlock",
+          "evidence-publication-failure",
+          "invariant",
+          "malformed",
+          "result-export-failure",
+          "state-limit",
+          "stdout",
+          "tlc-unavailable",
+          "transition-limit",
+          "unsafe",
+          "valid",
+          "work-item-limit"
+        ],
         "covered_variants": [],
         "evidence_revision": null,
         "acceptance_cases": [],
         "transport_observation": null,
         "blockers": [
-          "invocation_profile_not_admitted",
-          "mapped_inputs_missing_from_mcp_schema",
-          "argument_mappings_not_verified",
-          "completion_contract_missing"
+          "runner_acceptance_evidence_missing",
+          "required_acceptance_cases_missing_or_unpassed",
+          "workflow_variants_incomplete"
         ]
       }
     },
@@ -14970,5 +15291,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "474dfd1803bcb2af40e24d40c13b51faebfaf5790ced6e82f486d9b52276c6b8"
+  "sha256": "840d3fa9a4601a4ae0f60cd1f7316e2b2c48171b08c058d410c37f322c6c4cc6"
 }

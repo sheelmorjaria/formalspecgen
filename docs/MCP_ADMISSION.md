@@ -64,7 +64,7 @@ Wheel build and installation use no package index or
 dependency downloads. Dependencies remain supplied by the provisioned test
 environment, so this is not fresh dependency-resolution or backend qualification.
 
-## Domain traversal infrastructure (not workflow admission)
+## Bounded domain validation
 
 The V2 in-process traverser now bounds discovered states, generated transitions
 and work items separately. Default ceilings are 100,000 states, 1,000,000
@@ -114,7 +114,7 @@ publishes nothing and returns no output paths. A model can be prepared even
 when its invariants are false. Existing reviewed/unreviewed metadata is
 reported as input data, never authenticated or promoted by preparation.
 
-The internal `domain_validation_workflow.run_domain_validation` service now
+The shared `domain_validation_workflow.run_domain_validation` service
 connects capture/preparation, static deadlock findings, bounded traversal,
 strict TLC provenance/checking, and controlled multi-stage evidence publication.
 Its typed request selects the candidate, timeout, optional TLA/CFG export and
@@ -153,14 +153,36 @@ publication failure is reported to the caller, not retroactively written into
 an immutable terminal manifest. Negative checks can be exported to safe new
 JSON destinations.
 
-`validate-domain` remains **unadmitted**. Neither CLI nor MCP has been switched
-to the internal service yet. Remaining work is name/project-root and output
-option mapping, strict profile admission, and provisioned real CLI/MCP
-acceptance. Unit tests with injected execution observations are not TLC
-acceptance. An opt-in real internal-service test is provided under
-`FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE=1`; it requires the
-provisioned TLC/sandbox environment and is not yet a completion gate. No
-inventory or completion count changes for this infrastructure slice.
+CLI `validate-domain` and MCP `validate_domain` now use that same typed request
+and service. The strict `bounded-domain-validation` profile requires all four
+effects above and grants no provider, signing, trust-management or promotion
+authority. Candidate names and displayed basenames map to
+`<project_root>/domains/candidates/<module>.v2.yaml`; MCP project roots remain
+inside its authorized workspace and capture follows no symlinks.
+
+Both interfaces expose timeout, model export, result export and independently
+tightenable traversal limits: at most 100,000 states, 1,000,000 transitions and
+2,000,000 work items. CLI options are `--timeout`, `--emit-tla`, `--json`,
+`--max-states`, `--max-transitions`, and `--max-work-items`; corresponding MCP
+fields use underscores, with `result_export` for `--json`. CLI `--json -`
+selects stdout and requests no result file. Explicit CLI exports are rooted at
+the declared project; absent exports, evidence uses
+`<project_root>/.formalspecgen/cli-output`. MCP exports are relative to the
+operator-designated output root. Neither interface replaces legacy sidecars.
+Human-only `promote-domain --validation-evidence PATH` can consume the returned
+`validation_artifact.path`, retaining its hash-acceptance and review boundary.
+Promotion rejects a changed candidate or a corrupted envelope and records the
+accepted candidate and envelope digests. This legacy promotion interface does
+not enforce a validation revision, policy or traversal-configuration identity.
+Those checks require review of the retained bundle; CI qualification of
+`validate-domain` does not qualify promotion for automatic evidence reuse.
+
+Provisioned CI requires real CLI/MCP transport and strict TLC acceptance under
+`FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE=1`, including negative
+checks, all three traversal limits, malformed/unsafe inputs, unavailable TLC,
+and result/evidence publication failures. Injected observations are unit-test
+contracts, never TLC acceptance. The static report remains evidence-free;
+completion requires fresh acceptance evidence bound to the tested revision.
 
 ## Semgrep execution infrastructure (not workflow admission)
 
@@ -269,9 +291,9 @@ inadequate output fail closed without an unrestricted runner fallback.
 correspondence, reviewed assumptions, specification adequacy or published
 evidence. Its `request_satisfied` refers only to this model-check request.
 
-`validate-architecture` now uses this adapter through the shared bounded workflow
-below. Legacy domain validation and the other architecture/composition workflows
-remain separate migrations. The adapter itself creates no command-completion
+`validate-architecture` and `validate-domain` use this adapter through their shared
+bounded workflows. Other architecture/composition workflows remain separate
+migrations. The adapter itself creates no command-completion
 claim. The provisioned sandbox CI job requires real TLC
 success and invariant-failure cases using a digest-pinned jar; mocked unit tests
 are not backend acceptance evidence.
@@ -525,11 +547,9 @@ The following legacy MCP handlers remain classified `unsupported`. Their CLI ava
 unchanged, but no command/mode/backend profile below is authorized for unattended MCP use:
 
 ```text
-validate_architecture  implement_code
-assess_security        security_inspect      security_exploit
+implement_code         security_inspect
 remediate_code         correct_behavior
-verify_bisimulation    optimize_algorithm
-discover_algorithms    validate_domain        compose
+optimize_algorithm     discover_algorithms    compose
 reverify_composition   unified_system         draft_canonical_contract
 architecture           system                 prove_equivalence
 verify_unbounded       verify_linearizability verify_distributed

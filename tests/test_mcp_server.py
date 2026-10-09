@@ -223,18 +223,16 @@ def test_mcp_algorithm_tools_guarded(tmp_path, monkeypatch):
 
 def test_mcp_validate_domain_and_composition_guarded(tmp_path, monkeypatch):
     _workspace(tmp_path, monkeypatch)
-    evidence = type("Evidence", (), {"model_dump": lambda self, mode="json": {
-        "candidate_sha256": "a" * 64, "validation_status": "VALIDATED"}})()
-    with patch("pipeline.domain_v2_validation.validate_domain",
-               return_value=evidence) as validate:
+    with patch("pipeline.domain_validation_workflow.run_domain_validation",
+               return_value={"status": "VALIDATED", "claim": "BOUNDED_ARCHITECTURE_EVIDENCE"}) as validate:
         result = mcp_server.validate_domain("counter")
         validate.assert_called_once()
     assert result["status"] == "VALIDATED"
     assert result["claim"] == "BOUNDED_ARCHITECTURE_EVIDENCE"
-    with patch("pipeline.domain_v2_validation.validate_domain",
+    with patch("pipeline.domain_validation_workflow.run_domain_validation",
                side_effect=ValueError("candidate not found")):
         failure = mcp_server.validate_domain("missing")
-    assert failure["status"] == "VALIDATION_FAILED"
+    assert failure["status"] == "DOMAIN_VALIDATION_FAILED"
 
     artifact = Path("composition.json")
     artifact.write_text('{"composition": {}}', encoding="utf-8")

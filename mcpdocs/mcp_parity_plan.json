@@ -4,7 +4,7 @@
   "baseline_revision": "91c6790",
   "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
   "baseline_command_count": 44,
-  "baseline_argument_declaration_count": 229,
+  "baseline_argument_declaration_count": 235,
   "inventory_count_scope": "Current plan counts; field names retained for schema compatibility. Generated live inventory is authoritative.",
   "historical_baseline_counts": {"revision": "91c6790", "commands": 38, "argument_declarations": 205},
   "inventory_provenance": {
@@ -3434,10 +3434,10 @@
     {
       "cli_command": "validate-domain",
       "proposed_mcp_tool": "validate_domain",
-      "workflow_kind": "direct_or_task",
-      "requirements": "Candidate name, project root, TLA export, deterministic traversal and real TLC.",
-      "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "workflow_kind": "direct",
+      "requirements": "Captured typed V2 candidate, bounded traversal, strict TLC, immutable evidence and no-replace model/result exports.",
+      "baseline_strict_mcp": "Admitted bounded V2 validation; revision-bound completion requires provisioned acceptance.",
+      "implementation_status": "shared_service_and_strict_admission_complete_acceptance_pending",
       "argument_mappings": [
         {
           "cli_flags": [
@@ -3454,7 +3454,7 @@
             "required": true,
             "positional": true
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3471,7 +3471,7 @@
             "default": ".",
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
         },
         {
           "cli_flags": [
@@ -3488,10 +3488,188 @@
             "default": null,
             "required": false
           },
-          "implementation_status": "target_not_verified"
+          "implementation_status": "verified"
+        },
+        {
+          "cli_flags": [
+            "--timeout"
+          ],
+          "proposed_mcp_field": "timeout",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files.",
+          "baseline_declaration": {
+            "flags": [
+              "--timeout"
+            ],
+            "description": "timeout",
+            "default": 120,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "result_export",
+          "disposition": "structured_result_and_authorized_export",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files.",
+          "baseline_declaration": {
+            "flags": [
+              "--json"
+            ],
+            "description": "New result file under project root, or '-' for stdout",
+            "default": null,
+            "required": false
+          },
+          "implementation_status": "verified"
+        },
+        {
+          "cli_flags": [
+            "--max-states"
+          ],
+          "proposed_mcp_field": "max_states",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-states"
+            ],
+            "description": "max_states",
+            "default": 100000,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "verified"
+        },
+        {
+          "cli_flags": [
+            "--max-transitions"
+          ],
+          "proposed_mcp_field": "max_transitions",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-transitions"
+            ],
+            "description": "max_transitions",
+            "default": 1000000,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "verified"
+        },
+        {
+          "cli_flags": [
+            "--max-work-items"
+          ],
+          "proposed_mcp_field": "max_work_items",
+          "disposition": "bounded_parameter",
+          "requirement": "Same typed request and bounded service; requested limits cannot expand controller authority, exports never replace files.",
+          "baseline_declaration": {
+            "flags": [
+              "--max-work-items"
+            ],
+            "description": "max_work_items",
+            "default": 2000000,
+            "required": false,
+            "type": "int"
+          },
+          "implementation_status": "verified"
         }
       ],
-      "baseline_source": "pipeline/domain_v2_validation.py"
+      "baseline_source": "pipeline/domain_validation_workflow.py",
+      "completion_contract": {
+        "required_variants": [
+          "valid",
+          "stdout",
+          "invariant",
+          "deadlock",
+          "state-limit",
+          "transition-limit",
+          "work-item-limit",
+          "malformed",
+          "unsafe",
+          "tlc-unavailable",
+          "result-export-failure",
+          "evidence-publication-failure"
+        ],
+        "acceptance_cases": [
+          {
+            "kind": "request_equivalence",
+            "test": "tests/test_domain_validation_workflow.py::test_cli_mcp_equivalence_and_options",
+            "variants": [
+              "valid",
+              "stdout"
+            ]
+          },
+          {
+            "kind": "argument_delivery",
+            "test": "tests/test_domain_validation_workflow.py::test_cli_mcp_equivalence_and_options",
+            "variants": [
+              "valid",
+              "stdout"
+            ]
+          },
+          {
+            "kind": "result_equivalence",
+            "test": "tests/test_domain_validation_workflow.py::test_cli_mcp_equivalence_and_options",
+            "variants": [
+              "valid",
+              "stdout"
+            ]
+          },
+          {
+            "kind": "effect_enforcement",
+            "test": "tests/test_domain_validation_workflow.py::test_admission_requires_every_effect_and_cannot_gain_other_authority",
+            "variants": [
+              "unsafe"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_domain_validation_workflow.py::test_adapter_negative_results_retain_evidence_and_never_execute",
+            "variants": [
+              "invariant",
+              "deadlock",
+              "state-limit",
+              "transition-limit",
+              "work-item-limit",
+              "malformed",
+              "unsafe"
+            ]
+          },
+          {
+            "kind": "failure_modes",
+            "test": "tests/test_domain_validation_workflow.py::test_unavailable_tlc_and_publication_failures_are_not_proof",
+            "variants": [
+              "tlc-unavailable",
+              "result-export-failure",
+              "evidence-publication-failure"
+            ]
+          },
+          {
+            "kind": "mcp_transport",
+            "test": "tests/test_domain_validation_workflow.py::test_real_domain_transport",
+            "variants": [
+              "valid",
+              "stdout",
+              "invariant",
+              "deadlock",
+              "state-limit",
+              "transition-limit",
+              "work-item-limit",
+              "malformed",
+              "unsafe",
+              "tlc-unavailable",
+              "result-export-failure",
+              "evidence-publication-failure"
+            ]
+          }
+        ]
+      }
     },
     {
       "cli_command": "promote-domain",
@@ -3606,6 +3784,23 @@
             "description": "Reviewer-owned GPG key for a detached promotion signature.",
             "default": null,
             "required": false
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--validation-evidence"
+          ],
+          "proposed_mcp_field": "validation_evidence",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Explicit immutable V2 validation artifact; human-only hash-bound promotion remains outside agent authority.",
+          "baseline_declaration": {
+            "flags": [
+              "--validation-evidence"
+            ],
+            "default": null,
+            "required": false,
+            "description": "Explicit V2 validation artifact returned by validate-domain"
           },
           "implementation_status": "target_not_verified"
         }

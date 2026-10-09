@@ -6,8 +6,8 @@ Do not edit it by hand.
 ## Inventory
 
 - Commands mapped: 44 / 44
-- Argument declarations mapped: 229 / 229
-- Commands with at least one admitted invocation profile: 17 / 44
+- Argument declarations mapped: 235 / 235
+- Commands with at least one admitted invocation profile: 18 / 44
 - Complete command workflows: 0 / 44
 - Inventory drift: none
 - Full workflow parity: in progress
@@ -38,7 +38,7 @@ Do not edit it by hand.
 | `manage-trust` | `manage_trust` | `read_or_human_approval` | `approval_coordinator_missing` | `incomplete` | 4 |
 | `optimize-algorithm` | `optimize_algorithm` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `project` | `inspect_project` | `direct` | `admitted` | `incomplete` | 5 |
-| `promote-domain` | `promote_domain` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 6 |
+| `promote-domain` | `promote_domain` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 7 |
 | `prove-equivalence` | `prove_equivalence` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `remediate` | `remediate_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `reverify` | `reverify_composition` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
@@ -49,7 +49,7 @@ Do not edit it by hand.
 | `system` | `system` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 9 |
 | `unified-system` | `unified_system` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `validate-architecture` | `validate_architecture` | `direct` | `admitted` | `incomplete` | 3 |
-| `validate-domain` | `validate_domain` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 3 |
+| `validate-domain` | `validate_domain` | `direct` | `admitted` | `incomplete` | 8 |
 | `verify` | `verify_code` | `direct_or_task` | `admitted` | `incomplete` | 4 |
 | `verify-bisimulation` | `verify_bisimulation` | `direct` | `admitted` | `incomplete` | 4 |
 | `verify-distributed` | `verify_distributed` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |

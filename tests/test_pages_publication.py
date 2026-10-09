@@ -20,7 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-GUIDE_SHA256 = "b8f12c31985cb040a7a2fd9fff051637e489c8a4300e9b2747535a158d3a232c"
+GUIDE_SHA256 = "f7d6bfe1123923c6f4f0178e3aa0db97f6811b0cdeafa1cf044b6731300a5d90"
 ARCHIVED_GUIDE_SHA256 = \
     "59a55b2d8479014d01c988c79100d2968397c8d49122bba167e993d920ceaf55"
 
@@ -38,12 +38,12 @@ def test_current_guide_and_generated_companions_are_current():
     decoded = json.loads(inventory)
     assert decoded["schema"] == "formalspecgen-guide-command-inventory-v2"
     assert decoded["command_count"] == 44
-    assert decoded["argument_declaration_count"] == 229
-    assert decoded["commands_with_admitted_profile"] == 17
+    assert decoded["argument_declaration_count"] == 235
+    assert decoded["commands_with_admitted_profile"] == 18
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 25
-    assert strict["cli_capability_count"] == 17
+    assert strict["capability_count"] == 26
+    assert strict["cli_capability_count"] == 18
     assert strict["mcp_only_capability_count"] == 8
     assert {"verify_refactor", "apply_refactor", "analyze_codebase"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}

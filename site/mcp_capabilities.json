@@ -2,8 +2,8 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 25,
-  "cli_capability_count": 17,
+  "capability_count": 26,
+  "cli_capability_count": 18,
   "mcp_only_capability_count": 8,
   "capabilities": [
     {
@@ -2265,6 +2265,114 @@
             "workspace_read"
           ],
           "profile_sha256": "522d43053bc6bae53e02176809de9f4e5367b51c5d2f430d3c0d4de522091c34"
+        }
+      ]
+    },
+    {
+      "name": "validate_domain",
+      "mcp_tool": "validate_domain",
+      "cli_command": "validate-domain",
+      "description": "Bounded captured V2 domain validation through traversal and isolated TLC.",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "name",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "timeout",
+            "required": false,
+            "default": 120,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "emit_tla",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "result_export",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "max_states",
+            "required": false,
+            "default": 100000,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "max_transitions",
+            "required": false,
+            "default": 1000000,
+            "annotation": "int",
+            "keyword_only": false
+          },
+          {
+            "name": "max_work_items",
+            "required": false,
+            "default": 2000000,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "name",
+          "project_root",
+          "timeout",
+          "emit_tla",
+          "result_export",
+          "max_states",
+          "max_transitions",
+          "max_work_items"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "bounded-domain-validation",
+          "modes": [
+            "validate"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "tlc"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-domain-models-traversal-and-tlc-observations",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "3c7e8e7c100195e3da3c6e34f430fd42c9fcb001f95df55e7bc29885474575cb"
         }
       ]
     },

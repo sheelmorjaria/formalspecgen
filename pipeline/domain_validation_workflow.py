@@ -1,12 +1,13 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
-"""Internal permission-carrying V2 validation; not yet CLI/MCP admission."""
+"""Permission-carrying V2 domain validation shared by CLI and MCP."""
 from __future__ import annotations
 
 import base64
 from dataclasses import asdict, dataclass, replace
 import json
 from pathlib import Path
+import re
 
 from .domain_v2 import DomainSpecV2
 from .domain_v2_model import (
@@ -39,6 +40,9 @@ class DomainValidationWorkflowRequest:
     timeout: int = 120
     emit_tla: str | None = None
     result_export: str | None = None
+    max_states: int = MAX_STATE_SPACE
+    max_transitions: int = MAX_TRANSITIONS
+    max_work_items: int = MAX_WORK_ITEMS
 
     def __post_init__(self):
         DomainPreparationRequest(self.candidate_path)
@@ -48,12 +52,41 @@ class DomainValidationWorkflowRequest:
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value or "\0" in value):
                 raise ValueError(f"{name} must be a nonempty output path or null")
+        for name in ("max_states", "max_transitions", "max_work_items"):
+            value = getattr(self, name)
+            if type(value) is not int or not 0 < value <= DOMAIN_VALIDATION_LIMITS[name]:
+                raise ValueError(f"{name} must be a positive integer within the service ceiling")
+
+    @classmethod
+    def for_candidate(cls, name: str, project_root: str = ".", **options):
+        """Map public names to paths without resolving away input symlinks."""
+        name = domain_candidate_name(name)
+        if not isinstance(project_root, str) or not project_root or "\0" in project_root:
+            raise ValueError("project_root must be a nonempty path")
+        candidate = Path(project_root).expanduser().absolute() / "domains/candidates" / f"{name}.v2.yaml"
+        return cls(str(candidate), **options)
 
     def required_effects(self):
         return ("workspace_read", "external_execution", "evidence_publication", "workspace_write_new")
 
     def as_dict(self):
         return {"schema": WORKFLOW_CONTRACT_SCHEMA, "workflow": "validate-domain", **asdict(self)}
+
+
+def domain_candidate_name(value: str) -> str:
+    """Accept a module or displayed candidate basename, never a path."""
+    if not isinstance(value, str):
+        raise ValueError("domain candidate name must be a string")
+    raw = value.strip().lower().replace("-", "_")
+    if Path(raw).name != raw:
+        raise ValueError("domain candidate must be a module name or basename, not a path")
+    for suffix in (".v2.validation.json", ".v2.yaml", ".generated.yaml", ".generated", ".v2", ".yaml"):
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)]
+            break
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", raw):
+        raise ValueError("domain candidate name must be a safe lower-case identifier")
+    return raw
 
 
 def _output_key(value, source, root):
@@ -119,6 +152,8 @@ def run_domain_validation(request: DomainValidationWorkflowRequest, context: Wor
     limits = {}
     for name, ceiling in DOMAIN_VALIDATION_LIMITS.items():
         value = context.resource_budget.get(name, ceiling)
+        if name in {"max_states", "max_transitions", "max_work_items"} and type(value) is int:
+            value = min(value, getattr(request, name))
         limits[name] = min(value, ceiling) if type(value) is int and value >= 0 else 0
     bound = lambda: bind_workflow_result(result, request, context.interface, context=context)
     class Recorder:
