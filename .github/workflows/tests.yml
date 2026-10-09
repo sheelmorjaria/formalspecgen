@@ -287,7 +287,11 @@ jobs:
       - name: Install isolated Semgrep acceptance toolchain
         run: |
           /usr/bin/python3 -m venv "$RUNNER_TEMP/formalspecgen-semgrep"
-          "$RUNNER_TEMP/formalspecgen-semgrep/bin/python" -m pip install "semgrep==1.138.0"
+          # Semgrep's transitive MCP imports a Pydantic helper removed in newer releases.
+          "$RUNNER_TEMP/formalspecgen-semgrep/bin/python" -m pip install \
+            "semgrep==1.138.0" "pydantic==2.11.7"
+          "$RUNNER_TEMP/formalspecgen-semgrep/bin/python" -m pip check
+          "$RUNNER_TEMP/formalspecgen-semgrep/bin/semgrep" --version
       - name: Download and verify pinned TLC jar
         run: |
           mkdir -p tools
