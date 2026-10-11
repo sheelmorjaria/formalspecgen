@@ -39,6 +39,10 @@ def test_v2_promotion_coordinator_does_not_complete_v1_v2_command():
     assert set(promotion['adapter']['stage_schemas'])=={'request','inspect','complete'}
     assert not promotion['workflow_completion']['complete']
     assert manifest['metrics']['commands_with_admitted_profile']==18
+    domain=next(c for c in manifest['command_mappings'] if c['cli_command']=='domain')
+    assert domain['adapter']['status']=='session_adapter_v2_partial'
+    assert set(domain['adapter']['stage_schemas'])=={'start','inspect','continue','finalize'}
+    assert not domain['workflow_completion']['complete']
     incomplete=_handlers();incomplete.pop('get_domain_promotion')
     manifest=reconcile_parity_plan(plan,handlers=incomplete)
     promotion=next(c for c in manifest['command_mappings'] if c['cli_command']=='promote-domain')

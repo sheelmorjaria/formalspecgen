@@ -160,7 +160,7 @@ V2 domain promotion now has a [protected approval coordinator](docs/DOMAIN_PROMO
 `request_domain_promotion`, `get_domain_promotion`, and `complete_domain_promotion`.
 The agent requests an exact action; an authenticated human decision and operator publisher
 control publication, replacement and signing. Legacy V1 remains operator-only.
-The registry retains a 56-tool catalogue
+The registry retains a 60-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,
@@ -237,7 +237,7 @@ Deliberately not exposed: `promote-domain`, `promote-queue-model`,
 `promote-information-flow-scope`, `promote-declassification-policy`, and
 `promote-capability-authority` — hash-bound acceptance of a reviewed artifact is
 a human trust action that stays with the CLI — the interactive
-clarification wizards (`domain`, non-canonical `draft`, `design-system`), and the
+legacy clarification wizards (`domain` V1, non-canonical `draft`, `design-system`), and the
 reviewer trust actions `sign-artifact` / `manage-trust` — signing and key policy
 require the human reviewer's own GPG key, and an agent must never sign or
 authorize on a reviewer's behalf.
@@ -2759,3 +2759,7 @@ locked-down containers must permit that loopback operation or the tool will repo
 
 Copyright 2026 Sheel Morjaria. Licensed under the Apache License 2.0; see [LICENSE](LICENSE) and
 [NOTICE](NOTICE).
+
+V2 requirements-to-candidate workflows are available through
+[resumable domain sessions](docs/DOMAIN_SESSIONS.md), followed by the existing
+`validate_domain` and authenticated human promotion handoff.

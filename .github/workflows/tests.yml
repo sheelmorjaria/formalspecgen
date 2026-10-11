@@ -409,6 +409,7 @@ jobs:
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
           FORMALSPECGEN_PROMOTION_ACCEPTANCE_DIR: ${{ runner.temp }}/promotion-acceptance
+          FORMALSPECGEN_DOMAIN_SESSION_ACCEPTANCE_DIR: ${{ runner.temp }}/domain-session-acceptance
           FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
@@ -423,6 +424,7 @@ jobs:
             tests/test_codebase_analysis_workflow.py \
             tests/test_approval_signing_acceptance.py \
             tests/test_domain_promotion_acceptance.py \
+            tests/test_domain_session_transport.py \
             tests/test_domain_validation_workflow.py \
             tests/test_agentic_transport_acceptance.py
       - name: Qualify scoped V2 promotion observations
@@ -430,12 +432,25 @@ jobs:
           python -m scripts.qualify_domain_promotion
           --evidence "$RUNNER_TEMP/promotion-acceptance"
           --output "$RUNNER_TEMP/promotion-acceptance/qualification.json"
+      - name: Qualify resumable domain session handoff
+        run: >-
+          python -m scripts.qualify_domain_sessions
+          --evidence "$RUNNER_TEMP/domain-session-acceptance/session.json"
+          --output "$RUNNER_TEMP/domain-session-acceptance/qualification.json"
       - name: Upload protected domain promotion observations
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: domain-promotion-acceptance-${{ github.sha }}
           path: ${{ runner.temp }}/promotion-acceptance/*.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload resumable domain session observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-session-acceptance-${{ github.sha }}
+          path: ${{ runner.temp }}/domain-session-acceptance/*.json
           if-no-files-found: error
           retention-days: 1
       - name: Upload actual TLC execution observations

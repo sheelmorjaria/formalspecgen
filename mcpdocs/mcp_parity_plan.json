@@ -3277,7 +3277,17 @@
       "workflow_kind": "resumable",
       "requirements": "Schema V1/V2, restart, project destination and provider; force/reviewed replacement requires constrained approval.",
       "baseline_strict_mcp": "Not admitted",
-      "implementation_status": "target_not_verified",
+      "implementation_status": "v2_session_adapter_v1_operator_only",
+      "coordinator_scope": {
+        "kind": "session",
+        "description": "Resumable V2 domain sessions available; legacy V1 scaffolding, force/replacement and terminal wizard semantics remain outside this profile. Full domain parity is partial.",
+        "stages": {
+          "start": "start_domain_session",
+          "inspect": "get_domain_session",
+          "continue": "continue_domain_session",
+          "finalize": "finalize_domain_candidate"
+        }
+      },
       "argument_mappings": [
         {
           "cli_flags": [

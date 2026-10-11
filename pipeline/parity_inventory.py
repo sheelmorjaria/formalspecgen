@@ -552,7 +552,10 @@ def reconcile_parity_plan(
                 for name in stages.values())
             adapter = {
                 **adapter,
-                "status": "approval_coordinator_v2_partial" if available else "approval_coordinator_missing",
+                "status": (("session_adapter_v2_partial" if scope.get("kind") == "session"
+                            else "approval_coordinator_v2_partial") if available
+                           else "adapter_missing" if scope.get("kind") == "session"
+                           else "approval_coordinator_missing"),
                 "scope": scope,
                 "stage_schemas": {
                     stage: handler_input_schema(handler_values[name])

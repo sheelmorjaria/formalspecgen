@@ -42,9 +42,9 @@ def test_current_guide_and_generated_companions_are_current():
     assert decoded["commands_with_admitted_profile"] == 18
     assert decoded["commands_complete_without_ci_evidence"] == 0
     strict = json.loads(capabilities)
-    assert strict["capability_count"] == 29
+    assert strict["capability_count"] == 33
     assert strict["cli_capability_count"] == 18
-    assert strict["mcp_only_capability_count"] == 11
+    assert strict["mcp_only_capability_count"] == 15
     assert {"verify_refactor", "apply_refactor", "analyze_codebase"}.issubset({
         item["mcp_tool"] for item in strict["capabilities"]}
     )

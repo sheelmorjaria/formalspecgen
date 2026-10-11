@@ -647,3 +647,12 @@ mechanism and does not grant those workflows strict-isolation or durable-publica
 
 For a supervised agent deployment, install a pinned package outside the agent-editable checkout,
 run the MCP service in a delegated cgroup-v2 leaf, and expose only the default strict catalogue.
+
+## Resumable V2 domain creation
+
+`start_domain_session`, `get_domain_session`, `continue_domain_session` and
+`finalize_domain_candidate` share a principal-owned session service. Only start
+and finalization admit explicit provider access; finalized candidates remain
+unreviewed and feed the existing validation and protected human promotion stages.
+Legacy V1 and full `domain` command parity remain outstanding. See
+[DOMAIN_SESSIONS.md](DOMAIN_SESSIONS.md) for limits, configuration and retries.

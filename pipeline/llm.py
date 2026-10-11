@@ -16,10 +16,35 @@ import json
 import re
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from . import config
 from .schemas import SpecDraft
 from .limitations import prompt_guardrails, reviewed_domain_guardrails
+
+_PROVIDER_RESPONSE_LIMIT = ContextVar("provider_response_limit", default=None)
+
+
+@contextmanager
+def provider_response_limit(max_bytes):
+    """Attenuate HTTP response reads for a bounded workflow in this context."""
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ValueError("provider response limit must be a positive integer")
+    current = _PROVIDER_RESPONSE_LIMIT.get()
+    token = _PROVIDER_RESPONSE_LIMIT.set(min(current, max_bytes) if current is not None else max_bytes)
+    try:
+        yield
+    finally:
+        _PROVIDER_RESPONSE_LIMIT.reset(token)
+
+
+def _read_provider_response(response):
+    limit = _PROVIDER_RESPONSE_LIMIT.get()
+    content = response.read() if limit is None else response.read(limit + 1)
+    if limit is not None and len(content) > limit:
+        raise LLMError("RESPONSE_LIMIT_EXCEEDED", "provider HTTP response exceeds workflow limit")
+    return content
 
 # --- NL -> JML system prompt -----------------------------------------------
 SYSTEM = """You are a formal-specification engineer. Given a natural-language requirement, \
@@ -224,7 +249,7 @@ def _post_chat(base_url, api_key, messages, model, temperature, timeout, extra_b
         content, used, usage = "", model, {}
         for _ in range(4):  # retry up to 3× on empty content
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                j = json.loads(r.read().decode())
+                j = json.loads(_read_provider_response(r).decode())
             choice = j["choices"][0]
             content = (choice.get("message", {}) or {}).get("content") or ""
             finish = choice.get("finish_reason")
@@ -239,7 +264,7 @@ def _post_chat(base_url, api_key, messages, model, temperature, timeout, extra_b
     except urllib.error.HTTPError as e:
         msg = e.reason
         try:
-            ej = json.loads(e.read().decode())
+            ej = json.loads(_read_provider_response(e).decode())
             err = ej.get("error", {})
             msg = err.get("message", e.reason)
             code = err.get("code", str(e.code))

@@ -13,8 +13,9 @@ Deliberately NOT
 exposed: direct ``promote-domain`` approval authority. V2 promotion may be
 requested and completed through an authenticated human decision and protected
 publisher; legacy V1 remains CLI-only. Also excluded are
-the interactive clarification wizards (``domain``, non-canonical ``draft``,
-``design-system``), and the reviewer trust actions ``sign-artifact`` /
+the legacy terminal wizards (``domain`` V1, non-canonical ``draft``,
+``design-system``). V2 domain creation has a separate resumable session adapter.
+Also excluded are the reviewer trust actions ``sign-artifact`` /
 ``manage-trust`` (signing and key policy require the human reviewer's own
 GPG key — an agent must never sign or authorize on a reviewer's behalf).
 """
@@ -2004,6 +2005,58 @@ def complete_domain_promotion(request_id: str) -> dict[str, Any]:
     return _domain_promotion_operation("complete_domain_promotion", "complete",
         ("service_state_read", "service_state_write", "protected_publication", "protected_signing"),
         request_id=request_id)
+
+
+def _domain_session_operation(tool: str, mode: str, **arguments) -> dict[str, Any]:
+    from pipeline.domain_sessions import configured_service
+    effects = ("service_state_read",) if mode == "status" else ("service_state_read", "service_state_write")
+    if mode in {"start", "finalize"}: effects += ("provider_access",)
+    if mode == "finalize": effects += ("workspace_read", "workspace_write_new")
+    try:
+        provider = arguments.get("provider")
+        service = None
+        if mode == "finalize":
+            read_admission = authorize_mcp_invocation("get_domain_session", mode="status", language="model",
+                backend="domain-session-v2", effects=("service_state_read",))
+            if not read_admission.admitted: return read_admission.rejection()
+            require_mcp_effect(read_admission, "service_state_read")
+            service = configured_service(_designated_mcp_output_root())
+            provider = service.get(arguments["session_id"])["provider"]
+        admission = authorize_mcp_invocation(tool, mode=mode, language="model",
+            backend="domain-session-v2", provider=provider, effects=effects)
+        if not admission.admitted: return admission.rejection()
+        for effect in effects: require_mcp_effect(admission, effect)
+        if service is None: service = configured_service(_designated_mcp_output_root())
+        if mode == "start": result = service.start(**arguments)
+        elif mode == "status": result = service.get(**arguments)
+        elif mode == "continue": result = service.continue_session(**arguments)
+        else: result = service.finalize(**arguments, admission=admission)
+        return {**result, "mcp_admission": admission.summary()}
+    except (ValueError, OSError, RuntimeError, RecursionError) as exc:
+        return {"status": getattr(exc, "code", "DOMAIN_SESSION_FAILED"),
+                "claim": "NO_PROOF", "request_satisfied": False, "message": str(exc)}
+
+
+def start_domain_session(idea: str, provider: str = "ollama", model: str | None = None) -> dict[str, Any]:
+    """Elicit bounded questions for a resumable, unreviewed V2 domain candidate."""
+    return _domain_session_operation("start_domain_session", "start", idea=idea, provider=provider, model=model)
+
+
+def get_domain_session(session_id: str) -> dict[str, Any]:
+    """Inspect a principal-owned domain session without invoking a provider."""
+    return _domain_session_operation("get_domain_session", "status", session_id=session_id)
+
+
+def continue_domain_session(session_id: str, answers: dict[str, str], expected_revision: int) -> dict[str, Any]:
+    """Save caller-supplied answers against the exact inspected session revision."""
+    return _domain_session_operation("continue_domain_session", "continue", session_id=session_id,
+                                     answers=answers, expected_revision=expected_revision)
+
+
+def finalize_domain_candidate(session_id: str, expected_revision: int) -> dict[str, Any]:
+    """Compile and publish an immutable unreviewed candidate; validation is separate."""
+    return _domain_session_operation("finalize_domain_candidate", "finalize", session_id=session_id,
+                                     expected_revision=expected_revision)
 
 
 def doctor_environment() -> dict[str, Any]:

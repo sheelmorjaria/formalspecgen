@@ -103,6 +103,10 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
         "resume_agent_run": "strict-execution",
         "cancel_agent_run": "non-executing",
         "get_approval_request": "approval-coordination",
+        "start_domain_session": "non-executing",
+        "get_domain_session": "non-executing",
+        "continue_domain_session": "non-executing",
+        "finalize_domain_candidate": "non-executing",
         "request_domain_promotion": "approval-coordination",
         "get_domain_promotion": "approval-coordination",
         "complete_domain_promotion": "approval-coordination",
@@ -139,4 +143,4 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
             "cancel_agent_run", "get_approval_request",
             "request_domain_promotion", "get_domain_promotion", "complete_domain_promotion",
             "complete_refactor_signing", "assess_security", "security_exploit", "apply_refactor", "verify_refactor", "verify_bisimulation",
-            "validate_domain", "generate_traceability_matrix", "inspect_evidence", "describe_capabilities", "inspect_project", "inspect_contract"]
+            "validate_domain", "generate_traceability_matrix", "inspect_evidence", "describe_capabilities", "inspect_project", "inspect_contract", "start_domain_session", "get_domain_session", "continue_domain_session", "finalize_domain_candidate"]

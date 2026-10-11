@@ -2,9 +2,9 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 29,
+  "capability_count": 33,
   "cli_capability_count": 18,
-  "mcp_only_capability_count": 11,
+  "mcp_only_capability_count": 15,
   "capabilities": [
     {
       "name": "verify_code",
@@ -2905,6 +2905,252 @@
             "workspace_read"
           ],
           "profile_sha256": "b9cb735c65c9f3191a05d7e326427fb8e51a379c9a107a19c8e70214732be7f0"
+        }
+      ]
+    },
+    {
+      "name": "start_domain_session",
+      "mcp_tool": "start_domain_session",
+      "cli_command": null,
+      "description": "Resumable unreviewed V2 domain creation.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "idea",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "idea",
+          "provider",
+          "model"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "start-domain-session-v1",
+          "modes": [
+            "start"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "domain-session-v2"
+          ],
+          "effects": [
+            "provider_access",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [
+            "glm",
+            "ollama",
+            "openai"
+          ],
+          "output_scope": "none",
+          "evidence": "unreviewed-domain-session",
+          "required_effects": [
+            "provider_access",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "c2d89af379a6539f1885d160a4b4e87d859386c27b2827d6da0a3d057e790b3a"
+        }
+      ]
+    },
+    {
+      "name": "get_domain_session",
+      "mcp_tool": "get_domain_session",
+      "cli_command": null,
+      "description": "Resumable unreviewed V2 domain creation.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "session_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "session_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "get-domain-session-v1",
+          "modes": [
+            "status"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "domain-session-v2"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "unreviewed-domain-session",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "edb29a19076125e4677bd7fb8861659cb68c4e1fbf0c425b1b3e177310ef4928"
+        }
+      ]
+    },
+    {
+      "name": "continue_domain_session",
+      "mcp_tool": "continue_domain_session",
+      "cli_command": null,
+      "description": "Resumable unreviewed V2 domain creation.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "session_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "answers",
+            "required": true,
+            "default": null,
+            "annotation": "dict[str, str]",
+            "keyword_only": false
+          },
+          {
+            "name": "expected_revision",
+            "required": true,
+            "default": null,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "session_id",
+          "answers",
+          "expected_revision"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "continue-domain-session-v1",
+          "modes": [
+            "continue"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "domain-session-v2"
+          ],
+          "effects": [
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "unreviewed-domain-session",
+          "required_effects": [
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "2415d59be968a9e6072978a920744c2b86c391bced7725fd8ae624cca9d58b6c"
+        }
+      ]
+    },
+    {
+      "name": "finalize_domain_candidate",
+      "mcp_tool": "finalize_domain_candidate",
+      "cli_command": null,
+      "description": "Resumable unreviewed V2 domain creation.",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "session_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "expected_revision",
+            "required": true,
+            "default": null,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "session_id",
+          "expected_revision"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "finalize-domain-candidate-v1",
+          "modes": [
+            "finalize"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "domain-session-v2"
+          ],
+          "effects": [
+            "provider_access",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [
+            "glm",
+            "ollama",
+            "openai"
+          ],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "unreviewed-domain-session",
+          "required_effects": [
+            "provider_access",
+            "service_state_read",
+            "service_state_write",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "402c5bd1bd29926750fefe8d78d6fbf643a69811b6d3dbbaf7db26b2729329f2"
         }
       ]
     }

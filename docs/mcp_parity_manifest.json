@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "667a37cfac3ef584c8e20d3751b3b460a0b2ecb2908a4869d1997c92fc00c5bd",
+  "plan_sha256": "3c54ceb2b8d0ac9b5e2339b922fff711ad3afe1ee60773e02b6a07c3d8d1080d",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -8038,9 +8038,117 @@
         }
       ],
       "adapter": {
-        "status": "adapter_missing",
+        "status": "session_adapter_v2_partial",
         "profiles": [],
-        "compatibility_aliases": []
+        "compatibility_aliases": [],
+        "scope": {
+          "kind": "session",
+          "description": "Resumable V2 domain sessions available; legacy V1 scaffolding, force/replacement and terminal wizard semantics remain outside this profile. Full domain parity is partial.",
+          "stages": {
+            "start": "start_domain_session",
+            "inspect": "get_domain_session",
+            "continue": "continue_domain_session",
+            "finalize": "finalize_domain_candidate"
+          }
+        },
+        "stage_schemas": {
+          "start": {
+            "fields": [
+              {
+                "name": "idea",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "provider",
+                "required": false,
+                "default": "ollama",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "model",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "idea",
+              "provider",
+              "model"
+            ]
+          },
+          "inspect": {
+            "fields": [
+              {
+                "name": "session_id",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "session_id"
+            ]
+          },
+          "continue": {
+            "fields": [
+              {
+                "name": "session_id",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "answers",
+                "required": true,
+                "default": null,
+                "annotation": "dict[str, str]",
+                "keyword_only": false
+              },
+              {
+                "name": "expected_revision",
+                "required": true,
+                "default": null,
+                "annotation": "int",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "session_id",
+              "answers",
+              "expected_revision"
+            ]
+          },
+          "finalize": {
+            "fields": [
+              {
+                "name": "session_id",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "expected_revision",
+                "required": true,
+                "default": null,
+                "annotation": "int",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "session_id",
+              "expected_revision"
+            ]
+          }
+        }
       },
       "mcp_input_schema": null,
       "workflow_completion": {
@@ -15467,5 +15575,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "2e953fff6cdaed1b486a2eb253c47fc20acf2b8f9322755dee8484b3de9771a1"
+  "sha256": "99bcca8d3520ea66e537fd8d572d51eda7291865b93b35bc950c89724b025794"
 }

@@ -28,7 +28,7 @@ Do not edit it by hand.
 | `discover-algorithms` | `discover_algorithms` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 7 |
 | `doctor` | `doctor_environment` | `direct` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `document-code` | `document_code` | `direct_or_task` | `admitted` | `incomplete` | 7 |
-| `domain` | `elicit_domain` | `resumable` | `adapter_missing` | `incomplete` | 8 |
+| `domain` | `elicit_domain` | `resumable` | `session_adapter_v2_partial` | `incomplete` | 8 |
 | `draft` | `draft_contract` | `resumable` | `compatibility_alias_present_target_missing` | `incomplete` | 12 |
 | `evidence` | `inspect_evidence` | `direct` | `admitted` | `incomplete` | 7 |
 | `generate-traceability-matrix` | `generate_traceability_matrix` | `direct` | `admitted` | `incomplete` | 5 |
@@ -62,6 +62,10 @@ Do not edit it by hand.
 | `worker` | `get_work_artifacts` | `direct` | `admitted` | `incomplete` | 3 |
 
 ## Drift
+
+`domain`: Resumable V2 domain sessions available; legacy V1 scaffolding, force/replacement and terminal wizard semantics remain outside this profile. Full domain parity is partial.
+Coordinator stages: start: `start_domain_session`, inspect: `get_domain_session`, continue: `continue_domain_session`, finalize: `finalize_domain_candidate`.
+These stages implement one workflow; they do not increment whole-command completion.
 
 `promote-domain`: V2 coordinator available; legacy V1 remains operator-only. Full promote-domain parity is partial. CI qualification is reported separately for the tested V2 combinations.
 Coordinator stages: request: `request_domain_promotion`, inspect: `get_domain_promotion`, complete: `complete_domain_promotion`.
