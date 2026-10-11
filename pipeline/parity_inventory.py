@@ -543,6 +543,21 @@ def reconcile_parity_plan(
                 f"{command_name}: capability registry CLI mapping drift "
                 f"(registry={target_capability.cli_command!r}, target={target!r})")
         adapter = _adapter_status(target, known_handlers)
+        scope = planned.get("coordinator_scope")
+        if scope:
+            stages = scope["stages"]
+            available = all(
+                name in known_handlers and any(
+                    item.mcp_tool == name and item.mcp_profiles for item in CAPABILITIES)
+                for name in stages.values())
+            adapter = {
+                **adapter,
+                "status": "approval_coordinator_v2_partial" if available else "approval_coordinator_missing",
+                "scope": scope,
+                "stage_schemas": {
+                    stage: handler_input_schema(handler_values[name])
+                    for stage, name in stages.items() if name in handler_values},
+            }
         if adapter["status"] == "admitted":
             admitted_commands += 1
         schema = (handler_input_schema(handler_values[target])
@@ -658,6 +673,15 @@ def render_parity_status(manifest: dict[str, Any]) -> str:
             f"`{command['workflow_completion']['status']}` | "
             f"{len(command['arguments'])} |")
     lines.extend(["", "## Drift", ""])
+    for command in manifest["command_mappings"]:
+        scope = command["adapter"].get("scope")
+        if scope:
+            lines.extend([
+                f"`{command['cli_command']}`: {scope['description']}",
+                "Coordinator stages: " + ", ".join(
+                    f"{stage}: `{tool}`" for stage, tool in scope["stages"].items()) + ".",
+                "These stages implement one workflow; they do not increment whole-command completion.", "",
+            ])
     if manifest["issues"]:
         lines.extend(f"- {issue}" for issue in manifest["issues"])
     else:

@@ -10,8 +10,9 @@ whose workers can return unaccepted candidate artifacts. Deliberately NOT
 exposed through the supervised goal profile are source edits, provider calls,
 worker delegation, contract changes, approval, signing, promotion, or merge.
 Deliberately NOT
-exposed: ``promote-domain`` (hash-bound human
-acceptance of reviewed artifacts is a trust action that stays with the CLI),
+exposed: direct ``promote-domain`` approval authority. V2 promotion may be
+requested and completed through an authenticated human decision and protected
+publisher; legacy V1 remains CLI-only. Also excluded are
 the interactive clarification wizards (``domain``, non-canonical ``draft``,
 ``design-system``), and the reviewer trust actions ``sign-artifact`` /
 ``manage-trust`` (signing and key policy require the human reviewer's own
@@ -22,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import uuid
 from functools import wraps
@@ -1949,6 +1951,59 @@ def complete_refactor_signing(request_id: str) -> dict[str, Any]:
             "request_satisfied": False, "message": str(exc),
             "mcp_admission": admission.summary(),
         }
+
+
+def _domain_promotion_operation(tool: str, mode: str, effects: tuple[str, ...], **arguments) -> dict[str, Any]:
+    from pipeline.domain_promotion_approval import configured_service
+    admission = authorize_mcp_invocation(tool, mode=mode, language="model",
+        backend="protected-domain-publisher-v1", effects=effects)
+    if not admission.admitted:
+        return admission.rejection()
+    try:
+        for effect in effects:
+            require_mcp_effect(admission, effect)
+        if mode == "request":
+            for field in ("candidate", "validation"):
+                path = arguments[field]
+                if any(parent.is_symlink() for parent in (path, *path.parents)):
+                    raise ValueError("promotion inputs must not follow symlinks")
+                arguments[field] = _workspace_path(str(path))
+        service = configured_service(publisher=mode == "complete")
+        if mode == "request":
+            result = service.request_promotion(**arguments,
+                admission_profile_sha256=admission.summary()["profile_sha256"])
+        elif mode == "status":
+            result = service.status(arguments["request_id"])
+        else:
+            result = service.execute(arguments["request_id"])
+        return {**result, "mcp_admission": admission.summary()}
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        return {"status": getattr(exc, "code", "PROMOTION_SERVICE_UNAVAILABLE"),
+            "claim": "NO_PROOF", "request_satisfied": False, "message": str(exc),
+            "mcp_admission": admission.summary()}
+
+
+def request_domain_promotion(name: str, candidate: str, validation_evidence: str,
+                             replace_reviewed_domain: bool = False,
+                             sign: bool = False, ttl_seconds: int = 900) -> dict[str, Any]:
+    """Prepare a V2 promotion for external human review; never approve it."""
+    return _domain_promotion_operation("request_domain_promotion", "request",
+        ("workspace_read", "service_state_read", "service_state_write"), name=name,
+        candidate=Path(candidate).absolute(), validation=Path(validation_evidence).absolute(),
+        replace=replace_reviewed_domain, sign=sign, ttl_seconds=ttl_seconds)
+
+
+def get_domain_promotion(request_id: str) -> dict[str, Any]:
+    """Inspect a V2 promotion request or authenticated publication receipt."""
+    return _domain_promotion_operation("get_domain_promotion", "status",
+        ("service_state_read",), request_id=request_id)
+
+
+def complete_domain_promotion(request_id: str) -> dict[str, Any]:
+    """Ask the operator helper to execute an already authenticated decision."""
+    return _domain_promotion_operation("complete_domain_promotion", "complete",
+        ("service_state_read", "service_state_write", "protected_publication", "protected_signing"),
+        request_id=request_id)
 
 
 def doctor_environment() -> dict[str, Any]:

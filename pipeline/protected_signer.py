@@ -146,7 +146,7 @@ def sign_approved_artifact(
         if expires.tzinfo is None or datetime.now(timezone.utc) >= expires:
             raise ApprovalError("APPROVAL_EXPIRED", "approval request has expired")
         if request.get("policy_version") != APPROVAL_POLICY_VERSION or \
-                request.get("action") != "sign-refactor-evidence" or \
+                request.get("action") not in {"sign-refactor-evidence", "promote-domain-v2"} or \
                 request.get("request_id") != request.get("operation_id") or \
                 not request.get("reviewer_identity") or \
                 not request.get("signing_identity") or \
@@ -162,8 +162,15 @@ def sign_approved_artifact(
                     for binding in (artifact_binding, evidence_binding)):
             raise ApprovalError(
                 "APPROVAL_BINDING_MISMATCH", "unsupported approval action")
+        signature_destination = request.get("destination")
+        if request["action"] == "promote-domain-v2":
+            operation = request.get("operation", {})
+            if operation.get("schema") != "formalspecgen-domain-promotion-operation-v1" or \
+                    operation.get("sign") is not True:
+                raise ApprovalError("APPROVAL_BINDING_MISMATCH", "promotion signing was not requested")
+            signature_destination = operation.get("signature_destination")
         if str(artifact) != artifact_binding.get("path") or \
-                str(output) != request.get("destination"):
+                str(output) != signature_destination:
             raise ApprovalError(
                 "APPROVAL_BINDING_MISMATCH", "artifact or destination changed")
         evidence = Path(str(evidence_binding["path"])).resolve()

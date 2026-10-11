@@ -156,7 +156,11 @@ authority and an approved endpoint/model.
 Codebase analysis captures a bounded, symlink-free polyglot source snapshot and publishes only
 new, unreviewed architecture and domain candidates. Its source manifest and artifact digests are
 provenance records, not a proof of repository behavior.
-The registry retains a 53-tool catalogue
+V2 domain promotion now has a [protected approval coordinator](docs/DOMAIN_PROMOTION_APPROVAL.md):
+`request_domain_promotion`, `get_domain_promotion`, and `complete_domain_promotion`.
+The agent requests an exact action; an authenticated human decision and operator publisher
+control publication, replacement and signing. Legacy V1 remains operator-only.
+The registry retains a 56-tool catalogue
 covering the full verification surface: `verify_code`,
 `validate_architecture`, `implement_code`, `inspect_code`, `analyze_codebase`,
 `document_code`, `assess_security`, `security_inspect`, `security_exploit`,

@@ -38,7 +38,7 @@ Do not edit it by hand.
 | `manage-trust` | `manage_trust` | `read_or_human_approval` | `approval_coordinator_missing` | `incomplete` | 4 |
 | `optimize-algorithm` | `optimize_algorithm` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `project` | `inspect_project` | `direct` | `admitted` | `incomplete` | 5 |
-| `promote-domain` | `promote_domain` | `human_approval` | `approval_coordinator_missing` | `incomplete` | 9 |
+| `promote-domain` | `promote_domain` | `human_approval` | `approval_coordinator_v2_partial` | `incomplete` | 9 |
 | `prove-equivalence` | `prove_equivalence` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `remediate` | `remediate_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 6 |
 | `reverify` | `reverify_composition` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 4 |
@@ -62,5 +62,9 @@ Do not edit it by hand.
 | `worker` | `get_work_artifacts` | `direct` | `admitted` | `incomplete` | 3 |
 
 ## Drift
+
+`promote-domain`: V2 coordinator available; legacy V1 remains operator-only. Full promote-domain parity is partial. CI qualification is reported separately for the tested V2 combinations.
+Coordinator stages: request: `request_domain_promotion`, inspect: `get_domain_promotion`, complete: `complete_domain_promotion`.
+These stages implement one workflow; they do not increment whole-command completion.
 
 No command or argument drift detected.

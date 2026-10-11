@@ -390,9 +390,16 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" "$sandbox_cgroup"
           echo "FORMALSPECGEN_CGROUP_ROOT=$sandbox_cgroup" >> "$GITHUB_ENV"
       - name: Provision disposable approval and signing identities
-        run: >-
-          python scripts/provision_approval_acceptance.py
-          --root "$RUNNER_TEMP/formalspecgen-approval-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        run: |
+          python -m pip wheel --no-deps --no-build-isolation . --wheel-dir "$RUNNER_TEMP/promotion-wheel"
+          python -m venv --system-site-packages "$RUNNER_TEMP/promotion-install"
+          "$RUNNER_TEMP/promotion-install/bin/python" -m pip install --no-deps "$RUNNER_TEMP"/promotion-wheel/*.whl
+          "$RUNNER_TEMP/promotion-install/bin/python" -I -c 'import pipeline, sys; assert pipeline.__file__.startswith(sys.prefix + "/"), pipeline.__file__'
+          echo "FORMALSPECGEN_PROMOTION_ACCEPTANCE_PYTHON=$RUNNER_TEMP/promotion-install/bin/python" >> "$GITHUB_ENV"
+          server=$("$RUNNER_TEMP/promotion-install/bin/python" -I -c 'import mcp_server; print(mcp_server.__file__)')
+          echo "FORMALSPECGEN_PROMOTION_ACCEPTANCE_SERVER=$server" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/promotion-install/bin/python" scripts/provision_approval_acceptance.py \
+            --root "$RUNNER_TEMP/formalspecgen-approval-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Run mandatory real sandbox acceptance
         env:
           FORMALSPECGEN_REQUIRE_SANDBOX_ACCEPTANCE: "1"
@@ -401,6 +408,7 @@ jobs:
           FORMALSPECGEN_REQUIRE_OPENJML_MCP_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_MCP_TRANSPORT_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
+          FORMALSPECGEN_PROMOTION_ACCEPTANCE_DIR: ${{ runner.temp }}/promotion-acceptance
           FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
@@ -414,8 +422,22 @@ jobs:
             tests/test_apply_refactor_workflow.py \
             tests/test_codebase_analysis_workflow.py \
             tests/test_approval_signing_acceptance.py \
+            tests/test_domain_promotion_acceptance.py \
             tests/test_domain_validation_workflow.py \
             tests/test_agentic_transport_acceptance.py
+      - name: Qualify scoped V2 promotion observations
+        run: >-
+          python -m scripts.qualify_domain_promotion
+          --evidence "$RUNNER_TEMP/promotion-acceptance"
+          --output "$RUNNER_TEMP/promotion-acceptance/qualification.json"
+      - name: Upload protected domain promotion observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: domain-promotion-acceptance-${{ github.sha }}
+          path: ${{ runner.temp }}/promotion-acceptance/*.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload actual TLC execution observations
         if: always()
         uses: actions/upload-artifact@v4

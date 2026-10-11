@@ -173,6 +173,8 @@ def _verify_detached_signature(
 class ApprovalService:
     """Durable approval coordinator with an external protected signer."""
 
+    ACTION = "sign-refactor-evidence"
+
     def __init__(
             self, root: Path, *, verifier_home: Path,
             authorized_reviewers: Iterable[str], signer: Path | None,
@@ -217,6 +219,18 @@ class ApprovalService:
             self, *, artifact: Path, evidence_manifest: Path,
             admission_profile_sha256: str, claim: str,
             verification_status: str, ttl_seconds: int = 900) -> dict[str, Any]:
+        return self._create_bound_request(
+            artifact=artifact, evidence_manifest=evidence_manifest,
+            admission_profile_sha256=admission_profile_sha256, claim=claim,
+            verification_status=verification_status, ttl_seconds=ttl_seconds)
+
+    def _create_bound_request(
+            self, *, artifact: Path, evidence_manifest: Path,
+            admission_profile_sha256: str, claim: str,
+            verification_status: str, ttl_seconds: int = 900,
+            destination: Path | None = None, operation: dict | None = None,
+            request_id: str | None = None) -> dict[str, Any]:
+        """Internal extension point for explicitly implemented protected actions."""
         if ttl_seconds < 1 or ttl_seconds > 86400:
             raise ApprovalError(
                 "APPROVAL_POLICY_INVALID", "approval expiry must be 1..86400 seconds")
@@ -227,7 +241,9 @@ class ApprovalService:
         if not re.fullmatch(r"[0-9a-f]{64}", admission_profile_sha256):
             raise ApprovalError(
                 "APPROVAL_POLICY_INVALID", "admission profile digest is invalid")
-        request_id = uuid.uuid4().hex
+        request_id = request_id or uuid.uuid4().hex
+        if not _REQUEST_ID.fullmatch(request_id):
+            raise ApprovalError("APPROVAL_POLICY_INVALID", "invalid request identity")
         request_root = self.root / request_id
         request_root.mkdir(mode=0o700)
         created = self.now()
@@ -237,7 +253,7 @@ class ApprovalService:
             "request_id": request_id,
             "operation_id": request_id,
             "nonce": secrets.token_hex(32),
-            "action": "sign-refactor-evidence",
+            "action": self.ACTION,
             "artifact": {
                 "path": str(artifact), "sha256": artifact_sha256,
                 "size": artifact_size,
@@ -246,7 +262,7 @@ class ApprovalService:
                 "path": str(evidence_manifest), "sha256": evidence_sha256,
                 "size": evidence_size,
             },
-            "destination": str(request_root / "artifact.sig"),
+            "destination": str(destination or request_root / "artifact.sig"),
             "signing_identity": self.signing_identity,
             "reviewer_identity": self.reviewer_identity,
             "admission_profile_sha256": admission_profile_sha256,
@@ -257,6 +273,8 @@ class ApprovalService:
             "created_at": _iso(created),
             "expires_at": _iso(created + timedelta(seconds=ttl_seconds)),
         }
+        if operation is not None:
+            request["operation"] = operation
         encoded = _canonical_bytes(request)
         _write_once(request_root / "request.json", encoded)
         return self._public_request(request, _sha256_bytes(encoded), "PENDING")
@@ -288,17 +306,7 @@ class ApprovalService:
             decision_signature = root / "decision.json.sig"
             request = _load_json(request_path, APPROVAL_REQUEST_SCHEMA)
             self._validate_request(request, request_id)
-            if not decision_path.is_file() or not decision_signature.is_file():
-                raise ApprovalError(
-                    "APPROVAL_REQUIRED", "an authenticated human decision is absent")
-            decision = _load_json(decision_path, APPROVAL_DECISION_SCHEMA)
-            request_sha256 = _sha256_file(request_path)[0]
-            self._validate_decision(decision, request, request_sha256)
-            reviewer = _verify_detached_signature(
-                decision_path, decision_signature,
-                gpg_home=self.verifier_home,
-                authorized_keys=self.authorized_reviewers,
-                expected_identity=request["reviewer_identity"], runner=self.runner)
+            decision, reviewer, request_sha256 = self._authenticate_decision(root, request)
             if decision["decision"] == "deny":
                 receipt = self._receipt(
                     request, request_sha256, decision, reviewer,
@@ -334,6 +342,20 @@ class ApprovalService:
             _write_once(receipt_path, _canonical_bytes(receipt))
             return self._receipt_response(receipt, receipt_path)
 
+    def _authenticate_decision(self, root: Path, request: dict) -> tuple[dict, dict, str]:
+        """Shared verification; possession of a request ID never authorizes an action."""
+        decision_path, signature = root / "decision.json", root / "decision.json.sig"
+        if not decision_path.is_file() or not signature.is_file():
+            raise ApprovalError("APPROVAL_REQUIRED", "an authenticated human decision is absent")
+        decision = _load_json(decision_path, APPROVAL_DECISION_SCHEMA)
+        request_sha256 = _sha256_file(root / "request.json")[0]
+        self._validate_decision(decision, request, request_sha256)
+        reviewer = _verify_detached_signature(
+            decision_path, signature, gpg_home=self.verifier_home,
+            authorized_keys=self.authorized_reviewers,
+            expected_identity=request["reviewer_identity"], runner=self.runner)
+        return decision, reviewer, request_sha256
+
     def _invoke_signer(
             self, request: Path, decision: Path, approval_signature: Path,
             artifact: Path, output: Path) -> None:
@@ -365,7 +387,7 @@ class ApprovalService:
                 request.get("operation_id") != request_id or \
                 not _REQUEST_ID.fullmatch(request_id) or \
                 request.get("policy_version") != APPROVAL_POLICY_VERSION or \
-                request.get("action") != "sign-refactor-evidence" or \
+                request.get("action") != self.ACTION or \
                 not isinstance(artifact, dict) or \
                 not isinstance(evidence, dict) or \
                 any(not isinstance(binding.get("path"), str) or

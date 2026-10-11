@@ -1,5 +1,15 @@
 # Strict MCP admission guide
 
+## Protected V2 promotion coordination
+
+`request_domain_promotion`, `get_domain_promotion`, and `complete_domain_promotion`
+coordinate an exact V2 action through the existing authenticated approval service.
+Completion requires an external human signature and operator-configured publisher;
+requesting an action grants no approval authority. Replacement binds the existing
+destination digest; signing uses the protected signer. See
+[configuration, boundaries and retry semantics](DOMAIN_PROMOTION_APPROVAL.md).
+Legacy V1 and complete command parity remain out of scope.
+
 ## Read-only project validation and static planning
 
 `project validate/plan MANIFEST [--target NAME] --json -` and MCP

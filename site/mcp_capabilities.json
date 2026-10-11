@@ -2,9 +2,9 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 26,
+  "capability_count": 29,
   "cli_capability_count": 18,
-  "mcp_only_capability_count": 8,
+  "mcp_only_capability_count": 11,
   "capabilities": [
     {
       "name": "verify_code",
@@ -1432,6 +1432,194 @@
             "service_state_read"
           ],
           "profile_sha256": "71b862b77743f0a128ed380569e9d6f63ccbb0a166c483b1280579a81057bfb7"
+        }
+      ]
+    },
+    {
+      "name": "request_domain_promotion",
+      "mcp_tool": "request_domain_promotion",
+      "cli_command": null,
+      "description": "Coordinate authenticated V2 domain promotion.",
+      "isolation": "approval-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "name",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "candidate",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "validation_evidence",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "replace_reviewed_domain",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "sign",
+            "required": false,
+            "default": false,
+            "annotation": "bool",
+            "keyword_only": false
+          },
+          {
+            "name": "ttl_seconds",
+            "required": false,
+            "default": 900,
+            "annotation": "int",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "name",
+          "candidate",
+          "validation_evidence",
+          "replace_reviewed_domain",
+          "sign",
+          "ttl_seconds"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "request-domain-promotion-v1",
+          "modes": [
+            "request"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "protected-domain-publisher-v1"
+          ],
+          "effects": [
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "authenticated-action-receipt",
+          "required_effects": [
+            "service_state_read",
+            "service_state_write",
+            "workspace_read"
+          ],
+          "profile_sha256": "204ac9201968acfdf4950f65e8953152f31c672d6c9ff95fbe534c8fe0ba86af"
+        }
+      ]
+    },
+    {
+      "name": "get_domain_promotion",
+      "mcp_tool": "get_domain_promotion",
+      "cli_command": null,
+      "description": "Coordinate authenticated V2 domain promotion.",
+      "isolation": "approval-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "request_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "request_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "get-domain-promotion-v1",
+          "modes": [
+            "status"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "protected-domain-publisher-v1"
+          ],
+          "effects": [
+            "service_state_read"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "authenticated-action-receipt",
+          "required_effects": [
+            "service_state_read"
+          ],
+          "profile_sha256": "b3258f05baa168f4a49cdd68c2f4eadba9acb89aa99cda8287adade15b433688"
+        }
+      ]
+    },
+    {
+      "name": "complete_domain_promotion",
+      "mcp_tool": "complete_domain_promotion",
+      "cli_command": null,
+      "description": "Coordinate authenticated V2 domain promotion.",
+      "isolation": "approval-coordination",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "request_id",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "request_id"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "complete-domain-promotion-v1",
+          "modes": [
+            "complete"
+          ],
+          "languages": [
+            "model"
+          ],
+          "backends": [
+            "protected-domain-publisher-v1"
+          ],
+          "effects": [
+            "protected_publication",
+            "protected_signing",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "providers": [],
+          "output_scope": "none",
+          "evidence": "authenticated-action-receipt",
+          "required_effects": [
+            "protected_publication",
+            "protected_signing",
+            "service_state_read",
+            "service_state_write"
+          ],
+          "profile_sha256": "f32a8b560972fcc6e0a28567aed5a51206f8cbd99d1d1fe4cb26ef3defea3d3a"
         }
       ]
     },

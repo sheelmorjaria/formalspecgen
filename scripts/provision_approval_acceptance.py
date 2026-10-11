@@ -70,9 +70,25 @@ def main(argv: list[str] | None = None) -> int:
         f"export FORMALSPECGEN_APPROVAL_GNUPGHOME={shlex.quote(str(public_home))}\n"
         f"export FORMALSPECGEN_APPROVAL_TRUST_REGISTRY={shlex.quote(str(registry))}\n"
         f"export FORMALSPECGEN_SIGNING_KEY={shlex.quote(signer)}\n"
-        f"exec {shlex.quote(sys.executable)} -m pipeline.protected_signer \"$@\"\n",
+        f"exec {shlex.quote(sys.executable)} -I -m pipeline.protected_signer \"$@\"\n",
         encoding="utf-8")
     signer_program.chmod(0o700)
+    promotion_registry = root / "reviewed-domains"
+    promotion_registry.mkdir(mode=0o700)
+    promotion_policy = root / "promotion-validation-policy.json"
+    promotion_policy.write_text("{}\n", encoding="utf-8")
+    promotion_policy.chmod(0o600)
+    revocations = root / "promotion-revocations.json"
+    revocations.write_text(json.dumps({
+        "schema": "formalspecgen-promotion-revocations-v1", "request_ids": [],
+    }) + "\n", encoding="utf-8")
+    revocations.chmod(0o600)
+    publisher_program = root / "protected-domain-publisher"
+    publisher_program.write_text(
+        "#!/bin/sh\n"
+        f"exec {shlex.quote(sys.executable)} -I -m pipeline.domain_promotion_approval \"$@\"\n",
+        encoding="utf-8")
+    publisher_program.chmod(0o700)
     values = {
         "FORMALSPECGEN_APPROVAL_ROOT": approval_root,
         "FORMALSPECGEN_APPROVAL_GNUPGHOME": public_home,
@@ -83,6 +99,11 @@ def main(argv: list[str] | None = None) -> int:
         "FORMALSPECGEN_ACCEPTANCE_REVIEWER_GNUPGHOME": reviewer_home,
         "FORMALSPECGEN_ACCEPTANCE_REVIEWER_KEY": reviewer,
         "FORMALSPECGEN_ACCEPTANCE_SIGNER_GNUPGHOME": signer_home,
+        "FORMALSPECGEN_PROMOTION_REGISTRY": promotion_registry,
+        "FORMALSPECGEN_PROMOTION_VALIDATION_POLICY": promotion_policy,
+        "FORMALSPECGEN_PROMOTION_REVOCATIONS": revocations,
+        "FORMALSPECGEN_PROMOTION_PRINCIPAL": "ci-operator-session",
+        "FORMALSPECGEN_PROMOTION_PUBLISHER": publisher_program,
     }
     destination = args.github_env or (
         Path(os.environ["GITHUB_ENV"]) if os.environ.get("GITHUB_ENV") else None)

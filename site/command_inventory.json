@@ -3492,7 +3492,7 @@
       "cli_command": "promote-domain",
       "mcp_tool": "promote_domain",
       "workflow_kind": "human_approval",
-      "admission_status": "approval_coordinator_missing",
+      "admission_status": "approval_coordinator_v2_partial",
       "completion_status": "incomplete",
       "argument_declarations": [
         {

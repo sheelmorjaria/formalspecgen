@@ -27,6 +27,7 @@ class ReviewedDomainSpecV2(DomainSpecV2):
     accepted_evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     accepted_applicability_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     accepted_validation_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    approval_operation_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
 
 
 def candidate_sha256(candidate: DomainSpecV2) -> str:
@@ -36,7 +37,7 @@ def candidate_sha256(candidate: DomainSpecV2) -> str:
     # pre-existing promoted V2 artifact when they are absent.
     for field in ("hardware_safe_capacity", "pool_counter",
                   "hardware_profile_sha256", "hardware_proof_sha256", "accepted_applicability_sha256",
-                  "accepted_validation_artifact_sha256"):
+                  "accepted_validation_artifact_sha256", "approval_operation_id"):
         if value.get(field) is None:
             value.pop(field, None)
     return canonical_sha256(value)

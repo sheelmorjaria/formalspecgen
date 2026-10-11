@@ -82,6 +82,7 @@ def _fixture_provider() -> Iterator[str]:
 async def _call_tool(
         workspace: Path, tool_name: str, calls: list[dict],
         *, environment: dict[str, str] | None = None,
+        python: str | None = None, server: str | None = None,
         timeout_s: float = 45) -> tuple[object, object, dict, list[dict]]:
     child_environment = dict(os.environ)
     for name in (
@@ -90,8 +91,8 @@ async def _call_tool(
         child_environment.pop(name, None)
     child_environment.update(environment or {})
     parameters = StdioServerParameters(
-        command=sys.executable,
-        args=[str(Path(mcp_server.__file__).resolve())],
+        command=python or sys.executable,
+        args=[server or str(Path(mcp_server.__file__).resolve())],
         cwd=str(workspace), env=child_environment)
     with anyio.fail_after(timeout_s):
         async with stdio_client(parameters) as (read, write):

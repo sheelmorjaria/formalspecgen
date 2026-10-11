@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "3ba3f3529122e944f2895c9d19472d05519551eeef41de2475e9ce1b3879914a",
+  "plan_sha256": "667a37cfac3ef584c8e20d3751b3b460a0b2ecb2908a4869d1997c92fc00c5bd",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -10849,9 +10849,101 @@
         }
       ],
       "adapter": {
-        "status": "approval_coordinator_missing",
+        "status": "approval_coordinator_v2_partial",
         "profiles": [],
-        "compatibility_aliases": []
+        "compatibility_aliases": [],
+        "scope": {
+          "description": "V2 coordinator available; legacy V1 remains operator-only. Full promote-domain parity is partial. CI qualification is reported separately for the tested V2 combinations.",
+          "stages": {
+            "request": "request_domain_promotion",
+            "inspect": "get_domain_promotion",
+            "complete": "complete_domain_promotion"
+          }
+        },
+        "stage_schemas": {
+          "request": {
+            "fields": [
+              {
+                "name": "name",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "candidate",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "validation_evidence",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "replace_reviewed_domain",
+                "required": false,
+                "default": false,
+                "annotation": "bool",
+                "keyword_only": false
+              },
+              {
+                "name": "sign",
+                "required": false,
+                "default": false,
+                "annotation": "bool",
+                "keyword_only": false
+              },
+              {
+                "name": "ttl_seconds",
+                "required": false,
+                "default": 900,
+                "annotation": "int",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "name",
+              "candidate",
+              "validation_evidence",
+              "replace_reviewed_domain",
+              "sign",
+              "ttl_seconds"
+            ]
+          },
+          "inspect": {
+            "fields": [
+              {
+                "name": "request_id",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "request_id"
+            ]
+          },
+          "complete": {
+            "fields": [
+              {
+                "name": "request_id",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "request_id"
+            ]
+          }
+        }
       },
       "mcp_input_schema": null,
       "workflow_completion": {
@@ -15375,5 +15467,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "bcc3d468c17448ef1033a9efd151f2c0df46ea744b31a084e6ab3e937de452a3"
+  "sha256": "2e953fff6cdaed1b486a2eb253c47fc20acf2b8f9322755dee8484b3de9771a1"
 }

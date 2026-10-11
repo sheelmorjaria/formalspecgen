@@ -3677,7 +3677,15 @@
       "workflow_kind": "human_approval",
       "requirements": "Callable coordinator requests, tracks and completes a human-authorized promotion; trusted executor remains outside ordinary agent admission.",
       "baseline_strict_mcp": "Human-only",
-      "implementation_status": "target_not_verified",
+      "implementation_status": "v2_coordinator_available_v1_operator_only",
+      "coordinator_scope": {
+        "description": "V2 coordinator available; legacy V1 remains operator-only. Full promote-domain parity is partial. CI qualification is reported separately for the tested V2 combinations.",
+        "stages": {
+          "request": "request_domain_promotion",
+          "inspect": "get_domain_promotion",
+          "complete": "complete_domain_promotion"
+        }
+      },
       "argument_mappings": [
         {
           "cli_flags": [
