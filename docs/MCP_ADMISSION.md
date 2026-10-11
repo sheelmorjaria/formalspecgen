@@ -171,11 +171,15 @@ the declared project; absent exports, evidence uses
 operator-designated output root. Neither interface replaces legacy sidecars.
 Human-only `promote-domain --validation-evidence PATH` can consume the returned
 `validation_artifact.path`, retaining its hash-acceptance and review boundary.
-Promotion rejects a changed candidate or a corrupted envelope and records the
-accepted candidate and envelope digests. This legacy promotion interface does
-not enforce a validation revision, policy or traversal-configuration identity.
-Those checks require review of the retained bundle; CI qualification of
-`validate-domain` does not qualify promotion for automatic evidence reuse.
+Promotion requires independent validation-context applicability and explicit
+human acceptance of both the candidate digest and validation artifact byte
+digest (`--accept-validation-sha256`). It records the accepted context digest.
+Changed captured inputs, implementation, TLC jar, policy or effective limits
+require revalidation; legacy envelopes without context also fail closed.
+`--validation-config` supplies independently expected timeout/traversal limits.
+This compares the captured domain-input tree, not an entire project checkout,
+and establishes neither authenticity nor specification adequacy. No ordinary
+MCP promotion authority is added. See [EVIDENCE_APPLICABILITY.md](EVIDENCE_APPLICABILITY.md).
 
 Provisioned CI requires real CLI/MCP transport and strict TLC acceptance under
 `FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE=1`, including negative

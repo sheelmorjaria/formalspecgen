@@ -4,7 +4,7 @@
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
-  "argument_declaration_count": 235,
+  "argument_declaration_count": 237,
   "commands_with_admitted_profile": 18,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
@@ -3520,6 +3520,28 @@
         {
           "cli": {
             "flags": [
+              "--accept-validation-sha256"
+            ],
+            "dest": "accept_validation_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicitly accept the validation artifact byte digest after review",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "accept_validation_sha256",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority."
+        },
+        {
+          "cli": {
+            "flags": [
               "--project-root"
             ],
             "dest": "project_root",
@@ -3607,6 +3629,28 @@
           "mcp_field": "signing_key",
           "disposition": "typed_intent_with_human_approval",
           "requirement": "The flag/hash/key is intent, not authorization. Preserve behavior through artifact-bound approval when it affects trusted state, assumptions, replacement or signing; pure candidate replacement can use a scoped write policy."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--validation-config"
+            ],
+            "dest": "validation_config",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Operator JSON with expected timeout and traversal limits; defaults match validate-domain",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_config",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority."
         },
         {
           "cli": {
@@ -5722,7 +5766,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "6567a5628dfc4e32c1bd0d0a4d1aac61dfe30e3640bdc05ecee4beb3105edf26",
+    "inventory_sha256": "0695e8051193448be356ae6e71d9233e2cbdd270fbcb6063931b4ee1b4d9e59f",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

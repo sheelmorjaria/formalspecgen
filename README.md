@@ -1655,8 +1655,9 @@ formalspecgen analyze-codebase legacy_c/ --out-dir extracted/
 formalspecgen validate-domain connection --project-root . --json connection-validation.json
 HASH=$(jq -r '.candidate_sha256' connection-validation.json)
 EVIDENCE=$(jq -r '.validation_artifact.path' connection-validation.json)
+VALIDATION_HASH=$(jq -r '.validation_artifact.sha256' connection-validation.json)
 formalspecgen promote-domain connection --accept-candidate-sha256 "$HASH" \
-  --validation-evidence "$EVIDENCE" --project-root .
+  --validation-evidence "$EVIDENCE" --accept-validation-sha256 "$VALIDATION_HASH" --project-root .
 
 # 3. Lower the reviewed math into a deterministic Prusti contract and prove the port.
 formalspecgen draft "connection port" --canonical-domain connection --lang rust \
@@ -1827,7 +1828,15 @@ closed; choose new names for later runs. Optional `--max-states`,
 ceilings of 100,000, 1,000,000 and 2,000,000. `--timeout` defaults to 120 seconds.
 MCP `validate_domain` exposes the same options (`result_export` for `--json`)
 with exports confined to the operator-designated root. Human promotion must
-select `--validation-evidence` using the returned artifact path.
+select `--validation-evidence` using the returned artifact path and explicitly
+accept its exact byte digest with `--accept-validation-sha256` after review.
+Promotion compares the captured-input tree, parser/translator implementation,
+TLC jar, effective limits and admission policy with current expectations. A
+mismatch or legacy envelope without context requires revalidation. For nondefault
+limits, pass `--validation-config policy.json`, an operator-owned JSON object
+with the same `timeout`, `max_states`, `max_transitions` and `max_work_items`;
+missing fields use validation defaults. This is separate from human approval.
+See [evidence applicability](docs/EVIDENCE_APPLICABILITY.md) for scope and limits.
 
 After reviewing the candidate semantics, promote that exact digest:
 
@@ -1835,7 +1844,8 @@ After reviewing the candidate semantics, promote that exact digest:
 formalspecgen promote-domain elevator_controller \
   --schema-version 2 \
   --validation-evidence <validation_artifact.path-returned-by-validation> \
-  --accept-candidate-sha256 <digest-printed-by-validate-domain>
+  --accept-candidate-sha256 <candidate_sha256-returned-by-validation> \
+  --accept-validation-sha256 <validation_artifact.sha256-returned-by-validation>
 ```
 
 Reviewed V2 artifacts are written to `domains/v2/<module>.json`. They intentionally do not enter
@@ -1935,8 +1945,9 @@ formalspecgen domain \
 formalspecgen validate-domain inventory --project-root . --json inventory-validation.json
 HASH=$(jq -r '.candidate_sha256' inventory-validation.json)
 EVIDENCE=$(jq -r '.validation_artifact.path' inventory-validation.json)
+VALIDATION_HASH=$(jq -r '.validation_artifact.sha256' inventory-validation.json)
 formalspecgen promote-domain inventory --accept-candidate-sha256 "$HASH" \
-  --validation-evidence "$EVIDENCE" --project-root .
+  --validation-evidence "$EVIDENCE" --accept-validation-sha256 "$VALIDATION_HASH" --project-root .
 
 # 2. Design the architecture in staged/domain-reference mode.
 formalspecgen design-system \

@@ -1,6 +1,7 @@
 # Copyright 2026 Sheel Morjaria
 # SPDX-License-Identifier: Apache-2.0
 import json
+import hashlib
 from unittest.mock import patch
 
 import pytest
@@ -12,7 +13,16 @@ from pipeline.domain_v2_promotion import (
     candidate_sha256, promote_domain, verify_artifact_signature,
     promote_validated_candidate,
 )
-from pipeline.domain_v2_publication import TlcEvidence, ValidatedEvidence, publish_validation_success
+from pipeline.domain_v2_publication import TlcEvidence, ContextBoundValidatedEvidence, publish_validation_success
+from pipeline.domain_validation_identity import domain_validation_context
+from pipeline.domain_validation_workflow import DOMAIN_VALIDATION_LIMITS
+
+
+@pytest.fixture(autouse=True)
+def configured_tlc(tmp_path, monkeypatch, domain_identity_java):
+    jar = tmp_path / "fixture-tlc.jar"
+    jar.write_bytes(b"synthetic fixture; no tool executed")
+    monkeypatch.setattr("pipeline.config.TLC_JAR", str(jar))
 
 
 def candidate_value():
@@ -43,9 +53,13 @@ def write_candidate(path, value=None):
 
 
 def write_evidence(path, digest):
-    evidence = ValidatedEvidence(
+    source = next(p for p in path.parent.iterdir() if p.suffix in {".json", ".yaml"}
+                  and not p.name.endswith(".validation.json"))
+    context = domain_validation_context(source.read_bytes(), limits=DOMAIN_VALIDATION_LIMITS, timeout=120)
+    evidence = ContextBoundValidatedEvidence(
+        applicability_context=context,
         candidate_sha256=digest,
-        generated_tla_sha256="b" * 64,
+        generated_tla_sha256=next(value["sha256"] for name, value in context["generated_models"].items() if name.endswith(".tla")),
         execution_assumption="atomic_last_result_abstraction",
         abstraction_mode="atomic_operations",
         bounds={"enabled": 2, "actors": 1},
@@ -101,7 +115,8 @@ def test_promotion_rejects_tampered_evidence_envelope(tmp_path):
 
     with pytest.raises(ValueError, match="digest mismatch"):
         promote_validated_candidate(candidate_path, evidence_path, tmp_path / "reviewed.json",
-                                    accept_candidate_sha256=digest)
+                                    accept_candidate_sha256=digest,
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
 
 
 def test_successful_promotion_records_both_accepted_hashes_without_mutating_candidate(tmp_path):
@@ -114,7 +129,8 @@ def test_successful_promotion_records_both_accepted_hashes_without_mutating_cand
     write_evidence(evidence_path, digest)
 
     reviewed = promote_validated_candidate(
-        candidate_path, evidence_path, destination, accept_candidate_sha256=digest)
+        candidate_path, evidence_path, destination, accept_candidate_sha256=digest,
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
 
     assert candidate_path.read_bytes() == original
     assert reviewed.review_status == "reviewed"
@@ -136,7 +152,8 @@ def test_promotion_can_emit_explicit_gpg_detached_signature(tmp_path):
     with patch("pipeline.domain_v2_promotion.subprocess.run") as run:
         reviewed = promote_validated_candidate(
             candidate_path, evidence_path, destination,
-            accept_candidate_sha256=digest, signing_key="reviewer@example.test")
+            accept_candidate_sha256=digest,
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest(), signing_key="reviewer@example.test")
     signature = destination.with_name(destination.name + ".promotion.sig")
     assert reviewed.review_status == "reviewed"
     assert run.call_args.kwargs["check"] is True
@@ -168,7 +185,8 @@ def test_promotion_fails_closed_when_gpg_signing_fails(tmp_path):
     with patch("pipeline.domain_v2_promotion.subprocess.run", side_effect=OSError("gpg missing")):
         with pytest.raises(ValueError, match="signature generation failed"):
             promote_validated_candidate(candidate_path, evidence_path, destination,
-                                        accept_candidate_sha256=digest, signing_key="key")
+                                        accept_candidate_sha256=digest,
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest(), signing_key="key")
 
 
 def test_promotion_rejects_already_reviewed_candidate(tmp_path):
@@ -194,7 +212,8 @@ def test_promotion_loads_canonical_candidate_from_yaml(tmp_path):
     write_evidence(evidence_path, digest)
 
     reviewed = promote_validated_candidate(
-        candidate_path, evidence_path, destination, accept_candidate_sha256=digest)
+        candidate_path, evidence_path, destination, accept_candidate_sha256=digest,
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
 
     assert reviewed.accepted_candidate_sha256 == digest
 

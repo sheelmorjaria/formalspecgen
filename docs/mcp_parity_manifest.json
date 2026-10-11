@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "c1d10db80aff1f059a02e3c22d6191947d7ed16a575ad518f9f56d0f4b6af6e8",
+  "plan_sha256": "3ba3f3529122e944f2895c9d19472d05519551eeef41de2475e9ce1b3879914a",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -3254,6 +3254,40 @@
           },
           {
             "flags": [
+              "--accept-validation-sha256"
+            ],
+            "dest": "accept_validation_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicitly accept the validation artifact byte digest after review",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--validation-config"
+            ],
+            "dest": "validation_config",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Operator JSON with expected timeout and traversal limits; defaults match validate-domain",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
               "--signing-key"
             ],
             "dest": "signing_key",
@@ -4787,14 +4821,14 @@
       }
     ],
     "command_count": 44,
-    "argument_declaration_count": 235,
-    "sha256": "6567a5628dfc4e32c1bd0d0a4d1aac61dfe30e3640bdc05ecee4beb3105edf26"
+    "argument_declaration_count": 237,
+    "sha256": "0695e8051193448be356ae6e71d9233e2cbdd270fbcb6063931b4ee1b4d9e59f"
   },
   "metrics": {
     "discovered_commands": 44,
     "mapped_commands": 44,
-    "discovered_argument_declarations": 235,
-    "mapped_argument_declarations": 235,
+    "discovered_argument_declarations": 237,
+    "mapped_argument_declarations": 237,
     "commands_with_admitted_profile": 18,
     "complete_workflow_commands": 0
   },
@@ -10637,6 +10671,28 @@
         {
           "cli": {
             "flags": [
+              "--accept-validation-sha256"
+            ],
+            "dest": "accept_validation_sha256",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Explicitly accept the validation artifact byte digest after review",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "accept_validation_sha256",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority."
+        },
+        {
+          "cli": {
+            "flags": [
               "--project-root"
             ],
             "dest": "project_root",
@@ -10728,6 +10784,28 @@
         {
           "cli": {
             "flags": [
+              "--validation-config"
+            ],
+            "dest": "validation_config",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "Operator JSON with expected timeout and traversal limits; defaults match validate-domain",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_config",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority."
+        },
+        {
+          "cli": {
+            "flags": [
               "--validation-evidence"
             ],
             "dest": "validation_evidence",
@@ -10781,21 +10859,25 @@
         "complete": false,
         "mapped_mcp_fields": [
           "accept_candidate_sha256",
+          "accept_validation_sha256",
           "name",
           "project_root",
           "replace_reviewed_domain",
           "schema_version",
           "signing_key",
+          "validation_config",
           "validation_evidence"
         ],
         "observed_mcp_fields": [],
         "missing_mcp_fields": [
           "accept_candidate_sha256",
+          "accept_validation_sha256",
           "name",
           "project_root",
           "replace_reviewed_domain",
           "schema_version",
           "signing_key",
+          "validation_config",
           "validation_evidence"
         ],
         "unverified_argument_mappings": [
@@ -10805,7 +10887,9 @@
           "schema_version",
           "accept_candidate_sha256",
           "signing_key",
-          "validation_evidence"
+          "validation_evidence",
+          "accept_validation_sha256",
+          "validation_config"
         ],
         "required_variants": [],
         "covered_variants": [],
@@ -15291,5 +15375,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "840d3fa9a4601a4ae0f60cd1f7316e2b2c48171b08c058d410c37f322c6c4cc6"
+  "sha256": "bcc3d468c17448ef1033a9efd151f2c0df46ea744b31a084e6ab3e937de452a3"
 }

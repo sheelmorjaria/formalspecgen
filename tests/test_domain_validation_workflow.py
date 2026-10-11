@@ -40,14 +40,14 @@ def observation(request):
 
 
 @pytest.fixture
-def setup(tmp_path, monkeypatch):
+def setup(tmp_path, monkeypatch, domain_identity_java):
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "domains/candidates/toggle.v2.yaml"
     source.parent.mkdir(parents=True)
     source.write_text(yaml.safe_dump(candidate()))
     jar = tmp_path / "tlc.jar"; jar.write_bytes(b"fixture")
     monkeypatch.setattr("pipeline.isolated_tlc.config.TLC_JAR", str(jar))
-    monkeypatch.setattr("pipeline.isolated_tlc.shutil.which", lambda _: "/usr/bin/java")
+    monkeypatch.setattr("pipeline.isolated_tlc.shutil.which", lambda _: str(domain_identity_java))
     monkeypatch.setattr("pipeline.isolated_tlc._java_configuration_paths", lambda _: ())
     executor = Mock(execute=Mock(side_effect=observation))
     monkeypatch.setattr(workflow, "StrictSandboxExecutor", lambda: executor)
@@ -193,7 +193,8 @@ def test_human_promotion_selects_published_validation_artifact(setup, mutation):
     accepted = (candidate_sha256(load_candidate(source)) if mutation == "different-candidate"
                 else result["candidate_sha256"])
     args = cli.build_parser().parse_args(["promote-domain", "toggle", "--validation-evidence", str(artifact),
-                                         "--accept-candidate-sha256", accepted])
+                                         "--accept-candidate-sha256", accepted, "--accept-validation-sha256",
+                                         result["validation_artifact"]["sha256"]])
     code = cli.command_promote_domain(args, cli.TerminalUI(Console(file=io.StringIO())))
     destination = source.parents[2] / "domains/v2/toggle.json"
     if mutation:
@@ -218,6 +219,223 @@ def test_cli_output_escape_and_mcp_admission_denial_stop_before_service(setup, m
     service.assert_not_called(); executor.execute.assert_not_called()
 
 
+@pytest.mark.parametrize("field", ["source_tree", "generated_models", "candidate_sha256", "configuration", "implementation", "tool", "admission", "schema", "legacy"])
+def test_promotion_rejects_intact_evidence_from_another_context(setup, field):
+    from pipeline.domain_v2_evidence import build_evidence_envelope
+    from pipeline.domain_v2_promotion import promote_validated_candidate
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    artifact = Path(result["validation_artifact"]["path"])
+    value = json.loads(artifact.read_text())["evidence"]
+    if field == "legacy":
+        del value["applicability_context"]
+    elif field == "schema":
+        value["applicability_context"][field] = "future-version"
+    else:
+        value["applicability_context"][field] = {"different": True}
+    # Recompute integrity to test applicability rather than corruption rejection.
+    envelope = build_evidence_envelope(value)
+    artifact.write_text(json.dumps(envelope))
+    destination = source.parent / "reviewed.json"
+    with pytest.raises(ValueError, match="requires revalidation"):
+        promote_validated_candidate(source, artifact, destination,
+            accept_candidate_sha256=result["candidate_sha256"],
+            accept_validation_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    assert not destination.exists()
+
+
+def test_applicability_checks_current_tool_and_raw_source_tree(setup):
+    from pipeline.domain_validation_identity import assess_domain_validation_applicability
+    from pipeline.domain_v2_promotion import load_validation_envelope
+    from pipeline import config
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    evidence = load_validation_envelope(result["validation_artifact"]["path"])
+    same = assess_domain_validation_applicability(evidence, source.read_bytes())
+    assert same.applicable
+    # Formatting preserves semantic candidate identity but changes captured input identity.
+    changed = assess_domain_validation_applicability(evidence, source.read_bytes() + b"\n")
+    assert changed.reasons == ("MISMATCH:source_tree",)
+    Path(config.TLC_JAR).write_bytes(b"different TLC version")
+    changed = assess_domain_validation_applicability(evidence, source.read_bytes())
+    assert changed.reasons == ("MISMATCH:tool",)
+
+
+def test_custom_configuration_requires_independent_matching_policy_and_human_digest(setup):
+    from pipeline.domain_v2_promotion import promote_validated_candidate, load_validation_envelope
+    from pipeline.domain_validation_identity import assess_domain_validation_applicability
+    source, _ = setup
+    options = {"timeout": 30, "max_states": 7, "max_transitions": 9, "max_work_items": 11}
+    result = mcp_server.validate_domain("toggle", **options)
+    artifact = Path(result["validation_artifact"]["path"])
+    envelope = load_validation_envelope(artifact)
+    assert assess_domain_validation_applicability(envelope, source.read_bytes()).reasons == ("MISMATCH:configuration",)
+    destination = source.parent / "reviewed.json"
+    for accepted in (None, "0" * 64):
+        with pytest.raises(ValueError, match="exact validation digest"):
+            promote_validated_candidate(source, artifact, destination,
+                accept_candidate_sha256=result["candidate_sha256"], validation_config=options,
+                accept_validation_sha256=accepted)
+        assert not destination.exists()
+    promoted = promote_validated_candidate(source, artifact, destination,
+        accept_candidate_sha256=result["candidate_sha256"], validation_config=options,
+        accept_validation_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    assert promoted.accepted_applicability_sha256 == assess_domain_validation_applicability(
+        envelope, source.read_bytes(), validation_config=options).expected_context_sha256
+
+
+@pytest.mark.parametrize("options", [[], {"unknown": 1}, {"max_states": True}, {"timeout": 0}])
+def test_invalid_applicability_policy_rejected(setup, options):
+    from pipeline.domain_validation_identity import assess_domain_validation_applicability
+    from pipeline.domain_v2_promotion import load_validation_envelope
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    evidence = load_validation_envelope(result["validation_artifact"]["path"])
+    with pytest.raises(ValueError):
+        assess_domain_validation_applicability(evidence, source.read_bytes(), validation_config=options)
+
+
+def test_operator_configuration_is_bounded_and_unambiguous(tmp_path):
+    from pipeline.domain_validation_identity import read_validation_config
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"timeout":30,"max_states":7}')
+    assert read_validation_config(policy) == {"timeout": 30, "max_states": 7}
+    for content in ('[]', '{"timeout":30,"timeout":60}', '[' * 2000 + '0' + ']' * 2000,
+                    'x' * (16 * 1024 + 1)):
+        policy.write_text(content)
+        with pytest.raises(ValueError):
+            read_validation_config(policy)
+    link = tmp_path / "link.json"; link.symlink_to(policy)
+    with pytest.raises(OSError):
+        read_validation_config(link)
+    policy.write_bytes(b"\xff")
+    with pytest.raises(ValueError):
+        read_validation_config(policy)
+
+
+def test_domain_applicability_checks_envelope_identity_not_just_context(setup):
+    from pipeline.domain_v2_evidence import build_evidence_envelope
+    from pipeline.domain_v2_publication import EvidenceEnvelope
+    from pipeline.domain_validation_identity import assess_domain_validation_applicability
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    value = result["validation_evidence"]["evidence"]
+    value["candidate_sha256"] = "0" * 64
+    intact = EvidenceEnvelope.model_validate(build_evidence_envelope(value))
+    decision = assess_domain_validation_applicability(intact, source.read_bytes())
+    assert not decision.applicable and "MISMATCH:envelope_candidate_sha256" in decision.reasons
+    value["candidate_sha256"] = result["candidate_sha256"]
+    value["generated_tla_sha256"] = "0" * 64
+    intact = EvidenceEnvelope.model_validate(build_evidence_envelope(value))
+    assert "MISMATCH:envelope_generated_tla_sha256" in assess_domain_validation_applicability(
+        intact, source.read_bytes()).reasons
+
+
+def test_runtime_changes_require_revalidation(setup, domain_identity_java, monkeypatch):
+    from pipeline.domain_validation_identity import java_runtime_identity, assess_domain_validation_applicability
+    from pipeline.domain_v2_promotion import load_validation_envelope
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    evidence = load_validation_envelope(result["validation_artifact"]["path"])
+    (domain_identity_java.parent.parent / "lib/modules").write_bytes(b"different modules")
+    assert assess_domain_validation_applicability(evidence, source.read_bytes()).reasons == ("MISMATCH:tool",)
+    monkeypatch.setattr("pipeline.domain_validation_identity.shutil.which", lambda _: None)
+    with pytest.raises(ValueError, match="runtime is unavailable"):
+        java_runtime_identity()
+
+
+def test_legacy_jdk_layout_is_identified(tmp_path):
+    from pipeline.domain_validation_identity import java_runtime_identity
+    root = tmp_path / "legacy-jdk"
+    names = ("bin/java", "release", "jre/lib/rt.jar", "jre/lib/amd64/server/libjvm.so")
+    for name in names:
+        path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b"fixture")
+    assert set(java_runtime_identity(str(root / "bin/java"))) == set(names)
+
+
+def test_jvm_change_during_execution_cannot_publish_validated_evidence(setup, domain_identity_java):
+    source, executor = setup
+    def changed_runtime(request):
+        result = observation(request)
+        (domain_identity_java.parent.parent / "lib/modules").write_bytes(b"changed during execution")
+        return result
+    executor.execute.side_effect = changed_runtime
+    result = mcp_server.validate_domain("toggle")
+    assert result["claim"] == "NO_PROOF" and not result["checks_satisfied"]
+    assert result["failed_gate"] == "tlc" and len(result["execution_stages"]) == 2
+    assert "validation_evidence" not in result
+
+
+def test_changed_generated_cfg_cannot_bind_prior_execution(setup, monkeypatch):
+    import pipeline.domain_validation_preparation as preparation
+    original = preparation.render_v2_tla
+    calls = 0
+    def changed_render(candidate):
+        nonlocal calls
+        calls += 1
+        tla, cfg = original(candidate)
+        return tla, cfg if calls == 1 else cfg + "\\* changed translation\n"
+    monkeypatch.setattr(preparation, "render_v2_tla", changed_render)
+    result = mcp_server.validate_domain("toggle")
+    assert result["claim"] == "NO_PROOF" and not result["checks_satisfied"]
+    assert "generated model identity changed" in result["message"]
+
+
+def test_domain_context_rejects_oversized_input_and_unadmitted_policy(setup, monkeypatch):
+    from pipeline.domain_validation_identity import domain_validation_context
+    source, _ = setup
+    with pytest.raises(ValueError, match="input allowance"):
+        domain_validation_context(b"x" * (workflow.DOMAIN_VALIDATION_LIMITS["max_input_bytes"] + 1),
+            limits=workflow.DOMAIN_VALIDATION_LIMITS, timeout=120)
+    rejected = authorize_mcp_invocation("validate_domain", mode="unsupported", language="model", backend="tlc", effects=())
+    monkeypatch.setattr("pipeline.domain_validation_identity.authorize_mcp_invocation", lambda *_a, **_kw: rejected)
+    with pytest.raises(ValueError, match="not admitted"):
+        domain_validation_context(source.read_bytes(), limits=workflow.DOMAIN_VALIDATION_LIMITS, timeout=120)
+
+
+def test_promotion_pins_artifact_bytes_and_rejects_nested_evidence_json(setup):
+    from pipeline.domain_v2_promotion import promote_validated_candidate, load_validation_envelope
+    source, _ = setup
+    result = mcp_server.validate_domain("toggle")
+    artifact = Path(result["validation_artifact"]["path"])
+    artifact.write_text(json.dumps(json.loads(artifact.read_text()), separators=(",", ":")))
+    with pytest.raises(ValueError, match="exact validation digest"):
+        promote_validated_candidate(source, artifact, source.parent / "reviewed.json",
+            accept_candidate_sha256=result["candidate_sha256"],
+            accept_validation_sha256=result["validation_artifact"]["sha256"])
+    for content in (b"[" * 2000 + b"0" + b"]" * 2000, b"\xff"):
+        artifact.write_bytes(content)
+        with pytest.raises(ValueError):
+            load_validation_envelope(artifact)
+
+
+@pytest.mark.parametrize("field,value", [("reachable_state_count", "2"), ("tlc_exit_status", False), ("schema_version", 2.0)])
+def test_evidence_integrity_precedes_typed_normalization(setup, field, value):
+    from pipeline.domain_v2_promotion import load_validation_envelope
+    _, _executor = setup
+    result = mcp_server.validate_domain("toggle")
+    path = Path(result["validation_artifact"]["path"])
+    envelope = json.loads(path.read_text())
+    envelope["evidence"][field] = value
+    path.write_text(json.dumps(envelope))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        load_validation_envelope(path)
+
+
+def test_cli_uses_independent_configuration_and_rejects_v1_applicability_options(setup):
+    source, _ = setup
+    options = {"timeout": 30, "max_states": 7}
+    result = mcp_server.validate_domain("toggle", **options)
+    policy = source.parents[2] / "policy.json"; policy.write_text(json.dumps(options))
+    args = cli.build_parser().parse_args(["promote-domain", "toggle", "--validation-config", "policy.json",
+        "--validation-evidence", result["validation_artifact"]["path"],
+        "--accept-candidate-sha256", result["candidate_sha256"],
+        "--accept-validation-sha256", result["validation_artifact"]["sha256"]])
+    assert cli.command_promote_domain(args, cli.TerminalUI(Console(file=io.StringIO()))) == 0
+    args.schema_version = 1
+    assert cli.command_promote_domain(args, cli.TerminalUI(Console(file=io.StringIO()))) == 2
+
+
 @pytest.mark.skipif(os.environ.get("FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE") != "1",
                     reason="requires real MCP transport, TLC and delegated strict sandbox")
 def test_real_domain_transport():
@@ -227,3 +445,5 @@ def test_real_domain_transport():
     assert {"valid", "invariant", "deadlock", "state-limit", "transition-limit", "work-item-limit",
             "malformed", "unsafe", "tlc-unavailable", "result-export-failure", "evidence-publication-failure"}.issubset(result["variants"])
     assert result["cli_comparisons"] and result["artifact_validations"]
+    assert len(result["promotion_checks"]) == 8
+    assert [item["case"] for item in result["promotion_checks"] if item["exit_code"] == 0] == ["matching"]

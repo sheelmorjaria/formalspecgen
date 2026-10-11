@@ -5,9 +5,9 @@ documentation validation, not formal verification or revision-bound acceptance e
 
 ## Checked publication inputs
 
-- `index.html` SHA-256: `f7d6bfe1123923c6f4f0178e3aa0db97f6811b0cdeafa1cf044b6731300a5d90`
-- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `5d03e18e91ac09de0ecac98837138c9b48a27b15067df3f8c2bb23bfb1c26302`
-- `command_inventory.json` SHA-256: `a50fcd5f3f0305211b7fc4b792d50b1bf768d5cce525cd0c88865526051ffe2b`
+- `index.html` SHA-256: `50c1e25704343e690b95ca09a4cee868cab5f0e9e2d7056d8bcc7d69766e8826`
+- `FORMALSPECGEN_USER_GUIDE.html` SHA-256: `5fb4dec6d02c797eef92f01e723752e52aae726d312557502b749db0ffacb871`
+- `command_inventory.json` SHA-256: `fc0fcc7b758f41414a5bacf0a92449ac87c55f071cd6dff6333534dc8c715e5d`
 - `mcp_capabilities.json` SHA-256: `e737e2b66956570a2d28231d73eee9f0a4518008ad63d0f352ad17ceed21181d`
 - Parsed HTML element IDs: 24
 - Same-page fragment links checked: 19

@@ -48,9 +48,13 @@ class ValidatedEvidence(_Evidence):
     tlc_exit_status: Literal[0] = 0
 
 
+class ContextBoundValidatedEvidence(ValidatedEvidence):
+    applicability_context: dict
+
+
 class EvidenceEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    evidence: ValidatedEvidence
+    evidence: ContextBoundValidatedEvidence | ValidatedEvidence
     evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")

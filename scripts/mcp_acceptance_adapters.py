@@ -2395,7 +2395,7 @@ async def _domain_validation_observation() -> dict:
             ("result-export-failure", {"name": "toggle", "result_export": "collision.json"}, "RESULT_EXPORT_FAILED", "result_export"),
             ("evidence-publication-failure", {"name": "toggle", "project_root": "failure-project", "result_export": "negative.json"}, "EVIDENCE_PUBLICATION_FAILED", "evidence_publication"),
         ]
-        results, validations, comparisons = [], [], []
+        results, validations, comparisons, promotion_checks = [], [], [], []
         for variant, args, expected, gate in cases:
             environment = {"FORMALSPECGEN_MCP_OUTPUT_ROOT": str(blocked if variant == "evidence-publication-failure" else output)}
             if variant == "tlc-unavailable": environment["TLC_JAR"] = str(workspace / "absent.jar")
@@ -2416,6 +2416,13 @@ async def _domain_validation_observation() -> dict:
                     if any(not any(entry["path"] == name and entry["sha256"] == identity["sha256"]
                                    for entry in stage["snapshot_files"]) for stage in stages):
                         raise RuntimeError("domain model differs from TLC snapshot")
+                binding = result["validation_evidence"]["evidence"]["applicability_context"]
+                if (binding["source_tree"]["files"][0]["sha256"] != result["inputs"][0]["sha256"] or
+                        binding["admission"]["profile_sha256"] != result["workflow_result"]["admission"]["profile_sha256"] or
+                        any(not any(entry["path"] == "tool/tla2tools.jar" and
+                            entry["sha256"] == binding["tool"]["tlc_jar_sha256"]
+                            for entry in stage["snapshot_files"]) for stage in stages)):
+                    raise RuntimeError("domain applicability context differs from captured execution")
             elif result["execution_stages"]:
                 raise RuntimeError("preexecution domain rejection launched TLC")
             for item in result["inputs"]:
@@ -2448,12 +2455,73 @@ async def _domain_validation_observation() -> dict:
             if (process.returncode != (0 if expected == "VALIDATED" else 1) or
                     semantic(local) != semantic(result) or local["workflow_result"]["request"] != result["workflow_result"]["request"]):
                 raise RuntimeError(f"CLI/MCP domain semantics differ: {variant}: {local}")
+            if result["checks_satisfied"] and (local["validation_evidence"]["evidence"]["applicability_context"] !=
+                    result["validation_evidence"]["evidence"]["applicability_context"]):
+                raise RuntimeError("CLI/MCP applicability contexts differ")
             comparisons.append({"variant": variant, "result_sha256": _sha256(semantic(local))})
+            if variant == "valid":
+                import base64
+                from pipeline.domain_v2_evidence import build_evidence_envelope
+                from pipeline.domain_v2_promotion import candidate_sha256, load_candidate
+                for promotion_case in ("matching", "candidate", "artifact", "configuration", "legacy",
+                                       "implementation", "unsupported-version", "tampered"):
+                    project = workspace / "promotion" / promotion_case
+                    source = project / "domains/candidates/toggle.v2.yaml"
+                    source.parent.mkdir(parents=True)
+                    source.write_bytes((candidates / "toggle.v2.yaml").read_bytes())
+                    envelope = json.loads(json.dumps(result["validation_evidence"]))
+                    options = {key: args[key] for key in ("timeout", "max_states", "max_transitions", "max_work_items")}
+                    if promotion_case == "candidate":
+                        value = json.loads(source.read_text()); value["state_variables"][0]["initial"] = True
+                        source.write_text(json.dumps(value))
+                    elif promotion_case == "configuration":
+                        options["max_states"] -= 1
+                    elif promotion_case == "legacy":
+                        del envelope["evidence"]["applicability_context"]
+                    elif promotion_case == "implementation":
+                        envelope["evidence"]["applicability_context"]["implementation"]["components"]["domain_v2_tla.py"] = "0" * 64
+                    elif promotion_case == "unsupported-version":
+                        envelope["evidence"]["applicability_context"]["schema"] = "unsupported"
+                    elif promotion_case == "tampered":
+                        envelope["evidence"]["reachable_state_count"] += 1
+                    if promotion_case in {"legacy", "implementation", "unsupported-version"}:
+                        envelope = build_evidence_envelope(envelope["evidence"])
+                    evidence_path = project / "validation.json"
+                    if promotion_case in {"matching", "candidate", "artifact", "configuration"}:
+                        evidence_path.write_bytes(Path(result["validation_artifact"]["path"]).read_bytes())
+                    else:
+                        evidence_path.write_text(json.dumps(envelope, indent=2) + "\n")
+                    artifact_sha = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+                    accepted_sha = "0" * 64 if promotion_case == "artifact" else artifact_sha
+                    policy = project / "policy.json"; policy.write_text(json.dumps(options))
+                    command = [sys.executable, "-m", "pipeline.cli", "promote-domain", "toggle",
+                        "--project-root", str(project), "--validation-evidence", str(evidence_path),
+                        "--validation-config", "policy.json", "--accept-candidate-sha256", result["candidate_sha256"],
+                        "--accept-validation-sha256", accepted_sha]
+                    promoted = await anyio.to_thread.run_sync(lambda: subprocess.run(command, cwd=workspace,
+                        capture_output=True, text=True, timeout=45, check=False,
+                        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}))
+                    destination = project / "domains/v2/toggle.json"
+                    matching = promotion_case == "matching"
+                    if promoted.returncode != (0 if matching else 2) or destination.exists() != matching:
+                        raise RuntimeError(f"domain promotion boundary failed: {promotion_case}: {promoted.stdout}")
+                    reviewed = json.loads(destination.read_text()) if matching else None
+                    if matching and (reviewed["accepted_validation_artifact_sha256"] != artifact_sha or
+                            artifact_sha != result["validation_artifact"]["sha256"] or
+                            reviewed["accepted_candidate_sha256"] != result["candidate_sha256"] or
+                            reviewed["accepted_evidence_sha256"] != envelope["evidence_sha256"]):
+                        raise RuntimeError("promotion accepted different artifact or candidate bytes")
+                    promotion_checks.append({"case": promotion_case, "exit_code": promoted.returncode,
+                        "candidate_bytes_base64": base64.b64encode(source.read_bytes()).decode("ascii"),
+                        "candidate_sha256": candidate_sha256(load_candidate(source)),
+                        "validation_bytes_base64": base64.b64encode(evidence_path.read_bytes()).decode("ascii"),
+                        "artifact_sha256": artifact_sha, "accepted_artifact_sha256": accepted_sha,
+                        "reviewed": reviewed, "reviewed_sha256": hashlib.sha256(destination.read_bytes()).hexdigest() if matching else None})
         if (output / "collision.json").read_text() != "preserved" or (blocked / "domain-evidence").read_text() != "preserved":
             raise RuntimeError("domain publication replaced existing bytes")
     observation = _observation(initialized, tools, schema, results, results[-1])
     observation.update(semantic_results=results, cli_comparisons=comparisons, artifact_validations=validations,
-                       variants=[row[0] for row in cases])
+                       variants=[row[0] for row in cases], promotion_checks=promotion_checks)
     return observation
 
 

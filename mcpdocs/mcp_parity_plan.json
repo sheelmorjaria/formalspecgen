@@ -4,7 +4,7 @@
   "baseline_revision": "91c6790",
   "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
   "baseline_command_count": 44,
-  "baseline_argument_declaration_count": 235,
+  "baseline_argument_declaration_count": 237,
   "inventory_count_scope": "Current plan counts; field names retained for schema compatibility. Generated live inventory is authoritative.",
   "historical_baseline_counts": {"revision": "91c6790", "commands": 38, "argument_declarations": 205},
   "inventory_provenance": {
@@ -3801,6 +3801,40 @@
             "default": null,
             "required": false,
             "description": "Explicit V2 validation artifact returned by validate-domain"
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--accept-validation-sha256"
+          ],
+          "proposed_mcp_field": "accept_validation_sha256",
+          "disposition": "typed_intent_with_human_approval",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority.",
+          "baseline_declaration": {
+            "flags": [
+              "--accept-validation-sha256"
+            ],
+            "default": null,
+            "required": false,
+            "description": "Exact validation artifact byte digest accepted after human review."
+          },
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--validation-config"
+          ],
+          "proposed_mcp_field": "validation_config",
+          "disposition": "human_approval_coordinator_required",
+          "requirement": "Human-only applicability and approval input; ordinary agents do not gain promotion authority.",
+          "baseline_declaration": {
+            "flags": [
+              "--validation-config"
+            ],
+            "default": null,
+            "required": false,
+            "description": "Operator JSON with independently expected timeout and traversal limits."
           },
           "implementation_status": "target_not_verified"
         }

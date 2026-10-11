@@ -8,6 +8,7 @@ candidate.  It does not authenticate the reviewer or provide non-repudiation.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import subprocess
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import Literal
 from pydantic import Field
 
 from .domain_v2 import DomainSpecV2
-from .domain_v2_evidence import canonical_sha256
+from .domain_v2_evidence import canonical_sha256, verify_evidence_envelope
 from .domain_v2_publication import EvidenceEnvelope, write_json_atomic
 
 
@@ -24,6 +25,8 @@ class ReviewedDomainSpecV2(DomainSpecV2):
     review_status: Literal["reviewed"] = "reviewed"
     accepted_candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     accepted_evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    accepted_applicability_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    accepted_validation_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 def candidate_sha256(candidate: DomainSpecV2) -> str:
@@ -32,7 +35,8 @@ def candidate_sha256(candidate: DomainSpecV2) -> str:
     # New optional provenance fields must not retroactively invalidate every
     # pre-existing promoted V2 artifact when they are absent.
     for field in ("hardware_safe_capacity", "pool_counter",
-                  "hardware_profile_sha256", "hardware_proof_sha256"):
+                  "hardware_profile_sha256", "hardware_proof_sha256", "accepted_applicability_sha256",
+                  "accepted_validation_artifact_sha256"):
         if value.get(field) is None:
             value.pop(field, None)
     return canonical_sha256(value)
@@ -50,7 +54,21 @@ def load_candidate(path: str | Path) -> DomainSpecV2:
 
 
 def load_validation_envelope(path: str | Path) -> EvidenceEnvelope:
-    return EvidenceEnvelope.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    return capture_validation_envelope(path)[0]
+
+
+def capture_validation_envelope(path: str | Path) -> tuple[EvidenceEnvelope, str]:
+    from .isolated_tlc import _capture_jar
+    from .evidence_consumer import _decode_evidence
+    content = _capture_jar(Path(path), 8 * 1024**2)
+    try:
+        value = _decode_evidence(content)
+        if not verify_evidence_envelope(value):
+            raise ValueError("evidence envelope digest mismatch")
+        envelope = EvidenceEnvelope.model_validate(value)
+    except (RecursionError, UnicodeError) as exc:
+        raise ValueError("invalid validation evidence JSON") from exc
+    return envelope, hashlib.sha256(content).hexdigest()
 
 
 def sign_artifact(path: str | Path, signing_key: str, *, suffix: str = ".sig") -> Path:
@@ -93,9 +111,18 @@ def promote_validated_candidate(
     *,
     accept_candidate_sha256: str,
     signing_key: str | None = None,
+    accept_validation_sha256: str | None = None,
+    validation_config: dict | None = None,
 ) -> ReviewedDomainSpecV2:
     """Promote only the exact candidate bound to intact VALIDATED evidence."""
-    candidate = load_candidate(candidate_path)
+    from .domain_validation_preparation import (
+        DomainPreparationRequest, capture_domain_candidate, prepare_captured_domain_candidate)
+    from .workflow_contracts import WorkflowContext
+    path = Path(candidate_path).absolute()
+    captured = capture_domain_candidate(DomainPreparationRequest(str(path)),
+        WorkflowContext.for_cli(("workspace_read",), workspace_root=path.parent))
+    prepared = prepare_captured_domain_candidate(captured)
+    candidate = DomainSpecV2.model_validate_json(prepared.candidate_json)
     if candidate.review_status != "unreviewed":
         raise ValueError("only an unreviewed V2 candidate may be promoted")
 
@@ -103,15 +130,24 @@ def promote_validated_candidate(
     if accept_candidate_sha256 != actual_hash:
         raise ValueError("CRITICAL: candidate hash mismatch")
 
-    envelope = load_validation_envelope(validation_path)
+    envelope, artifact_sha256 = capture_validation_envelope(validation_path)
     if envelope.evidence.candidate_sha256 != actual_hash:
         raise ValueError("validation evidence does not bind the current candidate")
 
+    from .domain_validation_identity import assess_domain_validation_applicability
+    decision = assess_domain_validation_applicability(envelope, captured.source_bytes,
+                                                     validation_config=validation_config)
+    if not decision.applicable:
+        raise ValueError("validation evidence requires revalidation: " + ", ".join(decision.reasons))
+    if accept_validation_sha256 != artifact_sha256:
+        raise ValueError("explicit acceptance of the exact validation digest is required")
     reviewed = ReviewedDomainSpecV2.model_validate({
         **candidate.model_dump(mode="json"),
         "review_status": "reviewed",
         "accepted_candidate_sha256": actual_hash,
         "accepted_evidence_sha256": envelope.evidence_sha256,
+        "accepted_applicability_sha256": decision.expected_context_sha256,
+        "accepted_validation_artifact_sha256": artifact_sha256,
     })
     write_json_atomic(destination, reviewed.model_dump(mode="json"))
     if signing_key:
@@ -122,7 +158,9 @@ def promote_validated_candidate(
 def promote_domain(name: str, *, accept_candidate_sha256: str,
                    project_root: str | Path = ".",
                    replace_reviewed: bool = False,
-                   signing_key: str | None = None) -> ReviewedDomainSpecV2:
+                   signing_key: str | None = None,
+                   accept_validation_sha256: str | None = None,
+                   validation_config: dict | None = None) -> ReviewedDomainSpecV2:
     """Promote a named CLI-layout V2 candidate into the separate V2 registry."""
     if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
         raise ValueError("V2 domain name must be a safe module identifier")
@@ -136,4 +174,6 @@ def promote_domain(name: str, *, accept_candidate_sha256: str,
         destination,
         accept_candidate_sha256=accept_candidate_sha256,
         signing_key=signing_key,
+        accept_validation_sha256=accept_validation_sha256,
+        validation_config=validation_config,
     )

@@ -1766,9 +1766,14 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
         return 2
     requested_schema = getattr(args, "schema_version", None)
     explicit_validation = getattr(args, "validation_evidence", None)
+    applicability_options = (getattr(args, "accept_validation_sha256", None),
+                             getattr(args, "validation_config", None))
     if requested_schema is None:
         v2_validation = root / "domains" / "candidates" / f"{name}.v2.validation.json"
-        requested_schema = 2 if explicit_validation or v2_validation.exists() else 1
+        requested_schema = 2 if explicit_validation or any(applicability_options) or v2_validation.exists() else 1
+    if int(requested_schema) == 1 and (explicit_validation or any(applicability_options)):
+        ui.console.print("[bold red]Validation applicability options require schema version 2.[/bold red]")
+        return 2
     if int(requested_schema) == 2:
         candidate = root / "domains" / "candidates" / f"{name}.v2.yaml"
         validation = (Path(explicit_validation).expanduser() if explicit_validation else
@@ -1783,12 +1788,17 @@ def command_promote_domain(args: argparse.Namespace, ui: TerminalUI) -> int:
                 raise PermissionError(
                     f"reviewed V2 domain {name!r} already exists; use --replace-reviewed-domain"
                 )
+            from .domain_validation_identity import read_validation_config
+            validation_config = getattr(args, "validation_config", None)
             reviewed = promote_validated_candidate(
                 candidate,
                 validation,
                 canonical,
                 accept_candidate_sha256=args.accept_candidate_sha256,
                 signing_key=getattr(args, "signing_key", None),
+                accept_validation_sha256=getattr(args, "accept_validation_sha256", None),
+                validation_config=(read_validation_config(root / validation_config)
+                    if validation_config else None),
             )
         except (ValueError, OSError) as exc:
             ui.console.print(
@@ -2995,6 +3005,8 @@ def build_parser(
     )
     promote.add_argument("--accept-candidate-sha256")
     promote.add_argument("--validation-evidence", help="Explicit V2 validation artifact returned by validate-domain")
+    promote.add_argument("--accept-validation-sha256", help="Explicitly accept the validation artifact byte digest after review")
+    promote.add_argument("--validation-config", help="Operator JSON with expected timeout and traversal limits; defaults match validate-domain")
     promote.add_argument(
         "--signing-key", help="GPG key ID for a detached promotion signature"
     )

@@ -14,7 +14,7 @@ from .domain_v2_model import (
     MAX_STATE_SPACE, MAX_TRANSITIONS, MAX_WORK_ITEMS, UnsupportedV2Boundary,
     static_deadlock_findings, validate_transitions_and_invariants,
 )
-from .domain_v2_publication import TlcEvidence, ValidatedEvidence, validated_envelope
+from .domain_v2_publication import TlcEvidence, ContextBoundValidatedEvidence, validated_envelope
 from .domain_validation_preparation import (
     DOMAIN_PREPARATION_LIMITS, DomainPreparationRequest, capture_domain_candidate,
     prepare_captured_domain_candidate,
@@ -31,7 +31,10 @@ DOMAIN_VALIDATION_LIMITS = {**DOMAIN_PREPARATION_LIMITS,
     "max_states": MAX_STATE_SPACE, "max_transitions": MAX_TRANSITIONS,
     "max_work_items": MAX_WORK_ITEMS, "max_state_bound_bits": 1024,
     "max_execution_seconds": 120, "max_output_bytes": 1024**2,
-    "max_result_bytes": 32 * 1024**2}
+    "max_result_bytes": 32 * 1024**2,
+    "max_tool_bytes": 32 * 1024**2, "max_memory_bytes": 2 * 1024**3,
+    "max_processes": 64, "max_file_bytes": 64 * 1024**2,
+    "max_workspace_bytes": 128 * 1024**2, "max_temporary_bytes": 64 * 1024**2}
 
 
 @dataclass(frozen=True)
@@ -210,13 +213,24 @@ def run_domain_validation(request: DomainValidationWorkflowRequest, context: Wor
         result["traversal"] = {"status": "PASSED", "reachable_states": states,
                                "reachable_transitions": transitions}
         result["failed_gate"] = "tlc"
+        from .domain_validation_identity import java_runtime_identity, domain_validation_context
+        java_identity = java_runtime_identity()
         tlc = run_isolated_tlc(replace(prepared.model, timeout_s=request.timeout),
             context.child(("external_execution",)), executor=Recorder())
         result["tlc"] = tlc
         if not tlc["model_check_passed"] or not _bound_stages(
                 observed, tlc["execution_observations"], result["generated_models"]):
             raise ValueError("TLC did not establish an enforced check of the captured model")
-        evidence = ValidatedEvidence(candidate_sha256=prepared.candidate_sha256,
+        if any(java_runtime_identity(item["command"][0]) != java_identity for item in observed):
+            raise ValueError("Java runtime identity changed during validation")
+        jar_identity = next(entry["sha256"] for entry in tlc["snapshot_manifest"]
+                            if entry["path"] == "tool/tla2tools.jar")
+        validation_context = domain_validation_context(captured.source_bytes,
+            limits=limits, timeout=request.timeout, tlc_sha256=jar_identity, java_identity=java_identity)
+        if validation_context["generated_models"] != result["generated_models"]:
+            raise ValueError("generated model identity changed during validation")
+        evidence = ContextBoundValidatedEvidence(candidate_sha256=prepared.candidate_sha256,
+            applicability_context=validation_context,
             generated_tla_sha256=summary["generated_models"][prepared.model.module_name + ".tla"]["sha256"],
             **{name: result["model_scope"][name] for name in (
                 "bounds", "state_space_upper_bound", "execution_assumption", "abstraction_mode")},

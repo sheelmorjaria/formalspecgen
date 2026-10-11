@@ -2,11 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import json
+import pytest
+
+pytestmark = pytest.mark.usefixtures("domain_identity_java")
 
 from pipeline.domain_v2 import DomainSpecV2
 from pipeline.domain_v2_promotion import candidate_sha256, promote_validated_candidate
 from pipeline.domain_v2_publication import (
-    TlcEvidence, ValidatedEvidence, publish_validation_success,
+    TlcEvidence, ContextBoundValidatedEvidence, publish_validation_success,
 )
 from pipeline.domain_v2_evidence import build_evidence_envelope
 from pipeline.domain_v2_tla import render_v2_tla
@@ -39,7 +42,15 @@ def _reviewed_files(tmp_path, candidate=None):
     candidate_path.write_text(candidate.model_dump_json(), encoding="utf-8")
     tla, _ = render_v2_tla(candidate)
     evidence_path = tmp_path / "switch.validation.json"
-    publish_validation_success(evidence_path, ValidatedEvidence(
+    from pipeline.domain_validation_identity import domain_validation_context
+    from pipeline.domain_validation_workflow import DOMAIN_VALIDATION_LIMITS
+    from unittest.mock import patch
+    jar = tmp_path / "fixture-tlc.jar"
+    jar.write_bytes(b"synthetic fixture; no tool executed")
+    with patch("pipeline.config.TLC_JAR", str(jar)):
+        context = domain_validation_context(candidate_path.read_bytes(), limits=DOMAIN_VALIDATION_LIMITS, timeout=120)
+    publish_validation_success(evidence_path, ContextBoundValidatedEvidence(
+        applicability_context=context,
         candidate_sha256=candidate_sha256(candidate),
         generated_tla_sha256=hashlib.sha256(tla.encode()).hexdigest(),
         execution_assumption="atomic_last_result_abstraction",
@@ -49,8 +60,10 @@ def _reviewed_files(tmp_path, candidate=None):
         tools={"tlc": TlcEvidence(version="2.19", command=["java", "-jar", "tlc.jar"])},
         tlc_exit_status=0))
     reviewed_path = tmp_path / "reviewed.json"
-    promote_validated_candidate(candidate_path, evidence_path, reviewed_path,
-        accept_candidate_sha256=candidate_sha256(candidate))
+    with patch("pipeline.config.TLC_JAR", str(jar)):
+        promote_validated_candidate(candidate_path, evidence_path, reviewed_path,
+            accept_candidate_sha256=candidate_sha256(candidate),
+            accept_validation_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
     return reviewed_path, evidence_path
 
 
