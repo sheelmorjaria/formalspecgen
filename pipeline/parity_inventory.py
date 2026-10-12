@@ -552,7 +552,8 @@ def reconcile_parity_plan(
                 for name in stages.values())
             adapter = {
                 **adapter,
-                "status": (("session_adapter_v2_partial" if scope.get("kind") == "session"
+                "status": (("reviewed_java_profile_partial" if scope.get("kind") == "reviewed-java"
+                            else "session_adapter_v2_partial" if scope.get("kind") == "session"
                             else "approval_coordinator_v2_partial") if available
                            else "adapter_missing" if scope.get("kind") == "session"
                            else "approval_coordinator_missing"),

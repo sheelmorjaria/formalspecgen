@@ -4,7 +4,7 @@
   "plan_baseline_revision": "91c6790",
   "scope": "Generated live CLI inventory and static admission view; revision-bound completion requires CI acceptance evidence.",
   "command_count": 44,
-  "argument_declaration_count": 237,
+  "argument_declaration_count": 244,
   "commands_with_admitted_profile": 18,
   "commands_complete_without_ci_evidence": 0,
   "inventory_complete": true,
@@ -1885,7 +1885,7 @@
       "cli_command": "draft",
       "mcp_tool": "draft_contract",
       "workflow_kind": "resumable",
-      "admission_status": "compatibility_alias_present_target_missing",
+      "admission_status": "reviewed_java_profile_partial",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -1909,6 +1909,28 @@
           "mcp_field": "canonical_domain",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -1957,6 +1979,52 @@
           "mcp_field": "feedback_budget",
           "disposition": "bounded_parameter",
           "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--generation-only"
+            ],
+            "dest": "generation_only",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "capture reviewed V2 inputs and generate Java without execution",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "generation_only",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout for --generation-only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "json",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -2142,6 +2210,28 @@
           "mcp_field": "resample_budget",
           "disposition": "bounded_parameter",
           "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "applicable V2 validation artifact",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_evidence",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -2459,7 +2549,7 @@
       "cli_command": "implement",
       "mcp_tool": "implement_code",
       "workflow_kind": "direct_or_task",
-      "admission_status": "adapter_present_not_admitted",
+      "admission_status": "reviewed_java_profile_partial",
       "completion_status": "incomplete",
       "argument_declarations": [
         {
@@ -2538,6 +2628,50 @@
         {
           "cli": {
             "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "implementation source; omit for one bounded provider response",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--canonical-java"
+            ],
+            "dest": "canonical_java",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "captured reviewed V2 Java profile; one candidate and strict ESC",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "canonical_java",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
               "--clarifications"
             ],
             "dest": "clarifications",
@@ -2605,6 +2739,28 @@
           "mcp_field": "dma_profile",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -5766,7 +5922,7 @@
   ],
   "provenance": {
     "inventory_schema": "formalspecgen-live-cli-inventory-v1",
-    "inventory_sha256": "0695e8051193448be356ae6e71d9233e2cbdd270fbcb6063931b4ee1b4d9e59f",
+    "inventory_sha256": "a681328d8b3fea21971c2eedf10c13d4eb2eced60b60ec888272b134bd5eb765",
     "plugin_abi": "formalspecgen.cli-command-plugin.v1"
   }
 }

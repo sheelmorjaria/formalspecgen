@@ -4,7 +4,7 @@
   "admission_policy_version": "mcp-admission-v3",
   "plan_schema": "formalspecgen-full-mcp-parity-plan-v1",
   "plan_baseline_revision": "91c6790",
-  "plan_sha256": "3c54ceb2b8d0ac9b5e2339b922fff711ad3afe1ee60773e02b6a07c3d8d1080d",
+  "plan_sha256": "e99bb10c95436e632cc138bff71f8a48d7932fed705115b4b4e83b097d7cb367",
   "completion_policy": {
     "principle": "admission_is_not_workflow_completion",
     "required_acceptance_kinds": [
@@ -931,6 +931,76 @@
             "help": null,
             "hidden": false,
             "metavar": null
+          },
+          {
+            "flags": [
+              "--generation-only"
+            ],
+            "dest": "generation_only",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "capture reviewed V2 inputs and generate Java without execution",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "applicable V2 validation artifact",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout for --generation-only",
+            "hidden": false,
+            "metavar": null
           }
         ]
       },
@@ -1030,6 +1100,57 @@
             "type": null,
             "action": "store",
             "help": null,
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--canonical-java"
+            ],
+            "dest": "canonical_java",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "captured reviewed V2 Java profile; one candidate and strict ESC",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          {
+            "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "implementation source; omit for one bounded provider response",
             "hidden": false,
             "metavar": null
           },
@@ -4821,14 +4942,14 @@
       }
     ],
     "command_count": 44,
-    "argument_declaration_count": 237,
-    "sha256": "0695e8051193448be356ae6e71d9233e2cbdd270fbcb6063931b4ee1b4d9e59f"
+    "argument_declaration_count": 244,
+    "sha256": "a681328d8b3fea21971c2eedf10c13d4eb2eced60b60ec888272b134bd5eb765"
   },
   "metrics": {
     "discovered_commands": 44,
     "mapped_commands": 44,
-    "discovered_argument_declarations": 237,
-    "mapped_argument_declarations": 237,
+    "discovered_argument_declarations": 244,
+    "mapped_argument_declarations": 244,
     "commands_with_admitted_profile": 18,
     "complete_workflow_commands": 0
   },
@@ -8231,6 +8352,28 @@
         {
           "cli": {
             "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
               "--fallback-provider"
             ],
             "dest": "fallback_provider",
@@ -8275,6 +8418,52 @@
           "mcp_field": "feedback_budget",
           "disposition": "bounded_parameter",
           "requirement": "Preserve intent but enforce server ceilings and aggregate parent budgets; disclose effective limits and reject a minimum assurance request that cannot be met."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--generation-only"
+            ],
+            "dest": "generation_only",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "capture reviewed V2 inputs and generate Java without execution",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "generation_only",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [
+              "-"
+            ],
+            "nargs": "?",
+            "const": "-",
+            "type": null,
+            "action": "store",
+            "help": "structured stdout for --generation-only",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "json",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -8464,6 +8653,28 @@
         {
           "cli": {
             "flags": [
+              "--validation-evidence"
+            ],
+            "dest": "validation_evidence",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "applicable V2 validation artifact",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "validation_evidence",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
               "requirement"
             ],
             "dest": "requirement",
@@ -8485,11 +8696,161 @@
         }
       ],
       "adapter": {
-        "status": "compatibility_alias_present_target_missing",
+        "status": "reviewed_java_profile_partial",
         "profiles": [],
         "compatibility_aliases": [
           "draft_canonical_contract"
-        ]
+        ],
+        "scope": {
+          "kind": "reviewed-java",
+          "stages": {
+            "generate": "draft_canonical_contract",
+            "implement": "implement_code"
+          },
+          "description": "Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped."
+        },
+        "stage_schemas": {
+          "generate": {
+            "fields": [
+              {
+                "name": "domain",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "lang",
+                "required": false,
+                "default": "java",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "out_file",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "project_root",
+                "required": false,
+                "default": ".",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "requirement",
+                "required": false,
+                "default": "",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "validation_evidence",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "domain_candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "domain",
+              "lang",
+              "out_file",
+              "project_root",
+              "requirement",
+              "validation_evidence",
+              "domain_candidate"
+            ]
+          },
+          "implement": {
+            "fields": [
+              {
+                "name": "spec_path",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "provider",
+                "required": false,
+                "default": "ollama",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "assurance_level",
+                "required": false,
+                "default": "critical",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "v2_reviewed_domain",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "v2_validation_evidence",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "domain_candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "model",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "out_file",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "spec_path",
+              "provider",
+              "assurance_level",
+              "v2_reviewed_domain",
+              "v2_validation_evidence",
+              "domain_candidate",
+              "candidate",
+              "model",
+              "out_file"
+            ]
+          }
+        }
       },
       "mcp_input_schema": null,
       "workflow_completion": {
@@ -8497,8 +8858,11 @@
         "complete": false,
         "mapped_mcp_fields": [
           "canonical_domain",
+          "domain_candidate",
           "fallback_provider",
           "feedback_budget",
+          "generation_only",
+          "json",
           "lang",
           "max_attempts",
           "model",
@@ -8507,13 +8871,17 @@
           "out_file",
           "provider",
           "requirement",
-          "resample_budget"
+          "resample_budget",
+          "validation_evidence"
         ],
         "observed_mcp_fields": [],
         "missing_mcp_fields": [
           "canonical_domain",
+          "domain_candidate",
           "fallback_provider",
           "feedback_budget",
+          "generation_only",
+          "json",
           "lang",
           "max_attempts",
           "model",
@@ -8522,7 +8890,8 @@
           "out_file",
           "provider",
           "requirement",
-          "resample_budget"
+          "resample_budget",
+          "validation_evidence"
         ],
         "unverified_argument_mappings": [
           "requirement",
@@ -8536,7 +8905,11 @@
           "resample_budget",
           "feedback_budget",
           "provider",
-          "model"
+          "model",
+          "generation_only",
+          "domain_candidate",
+          "validation_evidence",
+          "json"
         ],
         "required_variants": [],
         "covered_variants": [],
@@ -9241,6 +9614,50 @@
         {
           "cli": {
             "flags": [
+              "--candidate"
+            ],
+            "dest": "candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "implementation source; omit for one bounded provider response",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--canonical-java"
+            ],
+            "dest": "canonical_java",
+            "positional": false,
+            "required": false,
+            "default": false,
+            "choices": [],
+            "nargs": 0,
+            "const": true,
+            "type": null,
+            "action": "store_true",
+            "help": "captured reviewed V2 Java profile; one candidate and strict ESC",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "canonical_java",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
+        },
+        {
+          "cli": {
+            "flags": [
               "--clarifications"
             ],
             "dest": "clarifications",
@@ -9308,6 +9725,28 @@
           "mcp_field": "dma_profile",
           "disposition": "typed_parameter",
           "requirement": "Preserve type, default resolution, choices, requiredness and interactions; resolve permitted semantics in the shared service."
+        },
+        {
+          "cli": {
+            "flags": [
+              "--domain-candidate"
+            ],
+            "dest": "domain_candidate",
+            "positional": false,
+            "required": false,
+            "default": null,
+            "choices": [],
+            "nargs": null,
+            "const": null,
+            "type": null,
+            "action": "store",
+            "help": "original validation candidate bytes",
+            "hidden": false,
+            "metavar": null
+          },
+          "mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations."
         },
         {
           "cli": {
@@ -9625,9 +10064,220 @@
         }
       ],
       "adapter": {
-        "status": "adapter_present_not_admitted",
-        "profiles": [],
-        "compatibility_aliases": []
+        "status": "reviewed_java_profile_partial",
+        "profiles": [
+          {
+            "name": "reviewed-v2-java-candidate",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "java"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "captured-reviewed-v2-contract-and-native-esc",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          },
+          {
+            "name": "reviewed-v2-java-provider",
+            "modes": [
+              "esc"
+            ],
+            "languages": [
+              "java"
+            ],
+            "backends": [
+              "openjml"
+            ],
+            "effects": [
+              "evidence_publication",
+              "external_execution",
+              "provider_access",
+              "workspace_read",
+              "workspace_write_new"
+            ],
+            "providers": [
+              "glm",
+              "ollama",
+              "openai"
+            ],
+            "output_scope": "designated-new-artifacts",
+            "evidence": "bounded-provider-candidate-and-native-esc",
+            "required_effects": [
+              "evidence_publication",
+              "external_execution",
+              "provider_access",
+              "workspace_read",
+              "workspace_write_new"
+            ]
+          }
+        ],
+        "compatibility_aliases": [],
+        "scope": {
+          "kind": "reviewed-java",
+          "stages": {
+            "generate": "draft_canonical_contract",
+            "implement": "implement_code"
+          },
+          "description": "Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped."
+        },
+        "stage_schemas": {
+          "generate": {
+            "fields": [
+              {
+                "name": "domain",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "lang",
+                "required": false,
+                "default": "java",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "out_file",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "project_root",
+                "required": false,
+                "default": ".",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "requirement",
+                "required": false,
+                "default": "",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "validation_evidence",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "domain_candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "domain",
+              "lang",
+              "out_file",
+              "project_root",
+              "requirement",
+              "validation_evidence",
+              "domain_candidate"
+            ]
+          },
+          "implement": {
+            "fields": [
+              {
+                "name": "spec_path",
+                "required": true,
+                "default": null,
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "provider",
+                "required": false,
+                "default": "ollama",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "assurance_level",
+                "required": false,
+                "default": "critical",
+                "annotation": "str",
+                "keyword_only": false
+              },
+              {
+                "name": "v2_reviewed_domain",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "v2_validation_evidence",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "domain_candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "candidate",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "model",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              },
+              {
+                "name": "out_file",
+                "required": false,
+                "default": null,
+                "annotation": "str | None",
+                "keyword_only": false
+              }
+            ],
+            "field_names": [
+              "spec_path",
+              "provider",
+              "assurance_level",
+              "v2_reviewed_domain",
+              "v2_validation_evidence",
+              "domain_candidate",
+              "candidate",
+              "model",
+              "out_file"
+            ]
+          }
+        }
       },
       "mcp_input_schema": {
         "fields": [
@@ -9665,6 +10315,34 @@
             "default": null,
             "annotation": "str | None",
             "keyword_only": false
+          },
+          {
+            "name": "domain_candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "out_file",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
           }
         ],
         "field_names": [
@@ -9672,7 +10350,11 @@
           "provider",
           "assurance_level",
           "v2_reviewed_domain",
-          "v2_validation_evidence"
+          "v2_validation_evidence",
+          "domain_candidate",
+          "candidate",
+          "model",
+          "out_file"
         ]
       },
       "workflow_completion": {
@@ -9682,9 +10364,12 @@
           "abstraction",
           "accept_pass",
           "assurance_level",
+          "candidate",
+          "canonical_java",
           "clarifications",
           "dependencies",
           "dma_profile",
+          "domain_candidate",
           "feedback_budget",
           "max_attempts",
           "method_proof_only",
@@ -9702,6 +10387,10 @@
         ],
         "observed_mcp_fields": [
           "assurance_level",
+          "candidate",
+          "domain_candidate",
+          "model",
+          "out_file",
           "provider",
           "spec_path",
           "v2_reviewed_domain",
@@ -9710,13 +10399,13 @@
         "missing_mcp_fields": [
           "abstraction",
           "accept_pass",
+          "canonical_java",
           "clarifications",
           "dependencies",
           "dma_profile",
           "feedback_budget",
           "max_attempts",
           "method_proof_only",
-          "model",
           "out",
           "parallel_kernel",
           "parallel_out",
@@ -9745,7 +10434,10 @@
           "dependencies",
           "dma_profile",
           "provider",
-          "model"
+          "model",
+          "canonical_java",
+          "domain_candidate",
+          "candidate"
         ],
         "required_variants": [],
         "covered_variants": [],
@@ -15575,5 +16267,5 @@
   "issues": [],
   "inventory_complete": true,
   "full_workflow_parity_complete": false,
-  "sha256": "99bcca8d3520ea66e537fd8d572d51eda7291865b93b35bc950c89724b025794"
+  "sha256": "a043cfd8cf505987442b75c13073a80fc2b88fb475328c393cdb7fa0c5501065"
 }

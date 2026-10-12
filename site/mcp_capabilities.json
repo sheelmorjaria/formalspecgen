@@ -2,9 +2,9 @@
   "schema": "formalspecgen-guide-mcp-capabilities-v1",
   "admission_policy_version": "mcp-admission-v3",
   "scope": "Strict catalogue generated from the capability registry and Python handlers. Runtime MCP discovery is tested separately.",
-  "capability_count": 33,
-  "cli_capability_count": 18,
-  "mcp_only_capability_count": 15,
+  "capability_count": 35,
+  "cli_capability_count": 19,
+  "mcp_only_capability_count": 16,
   "capabilities": [
     {
       "name": "verify_code",
@@ -517,6 +517,156 @@
             "workspace_write_new"
           ],
           "profile_sha256": "1e9386f20d45c2db7d440d9e06328380c013a79c0cf7b1d60bd6bec3f6afb224"
+        }
+      ]
+    },
+    {
+      "name": "implement_code",
+      "mcp_tool": "implement_code",
+      "cli_command": "implement",
+      "description": "implement code",
+      "isolation": "strict-execution",
+      "catalogue": "cli-and-mcp",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "spec_path",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "default": "ollama",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "assurance_level",
+            "required": false,
+            "default": "critical",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_reviewed_domain",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "v2_validation_evidence",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "domain_candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "model",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "out_file",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "spec_path",
+          "provider",
+          "assurance_level",
+          "v2_reviewed_domain",
+          "v2_validation_evidence",
+          "domain_candidate",
+          "candidate",
+          "model",
+          "out_file"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "reviewed-v2-java-candidate",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-reviewed-v2-contract-and-native-esc",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "f72ed127c059e4da62f70ce56859999af5d80f0d3651c40ca770befc0ec5639a"
+        },
+        {
+          "name": "reviewed-v2-java-provider",
+          "modes": [
+            "esc"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "openjml"
+          ],
+          "effects": [
+            "evidence_publication",
+            "external_execution",
+            "provider_access",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [
+            "glm",
+            "ollama",
+            "openai"
+          ],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "bounded-provider-candidate-and-native-esc",
+          "required_effects": [
+            "evidence_publication",
+            "external_execution",
+            "provider_access",
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "36d0e727e3de15495fa18ae137deb67699272286ccd46d82aa602cce69c595ce"
         }
       ]
     },
@@ -2561,6 +2711,102 @@
             "workspace_write_new"
           ],
           "profile_sha256": "3c7e8e7c100195e3da3c6e34f430fd42c9fcb001f95df55e7bc29885474575cb"
+        }
+      ]
+    },
+    {
+      "name": "draft_canonical_contract",
+      "mcp_tool": "draft_canonical_contract",
+      "cli_command": null,
+      "description": "draft canonical contract",
+      "isolation": "non-executing",
+      "catalogue": "mcp-only",
+      "static_input_schema": {
+        "fields": [
+          {
+            "name": "domain",
+            "required": true,
+            "default": null,
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "lang",
+            "required": false,
+            "default": "java",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "out_file",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "project_root",
+            "required": false,
+            "default": ".",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "requirement",
+            "required": false,
+            "default": "",
+            "annotation": "str",
+            "keyword_only": false
+          },
+          {
+            "name": "validation_evidence",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          },
+          {
+            "name": "domain_candidate",
+            "required": false,
+            "default": null,
+            "annotation": "str | None",
+            "keyword_only": false
+          }
+        ],
+        "field_names": [
+          "domain",
+          "lang",
+          "out_file",
+          "project_root",
+          "requirement",
+          "validation_evidence",
+          "domain_candidate"
+        ]
+      },
+      "profiles": [
+        {
+          "name": "reviewed-v2-java-generation",
+          "modes": [
+            "draft"
+          ],
+          "languages": [
+            "java"
+          ],
+          "backends": [
+            "builtin-v2-jml"
+          ],
+          "effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "providers": [],
+          "output_scope": "designated-new-artifacts",
+          "evidence": "captured-reviewed-v2-inputs-and-deterministic-contract",
+          "required_effects": [
+            "workspace_read",
+            "workspace_write_new"
+          ],
+          "profile_sha256": "b1d80a77b33b8983f6c907e835cf7d66532a552497e45f900c23cbcad076e00b"
         }
       ]
     },

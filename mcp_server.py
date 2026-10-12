@@ -511,13 +511,23 @@ def validate_architecture(artifact_path: str, timeout: int = 120,
 def implement_code(spec_path: str, provider: str = "ollama",
                    assurance_level: str = "critical",
                    v2_reviewed_domain: str | None = None,
-                   v2_validation_evidence: str | None = None) -> dict[str, Any]:
-    """Run the native implementation loop for a workspace source/spec scaffold.
+                   v2_validation_evidence: str | None = None,
+                   domain_candidate: str | None = None,
+                   candidate: str | None = None, model: str | None = None,
+                   out_file: str | None = None) -> dict[str, Any]:
+    """Check one contract-preserving sequential reviewed V2 Java candidate.
 
-    Passing the reviewed-domain and validation-evidence pair enters the V2
-    refinement gate: a native proof then binds to the promoted candidate
-    hash and can mint SOURCE_MODEL_REFINEMENT.
+    Strict mode captures the original domain, reviewed domain and validation
+    bytes. A supplied implementation needs no provider; otherwise one bounded
+    provider response is allowed. Native ESC never claims source/model refinement.
     """
+    if _strict_mcp_isolation_enabled() or domain_candidate is not None:
+        if assurance_level != "critical":
+            return {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": "UNSUPPORTED_PROFILE", "message": "only the critical reviewed Java profile is supported"}
+        return _reviewed_java_operation("implement", reviewed_domain=v2_reviewed_domain,
+            validation_evidence=v2_validation_evidence, domain_candidate=domain_candidate,
+            scaffold=spec_path, candidate=candidate, provider=provider, model=model, out_file=out_file)
     from pipeline.orchestrator import run_implementation_loop
     def run() -> dict[str, Any]:
         domain = (_workspace_path(v2_reviewed_domain)
@@ -1469,9 +1479,48 @@ def unified_system(artifact_path: str, evidence_path: str, out_dir: str,
         _workspace_path(out_dir, must_exist=False), language=language))
 
 
+def _reviewed_java_operation(operation: str, **values) -> dict[str, Any]:
+    from pipeline.reviewed_java_workflow import ReviewedJavaRequest, REVIEWED_JAVA_LIMITS, run_reviewed_java
+    try:
+        request = ReviewedJavaRequest(operation=operation, **values)
+        effects = request.required_effects()
+        admission = authorize_mcp_invocation(
+            "draft_canonical_contract" if operation == "draft" else "implement_code",
+            mode="draft" if operation == "draft" else "esc", language="java",
+            backend="builtin-v2-jml" if operation == "draft" else "openjml",
+            effects=effects, provider=request.provider if "provider_access" in effects else None)
+        if not admission.admitted:
+            return admission.rejection()
+        context = WorkflowContext.for_mcp(admission, effects,
+            output_root=_designated_mcp_output_root(), resource_budget=REVIEWED_JAVA_LIMITS)
+        return {**run_reviewed_java(request, context), "mcp_admission": admission.summary()}
+    except (OSError, ValueError, RuntimeError, RecursionError) as exc:
+        return {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+            "code": getattr(exc, "code", "INVALID_REQUEST"), "message": str(exc)}
+
+
 def draft_canonical_contract(domain: str, lang: str = "java", out_file: str | None = None,
-                             project_root: str = ".", requirement: str = "") -> dict[str, Any]:
-    """Deterministically lower a reviewed V2 domain into Java/JML, Rust, C, or C++."""
+                             project_root: str = ".", requirement: str = "",
+                             validation_evidence: str | None = None,
+                             domain_candidate: str | None = None) -> dict[str, Any]:
+    """Generate sequential reviewed V2 Java/JML without a provider or compiler.
+
+    Strict mode requires the original candidate and applicable validation
+    artifact. Other language and V1 lowering remain legacy operator paths.
+    """
+    if _strict_mcp_isolation_enabled() or domain_candidate is not None:
+        if lang != "java":
+            return {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": "UNSUPPORTED_PROFILE", "message": "only sequential reviewed V2 Java generation is admitted"}
+        from pipeline.canonical_draft import _requested
+        try:
+            reviewed = str(Path(project_root) / "domains" / "v2" / f"{_requested(domain)}.json")
+        except ValueError as exc:
+            return {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False,
+                "code": "INVALID_REQUEST", "message": str(exc)}
+        return _reviewed_java_operation("draft", reviewed_domain=reviewed,
+            validation_evidence=validation_evidence, domain_candidate=domain_candidate,
+            requirement=requirement, out_file=out_file)
     def run() -> dict[str, Any]:
         from pipeline.canonical_draft import canonical_draft
         resolved_out = str(_workspace_path(out_file, must_exist=False)) if out_file else None

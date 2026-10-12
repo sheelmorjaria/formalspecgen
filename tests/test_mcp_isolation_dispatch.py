@@ -66,7 +66,7 @@ def test_implementation_and_system_routes_fail_before_dispatch(
     with patch("pipeline.orchestrator.run_implementation_loop") as implementation:
         implementation_result = mcp_server.implement_code("missing.java")
     implementation.assert_not_called()
-    assert implementation_result["status"] == "ISOLATION_UNSUPPORTED"
+    assert implementation_result["status"] == "FAIL"
     assert implementation_result["request_satisfied"] is False
 
     with patch("pipeline.system_orchestrator.verify_system") as system:
@@ -80,6 +80,8 @@ def test_strict_catalogue_contains_only_declared_supported_routes():
     strict = {item.mcp_tool: item.mcp_isolation
               for item in mcp_capabilities(strict_isolation=True)}
     assert strict == {
+        "implement_code": "strict-execution",
+        "draft_canonical_contract": "non-executing",
         "validate_domain": "strict-execution",
         "validate_architecture": "strict-execution",
         "assess_security": "strict-execution",
@@ -136,11 +138,11 @@ def test_server_registers_only_strict_catalogue_by_default(monkeypatch):
     monkeypatch.setattr(mcp_server, "FastMCP", FakeFastMCP)
     server = mcp_server.create_server()
     assert server.registered == [
-        "verify_code", "validate_architecture", "inspect_code", "analyze_codebase", "document_code",
+        "verify_code", "validate_architecture", "implement_code", "inspect_code", "analyze_codebase", "document_code",
         "submit_work_item",
         "get_work_item", "get_work_artifacts", "cancel_work_item",
         "start_agent_run", "get_agent_run", "resume_agent_run",
             "cancel_agent_run", "get_approval_request",
             "request_domain_promotion", "get_domain_promotion", "complete_domain_promotion",
             "complete_refactor_signing", "assess_security", "security_exploit", "apply_refactor", "verify_refactor", "verify_bisimulation",
-            "validate_domain", "generate_traceability_matrix", "inspect_evidence", "describe_capabilities", "inspect_project", "inspect_contract", "start_domain_session", "get_domain_session", "continue_domain_session", "finalize_domain_candidate"]
+            "validate_domain", "draft_canonical_contract", "generate_traceability_matrix", "inspect_evidence", "describe_capabilities", "inspect_project", "inspect_contract", "start_domain_session", "get_domain_session", "continue_domain_session", "finalize_domain_candidate"]

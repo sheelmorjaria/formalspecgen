@@ -47,7 +47,7 @@ def test_exact_registry_definitions_and_claim_boundaries():
     assert result["registry_sha256"] == hashlib.sha256(json.dumps(
         registry, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
     assert mcp_server.describe_capabilities("verify")["registry_sha256"] == result["registry_sha256"]
-    assert entries["implement_code"]["admission"] == "UNADMITTED"
+    assert entries["implement_code"]["admission"] == "PROFILE_AVAILABLE"
 
 
 def test_no_effects_or_workspace_instructions(tmp_path, monkeypatch):

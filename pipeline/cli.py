@@ -283,6 +283,29 @@ def command_draft(
     args: argparse.Namespace, ui: TerminalUI, store: SessionStore, state: dict[str, Any]
 ) -> int:
     requirement = args.requirement
+    if getattr(args, "generation_only", False):
+        from .reviewed_java_workflow import ReviewedJavaRequest, REVIEWED_JAVA_LIMITS, run_reviewed_java
+        from .workflow_contracts import WorkflowContext
+        try:
+            if args.lang != "java" or not args.canonical_domain or not args.no_clarify:
+                raise ValueError("generation-only requires --lang java --canonical-domain and --no-clarify")
+            if (args.model or args.fallback_provider or args.max_attempts is not None
+                    or args.resample_budget is not None or args.feedback_budget is not None):
+                raise ValueError("generation-only does not accept provider models or generation/repair budgets")
+            from .canonical_draft import _requested
+            request = ReviewedJavaRequest(
+                str(store.directory.parent / "domains" / "v2" / f"{_requested(args.canonical_domain)}.json"),
+                args.validation_evidence, args.domain_candidate, requirement=requirement, out_file=args.out_file)
+            context = WorkflowContext.for_cli(request.required_effects(),
+                output_root=Path(args.out or ".formalspecgen/mcp-output").absolute(), resource_budget=REVIEWED_JAVA_LIMITS)
+            result = run_reviewed_java(request, context)
+        except (OSError, ValueError, RuntimeError) as exc:
+            result = {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False, "message": str(exc)}
+        _write_json(result, args.json, ui.console)
+        return 0 if result.get("request_satisfied") else 2
+    if getattr(args, "domain_candidate", None) or getattr(args, "validation_evidence", None) or getattr(args, "json", None):
+        ui.console.print("[red]Captured V2 inputs require --generation-only[/red]")
+        return 2
     try:
         enriched = (
             ui.clarify(requirement, args.provider, args.model, state, store)
@@ -396,6 +419,29 @@ def _finish_language_draft(
 
 
 def command_implement(args: argparse.Namespace, ui: TerminalUI) -> int:
+    if getattr(args, "canonical_java", False):
+        from .reviewed_java_workflow import ReviewedJavaRequest, REVIEWED_JAVA_LIMITS, run_reviewed_java
+        from .workflow_contracts import WorkflowContext
+        try:
+            if (Path(args.stub).suffix != ".java" or args.assurance_level != "critical"
+                    or args.dependencies or args.method_proof_only or args.accept_pass
+                    or args.parallel_wrapper or args.clarifications or args.abstraction != "atomic_operations"
+                    or args.dma_profile or args.parallel_out or args.parallel_kernel != "process_chunk"
+                    or args.max_attempts != 5 or args.resample_budget != 1 or args.feedback_budget != 4):
+                raise ValueError("canonical Java supports the sequential critical one-candidate profile only")
+            request = ReviewedJavaRequest(args.v2_reviewed_domain, args.v2_validation_evidence,
+                args.domain_candidate, operation="implement", scaffold=args.stub,
+                candidate=args.candidate, provider=args.provider, model=args.model)
+            context = WorkflowContext.for_cli(request.required_effects(),
+                output_root=Path(args.out or ".formalspecgen/mcp-output").absolute(), resource_budget=REVIEWED_JAVA_LIMITS)
+            result = run_reviewed_java(request, context)
+        except (OSError, ValueError, RuntimeError) as exc:
+            result = {"status": "FAIL", "claim": "NO_PROOF", "request_satisfied": False, "message": str(exc)}
+        _write_json(result, args.json, ui.console)
+        return 0 if result.get("request_satisfied") else 2
+    if getattr(args, "domain_candidate", None) or getattr(args, "candidate", None):
+        ui.console.print("[red]Captured Java implementation inputs require --canonical-java[/red]")
+        return 2
     suffix = Path(args.stub).suffix.lower()
     if suffix not in {".java", ".jml", ".rs", ".c", ".cpp", ".cc", ".cxx"}:
         ui.console.print(
@@ -2527,6 +2573,10 @@ def build_parser(
     draft.add_argument("--max-attempts", type=int)
     draft.add_argument("--resample-budget", type=int)
     draft.add_argument("--feedback-budget", type=int)
+    draft.add_argument("--generation-only", action="store_true", help="capture reviewed V2 inputs and generate Java without execution")
+    draft.add_argument("--domain-candidate", help="original validation candidate bytes")
+    draft.add_argument("--validation-evidence", help="applicable V2 validation artifact")
+    draft.add_argument("--json", nargs="?", const="-", choices=["-"], help="structured stdout for --generation-only")
 
     implement = sub.add_parser(
         "implement",
@@ -2536,6 +2586,9 @@ def build_parser(
     implement.add_argument("stub")
     implement.add_argument("--out")
     implement.add_argument("--json")
+    implement.add_argument("--canonical-java", action="store_true", help="captured reviewed V2 Java profile; one candidate and strict ESC")
+    implement.add_argument("--domain-candidate", help="original validation candidate bytes")
+    implement.add_argument("--candidate", help="implementation source; omit for one bounded provider response")
     implement.add_argument("--max-attempts", type=int, default=5)
     implement.add_argument("--resample-budget", type=int, default=1)
     implement.add_argument("--feedback-budget", type=int, default=4)

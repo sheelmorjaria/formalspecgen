@@ -410,6 +410,7 @@ jobs:
           FORMALSPECGEN_REQUIRE_APPROVAL_ACCEPTANCE: "1"
           FORMALSPECGEN_PROMOTION_ACCEPTANCE_DIR: ${{ runner.temp }}/promotion-acceptance
           FORMALSPECGEN_DOMAIN_SESSION_ACCEPTANCE_DIR: ${{ runner.temp }}/domain-session-acceptance
+          FORMALSPECGEN_REQUIRE_REVIEWED_JAVA_ACCEPTANCE: "1"
           FORMALSPECGEN_REQUIRE_DOMAIN_VALIDATION_ACCEPTANCE: "1"
         run: |
           # Enter the delegated parent first. Moving between sibling cgroups
@@ -444,7 +445,13 @@ jobs:
           name: domain-promotion-acceptance-${{ github.sha }}
           path: ${{ runner.temp }}/promotion-acceptance/*.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 90
+      - name: Qualify reviewed V2 Java implementation handoff
+        run: >-
+          python -m scripts.qualify_reviewed_java
+          --evidence "$RUNNER_TEMP/domain-session-acceptance/session.json"
+          --output "$RUNNER_TEMP/domain-session-acceptance/reviewed-java-qualification.json"
+          --promotion-qualification "$RUNNER_TEMP/promotion-acceptance/qualification.json"
       - name: Upload resumable domain session observations
         if: always()
         uses: actions/upload-artifact@v4
@@ -452,7 +459,7 @@ jobs:
           name: domain-session-acceptance-${{ github.sha }}
           path: ${{ runner.temp }}/domain-session-acceptance/*.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 90
       - name: Upload actual TLC execution observations
         if: always()
         uses: actions/upload-artifact@v4

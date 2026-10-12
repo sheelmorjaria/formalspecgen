@@ -6,7 +6,7 @@ Do not edit it by hand.
 ## Inventory
 
 - Commands mapped: 44 / 44
-- Argument declarations mapped: 237 / 237
+- Argument declarations mapped: 244 / 244
 - Commands with at least one admitted invocation profile: 18 / 44
 - Complete command workflows: 0 / 44
 - Inventory drift: none
@@ -29,10 +29,10 @@ Do not edit it by hand.
 | `doctor` | `doctor_environment` | `direct` | `adapter_present_not_admitted` | `incomplete` | 4 |
 | `document-code` | `document_code` | `direct_or_task` | `admitted` | `incomplete` | 7 |
 | `domain` | `elicit_domain` | `resumable` | `session_adapter_v2_partial` | `incomplete` | 8 |
-| `draft` | `draft_contract` | `resumable` | `compatibility_alias_present_target_missing` | `incomplete` | 12 |
+| `draft` | `draft_contract` | `resumable` | `reviewed_java_profile_partial` | `incomplete` | 16 |
 | `evidence` | `inspect_evidence` | `direct` | `admitted` | `incomplete` | 7 |
 | `generate-traceability-matrix` | `generate_traceability_matrix` | `direct` | `admitted` | `incomplete` | 5 |
-| `implement` | `implement_code` | `direct_or_task` | `adapter_present_not_admitted` | `incomplete` | 20 |
+| `implement` | `implement_code` | `direct_or_task` | `reviewed_java_profile_partial` | `incomplete` | 23 |
 | `inspect` | `inspect_code` | `direct` | `admitted` | `incomplete` | 2 |
 | `macro-dictionary` | `macro_dictionary` | `direct_or_task` | `compatibility_alias_present_target_missing` | `incomplete` | 6 |
 | `manage-trust` | `manage_trust` | `read_or_human_approval` | `approval_coordinator_missing` | `incomplete` | 4 |
@@ -65,6 +65,14 @@ Do not edit it by hand.
 
 `domain`: Resumable V2 domain sessions available; legacy V1 scaffolding, force/replacement and terminal wizard semantics remain outside this profile. Full domain parity is partial.
 Coordinator stages: start: `start_domain_session`, inspect: `get_domain_session`, continue: `continue_domain_session`, finalize: `finalize_domain_candidate`.
+These stages implement one workflow; they do not increment whole-command completion.
+
+`draft`: Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped.
+Coordinator stages: generate: `draft_canonical_contract`, implement: `implement_code`.
+These stages implement one workflow; they do not increment whole-command completion.
+
+`implement`: Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped.
+Coordinator stages: generate: `draft_canonical_contract`, implement: `implement_code`.
 These stages implement one workflow; they do not increment whole-command completion.
 
 `promote-domain`: V2 coordinator available; legacy V1 remains operator-only. Full promote-domain parity is partial. CI qualification is reported separately for the tested V2 combinations.

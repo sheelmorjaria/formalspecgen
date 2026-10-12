@@ -158,6 +158,13 @@ new, unreviewed architecture and domain candidates. Its source manifest and arti
 provenance records, not a proof of repository behavior.
 V2 domain promotion now has a [protected approval coordinator](docs/DOMAIN_PROMOTION_APPROVAL.md):
 `request_domain_promotion`, `get_domain_promotion`, and `complete_domain_promotion`.
+
+The next scoped Java path connects that reviewed artifact to deterministic contract
+generation and isolated native ESC through `draft_canonical_contract` and
+`implement_code`. Generation executes no provider or verifier; implementation
+accepts an explicit candidate or one bounded provider response. See the
+[reviewed V2 Java guide](docs/REVIEWED_JAVA.md) for captured inputs, permissions,
+CLI equivalents and claim limits. Full `draft`/`implement` parity remains partial.
 The agent requests an exact action; an authenticated human decision and operator publisher
 control publication, replacement and signing. Legacy V1 remains operator-only.
 The registry retains a 60-tool catalogue

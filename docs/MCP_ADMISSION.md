@@ -1,5 +1,15 @@
 # Strict MCP admission guide
 
+## Sequential reviewed V2 Java
+
+`draft_canonical_contract` admits deterministic Java/JML generation with captured
+original candidate, reviewed domain and applicable validation evidence; it does
+not execute a provider or compiler. `implement_code` admits one explicit or
+bounded provider candidate, trusted-surface preservation, strict native ESC and
+new-file receipt publication. Native proof never becomes source/model refinement.
+Other languages, V1, repair loops and specialist options remain outside these
+profiles. See [the scoped workflow and qualification guide](REVIEWED_JAVA.md).
+
 ## Protected V2 promotion coordination
 
 `request_domain_promotion`, `get_domain_promotion`, and `complete_domain_promotion`

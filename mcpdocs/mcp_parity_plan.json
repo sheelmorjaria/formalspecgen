@@ -4,7 +4,7 @@
   "baseline_revision": "91c6790",
   "scope": "All built-in CLI commands plus every approved installed command plugin; recompute from target checkout before implementation.",
   "baseline_command_count": 44,
-  "baseline_argument_declaration_count": 237,
+  "baseline_argument_declaration_count": 244,
   "inventory_count_scope": "Current plan counts; field names retained for schema compatibility. Generated live inventory is authoritative.",
   "historical_baseline_counts": {"revision": "91c6790", "commands": 38, "argument_declarations": 205},
   "inventory_provenance": {
@@ -636,9 +636,61 @@
             "required": false
           },
           "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--generation-only"
+          ],
+          "proposed_mcp_field": "generation_only",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified",
+          "baseline_declaration": {
+            "default": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--domain-candidate"
+          ],
+          "proposed_mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--validation-evidence"
+          ],
+          "proposed_mcp_field": "validation_evidence",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--json"
+          ],
+          "proposed_mcp_field": "json",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified",
+          "baseline_declaration": {
+            "choices": [
+              "-"
+            ]
+          }
         }
       ],
-      "baseline_source": "pipeline/canonical_draft.py"
+      "baseline_source": "pipeline/canonical_draft.py",
+      "coordinator_scope": {
+        "kind": "reviewed-java",
+        "stages": {
+          "generate": "draft_canonical_contract",
+          "implement": "implement_code"
+        },
+        "description": "Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped."
+      }
     },
     {
       "cli_command": "implement",
@@ -1015,9 +1067,47 @@
             "required": false
           },
           "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--canonical-java"
+          ],
+          "proposed_mcp_field": "canonical_java",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified",
+          "baseline_declaration": {
+            "default": false
+          }
+        },
+        {
+          "cli_flags": [
+            "--domain-candidate"
+          ],
+          "proposed_mcp_field": "domain_candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified"
+        },
+        {
+          "cli_flags": [
+            "--candidate"
+          ],
+          "proposed_mcp_field": "candidate",
+          "disposition": "typed_parameter",
+          "requirement": "Supported only by the captured sequential reviewed V2 Java profile; reject unsupported combinations.",
+          "implementation_status": "target_not_verified"
         }
       ],
-      "baseline_source": "pipeline/orchestrator.py"
+      "baseline_source": "pipeline/orchestrator.py",
+      "coordinator_scope": {
+        "kind": "reviewed-java",
+        "stages": {
+          "generate": "draft_canonical_contract",
+          "implement": "implement_code"
+        },
+        "description": "Sequential atomic reviewed V2 Java generation and one-candidate native ESC; no source/model refinement. Legacy V1, generative draft clarification, other languages, repair loops, critical architecture orchestration and specialist options remain unmapped."
+      }
     },
     {
       "cli_command": "verify",
